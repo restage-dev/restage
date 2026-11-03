@@ -11,6 +11,7 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_core/restage_core.dart'
     show InstalledIconTable, RestageIconTable;
 
+import '../early/early_request.dart';
 import '../analytics/analytics_identity.dart';
 import '../analytics/root_analytics_context.dart';
 import '../commerce/commerce_store_adapter.dart' show CommerceStoreAdapter;
@@ -42,6 +43,7 @@ import '../measurement/restage_measurement.dart';
 import '../measurement/restage_privacy.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_delivery_evidence.dart';
+import '../delivery/delivery_trust.dart';
 import '../delivery/raced_surface_resolver.dart';
 import '../delivery/render_deadline.dart';
 import '../delivery/surface_artifact_store.dart';
@@ -210,7 +212,9 @@ abstract final class Restage {
   static int _configurationGeneration = 0;
   static int _eventAttributionGeneration = 0;
   static bool _measurementEnabled = true;
-  static Duration _renderDeadline = RenderDeadline.defaultDuration;
+  static Duration _firstLaunchWait = RenderDeadline.defaultFirstLaunchWait;
+  static Map<String, Duration> _firstLaunchWaits = const {};
+  static Duration _freshWindow = RenderDeadline.defaultFreshWindow;
   static MeasurementHostConstructionOwner? _measurementHostOwner;
   static SurfaceAssignmentCredentialStore? _assignmentCredentialStore;
   static final Set<MeasurementHostConstructionOwner>
@@ -297,17 +301,27 @@ abstract final class Restage {
   /// placement reports its declaration, whatever it shows; painted bounds come
   /// from mounts that painted, including compiled fallbacks.
   ///
+  /// [deliveryKeys] are the public keys delivered content must be signed with,
+  /// each `<organizationId>:<base64url key>` as `restage keys delivery` prints
+  /// them. Delivered content that is unsigned, signed by another key, or
+  /// authorized by the server before the newest content already shown never
+  /// renders; the saved copy or the compiled widget renders instead. List the
+  /// next key here before the server rotates to it.
+  ///
   /// [showSourceBadges] labels each mounted surface in debug builds with what
   /// it shows: `compiled` for content built into the app, or `delivered rN`
   /// for published revision N. Release builds ignore it.
   ///
-  /// [surfaces] prefetches generated references after the first frame, without
-  /// creating experiment assignments. Previously stored paywalls and listed
-  /// surfaces are also refreshed. [renderDeadline] (default 300 ms) limits a
-  /// mount's wait for fresh content when it has a fallback. At the deadline,
-  /// saved content that is ready and still valid, or the compiled widget,
-  /// renders.
-  /// A direct mount with neither can keep waiting for the response.
+  /// [surfaces] adds generated placements to the startup request, sent at
+  /// startup; that request can assign an experiment arm. Other listed
+  /// references are fetched after the first frame without an assignment.
+  /// Previously stored paywalls and listed surfaces are also refreshed. A
+  /// placement with nothing saved shows nothing for up to [firstLaunchWait]
+  /// (default 1 s; [firstLaunchWaits] overrides it per placement id) while
+  /// delivered content arrives, then renders its compiled widget. A placement
+  /// with saved content waits up to [freshWindow] for a fresher version, then
+  /// renders the saved one. A direct mount with no compiled widget can keep
+  /// waiting for the response.
   ///
   /// Hosted refresh with [baseUrl] connects to the live edge the server
   /// advertises; [liveRefreshEdgeUrl] overrides it. An explicit
@@ -363,9 +377,12 @@ abstract final class Restage {
     bool governedMeasurementTransportEnabled = false,
     RestageGovernedMeasurementTransport? governedMeasurementTransport,
     bool deliveryReceiptsEnabled = true,
-    Duration renderDeadline = const Duration(milliseconds: 300),
+    Duration firstLaunchWait = RenderDeadline.defaultFirstLaunchWait,
+    Map<String, Duration> firstLaunchWaits = const {},
+    Duration freshWindow = RenderDeadline.defaultFreshWindow,
     List<RestageSurfaceRef> surfaces = const <RestageSurfaceRef>[],
     bool showSourceBadges = false,
+    List<String> deliveryKeys = const <String>[],
   }) {
     configureWithInstalledCatalog(
       apiKey: apiKey,
@@ -387,9 +404,12 @@ abstract final class Restage {
       governedMeasurementTransportEnabled: governedMeasurementTransportEnabled,
       governedMeasurementTransport: governedMeasurementTransport,
       deliveryReceiptsEnabled: deliveryReceiptsEnabled,
-      renderDeadline: renderDeadline,
+      firstLaunchWait: firstLaunchWait,
+      firstLaunchWaits: firstLaunchWaits,
+      freshWindow: freshWindow,
       surfaces: surfaces,
       showSourceBadges: showSourceBadges,
+      deliveryKeys: deliveryKeys,
     );
     registerWidgets?.call(
       includeMaterial: includeMaterial,
@@ -450,10 +470,21 @@ abstract final class Restage {
     bool governedMeasurementTransportEnabled = false,
     RestageGovernedMeasurementTransport? governedMeasurementTransport,
     bool deliveryReceiptsEnabled = true,
-    Duration renderDeadline = const Duration(milliseconds: 300),
+    Duration firstLaunchWait = RenderDeadline.defaultFirstLaunchWait,
+    Map<String, Duration> firstLaunchWaits = const {},
+    Duration freshWindow = RenderDeadline.defaultFreshWindow,
     List<RestageSurfaceRef> surfaces = const <RestageSurfaceRef>[],
     bool showSourceBadges = false,
+    List<String> deliveryKeys = const <String>[],
   }) {
+    final List<DeliveryPublicKey> parsedDeliveryKeys;
+    try {
+      parsedDeliveryKeys = [
+        for (final key in deliveryKeys) DeliveryPublicKey.parse(key.trim()),
+      ];
+    } on FormatException catch (error) {
+      throw ArgumentError.value(deliveryKeys, 'deliveryKeys', error.message);
+    }
     if (governedMeasurementTransportEnabled &&
         governedMeasurementTransport != null) {
       throw ArgumentError(
@@ -466,19 +497,24 @@ abstract final class Restage {
       apiKey = null;
       baseUrl = null;
     }
+    if (kDebugMode && apiKey != null && baseUrl != null) {
+      unawaited(EarlyRequest.debugCheckConfiguration(baseUrl, apiKey));
+    }
     _configurationGeneration += 1;
+    DeliveryTrust.configure(parsedDeliveryKeys);
     _environment = environment;
     _placementPaywallsEnabled = resolver == null;
     _placementScreensEnabled = surfaceScreenResolver == null;
     _placementFlowsEnabled = flowResolver == null;
     _measurementEnabled = measurementEnabled;
-    _renderDeadline = renderDeadline;
+    _firstLaunchWait = firstLaunchWait;
+    _firstLaunchWaits = Map.unmodifiable(firstLaunchWaits);
+    _freshWindow = freshWindow;
     _showSourceBadges = showSourceBadges;
     _onSurfaceResolution = onSurfaceResolution;
     _apiKey = apiKey;
     _baseUrl = baseUrl;
-    configureSurfaceDeliveryObservations(
-        channel: channel, renderDeadline: renderDeadline);
+    configureSurfaceDeliveryObservations(channel: channel);
     SurfaceDeliveryReceiptUploader.instance.configure(
       baseUrl: baseUrl,
       apiKey: apiKey,
@@ -622,23 +658,12 @@ abstract final class Restage {
       List<PlacementDeclaration> declared,
       Future<List<PlacementDeclaration>> knownPlacements,
       int generation) async {
-    final startup = placements.beginStartup();
+    final startup =
+        placements.beginStartup([for (final d in declared) d.mount]);
     try {
       // After configure returns, so the batch names the installed catalog.
       await Future<void>.value();
-      // A relaunch that holds every declared mount's decision paints from
-      // them, so its batch waits for the first frame.
-      if (placements.holdsDecisionsFor([for (final d in declared) d.mount])) {
-        try {
-          // A hidden app schedules no frame, so its batch goes at once.
-          final binding = SchedulerBinding.instance;
-          if (binding.framesEnabled) await binding.endOfFrame;
-        } on Object {
-          // No binding yet: nothing to render, so nothing to stay off.
-        }
-        if (generation != _configurationGeneration) return;
-      }
-      await placements.prefetch(declared, inMemory: true);
+      await placements.prefetch(declared, assigned: true, publishAnswers: true);
     } on Object {
       // A refused startup batch leaves each mount's original available.
     } finally {
@@ -698,6 +723,12 @@ abstract final class Restage {
         await configured.future;
         return remembered;
       }()));
+      // Mounts wait for the startup batch from here on, even before it is built.
+      // Without a decode: the definitions are only counted here.
+      final gate = _buildPlacements.isEmpty &&
+              !surfaces.any((ref) => ref is GeneratedPlacementDefinition)
+          ? null
+          : placements.expectStartup();
       unawaited(() async {
         try {
           await decoding;
@@ -721,7 +752,10 @@ abstract final class Restage {
         }
         await _prefetchPlacements(
             placements, configuredDeclarations, known, generation);
-      }());
+      }()
+          .whenComplete(() {
+        if (gate != null && !gate.isCompleted) gate.complete();
+      }));
     }
     final scope = SurfaceStoreKey.scopeFor(
       apiKey: apiKey,
@@ -1158,11 +1192,34 @@ abstract final class Restage {
     final identityReset = identity.reset();
     notifyRestageCommerceIdentityChanged();
     SurfaceCanonicalCarrierProvider.clearHeldAssignments();
-    unawaited(SurfaceAssignmentPersistence.forget(
+    final forgotten = SurfaceAssignmentPersistence.forget(
       afterIdentityReset: identityReset,
-    ));
+    );
+    unawaited(forgotten);
+    unawaited(_renewPlatformIdentity(identity, forgotten));
     RootAnalyticsRuntime.retireAll();
     FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
+  }
+
+  // The platform fills its early request from its own identity, so a reset
+  // reaches it, and its copy of the next launch's request is renewed.
+  static Future<void> _renewPlatformIdentity(
+      AnalyticsIdentity identity, Future<void> forgotten) async {
+    try {
+      await forgotten;
+      final generation = identity.generation;
+      final metering = await SurfaceMeteringKeyProvider.currentKey();
+      final anonymous = await identity.anonymousId();
+      if (metering == null ||
+          identity.generation != generation ||
+          !await EarlyRequest.setIdentity(
+              meteringKey: metering, analyticsAnonymousId: anonymous)) {
+        return;
+      }
+      await _placementRegistry?.rememberAfterReset();
+    } on Object {
+      // The next launch's early request then differs and Dart sends it.
+    }
   }
 
   /// Registers app-defined [widgets] under [library] before surfaces mount.
@@ -1440,9 +1497,16 @@ abstract final class Restage {
   @internal
   static bool get isMeasurementEnabled => _measurementEnabled;
 
-  /// How long a mount waits before rendering local content.
+  /// How long a placement with nothing saved waits for delivered content
+  /// before it renders its original.
   @internal
-  static Duration get renderDeadline => _renderDeadline;
+  static Duration firstLaunchWaitFor(String placementId) =>
+      _firstLaunchWaits[placementId] ?? _firstLaunchWait;
+
+  /// How long a placement with saved content waits for a fresher version
+  /// before it renders the saved one.
+  @internal
+  static Duration get freshWindow => _freshWindow;
 
   static RestageRpcClient? _requireRpcClient() {
     return _rpcClient ??= _buildRpcClient();
@@ -1573,7 +1637,10 @@ abstract final class Restage {
     _defaultFlowResolver = const AssetFlowResolver();
     _defaultSurfaceScreenResolver = const AssetSurfaceScreenResolver();
     _measurementEnabled = true;
-    _renderDeadline = RenderDeadline.defaultDuration;
+    _firstLaunchWait = RenderDeadline.defaultFirstLaunchWait;
+    _firstLaunchWaits = const {};
+    _freshWindow = RenderDeadline.defaultFreshWindow;
+    _lastBackgroundRefresh = null;
     _showSourceBadges = false;
     unawaited(clearSurfaceArtifactStores());
     _liveRefresh = const {};
@@ -1623,6 +1690,22 @@ abstract final class Restage {
     ]);
   }
 
+  static DateTime? _lastBackgroundRefresh;
+
+  // A paused app refreshes what it has saved, at most once a minute, so the
+  // next launch rarely starts from a stale version.
+  static void _refreshSavedInBackground() {
+    final registry = _placementRegistry;
+    if (registry == null) return;
+    final now = DateTime.now();
+    final last = _lastBackgroundRefresh;
+    if (last != null && now.difference(last) < const Duration(minutes: 1)) {
+      return;
+    }
+    _lastBackgroundRefresh = now;
+    unawaited(registry.refreshKnown().catchError((Object _) {}));
+  }
+
   static void _handleLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
@@ -1641,6 +1724,7 @@ abstract final class Restage {
         if (state == AppLifecycleState.hidden ||
             state == AppLifecycleState.paused) {
           SurfaceRefreshRegistry.instance.onAppBackgrounded();
+          _refreshSavedInBackground();
         }
     }
   }

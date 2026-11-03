@@ -4,6 +4,8 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show kMaximumPortableJsonInteger;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'native_facts.dart';
+
 /// Persists the first SDK-observed launch, independently of user identity.
 /// Root-isolate stores sharing a preferences instance share initialization.
 final class FirstLaunchStore {
@@ -42,8 +44,14 @@ final class FirstLaunchStore {
       final existing = _initializations[preferences];
       if (existing != null) return await existing;
 
+      final native = (NativeFacts.available
+          ? await NativeFacts.fact('firstLaunchMicros')
+          : null);
+      final origin = native is int && native > 0
+          ? DateTime.fromMicrosecondsSinceEpoch(native, isUtc: true)
+          : nowUtc;
       final initialization =
-          _readOrCreate(preferences, nowUtc).whenComplete(() {
+          _readOrCreate(preferences, origin).whenComplete(() {
         _initializations[preferences] = null;
       });
       _initializations[preferences] = initialization;

@@ -9,7 +9,6 @@ import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/delivery/surface_artifact_store.dart';
 import 'package:restage/src/delivery/placement_decision_store.dart';
-import 'package:restage/src/delivery/raced_surface_resolver.dart';
 import 'package:restage/src/measurement/placement_mount_attribution.dart';
 import 'package:restage/src/resolver/placement_mount_resolver.dart';
 import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
@@ -67,8 +66,8 @@ void main() {
               artifactBytes: Uint8List(0)),
           decision: decision
         ));
-    await registry.decisions.removeAccepted(key, decision);
-    // An eviction removes the row it matches and keeps the read ahead.
+    // A removal keeps the read ahead.
+    await registry.decisions.remove(key);
     expect(registry.decisions.saved, same(saved));
     expect((await saved.rows).containsKey(key), isFalse);
   });
@@ -356,6 +355,85 @@ void main() {
     expect(returning!.request.heldAssignments, isEmpty);
   });
 
+  test(
+      'a stale decision is kept, waits for its answer, and a new answer replaces it',
+      () async {
+    final fixture = readPlacementDeliveryFixture();
+    final mount = fixture.request.mounts.first;
+    final registry = _registry((outgoing) async {
+      final request = sentPlacementRequest(outgoing.bodyBytes);
+      return http.Response.bytes(
+          placementFixtureResponse(request).canonicalBytes, 200);
+    })
+      ..warmSaved();
+    await registry.decisions.saved!.rows;
+    final resolver = _resolver(registry, mount);
+    expect(await resolver.fresh(resolver.storeKey, sendAssignmentKey: false),
+        isNotNull);
+    await PlacementDecisionStore.writesSettled(sharedSurfaceArtifactStore);
+    expect(resolver.heldNow(), isNotNull);
+    // The service signals a change: the copy stays and no longer paints at
+    // once; it still answers a mount whose new answer is late.
+    resolver.currentAdmission!.markStale();
+    expect(resolver.heldNow(), isNull);
+    expect(await resolver.bestLocal(resolver.storeKey), isNotNull);
+    final keys = await sharedSurfaceArtifactStore.keys();
+    expect(keys.where((key) => key.surfaceType == 'placementDecision'),
+        hasLength(1));
+    // The next accepted answer replaces it.
+    expect(await resolver.fresh(resolver.storeKey, sendAssignmentKey: false),
+        isNotNull);
+    await PlacementDecisionStore.writesSettled(sharedSurfaceArtifactStore);
+    expect(resolver.heldNow(), isNotNull);
+  });
+
+  for (final (reason, removed) in [
+    (PlacementBatchRefusalReasonV1.unavailable, true),
+    (PlacementBatchRefusalReasonV1.invalidAuthority, false),
+  ]) {
+    test(
+        'a saved decision is ${removed ? 'removed' : 'kept'} when the service '
+        'answers ${reason.name}', () async {
+      final fixture = readPlacementDeliveryFixture();
+      final mount = fixture.request.mounts.first;
+      var unavailable = false;
+      final registry = _registry((outgoing) async {
+        final request = sentPlacementRequest(outgoing.bodyBytes);
+        final available = placementFixtureResponse(request);
+        if (!unavailable)
+          return http.Response.bytes(available.canonicalBytes, 200);
+        return http.Response.bytes(
+            PlacementBatchResolvedV1(
+              request: request,
+              expectedTarget: fixture.target,
+              decisions: [
+                for (final row in available.decisions)
+                  PlacementBatchEntryV1.useFallback(row.descriptor, reason, [])
+              ],
+            ).canonicalBytes,
+            200);
+      })
+        ..warmSaved();
+      await registry.decisions.saved!.rows;
+      final resolver = _resolver(registry, mount);
+      expect(await resolver.fresh(resolver.storeKey, sendAssignmentKey: false),
+          isNotNull);
+      await PlacementDecisionStore.writesSettled(sharedSurfaceArtifactStore);
+      expect(resolver.heldNow(), isNotNull);
+      unavailable = true;
+      final context =
+          await registry.capture(mounts: [mount], sendAssignmentKey: false);
+      await registry.fetch(context!);
+      await PlacementDecisionStore.writesSettled(sharedSurfaceArtifactStore);
+      if (removed) {
+        expect(resolver.heldNow(), isNull);
+        expect(await resolver.bestLocal(resolver.storeKey), isNull);
+      } else {
+        expect(await resolver.bestLocal(resolver.storeKey), isNotNull);
+      }
+    });
+  }
+
   test('a withdrawn assignment is not painted from memory', () async {
     final fixture = readPlacementDeliveryFixture();
     final mount = fixture.request.mounts.first;
@@ -641,35 +719,6 @@ void main() {
     expect((limited as PlacementRefreshRateLimitedV1).retryAfter,
         const Duration(seconds: 7));
     expect(requests, hasLength(3));
-  });
-
-  test('old accepted invalidation cannot remove a newer queued decision',
-      () async {
-    final fixture = readPlacementDeliveryFixture();
-    final old = fixture.response.decisions.first as PlacementBatchAvailableV1;
-    final newerResponse = placementFixtureResponse(fixture.request,
-        family: DeliveryFamilySelectorV1.screenContract(contractVersion: 8));
-    final newer = newerResponse.decisions.first as PlacementBatchAvailableV1;
-    final store = _PausedDecisionReadStore();
-    final decisions = PlacementDecisionStore(scope: 'test_scope', store: store);
-    final key = decisions.decisionKey(
-        fixture.request, fixture.request.mounts.first,
-        target: fixture.target);
-    StoredSurface stored(PlacementBatchAvailableV1 decision) => StoredSurface(
-        descriptorJson: decision.canonicalBytes,
-        artifactBytes: Uint8List(0),
-        sidecar: const {'assignmentKey': 'original_credential'});
-    await store.write(key, stored(old));
-    final invalidating = decisions.removeAccepted(key, old);
-    await store.decisionReadStarted.future;
-    final writing = persistAcceptedDelivery(store, key, stored(newer));
-    store.release.complete();
-    await Future.wait([invalidating, writing]);
-    expect((await store.read(key))!.descriptorJson, newer.canonicalBytes);
-    await decisions.removeAccepted(key, old);
-    expect((await store.read(key))!.descriptorJson, newer.canonicalBytes);
-    await decisions.removeAccepted(key, newer);
-    expect(await store.read(key), isNull);
   });
 
   test('corrupt or missing stored closure refuses without GET', () async {

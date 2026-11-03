@@ -22,8 +22,6 @@ const int _maximumRelatedValues = 256;
 const int _maximumPointSubtreeTreatmentLoci = 1024;
 const int _maximumTextBytes = 4096;
 const int _maximumAudienceOptions = 100;
-const int _maximumReadinessAttributes = 256;
-const int _maximumRegisteredBuilds = 256;
 
 abstract base class _ExperimentAuthoringValue extends CanonicalValue
     implements ImmutableCanonicalDocument {
@@ -55,7 +53,6 @@ enum ExperimentAuthoringOperationV1 {
   readExperiment('readExperiment'),
   readExperimentResults('readExperimentResults'),
   setExperimentArchived('setExperimentArchived'),
-  registerBuildCapabilities('registerBuildCapabilities'),
   readExperimentReadiness('readExperimentReadiness'),
   readDeliveryOptions('readDeliveryOptions');
 
@@ -79,8 +76,7 @@ enum ExperimentAuthoringOperationV1 {
         pauseExperiment ||
         resumeExperiment ||
         concludeExperiment ||
-        setExperimentArchived ||
-        registerBuildCapabilities =>
+        setExperimentArchived =>
           true,
         discoverTargetsAndCapabilities ||
         readDraft ||
@@ -1618,7 +1614,7 @@ final class ExperimentCanonicalAuthorityDefaultSourceV1
   final CanonicalDigest semanticDigest;
 }
 
-/// Exact catalog candidate that supplied a resolved default candidate.
+/// Catalog candidate that supplied a resolved default candidate.
 final class ExperimentPublicationCandidateDefaultSourceV1
     extends ExperimentResolvedDefaultSourceV1 {
   ExperimentPublicationCandidateDefaultSourceV1._(
@@ -1639,14 +1635,15 @@ final class ExperimentPublicationCandidateDefaultSourceV1
     _requireKind(reader, 'publicationCandidate');
     return ExperimentPublicationCandidateDefaultSourceV1._(
       json,
-      ExperimentExactCandidateV1.fromJson(
+      ExperimentAuthoringCandidateV1.fromJson(
         reader.object('candidate'),
         path: '$path.candidate',
       ),
     );
   }
 
-  final ExperimentExactCandidateV1 candidate;
+  /// The candidate the default resolved to: an exact version or a live surface.
+  final ExperimentAuthoringCandidateV1 candidate;
 }
 
 /// Installed projection authority that supplied a resolved default.
@@ -1773,7 +1770,7 @@ void _requireResolvedDefaultSourceBinding({
   required String path,
 }) {
   final matches = switch (resolvedExactRef) {
-    final ExperimentExactCandidateV1 reference =>
+    final ExperimentAuthoringCandidateV1 reference =>
       source is ExperimentPublicationCandidateDefaultSourceV1 &&
           reference == source.candidate,
     final ExperimentExactInferenceAdapterReferenceV1 reference =>
@@ -1807,9 +1804,13 @@ void _requireResolvedDefaultSourceBinding({
               reference.projectionRevisionId.value &&
           source.canonicalDigest == reference.canonicalDigest &&
           source.semanticDigest == reference.semanticDigest,
-    final ExperimentExactSurfaceReferenceV1 reference =>
-      source is ExperimentPublicationCandidateDefaultSourceV1 &&
-          reference == source.candidate.surfaceReference,
+    final ExperimentExactSurfaceReferenceV1 reference => switch (source) {
+        ExperimentPublicationCandidateDefaultSourceV1(
+          :final ExperimentExactCandidateV1 candidate,
+        ) =>
+          reference == candidate.surfaceReference,
+        _ => false,
+      },
     _ => false,
   };
   if (!matches) {
@@ -7211,26 +7212,6 @@ final class ExperimentListViewV1 extends _ExperimentAuthoringValue
   final String? nextPageCursor;
 }
 
-/// How one attribute an audience compares reaches the assignment request.
-enum ExperimentAttributeSupplyV1 {
-  /// Every registered build of this target supplies it.
-  registered('registered'),
-
-  /// The SDK can supply it, but some registered build does not declare it.
-  missingRegistration('missingRegistration'),
-
-  /// The app supplies it at run time, so no registration can cover it.
-  appDeclaredValue('appDeclaredValue');
-
-  const ExperimentAttributeSupplyV1(this.wireName);
-
-  /// Stable wire spelling.
-  final String wireName;
-
-  static ExperimentAttributeSupplyV1 _fromWire(String value, String path) =>
-      _enumFromWire(values, value, path, (entry) => entry.wireName);
-}
-
 /// Exact assignment context-schema revision an operation names.
 final class ExperimentExactContextSchemaReferenceV1
     extends _ExperimentAuthoringValue {
@@ -7274,113 +7255,6 @@ final class ExperimentExactContextSchemaReferenceV1
   final AuthorityRevisionId contextSchemaId;
   final AuthorityRevisionId revisionId;
   final CanonicalDigest semanticDigest;
-}
-
-/// What one installed app build was registered as able to supply.
-final class ExperimentBuildCapabilityViewV1 extends _ExperimentAuthoringValue
-    implements ExperimentTargetBoundViewV1 {
-  ExperimentBuildCapabilityViewV1._(
-    Map<String, Object?> json, {
-    required this.target,
-    required this.platform,
-    required this.appBuildOrdinal,
-    required this.contextSchemaRef,
-    required this.providedAttributeIds,
-    required this.storedNow,
-  }) : super(json);
-
-  /// Decodes a strict registration result.
-  factory ExperimentBuildCapabilityViewV1.fromJson(Map<String, Object?> json) {
-    const path = 'experimentBuildCapabilityView';
-    final reader = CanonicalObjectReader(
-      json,
-      allowedKeys: const {
-        'appBuildOrdinal',
-        'contextSchemaRef',
-        'kind',
-        'platform',
-        'providedAttributeIds',
-        'schemaVersion',
-        'storedNow',
-        'target',
-      },
-      requiredKeys: const {
-        'appBuildOrdinal',
-        'contextSchemaRef',
-        'kind',
-        'platform',
-        'providedAttributeIds',
-        'schemaVersion',
-        'storedNow',
-        'target',
-      },
-      path: path,
-    );
-    validateCanonicalDocument(
-      reader,
-      expectedKind: 'experimentBuildCapabilityView',
-    );
-    final providedAttributeIds = [
-      for (final (index, value) in _stringList(
-        reader.list('providedAttributeIds'),
-        path: '$path.providedAttributeIds',
-        maximumLength: _maximumReadinessAttributes,
-      ).indexed)
-        _identifier(
-          value,
-          '$path.providedAttributeIds[$index]',
-          ExperimentAssignmentAttributeIdV1.new,
-        ),
-    ];
-    // A descriptor lists what it provides in canonical order, so a reader can
-    // compare two registrations without sorting either.
-    _requireCanonicalOrder(
-      providedAttributeIds.map((value) => value.value),
-      '$path.providedAttributeIds',
-    );
-    if (providedAttributeIds.isEmpty) {
-      throw const CanonicalFormatException(
-        'experimentBuildCapabilityView.providedAttributeIds must not be empty',
-      );
-    }
-    return ExperimentBuildCapabilityViewV1._(
-      json,
-      target: TargetCoordinate.fromJson(reader.object('target')),
-      platform: _identifier(
-        reader.string('platform'),
-        '$path.platform',
-        ExperimentBuildPlatformIdV1.new,
-      ),
-      appBuildOrdinal: _nonNegativeInteger(
-        reader.integer('appBuildOrdinal'),
-        '$path.appBuildOrdinal',
-      ),
-      contextSchemaRef: ExperimentExactContextSchemaReferenceV1.fromJson(
-        reader.object('contextSchemaRef'),
-        path: '$path.contextSchemaRef',
-      ),
-      providedAttributeIds: providedAttributeIds,
-      storedNow: reader.boolean('storedNow'),
-    );
-  }
-
-  @override
-  final TargetCoordinate target;
-
-  /// Platform this registration was decided for.
-  final ExperimentBuildPlatformIdV1 platform;
-
-  /// Installed app build the registration describes.
-  final int appBuildOrdinal;
-
-  /// Context schema the registration was made against.
-  final ExperimentExactContextSchemaReferenceV1 contextSchemaRef;
-
-  /// Attributes this build supplies, in canonical order.
-  final List<ExperimentAssignmentAttributeIdV1> providedAttributeIds;
-
-  /// Whether this call stored the registration rather than finding it stored.
-  final bool storedNow;
 }
 
 /// One audience an experiment at this target may be assigned by.
@@ -7452,142 +7326,6 @@ final class ExperimentAudienceOptionV1 extends _ExperimentAuthoringValue {
   final String? description;
 }
 
-/// Whether one attribute an audience compares can reach the request.
-final class ExperimentAttributeReadinessV1 extends _ExperimentAuthoringValue {
-  ExperimentAttributeReadinessV1._(
-    Map<String, Object?> json, {
-    required this.assignmentAttributeId,
-    required this.supply,
-    required this.providingBuildCount,
-  }) : super(json);
-
-  /// Decodes one strict attribute readiness row.
-  factory ExperimentAttributeReadinessV1.fromJson(
-    Map<String, Object?> json, {
-    required String path,
-  }) {
-    final reader = CanonicalObjectReader(
-      json,
-      allowedKeys: const {
-        'assignmentAttributeId',
-        'kind',
-        'providingBuildCount',
-        'supply',
-      },
-      requiredKeys: const {
-        'assignmentAttributeId',
-        'kind',
-        'providingBuildCount',
-        'supply',
-      },
-      path: path,
-    );
-    _requireKind(reader, 'experimentAttributeReadiness');
-    final supply = ExperimentAttributeSupplyV1._fromWire(
-      reader.string('supply'),
-      '$path.supply',
-    );
-    final providingBuildCount = _nonNegativeInteger(
-      reader.integer('providingBuildCount'),
-      '$path.providingBuildCount',
-    );
-    if ((supply == ExperimentAttributeSupplyV1.registered &&
-            providingBuildCount == 0) ||
-        (supply == ExperimentAttributeSupplyV1.appDeclaredValue &&
-            providingBuildCount != 0)) {
-      throw CanonicalFormatException(
-        '$path.providingBuildCount disagrees with its supply',
-      );
-    }
-    return ExperimentAttributeReadinessV1._(
-      json,
-      assignmentAttributeId: _identifier(
-        reader.string('assignmentAttributeId'),
-        '$path.assignmentAttributeId',
-        ExperimentAssignmentAttributeIdV1.new,
-      ),
-      supply: supply,
-      providingBuildCount: providingBuildCount,
-    );
-  }
-
-  /// The attribute the audience compares.
-  final ExperimentAssignmentAttributeIdV1 assignmentAttributeId;
-
-  /// How this attribute reaches the assignment request.
-  final ExperimentAttributeSupplyV1 supply;
-
-  /// Registered builds declaring that they supply it.
-  final int providingBuildCount;
-}
-
-/// One installed build registered against the audience's context schema.
-final class ExperimentRegisteredBuildV1 extends _ExperimentAuthoringValue {
-  ExperimentRegisteredBuildV1._(
-    Map<String, Object?> json, {
-    required this.platform,
-    required this.appBuildOrdinal,
-    required this.providedAttributeIds,
-  }) : super(json);
-
-  /// Decodes one strict registered build row.
-  factory ExperimentRegisteredBuildV1.fromJson(
-    Map<String, Object?> json, {
-    required String path,
-  }) {
-    final reader = CanonicalObjectReader(
-      json,
-      allowedKeys: const {
-        'appBuildOrdinal',
-        'kind',
-        'platform',
-        'providedAttributeIds',
-      },
-      requiredKeys: const {
-        'appBuildOrdinal',
-        'kind',
-        'platform',
-        'providedAttributeIds',
-      },
-      path: path,
-    );
-    _requireKind(reader, 'experimentRegisteredBuild');
-    return ExperimentRegisteredBuildV1._(
-      json,
-      platform: _identifier(
-        reader.string('platform'),
-        '$path.platform',
-        ExperimentBuildPlatformIdV1.new,
-      ),
-      appBuildOrdinal: _nonNegativeInteger(
-        reader.integer('appBuildOrdinal'),
-        '$path.appBuildOrdinal',
-      ),
-      providedAttributeIds: [
-        for (final (index, value) in _stringList(
-          reader.list('providedAttributeIds'),
-          path: '$path.providedAttributeIds',
-          maximumLength: _maximumReadinessAttributes,
-        ).indexed)
-          _identifier(
-            value,
-            '$path.providedAttributeIds[$index]',
-            ExperimentAssignmentAttributeIdV1.new,
-          ),
-      ],
-    );
-  }
-
-  /// Platform the build was registered for.
-  final ExperimentBuildPlatformIdV1 platform;
-
-  /// The installed build ordinal.
-  final int appBuildOrdinal;
-
-  /// Attributes this build supplies.
-  final List<ExperimentAssignmentAttributeIdV1> providedAttributeIds;
-}
-
 /// Whether one named audience can be activated at this target.
 final class ExperimentAudienceReadinessV1 extends _ExperimentAuthoringValue {
   ExperimentAudienceReadinessV1._(
@@ -7595,8 +7333,7 @@ final class ExperimentAudienceReadinessV1 extends _ExperimentAuthoringValue {
     required this.reference,
     required this.contextSchemaRef,
     required this.activationBlocked,
-    required this.attributes,
-    required this.registeredBuilds,
+    required this.floors,
   }) : super(json);
 
   /// Decodes one strict readiness assessment.
@@ -7608,19 +7345,17 @@ final class ExperimentAudienceReadinessV1 extends _ExperimentAuthoringValue {
       json,
       allowedKeys: const {
         'activationBlocked',
-        'attributes',
         'contextSchemaRef',
+        'floors',
         'kind',
         'reference',
-        'registeredBuilds',
       },
       requiredKeys: const {
         'activationBlocked',
-        'attributes',
         'contextSchemaRef',
+        'floors',
         'kind',
         'reference',
-        'registeredBuilds',
       },
       path: path,
     );
@@ -7637,45 +7372,26 @@ final class ExperimentAudienceReadinessV1 extends _ExperimentAuthoringValue {
           '$path.contextSchemaRef must be an object or null',
         ),
     };
-    final attributes = _objectList(
-      reader.list('attributes'),
-      path: '$path.attributes',
-      maximumLength: _maximumReadinessAttributes,
-      decode: (value, path) =>
-          ExperimentAttributeReadinessV1.fromJson(value, path: path),
-    );
-    _requireUnique(
-      attributes.map((entry) => entry.assignmentAttributeId.value),
-      '$path.attributes.assignmentAttributeId',
-    );
-    final registeredBuilds = _objectList(
-      reader.list('registeredBuilds'),
-      path: '$path.registeredBuilds',
-      maximumLength: _maximumRegisteredBuilds,
-      decode: (value, path) =>
-          ExperimentRegisteredBuildV1.fromJson(value, path: path),
-    );
-    _requireUnique(
-      registeredBuilds.map(
-        (entry) => '${entry.platform.value}:${entry.appBuildOrdinal}',
-      ),
-      '$path.registeredBuilds',
-    );
-    for (final attribute in attributes) {
-      if (attribute.providingBuildCount > registeredBuilds.length ||
-          (attribute.supply == ExperimentAttributeSupplyV1.registered &&
-              attribute.providingBuildCount != registeredBuilds.length)) {
-        throw CanonicalFormatException(
-          '$path.attributes counts builds this readiness does not report',
-        );
-      }
-    }
-    // An audience that compares nothing the SDK supplies needs no
-    // registration, so it can never be the reason activation is blocked.
-    if (contextSchemaRef == null &&
-        (attributes.isNotEmpty || registeredBuilds.isNotEmpty)) {
+    final floors = <String, int>{
+      for (final MapEntry(:key, :value) in reader.object('floors').entries)
+        _identifier(key, '$path.floors', ExperimentBuildPlatformIdV1.new).value:
+            switch (value) {
+          final int level => _positiveInteger(level, '$path.floors.$key'),
+          _ => throw CanonicalFormatException(
+              '$path.floors.$key must be an integer',
+            ),
+        },
+    };
+    final activationBlocked = reader.boolean('activationBlocked');
+    // Without a schema every request is judgeable, so nothing has a floor.
+    if (contextSchemaRef == null && (floors.isNotEmpty || activationBlocked)) {
       throw CanonicalFormatException(
-        '$path names no context schema but reports registration',
+        '$path names no context schema but reports floors',
+      );
+    }
+    if (contextSchemaRef != null && activationBlocked != floors.isEmpty) {
+      throw CanonicalFormatException(
+        '$path.activationBlocked disagrees with its floors',
       );
     }
     return ExperimentAudienceReadinessV1._(
@@ -7685,9 +7401,8 @@ final class ExperimentAudienceReadinessV1 extends _ExperimentAuthoringValue {
         path: '$path.reference',
       ),
       contextSchemaRef: contextSchemaRef,
-      activationBlocked: reader.boolean('activationBlocked'),
-      attributes: attributes,
-      registeredBuilds: registeredBuilds,
+      activationBlocked: activationBlocked,
+      floors: Map.unmodifiable(floors),
     );
   }
 
@@ -7700,29 +7415,10 @@ final class ExperimentAudienceReadinessV1 extends _ExperimentAuthoringValue {
   /// Whether activating an experiment on this audience would be refused.
   final bool activationBlocked;
 
-  /// One row per attribute the audience compares.
-  final List<ExperimentAttributeReadinessV1> attributes;
-
-  /// Builds registered against the audience's context schema.
-  final List<ExperimentRegisteredBuildV1> registeredBuilds;
-
-  /// Registered builds that do not supply [attribute], in reported order.
+  /// Lowest SDK API level per platform that can be judged by this audience.
   ///
-  /// Activation admits a closure only when every registered build supplies
-  /// every attribute the audience compares, so these are the builds an
-  /// operator has to act on: register them for this schema, or narrow the
-  /// audience so it no longer compares the attribute.
-  List<ExperimentRegisteredBuildV1> buildsMissing(
-    ExperimentAttributeReadinessV1 attribute,
-  ) =>
-      [
-        for (final build in registeredBuilds)
-          if (!build.providedAttributeIds.any(
-            (provided) =>
-                provided.value == attribute.assignmentAttributeId.value,
-          ))
-            build,
-      ];
+  /// A platform absent here is never judged; its users see regular content.
+  final Map<String, int> floors;
 }
 
 /// The audiences at one target, and readiness for the one that was named.
@@ -8964,8 +8660,6 @@ CanonicalValue _decodeAcceptedResponse(
         ExperimentReadViewV1.fromJson(json),
       ExperimentAuthoringOperationV1.readExperimentResults =>
         ExperimentResultsViewV1.fromJson(json),
-      ExperimentAuthoringOperationV1.registerBuildCapabilities =>
-        ExperimentBuildCapabilityViewV1.fromJson(json),
       ExperimentAuthoringOperationV1.readExperimentReadiness =>
         ExperimentReadinessViewV1.fromJson(json),
       ExperimentAuthoringOperationV1.readDeliveryOptions =>
@@ -9191,37 +8885,6 @@ void _validateRequestPayload(
       _positiveInteger(
         reader.integer('expectedControlPlaneOrdinal'),
         '$path.expectedControlPlaneOrdinal',
-      );
-    case ExperimentAuthoringOperationV1.registerBuildCapabilities:
-      final reader = CanonicalObjectReader(
-        payload,
-        allowedKeys: const {
-          'appBuildOrdinal',
-          'contextSchemaRef',
-          'platform',
-          'sdkApiLevel',
-        },
-        requiredKeys: const {
-          'appBuildOrdinal',
-          'contextSchemaRef',
-          'platform',
-          'sdkApiLevel',
-        },
-        path: path,
-      );
-      _identifier(
-        reader.string('platform'),
-        '$path.platform',
-        ExperimentBuildPlatformIdV1.new,
-      );
-      _nonNegativeInteger(
-        reader.integer('appBuildOrdinal'),
-        '$path.appBuildOrdinal',
-      );
-      _positiveInteger(reader.integer('sdkApiLevel'), '$path.sdkApiLevel');
-      ExperimentExactContextSchemaReferenceV1.fromJson(
-        reader.object('contextSchemaRef'),
-        path: '$path.contextSchemaRef',
       );
     case ExperimentAuthoringOperationV1.readDeliveryOptions:
       final reader = CanonicalObjectReader(

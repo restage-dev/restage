@@ -9,19 +9,16 @@ import 'package:restage_measurement_schema/canonical_forms.dart';
 import 'package:restage_shared/commerce.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../delivery/mounted_surface_report.dart';
 import '../delivery/surface_artifact_store.dart' show StoredSurface;
 import '../delivery/surface_delivery_receipt.dart'
     show SurfaceDeliveryReceiptReason;
 import '../measurement/measurement_refusal_reason.dart';
-import '../measurement/measurement_sdk_runtime_session.dart'
-    show measurementReportedSdkVersion;
 import '../measurement/measurement_resolved_publication_provenance.dart'
     show stampAssignmentRegistrationFingerprint;
 import '../resolver/delivery_input_budget.dart';
 import '../resolver/placement_fallback_log.dart'
     show PlacementNoAnswerCause, PlacementNoAnswerStatus;
-import '../resolver/surface_assignment_built_ins.dart'
-    show assignmentSdkApiLevel;
 import '../resolver/surface_canonical_carrier_provider.dart';
 import '../resolver/surface_assignment_key_provider.dart';
 import '../resolver/surface_delivery_observations.dart'
@@ -29,6 +26,7 @@ import '../resolver/surface_delivery_observations.dart'
 import '../resolver/surface_request_inputs.dart';
 import '../retry_after.dart';
 import '../secure_transport.dart';
+import '../early/early_request.dart';
 import 'bounded_http_client.dart';
 import 'placement_delivery_adapter.dart';
 import 'surface_artifact_assembly.dart';
@@ -654,6 +652,7 @@ class RestageRpcClient {
     if (apiKey.isEmpty) {
       throw ArgumentError.value(apiKey, 'apiKey', 'must not be empty');
     }
+    MountedSurfaceReport.instance.bindKey(apiKey);
   }
 
   final String _baseUrl;
@@ -706,8 +705,39 @@ class RestageRpcClient {
   /// Sends [request], naming an answered build by hash and resending the full
   /// contract once when the service does not hold it. A service that refuses
   /// the hash form as malformed gets the full contract from then on.
+  Future<http.StreamedResponse?> _adoptEarlyRegistration(
+      PlacementBatchRequestV1 request) async {
+    final tuple = request.registration;
+    if (tuple == null) return null;
+    final flight = await EarlyRequest.inFlight();
+    final response = flight?.response;
+    if (flight == null || response == null || response.status != 200) {
+      return null;
+    }
+    try {
+      final sent = jsonDecode(utf8.decode(flight.sent)) as Map<String, Object?>;
+      final mine = tuple.toJson();
+      if (sent['registrationNonce'] != mine['registrationNonce'] ||
+          sent['registrationCreatedAtMicros'] !=
+              mine['registrationCreatedAtMicros']) {
+        return null;
+      }
+    } on Object {
+      return null;
+    }
+    return http.StreamedResponse(Stream.value(response.body), 200,
+        contentLength: response.body.length, headers: response.headers);
+  }
+
+  /// Keeps [request] as the startup request the platform sends next launch.
+  @internal
+  void rememberStartupRequest(PlacementBatchRequestV1 request) =>
+      unawaited(EarlyRequest.remember(
+          Uri.parse('$_baseUrl/sdk/v1/placements/resolve'), _apiKey, request));
+
   Future<http.StreamedResponse> _sendPlacements(Uri url,
-      PlacementBatchRequestV1 request, void Function() checkPublication) async {
+      PlacementBatchRequestV1 request, void Function() checkPublication,
+      {bool early = true, void Function()? onEarly}) async {
     http.Request wire(PlacementBatchRequestV1 body) => http.Request('POST', url)
       ..headers.addAll({
         'Authorization': 'Bearer $_apiKey',
@@ -715,7 +745,32 @@ class RestageRpcClient {
       })
       ..bodyBytes = body.canonicalBytes;
     final hash = request.appBuildContractHash;
-    if (!_hashFormRefused && _answeredBuildContracts.contains(hash)) {
+    final hashForm =
+        !_hashFormRefused && _answeredBuildContracts.contains(hash);
+    if (early) {
+      final taken = await EarlyRequest.take(
+          (hashForm ? request.withBuildContract(carried: false) : request)
+              .canonicalBytes,
+          url,
+          _apiKey,
+          contract: request.buildContract);
+      if (taken != null) {
+        _answeredBuildContracts.add(hash);
+        onEarly?.call();
+        return taken;
+      }
+      // A request the platform sent that was not Dart's still has an answer
+      // coming. When it registered the same tuple, its answer is this
+      // request's: the tuple is never sent twice.
+      unawaited(EarlyRequest.remember(url, _apiKey, request));
+      final inFlight = await _adoptEarlyRegistration(request);
+      if (inFlight != null) {
+        _answeredBuildContracts.add(hash);
+        onEarly?.call();
+        return inFlight;
+      }
+    }
+    if (hashForm) {
       final response =
           await _client.send(wire(request.withBuildContract(carried: false)));
       if (response.statusCode != PlacementBuildContractRequired.status &&
@@ -842,6 +897,8 @@ class RestageRpcClient {
       });
 
   /// Resolves an ordered placement batch through the existing HTTP session.
+  /// An answer the platform fetched that this client cannot decode or accept
+  /// is replaced by one fetched from Dart.
   @internal
   Future<PlacementBatchResponseV1?> fetchPlacements(
     PlacementBatchRequestV1 request, {
@@ -853,6 +910,46 @@ class RestageRpcClient {
     void Function(
             SurfaceDeliveryReceiptReason reason, PlacementNoAnswerCause cause)?
         onNoAnswer,
+    void Function()? onDecoded,
+    Map<ArtifactIdentityV1, List<int>> Function()? savedArtifacts,
+  }) async {
+    var fromPlatform = false;
+    Future<PlacementBatchResponseV1?> fetch({required bool early}) =>
+        _fetchPlacementsOnce(request,
+            publicationGuard: publicationGuard,
+            expectedTarget: expectedTarget,
+            heldArtifactBytes: heldArtifactBytes,
+            registrationLease: registrationLease,
+            onRateLimited: onRateLimited,
+            onNoAnswer: onNoAnswer,
+            onDecoded: onDecoded,
+            savedArtifacts: savedArtifacts,
+            early: early,
+            onEarly: () => fromPlatform = true);
+    final answer = await fetch(early: true);
+    if (fromPlatform &&
+        answer is PlacementBatchRefusedV1 &&
+        (answer.reason == PlacementBatchRefusalReasonV1.decodeFailed ||
+            answer.reason == PlacementBatchRefusalReasonV1.invalidAuthority)) {
+      return fetch(early: false);
+    }
+    return answer;
+  }
+
+  Future<PlacementBatchResponseV1?> _fetchPlacementsOnce(
+    PlacementBatchRequestV1 request, {
+    required SurfaceRequestPublicationGuard publicationGuard,
+    TargetCoordinate? expectedTarget,
+    Map<ArtifactIdentityV1, List<int>> heldArtifactBytes = const {},
+    SurfaceAssignmentResolutionLease? registrationLease,
+    void Function(Duration retryAfter)? onRateLimited,
+    void Function(
+            SurfaceDeliveryReceiptReason reason, PlacementNoAnswerCause cause)?
+        onNoAnswer,
+    void Function()? onDecoded,
+    Map<ArtifactIdentityV1, List<int>> Function()? savedArtifacts,
+    required bool early,
+    required void Function() onEarly,
   }) async {
     void checkPublication() {
       try {
@@ -872,8 +969,9 @@ class RestageRpcClient {
     final endpoint = Uri.parse('$_baseUrl/sdk/v1/placements/resolve');
     final Uint8List bytes;
     try {
-      final response =
-          await _sendPlacements(endpoint, request, checkPublication);
+      final response = await _sendPlacements(
+          endpoint, request, checkPublication,
+          early: early, onEarly: onEarly);
       if (response.statusCode != 200) {
         checkPublication();
         final status = response.statusCode;
@@ -908,6 +1006,9 @@ class RestageRpcClient {
             cause);
         return null;
       }
+      // The service answered, so it has the report this request carried.
+      unawaited(
+          MountedSurfaceReport.instance.acknowledge(request.mountedSince));
       if ((response.contentLength ?? 0) > kMaximumPlacementResponseBytes) {
         await response.stream.listen(null).cancel();
         return PlacementBatchResponseV1.refused(
@@ -943,6 +1044,7 @@ class RestageRpcClient {
         request: request,
         expectedTarget: expectedTarget ?? _placementTarget,
       );
+      onDecoded?.call();
     } on CanonicalFormatException catch (error) {
       if (kDebugMode) {
         debugPrint('[restage] placement response was malformed: $error');
@@ -980,9 +1082,11 @@ class RestageRpcClient {
     }
     if (response is PlacementBatchResolvedV1) {
       // Bytes sent with the answer are checked as fetched ones are.
+      // The saved frames are read when the answer is in, as the read ahead may
+      // finish after the request left.
       final artifacts = await assemblePlacementDeliveryArtifacts(
         response,
-        heldArtifactBytes: held,
+        heldArtifactBytes: {...held, ...?savedArtifacts?.call()},
         inlineArtifactBytes: response.inlineArtifacts,
         fetch: _fetchPlacementArtifact,
         publicationGuard: publicationGuard,
@@ -1531,7 +1635,10 @@ class RestageRpcClient {
             assignment: body.assignment,
           ));
         }
-        final (:outcome, :bytes) = await _resolveArtifact(body.descriptor);
+        // A version asked for by number is not held to the newest shown; the
+        // caller checks it is the one asked for.
+        final (:outcome, :bytes) =
+            await _resolveArtifact(body.descriptor, fresh: version == null);
         final bindingHeader = _headerValue(
           httpResult.headers,
           _measurementPublicationBindingHeaderV1.toLowerCase(),
@@ -1629,8 +1736,9 @@ class RestageRpcClient {
   /// funnels into one outcome type and is reported once, here, so a resolver's
   /// fallback is never taken in silence.
   Future<({SurfaceArtifactOutcome outcome, Uint8List? bytes})> _resolveArtifact(
-    SurfaceArtifactDescriptor descriptor,
-  ) async {
+    SurfaceArtifactDescriptor descriptor, {
+    bool fresh = true,
+  }) async {
     // An artifact is content-addressed, so a re-resolve that names the same one
     // is naming bytes this client already holds and verified. Re-fetching them
     // would spend a request to learn nothing.
@@ -1655,7 +1763,7 @@ class RestageRpcClient {
           descriptor,
           await loadSurfaceArtifactIconFonts(
             assembleSurfaceArtifact(
-                descriptor: descriptor, artifactBytes: held),
+                descriptor: descriptor, artifactBytes: held, fresh: fresh),
           ),
         ),
         bytes: held,
@@ -1684,6 +1792,7 @@ class RestageRpcClient {
       descriptor: descriptor,
       artifactBytes: bytes,
       fetchFailure: failure,
+      fresh: fresh,
     );
     if (outcome is SurfaceArtifactAssembled && bytes != null) {
       // Held only once it has been verified and decoded. Caching bytes that
@@ -1733,9 +1842,14 @@ class RestageRpcClient {
   Future<Uint8List> _fetchArtifactBytes(
     SurfaceArtifactDescriptor descriptor,
   ) async {
+    // An artifact without a pass came with its bytes and cannot be fetched.
+    final pass = descriptor.artifactPass;
+    if (pass == null) {
+      throw const _ArtifactFetchRefused(SurfaceArtifactFetchFailure.refused);
+    }
     final request = http.Request('GET', Uri.parse(descriptor.artifactUrl))
       ..followRedirects = false
-      ..headers[surfaceArtifactPassHeader] = descriptor.artifactPass;
+      ..headers[surfaceArtifactPassHeader] = pass;
     final response = await http.Response.fromStream(
       await _client.send(request),
     );
@@ -2410,15 +2524,7 @@ String? supportedPolicyRevisionsCarrier() {
     targetPlatform: defaultTargetPlatform,
   );
   if (platform == null) return null;
-  return base64UrlEncode(
-    SdkSupportedPolicyRevisionsV1(
-      sdkVersion: measurementReportedSdkVersion,
-      assignmentApiLevel: assignmentSdkApiLevel,
-      platform: platform,
-      privacyPolicyFloor: collectionPrivacyPolicyFloor,
-      collectionBudgetFloor: collectionBudgetPolicyFloor,
-    ).canonicalBytes,
-  ).replaceAll('=', '');
+  return supportedPolicyRevisionsCarrierOf(platform);
 }
 
 const _sidecarMeasurementBinding = 'measurementBinding';
@@ -2546,6 +2652,7 @@ Future<SurfaceFetchResult?> replayStoredSurface(StoredSurface stored) async {
     assembleSurfaceArtifact(
       descriptor: body.descriptor,
       artifactBytes: stored.artifactBytes,
+      fresh: false,
     ),
   );
   if (outcome is! SurfaceArtifactAssembled) return null;
@@ -2708,6 +2815,7 @@ Future<SurfaceScreenDeliveryResult> replayStoredSurfaceScreen(
       assembleSurfaceArtifact(
         descriptor: body.described.artifact,
         artifactBytes: stored.artifactBytes,
+        fresh: false,
       ),
     ),
     request,

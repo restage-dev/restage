@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../runtime/native_facts.dart';
 import 'surface_assignment_persistence.dart';
 
 /// One durable registration identity and the handle already confirmed for it.
@@ -141,17 +142,28 @@ final class SurfaceAssignmentCredentialStore {
         _leaseGeneration++;
         onRetentionRollover();
       }
-      state ??= _RegistrationState.mint(_nowMicros());
+      // A pair the platform made is already durable there, so the first
+      // request does not wait for the copy kept here.
+      var platformMade = false;
+      if (state == null) {
+        final native = await _RegistrationState.fromPlatform();
+        platformMade = native != null;
+        state = native ?? _RegistrationState.mint(_nowMicros());
+      }
       final encoded = jsonEncode(state.toJson());
       // An unchanged state is not written again, unless its last write failed.
-      if ((encoded != stored ||
-              SurfaceAssignmentPersistence.isUnsaved(storageKey)) &&
-          !await SurfaceAssignmentPersistence.writeString(
-            storageKey,
-            encoded,
-            generation: persistenceGeneration,
-          )) {
-        return null;
+      if (encoded != stored ||
+          SurfaceAssignmentPersistence.isUnsaved(storageKey)) {
+        final write = SurfaceAssignmentPersistence.writeString(
+          storageKey,
+          encoded,
+          generation: persistenceGeneration,
+        );
+        if (platformMade) {
+          unawaited(write.then((_) {}, onError: (Object _) {}));
+        } else if (!await write) {
+          return null;
+        }
       }
       if (identityGeneration() != identityGenerationAtStart ||
           persistenceGeneration != SurfaceAssignmentPersistence.generation) {
@@ -205,7 +217,7 @@ final class SurfaceAssignmentCredentialStore {
   Future<void> refuse(SurfaceRegistrationAttempt attempt) =>
       _orderedTransition(() async {
         if (_matching(attempt) == null) return;
-        final replacement = _RegistrationState.mint(_nowMicros());
+        final replacement = await _RegistrationState.reset(_nowMicros());
         if (!await _persistCurrent(attempt, replacement)) return;
         _leaseGeneration++;
         onRetentionRollover();
@@ -223,7 +235,7 @@ final class SurfaceAssignmentCredentialStore {
             _matching(attempt) == null) {
           return false;
         }
-        final replacement = _RegistrationState.mint(_nowMicros());
+        final replacement = await _RegistrationState.reset(_nowMicros());
         if (!await _persistCurrent(attempt, replacement)) return false;
         _leaseGeneration++;
         onRetentionRollover();
@@ -286,6 +298,36 @@ final class _RegistrationState {
     this.serverExpiresAtMicros,
     this.localExpiresAtMicros,
   });
+
+  /// The platform's pair, when it made one before the first request.
+  static Future<_RegistrationState?> fromPlatform() async {
+    final native = await NativeFacts.registration();
+    if (native != null &&
+        native.nonce.length == 43 &&
+        _isCanonicalNonce(native.nonce) &&
+        native.createdAtMicros > 0) {
+      return _RegistrationState(
+        nonce: native.nonce,
+        createdAtMicros: native.createdAtMicros,
+      );
+    }
+    return null;
+  }
+
+  /// A new identity after a refusal; the platform starts its own again.
+  static Future<_RegistrationState> reset(int now) async {
+    final native = await NativeFacts.resetRegistration();
+    if (native != null &&
+        native.nonce.length == 43 &&
+        _isCanonicalNonce(native.nonce) &&
+        native.createdAtMicros > 0) {
+      return _RegistrationState(
+        nonce: native.nonce,
+        createdAtMicros: native.createdAtMicros,
+      );
+    }
+    return _RegistrationState.mint(now);
+  }
 
   factory _RegistrationState.mint(int now) {
     final random = Random.secure();

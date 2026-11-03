@@ -117,7 +117,7 @@ void main() {
         await tester.pumpWidget(MaterialApp(home: host));
         await _finishScreenFrames(tester);
         final state = tester.state(find.byWidget(host));
-        expect(Restage.renderDeadline, const Duration(milliseconds: 300));
+        expect(Restage.firstLaunchWaitFor(""), const Duration(seconds: 1));
         expect(find.text('Welcome'), findsOneWidget);
         expect(find.text('Bundled screen'), findsNothing);
         expect(requests, hasLength(1));
@@ -205,6 +205,7 @@ void main() {
           family: const DeliveryFamilySelectorV1.general());
       var digest = CanonicalDigest('c' * 64);
       var contract = 7;
+      Completer<void>? hold;
       final requests = <PlacementBatchRequestV1>[];
       Restage.debugRestageRpcClient = RestageRpcClient(
           baseUrl: 'https://example.com',
@@ -217,6 +218,7 @@ void main() {
             }
             final request = sentPlacementRequest(outgoing.bodyBytes);
             requests.add(request);
+            if (hold != null) await hold.future;
             return http.Response.bytes(
                 placementFixtureResponse(request,
                     assignment: assignment,
@@ -292,12 +294,34 @@ void main() {
             .length;
         controller.fireEvent('inspect');
         final rendered = find.text('Welcome').evaluate().length;
+        // The next mount finds the stale copy; its new answer is late, so the
+        // saved arm paints, never the compiled original.
+        final firstLoadRequests = requests.length;
+        hold = Completer<void>();
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpWidget(MaterialApp(
+            home: SizedBox(
+                width: 80,
+                height: 25,
+                child: RestagePaywall(
+                    id: 'original',
+                    placementBinding: PlacementMountBinding(
+                        definition: () => definition, name: 'home_card'),
+                    fallbackBuilder: (_) => const Text('Original')))));
+        for (var i = 0; i < 12; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        final staleShown = find.text('Welcome').evaluate().length;
+        final compiledShown = find.text('Original').evaluate().length;
+        hold.complete();
         await tester.pumpWidget(const SizedBox());
         Restage.debugReset();
+        expect(staleShown, 1);
+        expect(compiledShown, 0);
         expect(before, 1);
-        expect(remaining, 0);
+        expect(remaining, 1);
         expect(rendered, 1);
-        expect(requests, hasLength(1));
+        expect(firstLoadRequests, 1);
         expect(observed.single!.assignment, assignment);
         expect(observed.single!.attribution.actualSurface!.family,
             DeliveryFamilySelectorV1.screenContract(contractVersion: 7));

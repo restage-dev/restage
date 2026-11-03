@@ -2,12 +2,44 @@
 
 ## Unreleased
 
-An SDK key that no environment recognizes is now reported once per run, in release builds too, with how to fix it. Before, the app fell back to its built-in surfaces with no message.
+The SDK keeps the surfaces an install has shown since the service last
+answered, with the UTC month of each, and sends them in the next placement
+request. A surface counts when content the service delivered paints, under the
+surface that content belongs to; the compiled-in widget reports nothing. The
+list belongs to the API key that delivered the surfaces, so an install that
+switches keys never reports one key's mounts under another. It survives the
+app being killed, holds at most 64 surfaces and is cleared
+only once the service answers the request that carried it. The startup request
+an app built with `restage_codegen` ships carries it too. Until such an app is
+rebuilt, its shipped request lacks the report and a launch with one pending
+sends one extra request. A placement the startup request did not answer, one that
+mounts later and is served by its own request, counts when it is served.
+
+**Breaking:** delivered content renders only when it is signed by a key passed
+to `Restage.configure(deliveryKeys: ...)`. `restage keys delivery` prints the
+keys. Content that is unsigned, signed by another key, or altered after signing
+falls back to the saved copy, then to the compiled widget. Content the server
+authorized before the newest version this device has shown falls back the same
+way. A rollback, a rule change or a new experiment authorizes its versions
+again, and they render.
+
+**Breaking:** `renderDeadline` on `Restage.configure` and
+`Restage.configureWithInstalledCatalog` is now `firstLaunchWait`, and its
+default is 1 s instead of 300 ms. A surface with nothing saved waits that long
+for delivered content before it shows the compiled widget. A surface with a saved
+version waits `freshWindow` (150 ms by default) for a newer one, then shows the
+saved version. `dart fix --apply` renames the parameter.
+
+**Breaking:** an app built with `restage_codegen` sends its first placement
+request from the Android and iOS plugins, before Dart starts, from a template
+the build writes to `android/app/src/main/assets/restage_early.json` and
+`ios/Runner/restage_early.json`. The build step needs `api_key` and `base_url`
+options. Without them the build stops and prints the lines to add.
+`early_request: false` under the options opts out; the first request is then
+sent from Dart.
 
 Generated code passes the app's surfaces to the SDK at startup through
 `Restage.declareSurfaces`. Apps don't call it directly.
-
-Delivery receipts are saved on the device until the service accepts them. A view counts once, even when the app is killed while sending and resends after relaunch.
 
 Delivery receipts are saved on the device until the service accepts them. A view counts once, even when the app is killed while sending and resends after relaunch.
 

@@ -100,6 +100,8 @@ class OfferPaywall extends StatelessWidget {
         'dart',
         ['run', 'build_runner', 'build'],
         workingDirectory: app,
+        // The fixture app has no startup request settings and opts out.
+        environment: {'RESTAGE_EARLY_REQUEST': 'false'},
       );
       expect(build.exitCode, 0, reason: '${build.stdout}\n${build.stderr}');
       expect(

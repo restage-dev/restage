@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../restage_rpc_client/uuid_v4.dart';
+import '../runtime/native_facts.dart';
 
 /// The SDK-owned four-level analytics identity.
 ///
@@ -21,13 +22,15 @@ class AnalyticsIdentity {
     Future<SharedPreferences> Function()? prefsProvider,
     String Function()? newId,
   })  : _prefsProvider = prefsProvider ?? SharedPreferences.getInstance,
-        _newId = newId ?? generateUuidV4;
+        _newId = newId ?? generateUuidV4,
+        _adoptsNative = newId == null;
 
   /// `shared_preferences` key for the persisted pseudonymous id.
   static const _anonymousIdKey = 'restage.analytics.anonymous_id';
 
   final Future<SharedPreferences> Function() _prefsProvider;
   final String Function() _newId;
+  final bool _adoptsNative;
 
   int _generation = 0;
   String? _anonymousIdCache;
@@ -72,7 +75,12 @@ class AnalyticsIdentity {
       return persisted;
     }
 
-    final fresh = _newId();
+    final native = _adoptsNative
+        ? (NativeFacts.available
+            ? await NativeFacts.fact('analyticsAnonymousId')
+            : null)
+        : null;
+    final fresh = native is String && isValidUuidV4(native) ? native : _newId();
     if (_generation != generation) return fresh;
 
     await prefs.setString(_anonymousIdKey, fresh);

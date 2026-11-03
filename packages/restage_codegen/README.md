@@ -77,6 +77,15 @@ From one annotated source file:
   surface the package compiles. Pass it to
   `Restage.configure(surfaces: restageSurfaces)` to fetch their latest content
   in the background at startup.
+- **Startup request templates** (`android/app/src/main/assets/restage_early.json`,
+  `ios/Runner/restage_early.json`): the first placement request, which the
+  platform sends at app launch before Dart starts. Set `base_url` and
+  `api_key` (the values you pass to `Restage.configure`) and optionally
+  `channel` under the `restage_codegen:restage_early_template` builder options
+  in `build.yaml`; `restage init --sdk-key rs_pk_...` writes them. The build
+  stops with the exact lines to add when they are missing, and
+  `early_request: false` opts out (`RESTAGE_EARLY_REQUEST=false` in the environment skips it for one run). Add the iOS file to the Runner target's
+  resources.
 - **A publication manifest** (`.restage/build/metadata/restage.publication.json`):
   the generated files for each surface id. `restage surface push` reads it.
 
@@ -200,7 +209,7 @@ package**, such as a shared package that exports
 itself, or declare the alias in the same package.
 
 A syntax error in a file with no Restage annotation is not reported by
-these nine builders, because they skip that file. The Dart analyzer still
+these ten builders, because they skip that file. The Dart analyzer still
 reports it.
 
 If a package will never declare a custom widget or a surface (a data layer or
@@ -221,6 +230,8 @@ targets:
       restage_codegen:restage_package_surface_compiler:
         enabled: false
       restage_codegen:restage_surfaces:
+        enabled: false
+      restage_codegen:restage_early_template:
         enabled: false
       restage_codegen:render_catalog:
         enabled: false

@@ -140,26 +140,119 @@ abstract final class SurfaceCanonicalCarrierProvider {
     required PlacementMountRequestV1 mount,
     required SurfaceAssignmentResolutionLease lease,
     required PresentationAssignmentCarrierV2 assignment,
+    String? proof,
   }) async {
     final generation = SurfaceAssignmentPersistence.generation;
     final namespace = _storageScope;
     final key = lease.assignmentKey;
     if (namespace == null || key == null || !lease.isCurrent) return;
     final scope = _placementScope(mount, key);
+    final proofScope = _placementProofScope(mount, key);
     final encoded =
         base64UrlEncode(assignment.canonicalBytes).replaceAll('=', '');
+    _assignments.remove(_placementDeclineScope(mount, key));
     _assignments[scope] = encoded;
+    // The proof is the service's, opaque, and kept and replaced with the carrier.
+    if (proof == null) {
+      _assignments.remove(proofScope);
+    } else {
+      _assignments[proofScope] = proof;
+    }
     try {
       await SurfaceAssignmentPersistence.ready;
       if (lease.isCurrent && _storageScope == namespace) {
         await SurfaceAssignmentPersistence.writeString(
             _storageKey(namespace, scope), encoded,
             generation: generation);
+        await SurfaceAssignmentPersistence.remove(
+            _storageKey(namespace, _placementDeclineScope(mount, key)),
+            generation: generation);
+        if (proof == null) {
+          await SurfaceAssignmentPersistence.remove(
+              _storageKey(namespace, proofScope),
+              generation: generation);
+        } else {
+          await SurfaceAssignmentPersistence.writeString(
+              _storageKey(namespace, proofScope), proof,
+              generation: generation);
+        }
       }
     } on Object {
       // The current presentation still retains its issued assignment.
     }
   }
+
+  /// Keeps the service's proof that it declined this device for [mount], or
+  /// drops it when the answer carries none.
+  @internal
+  static Future<void> retainDecline({
+    required PlacementMountRequestV1 mount,
+    required SurfaceAssignmentResolutionLease lease,
+    required String? proof,
+  }) async {
+    final generation = SurfaceAssignmentPersistence.generation;
+    final namespace = _storageScope;
+    final key = lease.assignmentKey;
+    if (namespace == null || key == null || !lease.isCurrent) return;
+    final scope = _placementDeclineScope(mount, key);
+    if (proof == null) {
+      if (_assignments.remove(scope) == null) return;
+    } else {
+      _assignments[scope] = proof;
+    }
+    try {
+      await SurfaceAssignmentPersistence.ready;
+      if (!lease.isCurrent || _storageScope != namespace) return;
+      if (proof == null) {
+        await SurfaceAssignmentPersistence.remove(_storageKey(namespace, scope),
+            generation: generation);
+      } else {
+        await SurfaceAssignmentPersistence.writeString(
+            _storageKey(namespace, scope), proof,
+            generation: generation);
+      }
+    } on Object {
+      // The proof still serves this session.
+    }
+  }
+
+  /// The decline proof kept for [mount] under the credential, or null.
+  @internal
+  static Future<String?> heldDecline({
+    required PlacementMountRequestV1 mount,
+    required String assignmentKey,
+  }) async {
+    final namespace = _storageScope;
+    if (namespace == null) return null;
+    final generation = SurfaceAssignmentPersistence.generation;
+    final scope = _placementDeclineScope(mount, assignmentKey);
+    final held = _assignments[scope];
+    if (held != null) return held;
+    try {
+      await SurfaceAssignmentPersistence.ready;
+      final prefs = await SharedPreferences.getInstance();
+      final proof = prefs.getString(_storageKey(namespace, scope));
+      if (_storageScope != namespace ||
+          generation != SurfaceAssignmentPersistence.generation ||
+          proof == null ||
+          !RegExp(r'^[A-Za-z0-9_.-]{1,4096}$').hasMatch(proof)) {
+        return null;
+      }
+      _assignments[scope] = proof;
+      return proof;
+    } on Object {
+      return null;
+    }
+  }
+
+  static (String, String, int?, String) _placementDeclineScope(
+          PlacementMountRequestV1 mount, String key) =>
+      (
+        'placementDecline',
+        sha256.convert(mount.canonicalBytes).toString(),
+        null,
+        key
+      );
 
   /// Forgets a placement carrier the server no longer proves.
   @internal
@@ -171,9 +264,15 @@ abstract final class SurfaceCanonicalCarrierProvider {
     final namespace = _storageScope;
     if (namespace == null) return;
     final scope = _placementScope(mount, assignmentKey);
+    final proofScope = _placementProofScope(mount, assignmentKey);
     _assignments.remove(scope);
+    _assignments.remove(proofScope);
+    _assignments.remove(_placementDeclineScope(mount, assignmentKey));
     try {
       await SurfaceAssignmentPersistence.remove(_storageKey(namespace, scope),
+          generation: generation);
+      await SurfaceAssignmentPersistence.remove(
+          _storageKey(namespace, proofScope),
           generation: generation);
     } on Object {
       // The in-memory carrier is already gone for this session.
@@ -209,6 +308,44 @@ abstract final class SurfaceCanonicalCarrierProvider {
       return null;
     }
   }
+
+  /// The service's proof kept with a retained carrier, or null.
+  @internal
+  static Future<String?> heldPlacementProof({
+    required PlacementMountRequestV1 mount,
+    required String assignmentKey,
+  }) async {
+    final namespace = _storageScope;
+    if (namespace == null) return null;
+    final generation = SurfaceAssignmentPersistence.generation;
+    final scope = _placementProofScope(mount, assignmentKey);
+    final held = _assignments[scope];
+    if (held != null) return held;
+    try {
+      await SurfaceAssignmentPersistence.ready;
+      final prefs = await SharedPreferences.getInstance();
+      final proof = prefs.getString(_storageKey(namespace, scope));
+      if (_storageScope != namespace ||
+          generation != SurfaceAssignmentPersistence.generation ||
+          proof == null ||
+          !RegExp(r'^[A-Za-z0-9_.-]{1,4096}$').hasMatch(proof)) {
+        return null;
+      }
+      _assignments[scope] = proof;
+      return proof;
+    } on Object {
+      return null;
+    }
+  }
+
+  static (String, String, int?, String) _placementProofScope(
+          PlacementMountRequestV1 mount, String key) =>
+      (
+        'placementProof',
+        sha256.convert(mount.canonicalBytes).toString(),
+        null,
+        key
+      );
 
   static (String, String, int?, String) _placementScope(
           PlacementMountRequestV1 mount, String key) =>

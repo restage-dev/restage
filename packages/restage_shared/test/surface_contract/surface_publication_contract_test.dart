@@ -1523,7 +1523,7 @@ const String _screenUploadGolden =
 /// where the content is, what it must hash to, and the contract facts that
 /// travel beside it — which is the whole point of the change.
 const String _screenDescriptorGolden =
-    '{"schemaVersion":1,"artifact":{"artifactPass":"v1.k1.4102444800.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactUrl":"https://artifacts.example/artifacts/orgs/1/artifacts/1/sha256:7caa614ebcc1800fb0e2aef7f4066c32f6589f6b62d3732901eb1d7d617f923d","contentHash":"sha256:7caa614ebcc1800fb0e2aef7f4066c32f6589f6b62d3732901eb1d7d617f923d","descriptorVersion":1,"payloadFormatVersion":1,"payloadKind":"blob","publishedAtMicros":1786406400000000,"surfaceSlug":"feature_announcement","surfaceType":"general","version":12},"sourceKind":"screen","contractVersion":7,"publishedRevision":12,"contractFingerprint":"sha256:5876ace20d49d4af1c24e69867f9de9380688586256e67130f83bf99d0e96a9f","eventContractHash":"sha256:de41f956f53085c222576ac5f4c25b26644aa34a3e33830c3b5f04cce6656ab5"}';
+    '{"schemaVersion":1,"artifact":{"artifactPass":"v1.k1.4102444800.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactUrl":"https://artifacts.example/artifacts/orgs/1/artifacts/1/sha256:7caa614ebcc1800fb0e2aef7f4066c32f6589f6b62d3732901eb1d7d617f923d","authorizedAtMicros":1,"contentHash":"sha256:7caa614ebcc1800fb0e2aef7f4066c32f6589f6b62d3732901eb1d7d617f923d","descriptorVersion":2,"payloadFormatVersion":1,"payloadKind":"blob","publishedAtMicros":1786406400000000,"signature":"ed25519:0000000000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==","surfaceSlug":"feature_announcement","surfaceType":"general","version":12},"sourceKind":"screen","contractVersion":7,"publishedRevision":12,"contractFingerprint":"sha256:5876ace20d49d4af1c24e69867f9de9380688586256e67130f83bf99d0e96a9f","eventContractHash":"sha256:de41f956f53085c222576ac5f4c25b26644aa34a3e33830c3b5f04cce6656ab5"}';
 
 /// The artifact half of the frozen descriptor above, built from the same
 /// fixture so the two cannot drift apart.
@@ -1677,6 +1677,8 @@ SurfaceArtifactDescriptor _screenArtifactDescriptor(
     contentHash: hash,
     artifactUrl: 'https://artifacts.example/artifacts/orgs/1/artifacts/1/$hash',
     artifactPass: 'v1.k1.4102444800.${'a' * 64}',
+    signature: DeliverySignature.parse('ed25519:${'0' * 16}:${'A' * 86}=='),
+    authorizedAtMicros: 1,
     payloadKind: SurfacePayloadKind.blob.wireName,
   );
 }

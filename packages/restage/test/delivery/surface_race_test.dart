@@ -30,6 +30,56 @@ void main() {
     });
   }
 
+  raceTest(
+      'an answer that arrives inside the window and is accepted after it '
+      'wins over the saved content', (tester) async {
+    final fresh = Completer<_Content?>();
+    final saved = _Content('saved');
+    markHeldDecision(saved);
+    var arrived = false;
+    RaceOutcome<_Content>? outcome;
+    final mount = RenderDeadline.start(const Duration(milliseconds: 1000),
+        window: const Duration(milliseconds: 150));
+    started.add(mount);
+    unawaited(raceSurface<_Content>(
+      deadline: mount,
+      fresh: () => fresh.future,
+      bestLocal: () async => saved,
+      answerArrived: () => arrived,
+    ).then((o) => outcome = o));
+
+    await tester.pump(const Duration(milliseconds: 100));
+    arrived = true;
+    await tester.pump(const Duration(milliseconds: 100));
+    // Past the window, but the answer is on the device: still waiting.
+    expect(outcome, isNull);
+    fresh.complete(_Content('fresh'));
+    await tester.pump();
+    expect(outcome, isA<RaceFresh<_Content>>());
+    expect(outcome!.value!.name, 'fresh');
+  });
+
+  raceTest('without an arrived answer the window ends on the saved content',
+      (tester) async {
+    final fresh = Completer<_Content?>();
+    final saved = _Content('saved');
+    markHeldDecision(saved);
+    RaceOutcome<_Content>? outcome;
+    final mount = RenderDeadline.start(const Duration(milliseconds: 1000),
+        window: const Duration(milliseconds: 150));
+    started.add(mount);
+    unawaited(raceSurface<_Content>(
+      deadline: mount,
+      fresh: () => fresh.future,
+      bestLocal: () async => saved,
+      answerArrived: () => false,
+    ).then((o) => outcome = o));
+
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(outcome, isA<RaceLocal<_Content>>());
+    expect(outcome!.value!.name, 'saved');
+  });
+
   raceTest('fresh accepted before the deadline wins', (tester) async {
     final fresh = Completer<String?>();
     final local = Completer<String?>();
@@ -211,4 +261,9 @@ final class _BrokenReporter
     Future<void>? keyDeadline,
   }) async =>
       null;
+}
+
+final class _Content {
+  _Content(this.name);
+  final String name;
 }

@@ -275,17 +275,19 @@ covers screens, paywalls and flows by default, including each generated mount's
 placement. Leave `flowResolver` unset for ordinary setup; a resolver you set
 replaces that default for flows.
 
-The render deadline limits the wait for fresh content to 300 ms by default.
-After that the mount shows the best local content that is ready: a version it
-saved earlier or an optional bundle, then the generated mount's compiled
-fallback. A saved version is used only if it matches the surface and the
-installed build, comes from the current delivery decision, and hasn't expired.
-Set the wait with `Restage.configure(renderDeadline: ...)`.
+A placement with nothing saved shows nothing for up to 1 s while its delivered
+content arrives, then its compiled fallback. Set the wait with
+`Restage.configure(firstLaunchWait: ...)`, or per placement with
+`firstLaunchWaits`. A placement with saved content waits 150 ms for a fresher
+version, then shows the saved one; set that with `freshWindow`. A saved version
+is used only if it matches the surface and the installed build, comes from the
+current delivery decision, and hasn't expired.
 
-A response that arrives after the deadline can be saved for later mounts. Pass
-`surfaces:` to prefetch known surfaces after the first frame; prefetch does not
-assign users to experiments. Live refresh can update supported mounts when safe,
-but a standalone screen already showing its compiled fallback needs a remount.
+A response that arrives after the wait can be saved for later mounts. `surfaces`
+adds generated placements to the startup request, sent at startup; that request can
+assign an experiment arm. Other listed references are fetched after the first frame
+without an assignment. Live refresh can update supported mounts when safe, but a
+standalone screen already showing its compiled fallback needs a remount.
 
 A fallback shown before any assignment doesn't count as showing an experiment
 arm. Assignment is separate from rendering: an assigned unit stays in the

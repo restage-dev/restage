@@ -558,7 +558,7 @@ Future<void> _drainSdk(WidgetTester tester) async {
   for (var frame = 0; frame < 30; frame++) {
     await tester.pump(const Duration(milliseconds: 1));
   }
-  await tester.pump(Restage.renderDeadline);
+  await tester.pump(Restage.firstLaunchWaitFor(""));
   for (var frame = 0; frame < 20; frame++) {
     await tester.pump(const Duration(milliseconds: 16));
   }

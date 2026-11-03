@@ -60,6 +60,8 @@ void main() {
           analyticsEnabled: false,
           measurementEnabled: false,
           deliveryReceiptsEnabled: false,
+          firstLaunchWait: const Duration(milliseconds: 300),
+          freshWindow: const Duration(milliseconds: 300),
           liveRefresh: {SurfaceRefreshTrigger.updateChannel},
           updateChannel: channel);
       debugResetInstallObservations();

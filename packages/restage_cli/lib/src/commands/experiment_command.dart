@@ -18,6 +18,8 @@ import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/operations/operation.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show restageReleaseRequirement, sdkPlatformName;
 
 /// Semantic experiment authoring, one subcommand per operation.
 class ExperimentCommand extends Command<int> {
@@ -52,7 +54,6 @@ class ExperimentCommand extends Command<int> {
       _ConcludeCommand.new,
       _ReadCommand.new,
       _ArchiveCommand.new,
-      _RegisterBuildCommand.new,
       _ReadinessCommand.new,
       _DeliveryOptionsCommand.new,
     ]) {
@@ -1070,82 +1071,6 @@ String _deliveryArmPublication(ExperimentDeliveryArmV1 arm) => switch (arm) {
     'revision $publishedRevision (contract $contractVersion)',
 };
 
-/// Registers what one installed app build can supply.
-class _RegisterBuildCommand extends _ExperimentSubcommand {
-  _RegisterBuildCommand(super.context);
-
-  @override
-  String get name => 'register-build';
-
-  @override
-  String get description =>
-      'Register what one installed app build reports for a context schema.';
-
-  @override
-  ExperimentAuthoringOperationV1? get operation =>
-      ExperimentAuthoringOperationV1.registerBuildCapabilities;
-
-  @override
-  void addOptions(ArgParser parser) => parser
-    ..addOption('platform', help: 'Platform of the installed build (required).')
-    ..addOption(
-      'app-build-ordinal',
-      help: 'Build number of the installed build (required).',
-    )
-    ..addOption(
-      'sdk-api-level',
-      help: 'Assignment API level that build ships (required).',
-    )
-    ..addOption(
-      'context-schema-id',
-      help: 'Context schema identity (required).',
-    )
-    ..addOption(
-      'context-schema-revision-id',
-      help: 'Exact context schema revision (required).',
-    )
-    ..addOption(
-      'context-schema-digest',
-      help: 'Semantic digest of that revision (required).',
-    );
-
-  @override
-  Map<String, Object?>? buildPayload(TargetCoordinate target) {
-    final platform = requireOption('platform');
-    final appBuildOrdinal = requireNonNegativeInt('app-build-ordinal');
-    final sdkApiLevel = requirePositiveInt('sdk-api-level');
-    final schemaId = requireOption('context-schema-id');
-    final revisionId = requireOption('context-schema-revision-id');
-    final digest = requireOption('context-schema-digest');
-    if (platform == null ||
-        appBuildOrdinal == null ||
-        sdkApiLevel == null ||
-        schemaId == null ||
-        revisionId == null ||
-        digest == null) {
-      return null;
-    }
-    return {
-      'appBuildOrdinal': appBuildOrdinal,
-      'contextSchemaRef': {
-        'contextSchemaId': schemaId,
-        'revisionId': revisionId,
-        'semanticDigest': digest,
-      },
-      'platform': platform,
-      'sdkApiLevel': sdkApiLevel,
-    };
-  }
-
-  @override
-  String renderAccepted(ExperimentAuthoringAcceptedV1 accepted) {
-    final view = accepted.response as ExperimentBuildCapabilityViewV1;
-    final reports = view.providedAttributeIds.map((id) => id.value).join(', ');
-    return '${view.storedNow ? 'Registered' : 'Already registered'} '
-        '${view.platform.value} ${view.appBuildOrdinal}: $reports.';
-  }
-}
-
 /// Reads the target's audiences and what one of them needs to run.
 class _ReadinessCommand extends _ExperimentSubcommand {
   _ReadinessCommand(super.context);
@@ -1227,36 +1152,20 @@ class _ReadinessCommand extends _ExperimentSubcommand {
             'reports.',
       ];
     }
-    final builds = readiness.registeredBuilds
-        .map((build) => '${build.platform.value} ${build.appBuildOrdinal}')
-        .join(', ');
+    if (readiness.activationBlocked) {
+      return const [
+        "Can't start. This audience checks something the app can't report. "
+            'Pick another audience.',
+      ];
+    }
     return <String>[
-      readiness.activationBlocked
-          ? 'Cannot be activated yet.'
-          : 'Ready to activate.',
-      'Registered builds: ${builds.isEmpty ? 'none' : builds}',
-      for (final attribute in readiness.attributes)
-        '  ${attribute.assignmentAttributeId.value}: '
-            '${_supplyOf(readiness, attribute)}',
+      'Ready to activate. Works on these platforms from the release shown:',
+      for (final MapEntry(key: platform, value: level)
+          in readiness.floors.entries)
+        '  ${sdkPlatformName(platform)}: ${restageReleaseRequirement(level)}',
+      'Users on older releases or other platforms see the regular content.',
     ];
   }
-
-  String _supplyOf(
-    ExperimentAudienceReadinessV1 readiness,
-    ExperimentAttributeReadinessV1 attribute,
-  ) => switch (attribute.supply) {
-    ExperimentAttributeSupplyV1.registered => 'reported by every build',
-    ExperimentAttributeSupplyV1.appDeclaredValue =>
-      'supplied by your app while it runs, so an experiment cannot compare '
-          'it yet',
-    ExperimentAttributeSupplyV1.missingRegistration => switch (readiness
-        .buildsMissing(attribute)) {
-      final missing when missing.isEmpty => 'reported by no registered build',
-      final missing =>
-        'not reported by ${missing.map((build) => '${build.platform.value} '
-            '${build.appBuildOrdinal}').join(', ')}',
-    },
-  };
 }
 
 /// Archives or restores an experiment.

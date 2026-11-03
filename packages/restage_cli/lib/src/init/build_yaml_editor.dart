@@ -92,3 +92,91 @@ StateBuildInputsPlan planStateBuildInputs(String? source) {
     return manual;
   }
 }
+
+/// The builder that writes the startup request templates.
+const String earlyRequestBuilderKey = 'restage_codegen:restage_early_template';
+
+/// Plans the options of the startup request builder in `build.yaml`, whose
+/// current [source] is null when the file is absent.
+///
+/// Existing options are never replaced. [apiKey] and [baseUrl] are written
+/// when given; [enabled] false writes `early_request: false`.
+StateBuildInputsPlan planEarlyRequestOptions(
+  String? source, {
+  String? baseUrl,
+  String? apiKey,
+  bool enabled = true,
+}) {
+  final wanted = <String, Object>{
+    if (!enabled) 'early_request': false,
+    if (enabled && baseUrl != null) 'base_url': baseUrl,
+    if (enabled && apiKey != null) 'api_key': apiKey,
+  };
+  final current = source ?? '';
+  if (wanted.isEmpty) {
+    return StateBuildInputsPlan(StateBuildInputsAction.keep, current);
+  }
+  final Object? doc;
+  try {
+    doc = current.trim().isEmpty ? YamlMap() : loadYaml(current);
+  } on YamlException {
+    return StateBuildInputsPlan(StateBuildInputsAction.manual, current);
+  }
+  if (doc is! YamlMap) {
+    return StateBuildInputsPlan(StateBuildInputsAction.manual, current);
+  }
+  try {
+    final editor = YamlEditor(current);
+    const path = ['targets', r'$default', 'builders', earlyRequestBuilderKey];
+    Object? at(List<Object> keys) {
+      Object? node = doc;
+      for (final key in keys) {
+        if (node is! YamlMap) return null;
+        node = node[key];
+      }
+      return node;
+    }
+
+    final existing = at([...path, 'options']);
+    final merged = <String, Object>{
+      if (existing is YamlMap)
+        for (final entry in existing.entries)
+          entry.key as String: entry.value as Object,
+      for (final entry in wanted.entries)
+        if (existing is! YamlMap || !existing.containsKey(entry.key))
+          entry.key: entry.value,
+    };
+    if (existing is YamlMap && merged.length == existing.length) {
+      return StateBuildInputsPlan(StateBuildInputsAction.keep, current);
+    }
+    // Create the missing levels in one step; the editor cannot make parents.
+    final full = [...path, 'options'];
+    var present = 0;
+    Object? node = doc;
+    while (present < full.length &&
+        node is YamlMap &&
+        node.containsKey(full[present])) {
+      node = node[full[present]];
+      present++;
+    }
+    Object value = merged;
+    for (var i = full.length - 1; i > present; i--) {
+      value = {full[i]: value};
+    }
+    if (present == full.length) {
+      editor.update(full, merged);
+    } else if (present == 0 && current.trim().isEmpty) {
+      editor.update([], {full.first: value});
+    } else {
+      editor.update(full.sublist(0, present + 1), value);
+    }
+    return StateBuildInputsPlan(
+      current.trim().isEmpty
+          ? StateBuildInputsAction.create
+          : StateBuildInputsAction.update,
+      editor.toString(),
+    );
+  } on Exception {
+    return StateBuildInputsPlan(StateBuildInputsAction.manual, current);
+  }
+}

@@ -24,6 +24,8 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:restage/src/restage_rpc_client/surface_artifact_assembly.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../support/delivery_signing.dart';
+
 /// Where a delivered surface was refused.
 ///
 /// The vocabulary is deliberately about MEANING rather than about which
@@ -245,7 +247,7 @@ ParityOutcome evaluateSelfContained(ParityCase testCase) {
 ParityOutcome evaluateSplitPath(ParityCase testCase) {
   final SurfaceArtifactDescriptor descriptor;
   try {
-    descriptor = SurfaceArtifactDescriptor(
+    descriptor = testDeliverySigner.signed(SurfaceArtifactDescriptor(
       payloadFormatVersion: kSurfaceArtifactPayloadFormatVersion,
       surfaceType: testCase.surfaceType,
       surfaceSlug: testCase.surfaceSlug,
@@ -253,8 +255,10 @@ ParityOutcome evaluateSplitPath(ParityCase testCase) {
       publishedAtMicros: testCase.publishedAt.toUtc().microsecondsSinceEpoch,
       contentHash: testCase.declaredContentHash,
       artifactUrl: 'https://artifacts.invalid/artifacts/$_corpusObjectKey',
+      signature: unsignedTestSignature,
+      authorizedAtMicros: testCase.publishedAt.toUtc().microsecondsSinceEpoch,
       artifactPass: 'v1.k1.4102444800.${'a' * 64}',
-    );
+    ));
   } on Object catch (error) {
     return ParityRejected(
       ParityStage.unclassified,

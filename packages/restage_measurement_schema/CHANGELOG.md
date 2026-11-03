@@ -2,8 +2,21 @@
 
 ## Unreleased
 
+- Breaking: `ExperimentPublicationCandidateDefaultSourceV1.candidate` is an
+  `ExperimentAuthoringCandidateV1`, so a server default can resolve to a live
+  surface candidate as well as an exact one. Code that read
+  `candidate.treatmentOrigin` or `candidate.surfaceReference` must first match
+  `ExperimentExactCandidateV1`. `dart fix` cannot apply this change, because
+  fix data cannot express a widened field type.
 - `ExperimentDraftChoicesV1` and `ExperimentDetailV1` accept an empty
   `description`, as draft mutations and partial draft choices already did.
+- Breaking: `ExperimentAudienceReadinessV1` reports `floors`, the lowest SDK API
+  level per platform an audience can judge, in place of `attributes` and
+  `registeredBuilds`. A platform absent from `floors` is never judged. The
+  `registerBuildCapabilities` operation, `ExperimentBuildCapabilityViewV1`,
+  `ExperimentAttributeReadinessV1`, `ExperimentAttributeSupplyV1`,
+  `ExperimentRegisteredBuildV1` and the `assignmentContextCapability` hash
+  domain are removed.
 - An experiment refusal can name a superseded revision: one published before
   its surface's contract version changed. The refusal code
   `revisionSuperseded` always carries `supersededRevision`

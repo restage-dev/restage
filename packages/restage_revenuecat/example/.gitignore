@@ -2,3 +2,7 @@
 .flutter-plugins-dependencies
 .restage/build/
 build/
+
+# Startup request template written by build_runner
+android/app/src/main/assets/restage_early.json
+ios/Runner/restage_early.json

@@ -120,11 +120,14 @@ final class PlacementDeliveryAdmission {
   SurfaceRef get renderedSurface => SurfaceRef(
       surfaceType: document.surfaceType.wireName, slug: document.surfaceSlug);
 
-  Future<void> invalidateCache() => registry.decisions.removeAccepted(
-      registry.decisions.decisionKey(
-          context.request, context.request.mounts.single,
-          target: decision.descriptor.placement.target),
-      decision);
+  /// The service signalled a change: the saved copy stays, stale.
+  void markStale() {
+    registry.decisions.markStale(
+        registry.decisions.decisionKey(
+            context.request, context.request.mounts.single,
+            target: decision.descriptor.placement.target),
+        decision);
+  }
 
   Future<PlacementRefreshProbeV1> probe(PlacementRefreshStateV1 rendered) =>
       registry.probe(this, rendered);
@@ -435,9 +438,7 @@ abstract class PlacementMountResolver<T extends Object>
     if ((admission.isAssigned &&
         (!context.lease.assignmentsAllowed ||
             context.lease.assignmentKey == null ||
-            (!cacheHit &&
-                context.request.assignmentKey !=
-                    context.lease.assignmentKey)))) {
+            (!cacheHit && !answeredUnderLeaseKey(context))))) {
       return refused;
     }
     final installed = context.request.buildContract.installedCapability;
@@ -548,6 +549,7 @@ abstract class PlacementMountResolver<T extends Object>
     _freshInFlight = done.future;
     // Numbered now, so a fallback shown while this fetch waits is its own.
     final turn = ++_turns;
+    _arrivalsAtFresh = registry.arrivals;
     try {
       if (previous != null) await previous;
       _answering = turn;
@@ -559,6 +561,12 @@ abstract class PlacementMountResolver<T extends Object>
   }
 
   Future<void>? _freshInFlight;
+
+  int _arrivalsAtFresh = 0;
+
+  @override
+  bool get freshAnswerArrived =>
+      registry.arrivals > _arrivalsAtFresh || registry.processing > 0;
 
   Future<T?> _freshInTurn(
       bool sendAssignmentKey, Future<void>? keyDeadline) async {
@@ -779,6 +787,7 @@ abstract class PlacementMountResolver<T extends Object>
       await registry.decisions.remove(registry.decisions.decisionKey(
           context.request, declaration.mount,
           target: registry.target!));
+      registry.savedChanged();
     }
   }
 
@@ -1082,7 +1091,8 @@ final class UnavailablePlacementFlowResolver implements FlowResolver {
 }
 
 /// Presents what this process already accepted for [raced]'s mount before the
-/// mount's first frame, then sends fresh as a race does. Returns false,
+/// mount's first frame. Fresh is sent at once; a fresher version that arrives
+/// within [freshWindow] is presented instead of the held one. Returns false,
 /// presenting nothing, when nothing is held.
 @internal
 bool presentHeldPlacement<T extends Object>(
@@ -1092,6 +1102,7 @@ bool presentHeldPlacement<T extends Object>(
   required Future<void> Function(T held) present,
   required void Function() onPresentFailed,
   required Future<void> keyDeadline,
+  required Future<void> freshWindow,
   required void Function(T fresh, void Function(T? rendered) report)
       onLateFresh,
 }) {
@@ -1100,13 +1111,32 @@ bool presentHeldPlacement<T extends Object>(
   if (held == null) return false;
   final storeKey = key();
   void report(T? rendered) => reportRaceWinner(raced, storeKey, rendered);
+  final fresh = inScope(() =>
+      raced.fresh(storeKey, sendAssignmentKey: true, keyDeadline: keyDeadline));
+  final settled = Completer<void>();
   // Reported once shown; a failed present falls back to the race, which
   // reports for itself.
-  unawaited(present(held)
-      .then((_) => report(held), onError: (Object _) => onPresentFailed()));
-  unawaited(inScope(() => raced.fresh(storeKey,
-      sendAssignmentKey: true, keyDeadline: keyDeadline)).then((value) {
-    if (value != null) onLateFresh(value, report);
-  }, onError: (Object _) {}));
+  void show(T content) {
+    if (settled.isCompleted) return;
+    settled.complete();
+    unawaited(present(content).then((_) => report(content),
+        onError: (Object _) => onPresentFailed()));
+  }
+
+  unawaited(fresh.then((value) {
+    if (value == null) {
+      show(held);
+    } else if (!settled.isCompleted) {
+      show(value);
+    } else {
+      onLateFresh(value, report);
+    }
+  }, onError: (Object _) => show(held)));
+  // An answer that reached the device inside the window is accepted before
+  // anything is shown; only the deadline ends that wait.
+  unawaited(freshWindow.then((_) {
+    if (!raced.freshAnswerArrived) show(held);
+  }));
+  unawaited(keyDeadline.then((_) => show(held)));
   return true;
 }

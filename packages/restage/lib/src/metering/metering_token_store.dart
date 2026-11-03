@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../restage_rpc_client/uuid_v4.dart' as uuid_v4;
+import '../runtime/native_facts.dart';
 
 /// Persists a pseudonymous, metering-only identifier used to count distinct
 /// delivery/serve activity per app. It is sent ONLY to the surface-serve
@@ -32,7 +33,10 @@ final class MeteringTokenStore {
       return persisted;
     }
 
-    final token = generateUuidV4();
+    final native =
+        (NativeFacts.available ? await NativeFacts.fact('meteringKey') : null);
+    final token =
+        native is String && isValidUuid(native) ? native : generateUuidV4();
     await prefs.setString(_prefsKey, token);
     _cached = token;
     return token;

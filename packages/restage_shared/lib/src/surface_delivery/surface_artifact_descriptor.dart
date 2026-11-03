@@ -18,16 +18,18 @@
 library;
 
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+import 'package:restage_shared/src/surface_delivery/delivery_signature.dart';
 import 'package:restage_shared/src/surface_document/surface_document.dart';
 
 /// The descriptor shape this build writes.
-const int kSurfaceArtifactDescriptorVersion = 1;
+const int kSurfaceArtifactDescriptorVersion = 2;
 
 /// The highest descriptor shape this build can read. A descriptor declaring
 /// more is refused, never guessed at.
-const int kMaxSupportedSurfaceArtifactDescriptorVersion = 1;
+const int kMaxSupportedSurfaceArtifactDescriptorVersion = 2;
 
 /// The payload frame format of a frame without sections.
 const int kSurfaceArtifactPayloadFormatVersion = 1;
@@ -82,8 +84,11 @@ final class SurfaceArtifactDescriptor {
     required int publishedAtMicros,
     required String contentHash,
     required String artifactUrl,
-    required String artifactPass,
+    required DeliverySignature signature,
+    String? artifactPass,
+    required int authorizedAtMicros,
     String? payloadKind,
+    String? fitRequirementHash,
   }) {
     if (payloadFormatVersion < 1) {
       throw const FormatException(
@@ -120,7 +125,7 @@ final class SurfaceArtifactDescriptor {
         'An artifact URL must not carry credentials.',
       );
     }
-    if (artifactPass.isEmpty) {
+    if (artifactPass != null && artifactPass.isEmpty) {
       throw const FormatException('An artifact pass must not be empty.');
     }
     return SurfaceArtifactDescriptor._(
@@ -132,7 +137,10 @@ final class SurfaceArtifactDescriptor {
       contentHash: contentHash,
       artifactUrl: artifactUrl,
       artifactPass: artifactPass,
+      signature: signature,
+      authorizedAtMicros: authorizedAtMicros,
       payloadKind: payloadKind,
+      fitRequirementHash: fitRequirementHash,
     );
   }
 
@@ -145,7 +153,10 @@ final class SurfaceArtifactDescriptor {
     required this.contentHash,
     required this.artifactUrl,
     required this.artifactPass,
+    required this.signature,
+    required this.authorizedAtMicros,
     required this.payloadKind,
+    required this.fitRequirementHash,
   });
 
   /// The format the payload frame is stored under. NOT the descriptor's own
@@ -173,8 +184,51 @@ final class SurfaceArtifactDescriptor {
   /// its storage without a client release.
   final String artifactUrl;
 
-  /// Short-lived authorisation for exactly one artifact fetch.
-  final String artifactPass;
+  /// Short-lived authorisation for exactly one artifact fetch, or null when
+  /// the answer carries the artifact's bytes.
+  final String? artifactPass;
+
+  /// The publisher's signature over [statementBytes].
+  final DeliverySignature signature;
+
+  /// When the server last made this version servable, microseconds since the
+  /// Unix epoch, UTC: its publication, or a later activation or rollback.
+  final int authorizedAtMicros;
+
+  /// The content hash of the version's published fit requirement, or null
+  /// when it has none. A delivery serving a fit requirement must match it.
+  final String? fitRequirementHash;
+
+  /// This descriptor without its pass, for an answer carrying its bytes.
+  SurfaceArtifactDescriptor withoutPass() => artifactPass == null
+      ? this
+      : SurfaceArtifactDescriptor._(
+          payloadFormatVersion: payloadFormatVersion,
+          surfaceType: surfaceType,
+          surfaceSlug: surfaceSlug,
+          version: version,
+          publishedAtMicros: publishedAtMicros,
+          contentHash: contentHash,
+          artifactUrl: artifactUrl,
+          artifactPass: null,
+          signature: signature,
+          authorizedAtMicros: authorizedAtMicros,
+          payloadKind: payloadKind,
+          fitRequirementHash: fitRequirementHash,
+        );
+
+  /// The bytes [signature] covers, for the organization of the signing key.
+  Uint8List statementBytes(int organizationId) => deliveryStatementBytes(
+        organizationId: organizationId,
+        surfaceType: surfaceType.wireName,
+        surfaceSlug: surfaceSlug,
+        version: version,
+        payloadFormatVersion: payloadFormatVersion,
+        contentHash: contentHash,
+        publishedAtMicros: publishedAtMicros,
+        authorizedAtMicros: authorizedAtMicros,
+        fitRequirementHash: fitRequirementHash,
+      );
 
   /// The stored payload-shape discriminator this delivery was routed on, or
   /// null when no explicit discriminator drove the routing.
@@ -202,16 +256,20 @@ final class SurfaceArtifactDescriptor {
 
   /// The descriptor as wire JSON.
   Map<String, Object?> toJson() => <String, Object?>{
-        'artifactPass': artifactPass,
+        if (artifactPass != null) 'artifactPass': artifactPass,
         'artifactUrl': artifactUrl,
+        'authorizedAtMicros': authorizedAtMicros,
         'contentHash': contentHash,
         'descriptorVersion': kSurfaceArtifactDescriptorVersion,
+        if (fitRequirementHash != null)
+          'fitRequirementHash': fitRequirementHash,
         'payloadFormatVersion': payloadFormatVersion,
         // Omitted rather than sent as an explicit null: "the record made no
         // shape claim" gets exactly one spelling on the wire, so a reader
         // never has to decide whether two spellings mean the same thing.
         if (payloadKind != null) 'payloadKind': payloadKind,
         'publishedAtMicros': publishedAtMicros,
+        'signature': signature.toString(),
         'surfaceSlug': surfaceSlug,
         'surfaceType': surfaceType.wireName,
         'version': version,
@@ -228,7 +286,10 @@ final class SurfaceArtifactDescriptor {
       other.contentHash == contentHash &&
       other.artifactUrl == artifactUrl &&
       other.artifactPass == artifactPass &&
-      other.payloadKind == payloadKind;
+      other.signature == signature &&
+      other.authorizedAtMicros == authorizedAtMicros &&
+      other.payloadKind == payloadKind &&
+      other.fitRequirementHash == fitRequirementHash;
 
   @override
   int get hashCode => Object.hash(
@@ -240,7 +301,10 @@ final class SurfaceArtifactDescriptor {
         contentHash,
         artifactUrl,
         artifactPass,
+        signature,
+        authorizedAtMicros,
         payloadKind,
+        fitRequirementHash,
       );
 }
 
@@ -265,7 +329,7 @@ abstract final class SurfaceArtifactDescriptorV1Codec {
     }
 
     final descriptorVersion = _requiredInt(value, 'descriptorVersion');
-    if (descriptorVersion < 1 ||
+    if (descriptorVersion < kSurfaceArtifactDescriptorVersion ||
         descriptorVersion > kMaxSupportedSurfaceArtifactDescriptorVersion) {
       throw FormatException(
         'Unsupported artifact descriptor version $descriptorVersion.',
@@ -291,9 +355,16 @@ abstract final class SurfaceArtifactDescriptorV1Codec {
       publishedAtMicros: _requiredInt(value, 'publishedAtMicros'),
       contentHash: _requiredString(value, 'contentHash'),
       artifactUrl: _requiredString(value, 'artifactUrl'),
-      artifactPass: _requiredString(value, 'artifactPass'),
+      artifactPass: value.containsKey('artifactPass')
+          ? _requiredString(value, 'artifactPass')
+          : null,
+      signature: DeliverySignature.parse(_requiredString(value, 'signature')),
+      authorizedAtMicros: _requiredInt(value, 'authorizedAtMicros'),
       payloadKind: value.containsKey('payloadKind')
           ? _requiredString(value, 'payloadKind')
+          : null,
+      fitRequirementHash: value.containsKey('fitRequirementHash')
+          ? _requiredString(value, 'fitRequirementHash')
           : null,
     );
   }
@@ -319,11 +390,14 @@ abstract final class SurfaceArtifactDescriptorV1Codec {
 const Set<String> _allowedDescriptorKeys = <String>{
   'artifactPass',
   'artifactUrl',
+  'authorizedAtMicros',
   'contentHash',
   'descriptorVersion',
+  'fitRequirementHash',
   'payloadFormatVersion',
   'payloadKind',
   'publishedAtMicros',
+  'signature',
   'surfaceSlug',
   'surfaceType',
   'version',
@@ -341,13 +415,34 @@ void _rejectUnknownKeys(Map<String, Object?> json) {
 
 String _requiredString(Map<String, Object?> json, String key) {
   final value = _required(json, key);
-  if (value is String) return value;
-  throw FormatException('Expected descriptor "$key" to be a string.');
+  if (value is! String) {
+    throw FormatException('Expected descriptor "$key" to be a string.');
+  }
+  // A lone surrogate has no UTF-8 form, so it could not be signed.
+  for (var i = 0; i < value.length; i++) {
+    final unit = value.codeUnitAt(i);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      final next = i + 1 < value.length ? value.codeUnitAt(i + 1) : 0;
+      if (next < 0xdc00 || next > 0xdfff) {
+        throw FormatException('Descriptor "$key" is not valid Unicode.');
+      }
+      i++;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+      throw FormatException('Descriptor "$key" is not valid Unicode.');
+    }
+  }
+  return value;
 }
 
 int _requiredInt(Map<String, Object?> json, String key) {
   final value = _required(json, key);
-  if (value is int) return value;
+  if (value is int) {
+    // Beyond 2^53 - 1 a JSON integer is not portable, so it is never signed.
+    if (value.abs() > 9007199254740991) {
+      throw FormatException('Descriptor "$key" is out of range.');
+    }
+    return value;
+  }
   if (value is double) {
     throw FormatException(
       'Expected descriptor "$key" to be an integer, got a double.',

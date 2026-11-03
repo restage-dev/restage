@@ -22,6 +22,8 @@ import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage/src/restage_rpc_client/surface_artifact_assembly.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import 'delivery_signing.dart';
+
 /// The origin test deliveries point their content at.
 const String testArtifactOrigin = 'https://artifacts.test';
 
@@ -155,7 +157,7 @@ final class HostedArtifactFixture {
     final url = '$testArtifactOrigin/artifacts/orgs/1/artifacts/'
         '$payloadFormatVersion/$truthfulHash';
     _content[url] = bytes;
-    return SurfaceArtifactDescriptor(
+    return testDeliverySigner.signed(SurfaceArtifactDescriptor(
       payloadFormatVersion: payloadFormatVersion,
       surfaceType: surfaceType,
       surfaceSlug: surfaceSlug,
@@ -163,9 +165,11 @@ final class HostedArtifactFixture {
       publishedAtMicros: publishedAt.toUtc().microsecondsSinceEpoch,
       contentHash: declaredContentHash ?? truthfulHash,
       artifactUrl: url,
+      signature: unsignedTestSignature,
+      authorizedAtMicros: publishedAt.toUtc().microsecondsSinceEpoch,
       artifactPass: testArtifactPass,
       payloadKind: payloadKind,
-    );
+    ));
   }
 
   /// Describes a standalone screen: the artifact plus the contract facts that

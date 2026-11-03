@@ -206,13 +206,16 @@ void main() {
 
     test('refuses a missing, null, or wrongly-typed required field', () {
       for (final key in _valid.keys) {
-        expect(
-          () => SurfaceArtifactDescriptorV1Codec.decode(
-            <String, Object?>{..._valid}..remove(key),
-          ),
-          throwsA(isA<FormatException>()),
-          reason: 'a missing "$key" must be refused',
-        );
+        // An answer carrying the artifact's bytes drops its fetch pass.
+        if (key != 'artifactPass') {
+          expect(
+            () => SurfaceArtifactDescriptorV1Codec.decode(
+              <String, Object?>{..._valid}..remove(key),
+            ),
+            throwsA(isA<FormatException>()),
+            reason: 'a missing "$key" must be refused',
+          );
+        }
         expect(
           () => SurfaceArtifactDescriptorV1Codec.decode(<String, Object?>{
             ..._valid,
@@ -222,6 +225,13 @@ void main() {
           reason: 'a null "$key" must be refused',
         );
       }
+    });
+
+    test('decodes a descriptor without a fetch pass', () {
+      final decoded = SurfaceArtifactDescriptorV1Codec.decode(
+        <String, Object?>{..._valid}..remove('artifactPass'),
+      );
+      expect(decoded.artifactPass, isNull);
     });
 
     test('refuses a float where an integer is required', () {
@@ -353,7 +363,7 @@ void main() {
       // collapsing these onto one constant. They are allowed to coincide, but
       // never by accident — if this fails, check that the collapse was intended
       // rather than changing the expectation.
-      expect(kSurfaceArtifactDescriptorVersion, 1);
+      expect(kSurfaceArtifactDescriptorVersion, 2);
       expect(kSurfaceArtifactPayloadFormatVersion, 1);
       expect(kSurfaceEnvelopeFormatVersion, 2);
     });
@@ -373,6 +383,8 @@ final Map<String, Object?> _valid = <String, Object?>{
   'descriptorVersion': kSurfaceArtifactDescriptorVersion,
   'payloadFormatVersion': kSurfaceArtifactPayloadFormatVersion,
   'publishedAtMicros': 1786579200000000,
+  'authorizedAtMicros': 1786579200000000,
+  'signature': 'ed25519:${'0' * 16}:${'A' * 86}==',
   'surfaceSlug': 'pro_upgrade',
   'surfaceType': 'paywall',
   'version': 12,

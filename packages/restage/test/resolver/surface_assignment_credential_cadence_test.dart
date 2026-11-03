@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/resolver/surface_assignment_credential_store.dart';
+import 'package:restage/src/runtime/native_facts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 
@@ -24,6 +26,91 @@ void main() {
   setUp(() {
     now = 60 * _day;
     rollovers = 0;
+  });
+
+  group('a pair the platform made', () {
+    const nonce = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    const created = 1700000000000000;
+    final reissued = '${'A' * 42}Q';
+
+    setUp(() {
+      NativeFacts.reset();
+      NativeFacts.debugFacts = {
+        'registrationNonce': nonce,
+        'registrationCreatedAtMicros': created,
+      };
+      NativeFacts.debugResetRegistration =
+          () => (nonce: reissued, createdAtMicros: created + 1);
+    });
+    tearDown(() {
+      NativeFacts.debugFacts = null;
+      NativeFacts.debugResetRegistration = null;
+      NativeFacts.reset();
+    });
+
+    test('is sent without waiting for the local copy to be written', () async {
+      final storage = _CountingPreferences()..hold = Completer<void>();
+      addTearDown(() {
+        if (!storage.hold!.isCompleted) storage.hold!.complete();
+      });
+      SharedPreferencesStorePlatform.instance = storage;
+      final attempt = await launch()
+          .capture()
+          .timeout(const Duration(seconds: 1), onTimeout: () => null);
+      expect(attempt?.registrationNonce, nonce);
+      expect(attempt?.registrationCreatedAtMicros, created);
+    });
+
+    test('a failed local copy leaves the next launch on the same pair',
+        () async {
+      final storage = _CountingPreferences()..failNext = true;
+      SharedPreferencesStorePlatform.instance = storage;
+      final first = (await launch().capture())!;
+      await pumpEventQueue();
+      SharedPreferences.setMockInitialValues({});
+      SharedPreferencesStorePlatform.instance = _CountingPreferences();
+      NativeFacts.reset();
+      NativeFacts.debugFacts = {
+        'registrationNonce': nonce,
+        'registrationCreatedAtMicros': created,
+      };
+      final second = (await launch().capture())!;
+      expect(second.registrationNonce, first.registrationNonce);
+      expect(second.registrationCreatedAtMicros, created);
+    });
+
+    test('a refusal takes the platform\'s new pair and keeps it', () async {
+      final store = launch();
+      final attempt = (await store.capture())!;
+      await store.refuse(attempt);
+      final renewed = (await store.capture())!;
+      expect(renewed.registrationNonce, reissued);
+      expect(renewed.generation, isNot(attempt.generation));
+      expect((await launch().capture())!.registrationNonce, reissued);
+      // Without a local copy the platform's current pair is the one used.
+      SharedPreferencesStorePlatform.instance = _CountingPreferences();
+      SharedPreferences.setMockInitialValues({});
+      expect((await launch().capture())!.registrationNonce, reissued);
+      expect(
+        await store.confirm(
+          attempt: attempt,
+          localRequestStartMicros: now,
+          credentialHandle: 'ic1.${'a' * 64}',
+          expiresAtMicros: 31 * _day,
+          serverNowMicros: _day,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a pair made here still waits for its write', () async {
+      NativeFacts.debugFacts = {};
+      NativeFacts.reset();
+      NativeFacts.debugFacts = {};
+      final storage = _CountingPreferences()..failNext = true;
+      SharedPreferencesStorePlatform.instance = storage;
+      expect(await launch().capture(), isNull);
+    });
   });
 
   test('a relaunch reads its registration without writing it again', () async {
@@ -161,13 +248,15 @@ final class _CountingPreferences extends InMemorySharedPreferencesStore {
   _CountingPreferences() : super.empty();
   int writes = 0;
   bool failNext = false;
+  Completer<void>? hold;
 
   @override
-  Future<bool> setValue(String valueType, String key, Object value) {
+  Future<bool> setValue(String valueType, String key, Object value) async {
     writes++;
+    await hold?.future;
     if (failNext) {
       failNext = false;
-      return Future.value(false);
+      return false;
     }
     return super.setValue(valueType, key, value);
   }

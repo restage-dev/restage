@@ -1,8 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' show MaterialPageRoute;
 import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show DeliverySurfaceTypeId;
+
+import '../delivery/mounted_surface_report.dart';
+import '../measurement/measurement_resolved_publication_provenance.dart'
+    show surfaceResolutionSourceFor;
+import '../resolver/placement_mount_resolver.dart' show placementAdmissionFor;
+import '../resolver/surface_resolution_report.dart'
+    show SurfaceResolutionSource;
 import 'placement_mount.dart';
 import 'placement_registry.dart';
 import 'placement_discovery.dart';
@@ -101,7 +112,26 @@ final class PlacementHostDiscovery {
     return _declaration;
   }
 
-  void markPainted() => _registration?.markPainted();
+  /// Marks the host painted. [resolved] is the content it painted; the
+  /// surface it names is the one reported as mounted, when the service
+  /// delivered it. Compiled-in content reports nothing.
+  void markPainted([Object? resolved]) {
+    _registration?.markPainted();
+    final mount = _declaration?.mount;
+    if (mount == null || resolved == null) return;
+    final source = surfaceResolutionSourceFor(resolved);
+    final document = placementAdmissionFor(resolved)?.document;
+    if (document == null ||
+        source == null ||
+        source == SurfaceResolutionSource.bundled) {
+      return;
+    }
+    unawaited(MountedSurfaceReport.instance.record(
+      placement: mount.key,
+      surfaceType: DeliverySurfaceTypeId(document.surfaceType.wireName),
+      slug: document.surfaceSlug,
+    ));
+  }
 
   void dispose() {
     _registration?.dispose();

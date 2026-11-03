@@ -59,6 +59,17 @@ final _initTool = Tool(
             'Add the restage and restage_material dependencies plus '
             'restage_codegen and build_runner to pubspec.yaml (default true).',
       ),
+      'sdkKey': Schema.string(
+        description:
+            "The app's publishable key (rs_pk_...), written to build.yaml so "
+            'the startup request is built into the app. Without it, builds '
+            'stop until api_key is added.',
+      ),
+      'earlyRequest': Schema.bool(
+        description:
+            'Build the startup request into the app (default true). Set false '
+            'only for an app that cannot use it.',
+      ),
       'previewWrapper': Schema.string(
         description:
             'A function in lib/ that wraps push images with what the app '
@@ -130,6 +141,8 @@ Future<CallToolResult> _init(
       '--preview-wrapper',
       wrapper,
     ],
+    if (request.optStr('sdkKey') case final key?) ...['--sdk-key', key],
+    if (request.optBool('earlyRequest') == false) '--no-early-request',
     if (request.optBool('starter') == false) '--no-starter',
     if (request.optBool('addDependencies') == false) '--no-add-deps',
     if (request.optBool('dryRun') ?? false) '--dry-run',

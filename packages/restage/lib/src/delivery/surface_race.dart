@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:meta/meta.dart';
 
+import '../measurement/measurement_resolved_publication_provenance.dart'
+    show surfaceResolutionSourceFor;
+import '../resolver/surface_resolution_report.dart'
+    show SurfaceResolutionSource;
 import 'raced_surface_resolver.dart';
 import 'render_deadline.dart';
 import 'surface_store_key.dart';
@@ -56,25 +60,33 @@ final _heldDecisions = Expando<bool>('restage.heldDecision');
 @internal
 void markHeldDecision(Object local) => _heldDecisions[local] = true;
 
-bool _isHeldDecision(Object local) =>
-    local is! String &&
-    local is! num &&
-    local is! bool &&
-    local is! Record &&
-    _heldDecisions[local] == true;
+bool _isTrackable(Object local) =>
+    local is! String && local is! num && local is! bool && local is! Record;
 
-/// Starts [fresh] and [bestLocal] together and settles by [deadline].
+bool _isHeldDecision(Object local) =>
+    _isTrackable(local) && _heldDecisions[local] == true;
+
+/// Whether [local] is content this device saved earlier, as opposed to the
+/// compiled or bundled original.
+bool _isSaved(Object local) =>
+    _isHeldDecision(local) ||
+    (_isTrackable(local) &&
+        surfaceResolutionSourceFor(local) ==
+            SurfaceResolutionSource.holdLastGood);
+
+/// Starts [fresh] and [bestLocal] together.
 ///
-/// Fresh wins if it is accepted before the deadline. Otherwise the local
-/// candidate ready at that moment renders. A held decision renders as soon
-/// as it is ready. A fresh value accepted after the
-/// race settled goes to [onLateFresh].
+/// A mount with nothing saved waits for fresh until [deadline], then renders
+/// its original. A mount with saved content waits for fresh only until
+/// the deadline's fresh window, then renders the saved content. A fresh value accepted after
+/// the race settled goes to [onLateFresh].
 @internal
 Future<RaceOutcome<T>> raceSurface<T extends Object>({
   required RenderDeadline deadline,
   required Future<T?> Function() fresh,
   required Future<T?> Function() bestLocal,
   void Function(T value)? onLateFresh,
+  bool Function()? answerArrived,
 }) {
   final settled = Completer<RaceOutcome<T>>();
   T? local;
@@ -83,7 +95,9 @@ Future<RaceOutcome<T>> raceSurface<T extends Object>({
   Object? freshError;
 
   void settle(RaceOutcome<T> outcome) {
-    if (!settled.isCompleted) settled.complete(outcome);
+    if (!settled.isCompleted) {
+      settled.complete(outcome);
+    }
   }
 
   RaceOutcome<T> localOutcome() {
@@ -103,9 +117,21 @@ Future<RaceOutcome<T>> raceSurface<T extends Object>({
   unawaited(Future<T?>.sync(bestLocal).then<void>(
     (value) {
       local = value;
-      // A held decision paints at once; fresh still answers the next mount.
-      if (value != null && _isHeldDecision(value)) {
-        settle(RaceLocal<T>(value, freshError: freshError));
+      // Saved content waits only for the fresh window; fresh that misses it
+      // is kept for the next mount.
+      if (value != null && _isSaved(value)) {
+        void atWindow() {
+          // An answer already on the device is accepted first; the deadline
+          // still ends the wait.
+          if (answerArrived?.call() ?? false) return;
+          settle(RaceLocal<T>(value, freshError: freshError));
+        }
+
+        if (deadline.windowHasPassed) {
+          atWindow();
+        } else {
+          unawaited(deadline.windowPassed.then((_) => atWindow()));
+        }
       }
     },
     onError: (Object _) {},

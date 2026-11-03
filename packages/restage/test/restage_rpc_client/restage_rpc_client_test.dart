@@ -1026,6 +1026,42 @@ void main() {
       );
     });
 
+    test('a version asked for by number is not held to the newest shown',
+        () async {
+      final delivery = HostedArtifactFixture();
+      final newer = testBlobDocument(const [5],
+          version: 5, publishedAt: DateTime.utc(2026, 9, 2));
+      final older = testBlobDocument(const [3],
+          version: 3, publishedAt: DateTime.utc(2026, 9, 1));
+      final bodies = <Map<String, Object?>>[
+        delivery.describe(newer),
+        delivery.describe(older),
+        delivery.describe(older),
+        delivery.describe(older),
+      ];
+      var next = 0;
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: delivery.client(
+          (_) async => http.Response(jsonEncode(bodies[next++]), 200),
+        ),
+      );
+      Future<SurfaceFetchResult?> fetch({int? version}) => client.fetchSurface(
+          surfaceType: 'paywall', surfaceSlug: 'pro_upgrade', version: version);
+
+      expect((await fetch())!.artifact, isA<SurfaceArtifactAssembled>());
+      expect(
+          (await fetch(version: 3))!.artifact, isA<SurfaceArtifactAssembled>());
+      expect(
+          (await fetch(version: 3))!.artifact, isA<SurfaceArtifactAssembled>());
+      expect(
+        (await fetch())!.artifact,
+        isA<SurfaceArtifactUnavailable>().having((outcome) => outcome.reason,
+            'reason', SurfaceArtifactFetchFailure.rollback),
+      );
+    });
+
     test(
         'the same bytes under a different payload format are not the same '
         'artifact', () async {

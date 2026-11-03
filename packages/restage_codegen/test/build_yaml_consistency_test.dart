@@ -48,6 +48,7 @@ void main() {
       'user_a2ui_catalog': userA2uiCatalogBuilder,
       'widgetbook_stories': widgetbookStoryBuilder,
       'restage_surfaces': restageSurfaceListBuilder,
+      'restage_early_template': restageEarlyTemplateBuilder,
       'render_catalog': renderCatalogBuilder,
     };
 
@@ -77,6 +78,7 @@ void main() {
       'user_a2ui_catalog': 'userA2uiCatalogBuilder',
       'widgetbook_stories': 'widgetbookStoryBuilder',
       'restage_surfaces': 'restageSurfaceListBuilder',
+      'restage_early_template': 'restageEarlyTemplateBuilder',
       'render_catalog': 'renderCatalogBuilder',
     };
 
@@ -470,7 +472,14 @@ void main() {
     });
 
     test('the README counts the package-wide builders correctly', () {
-      const asWords = {5: 'five', 6: 'six', 7: 'seven', 8: 'eight', 9: 'nine'};
+      const asWords = {
+        5: 'five',
+        6: 'six',
+        7: 'seven',
+        8: 'eight',
+        9: 'nine',
+        10: 'ten',
+      };
       final total =
           packageWide(autoApply: 'dependents').length +
           packageWide(autoApply: 'none').length;

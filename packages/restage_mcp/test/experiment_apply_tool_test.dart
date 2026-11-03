@@ -1207,16 +1207,6 @@ Map<String, Object?> _payloadFor(ExperimentAuthoringOperationV1 operation) =>
         'expectedControlPlaneOrdinal': 8,
         'experimentId': 'experiment.checkout',
       },
-      ExperimentAuthoringOperationV1.registerBuildCapabilities => {
-        'appBuildOrdinal': 412,
-        'contextSchemaRef': {
-          'contextSchemaId': 'assignment.context.checkout',
-          'revisionId': 'assignment.context.checkout.v2',
-          'semanticDigest': 'c' * 64,
-        },
-        'platform': 'ios',
-        'sdkApiLevel': 3,
-      },
       ExperimentAuthoringOperationV1.readExperimentReadiness => const {
         'pageSize': 100,
       },

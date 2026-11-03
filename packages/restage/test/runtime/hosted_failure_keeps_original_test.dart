@@ -108,7 +108,7 @@ void main() {
         expect(shown, 1, reason: failures.toString());
         expect(failures, isEmpty);
         _expectReportedFallback(reports, server.reason);
-        _expectOneMountRequest(requests);
+        _expectMountRequests(requests, liveRefresh, server);
       });
 
       testWidgets('a screen mount renders its compiled original: $label',
@@ -124,7 +124,7 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         expect(shown, 1);
         _expectReportedFallback(reports, server.reason);
-        _expectOneMountRequest(requests);
+        _expectMountRequests(requests, liveRefresh, server);
       });
 
       testWidgets('a paywall mount renders its compiled original: $label',
@@ -140,7 +140,7 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         expect(shown, 1);
         _expectReportedFallback(reports, server.reason);
-        _expectOneMountRequest(requests);
+        _expectMountRequests(requests, liveRefresh, server);
       });
     }
   }
@@ -153,7 +153,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(
         home: NativeClassFlowSurface(
             resolver: _RejectedFetch(), onFlowUnavailable: failures.add)));
-    await tester.pump(Restage.renderDeadline);
+    await tester.pump(Restage.firstLaunchWaitFor(""));
     await tester.pump(const Duration(seconds: 2));
     await tester.pump();
     final shown = find.text('Preferences original').evaluate().length;
@@ -216,7 +216,7 @@ void main() {
       final shown = find.text(original).evaluate().length;
       await tester.pumpWidget(const SizedBox());
       expect(shown, 1);
-      _expectOneMountRequest(requests);
+      _expectMountRequests(requests, const {});
     });
 
     testWidgets('a reload during a $kind first load runs once it settles',
@@ -265,7 +265,7 @@ void main() {
     await _finish(tester, until: () => _reported(reports, 'unavailable'));
     await tester.pumpWidget(const SizedBox());
     expect(installed, isTrue);
-    _expectOneMountRequest(requests);
+    _expectMountRequests(requests, const {});
     _expectReportedFallback(reports, 'unavailable');
   });
 
@@ -397,8 +397,10 @@ void main() {
   });
 }
 
-void _expectOneMountRequest(List<PlacementBatchModeV1> requests) => expect(
-    requests.where((mode) => mode == PlacementBatchModeV1.mount), hasLength(1));
+void _expectMountRequests(List<PlacementBatchModeV1> requests,
+        Set<SurfaceRefreshTrigger> liveRefresh, [_Server? server]) =>
+    expect(requests.where((mode) => mode == PlacementBatchModeV1.mount),
+        hasLength(1));
 
 bool _reported(List<SurfaceResolutionReport> reports, String reason) =>
     reports.any((report) =>
@@ -420,7 +422,7 @@ List<SurfaceResolutionReport> _configure(
     {List<PlacementBatchModeV1>? requests,
     Duration delay = Duration.zero,
     void Function(bool started)? onMountRequest,
-    Duration renderDeadline = RenderDeadline.defaultDuration,
+    Duration renderDeadline = RenderDeadline.defaultFirstLaunchWait,
     List<RestageSurfaceRef> extraSurfaces = const []}) {
   final reports = <SurfaceResolutionReport>[];
   Restage.configure(
@@ -436,7 +438,8 @@ List<SurfaceResolutionReport> _configure(
         ...extraSurfaces,
       ],
       liveRefresh: liveRefresh,
-      renderDeadline: renderDeadline,
+      firstLaunchWait: renderDeadline,
+      freshWindow: renderDeadline,
       onSurfaceResolution: reports.add);
   debugResetInstallObservations();
   debugSetOsVersion(19);

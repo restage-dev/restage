@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState;
+import 'package:restage/restage.dart' show Restage;
 import 'package:restage/src/delivery/surface_delivery_receipt.dart';
 import 'package:restage/src/delivery/surface_delivery_receipt_batch.dart';
 import 'package:restage/src/delivery/surface_delivery_receipt_uploader.dart';
@@ -193,6 +195,44 @@ void main() {
 
     answer = (_) async => http.Response('', 204);
     uploader.onAppResumed();
+    present(slug: 'after');
+    await uploader.flush();
+    expect(requests, hasLength(5));
+  });
+
+  test('the app lifecycle lifts the receipts stop on resume', () async {
+    final binding = TestWidgetsFlutterBinding.ensureInitialized();
+    final previous = debugPrint;
+    debugPrint = (message, {wrapWidth}) {};
+    var now = DateTime.utc(2026);
+    refusedApiKeyClock = () => now;
+    // Configuring installs the lifecycle observer.
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: 'https://api.example.test',
+      analyticsEnabled: false,
+      measurementEnabled: false,
+    );
+    addTearDown(() {
+      debugPrint = previous;
+      resetPlacementFallbackLog();
+      Restage.debugReset();
+    });
+    uploader
+      ..configure(
+        baseUrl: 'https://api.example.test',
+        apiKey: 'rs_pk_test',
+        enabled: true,
+      )
+      ..retain();
+    await giveUpKey((value) => now = value);
+
+    answer = (_) async => http.Response('', 204);
+    present(slug: 'blocked');
+    await uploader.flush();
+    expect(requests, hasLength(4), reason: 'the key is still given up');
+
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     present(slug: 'after');
     await uploader.flush();
     expect(requests, hasLength(5));

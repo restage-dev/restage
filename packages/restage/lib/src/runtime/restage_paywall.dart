@@ -349,7 +349,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
       surfaceId: widget.id,
     );
     _mountedAt = DateTime.now();
-    _renderDeadline = RenderDeadline.start(Restage.renderDeadline);
+    _renderDeadline = RenderDeadline.start(
+        Restage.firstLaunchWaitFor(widget.id),
+        window: Restage.freshWindow);
     widget.controller?.attachInternal(
       onDismiss: ({required DismissReason reason}) {
         _fireDismissed(reason);
@@ -394,7 +396,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
           SurfaceRef(surfaceType: Surface.paywall.wireName, slug: widget.id),
       invalidatePlacement: () async {
         final accepted = _renderedPlacementAdmission();
-        await accepted?.invalidateCache();
+        accepted?.markStale();
       },
       probePlacement: (rendered) => probeRenderedPlacement(
           _renderedPlacementAdmission(), _placementResolver, rendered),
@@ -591,6 +593,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         if (current()) unawaited(_load(announceLoadStarted: false));
       },
       keyDeadline: _renderDeadline.reached,
+      freshWindow: _renderDeadline.windowPassed,
       onLateFresh: (payload, report) =>
           _presentLateFresh(payload, epoch, stopwatch, report),
     );
@@ -898,6 +901,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final outcome = await withPaywallPresentationGuard(
       guard: () => mounted && epoch == _loadEpoch,
       resolve: () => raceSurface<ResolvedPaywallPayload>(
+        answerArrived: raced == null ? null : () => raced.freshAnswerArrived,
         deadline: _renderDeadline,
         fresh: () => freshFuture = raced == null
             ? _resolveStablePayload(resolver, epoch)
@@ -1296,7 +1300,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _stagePaywallAnalyticsPresentation(analyticsPresentation, payload);
       },
       onPainted: () {
-        _placementDiscovery.markPainted();
+        _placementDiscovery.markPainted(placementResolvedLeaf(payload));
         if (_refreshHandle case final handle?) {
           SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
         }
@@ -1738,7 +1742,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _stagePaywallAnalyticsPresentation(analyticsPresentation, payload);
       },
       onPainted: () {
-        _placementDiscovery.markPainted();
+        _placementDiscovery.markPainted(placementResolvedLeaf(payload));
         if (_refreshHandle case final handle?) {
           SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
         }
@@ -2393,7 +2397,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         );
       },
       onPainted: () {
-        _placementDiscovery.markPainted();
+        _placementDiscovery.markPainted(placementResolvedLeaf(payload));
         if (_refreshHandle case final handle?) {
           SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
         }

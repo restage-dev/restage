@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:restage/restage.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import 'demo_delivery_signer.dart';
 import 'user_factories.g.dart';
 
 /// Renders a published surface through Restage-hosted delivery, fetched by
@@ -19,7 +20,11 @@ import 'user_factories.g.dart';
 ///       --dart-define=RESTAGE_BASE_URL=https://your-edge.example \
 ///       --dart-define=RESTAGE_API_KEY=rs_pk_... \
 ///       --dart-define=RESTAGE_SURFACE=<slug> \
-///       --dart-define=RESTAGE_SURFACE_TYPE=paywall
+///       --dart-define=RESTAGE_SURFACE_TYPE=paywall \
+///       --dart-define=RESTAGE_DELIVERY_KEYS=<organizationId>:<public key>
+///
+/// `restage keys delivery` prints the delivery keys; content signed by
+/// any other key never renders.
 ///
 /// The key selects the organization, project, app and environment.
 ///
@@ -31,6 +36,7 @@ import 'user_factories.g.dart';
 /// (`RESTAGE_SURFACE`, default `narrate_membership`) with no backend.
 const _baseUrl = String.fromEnvironment('RESTAGE_BASE_URL');
 const _apiKey = String.fromEnvironment('RESTAGE_API_KEY');
+const _deliveryKeys = String.fromEnvironment('RESTAGE_DELIVERY_KEYS');
 const _surfaceSlug = String.fromEnvironment('RESTAGE_SURFACE');
 const _surfaceType =
     String.fromEnvironment('RESTAGE_SURFACE_TYPE', defaultValue: 'paywall');
@@ -63,6 +69,7 @@ Future<void> main() async {
     slug = _surfaceSlug.isEmpty ? _bundledPaywallId : _surfaceSlug;
     final envelope = await buildPaywallSurfaceEnvelope(slug);
     Restage.configure(
+      deliveryKeys: [demoDeliveryKey],
       apiKey: _fakeApiKey,
       baseUrl: _fakeBaseUrl,
       resolver: RestageVariantResolver(
@@ -76,7 +83,14 @@ Future<void> main() async {
     slug = _surfaceSlug;
     // With a base URL and no resolver, `configure` installs
     // `RestageVariantResolver`, which fetches the published version.
-    Restage.configure(apiKey: _apiKey, baseUrl: _baseUrl);
+    Restage.configure(
+      apiKey: _apiKey,
+      baseUrl: _baseUrl,
+      deliveryKeys: [
+        for (final key in _deliveryKeys.split(','))
+          if (key.trim().isNotEmpty) key,
+      ],
+    );
   }
 
   runApp(_HostedSurfaceDemoApp(slug: slug));
@@ -308,17 +322,22 @@ class FakeSurfaceServer extends http.BaseClient {
     }
 
     final body = jsonEncode({
-      'artifact': SurfaceArtifactDescriptor(
-        payloadFormatVersion: kSurfaceArtifactPayloadFormatVersion,
-        surfaceType: document.surfaceType,
-        surfaceSlug: document.surfaceSlug,
-        version: document.version,
-        publishedAtMicros: document.publishedAt.toUtc().microsecondsSinceEpoch,
-        contentHash: document.contentHash,
-        artifactUrl: url,
-        // Shaped like a real pass. This stand-in verifies nothing.
-        artifactPass: 'v1.k1.4102444800.${'0' * 64}',
-      ).toJson(),
+      'artifact': demoDeliverySigner
+          .signed(SurfaceArtifactDescriptor(
+            payloadFormatVersion: kSurfaceArtifactPayloadFormatVersion,
+            surfaceType: document.surfaceType,
+            surfaceSlug: document.surfaceSlug,
+            version: document.version,
+            publishedAtMicros:
+                document.publishedAt.toUtc().microsecondsSinceEpoch,
+            contentHash: document.contentHash,
+            artifactUrl: url,
+            // Shaped like a real pass. This stand-in verifies nothing.
+            signature: DeliverySignature(keyId: '0' * 16, bytes: Uint8List(64)),
+            authorizedAtMicros: DateTime.now().toUtc().microsecondsSinceEpoch,
+            artifactPass: 'v1.k1.4102444800.${'0' * 64}',
+          ))
+          .toJson(),
     });
     return http.StreamedResponse(
       Stream<List<int>>.value(utf8.encode(body)),

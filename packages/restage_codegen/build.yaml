@@ -65,6 +65,22 @@ builders:
     auto_apply: root_package
     build_to: source
     required_inputs: ['.restage.g.dart']
+    runs_before: ['restage_codegen:restage_early_template']
+
+  # The startup request templates the platform sends at app launch, computed
+  # from the generated surface list, registration and parts, which are all
+  # written first. Options: base_url, api_key (or RESTAGE_BASE_URL and
+  # RESTAGE_API_KEY), channel.
+  restage_early_template:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['restageEarlyTemplateBuilder']
+    build_extensions:
+      $package$:
+        - "android/app/src/main/assets/restage_early.json"
+        - "ios/Runner/restage_early.json"
+    auto_apply: root_package
+    build_to: source
+    required_inputs: ['.g.dart']
     runs_before: []
 
   # The single owner of per-library generated Dart. One builder declares and
@@ -298,7 +314,7 @@ builders:
         - "user_factories.g.dart"
     auto_apply: dependents
     build_to: source
-    runs_before: []
+    runs_before: ['restage_codegen:restage_early_template']
   # The importable A2UI catalog Dart plus its producer-facing capability
   # document. build_extensions below is the default-options resolution; a
   # package configuring `dart_output_root` moves the Dart catalog, and one

@@ -231,7 +231,9 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     _placementInteracted = false;
     final epoch = ++_resolutionEpoch;
     _renderDeadline?.cancel();
-    _renderDeadline = RenderDeadline.start(Restage.renderDeadline);
+    _renderDeadline = RenderDeadline.start(
+        Restage.firstLaunchWaitFor(widget.screen.slug),
+        window: Restage.freshWindow);
     _disposeStage();
     setState(() {
       _unavailableError = null;
@@ -256,6 +258,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       // A stage that fails reports its own failure.
       onPresentFailed: () {},
       keyDeadline: _renderDeadline!.reached,
+      freshWindow: _renderDeadline!.windowPassed,
       onLateFresh: (resolved, report) =>
           _presentLateFresh(resolved, epoch, report),
     );
@@ -356,7 +359,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
                 (placementAdmissionFor(resolved)?.isCurrent ?? true)),
         commit: () {},
         onPainted: () {
-          _placementDiscovery.markPainted();
+          _placementDiscovery.markPainted(resolved);
           _acceptedStage = stage;
           _registerPlacementValidity();
         },
@@ -461,7 +464,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
                 slug: widget.screen.slug),
         invalidatePlacement: () async {
           final accepted = _acceptedAdmission;
-          await accepted?.invalidateCache();
+          accepted?.markStale();
         },
         probePlacement: (rendered) => probeRenderedPlacement(
             _acceptedAdmission, _placementResolver, rendered),
@@ -609,6 +612,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
             keyDeadline: deadline.reached,
           );
     final outcome = await raceSurface<Object>(
+      answerArrived: raced == null ? null : () => raced.freshAnswerArrived,
       deadline: deadline,
       fresh: fresh,
       bestLocal: raced == null ? () async => null : () => raced.bestLocal(key!),
