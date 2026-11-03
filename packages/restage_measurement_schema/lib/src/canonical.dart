@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:restage_measurement_schema/src/text/utf8_host.dart'
+    if (dart.library.js_interop) 'package:restage_measurement_schema/src/text/utf8_host_js.dart';
 
 /// The only schema version emitted by the initial measurement contract.
 const int kMeasurementSchemaVersion = 1;
@@ -28,7 +30,7 @@ final class CanonicalFormatException implements Exception {
 /// Byte-exact canonical JSON used by all measurement hashes and fixtures.
 abstract final class CanonicalJsonCodec {
   /// Encodes [value] using the frozen canonical profile.
-  static Uint8List encode(Object? value) => utf8.encode(_encodeText(value));
+  static Uint8List encode(Object? value) => encodeUtf8(_encodeText(value));
 
   static String _encodeText(Object? value) {
     final output = StringBuffer();
@@ -94,7 +96,9 @@ abstract final class CanonicalJsonCodec {
           _writeValue(output, value.toCanonicalTree());
         }
       case Map<String, Object?>():
-        final keys = value.keys.toList()..sort(_compareUtf8);
+        final keys = value.keys.toList();
+        // Without surrogates, UTF-16 order is UTF-8 order.
+        keys.sort(keys.any(_hasSurrogate) ? _compareUtf8 : null);
         output.write('{');
         for (var index = 0; index < keys.length; index++) {
           if (index > 0) output.write(',');
@@ -112,6 +116,15 @@ abstract final class CanonicalJsonCodec {
   }
 
   static void _writeString(StringBuffer output, String value) {
+    // One pass finds a string with nothing to escape and no surrogate, the
+    // usual case, and writes it whole.
+    if (!_needsWork(value)) {
+      output
+        ..write('"')
+        ..write(value)
+        ..write('"');
+      return;
+    }
     _validateWellFormedUtf16(value);
     output.write('"');
 
@@ -153,6 +166,27 @@ abstract final class CanonicalJsonCodec {
       output.write(value.substring(spanStart));
     }
     output.write('"');
+  }
+
+  static bool _needsWork(String value) {
+    for (var index = 0; index < value.length; index++) {
+      final unit = value.codeUnitAt(index);
+      if (unit < 0x20 ||
+          unit == 0x22 ||
+          unit == 0x5C ||
+          (unit >= 0xD800 && unit <= 0xDFFF)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _hasSurrogate(String value) {
+    for (var index = 0; index < value.length; index++) {
+      final unit = value.codeUnitAt(index);
+      if (unit >= 0xD800 && unit <= 0xDFFF) return true;
+    }
+    return false;
   }
 
   static int _compareUtf8(String left, String right) {
@@ -531,7 +565,7 @@ abstract base class CanonicalValue {
       return CanonicalJsonCodec.encode(toJson());
     }
     return _canonicalByteStrings[this] ??=
-        _recorded<Uint8List>(utf8.encode(_heldCanonicalText));
+        _recorded<Uint8List>(encodeUtf8(_heldCanonicalText));
   }
 
   /// The held canonical text of an [ImmutableCanonicalDocument], for writing

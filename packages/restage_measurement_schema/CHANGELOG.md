@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- On JavaScript and Wasm builds, `CanonicalJsonCodec.encode` writes UTF-8 with
+  the platform's `TextEncoder`. The encoded bytes are unchanged; on Wasm the
+  returned list is backed by the platform's array.
 - Breaking: `ExperimentPublicationCandidateDefaultSourceV1.candidate` is an
   `ExperimentAuthoringCandidateV1`, so a server default can resolve to a live
   surface candidate as well as an exact one. Code that read
