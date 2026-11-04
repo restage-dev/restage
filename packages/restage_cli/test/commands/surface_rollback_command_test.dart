@@ -77,6 +77,7 @@ void main() {
     String classification = 'compatible',
     List<String> blockingChanges = const [],
     String environmentSlug = 'staging',
+    List<Map<String, Object?>>? runningExperiments,
   }) => http.Response(
     jsonEncode({
       '__className__': 'RollbackPreflightView',
@@ -86,6 +87,7 @@ void main() {
       'toVersion': 1,
       'classification': classification,
       'blockingChanges': blockingChanges,
+      'runningExperiments': ?runningExperiments,
     }),
     200,
   );
@@ -604,6 +606,60 @@ void main() {
       expect(shown, contains('Preview only'));
       expect(calledMethods, contains('rollbackPreflight'));
       expect(calledMethods, isNot(contains('rollbackSurface')));
+    });
+
+    test('--preview names a running experiment and how to end it', () async {
+      final client = mockHttpClient((req) {
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        return switch (body['method']) {
+          'surfaceStatus' => statusResponse(),
+          'rollbackPreflight' => preflightResponse(
+            runningExperiments: const [
+              {
+                '__className__': 'SurfaceRunningExperiment',
+                'experimentId': 'exp-1',
+                'experimentLabel': 'Checkout copy',
+                'audienceLabel': 'Everyone',
+                'lifecycleOrdinal': 2,
+              },
+            ],
+          ),
+          _ => http.Response('', 500),
+        };
+      });
+
+      final err = StringBuffer();
+      final code =
+          await makeRunner(
+            stdout: StringBuffer(),
+            stderr: err,
+            httpClient: client,
+          ).run([
+            'rollback',
+            'pro',
+            '--to-version',
+            '1',
+            '--preview',
+            '--env',
+            'staging',
+            '--plane',
+            'sandbox',
+            '--project',
+            'p',
+            '--app',
+            'a',
+          ]);
+
+      expect(code, 0);
+      expect(
+        err.toString(),
+        'Experiment "Checkout copy" (exp-1) is running on this surface. '
+        'Devices in its "Everyone" audience keep their arm\'s version until '
+        'it ends; every other device would get this version.\n'
+        'Try `restage experiment conclude --experiment-id exp-1 '
+        '--expected-lifecycle-ordinal 2 --organization restage --project p '
+        '--app a --env staging --plane sandbox` to end it.\n',
+      );
     });
 
     test('--yes still prints the cohort-impact note before mutating', () async {

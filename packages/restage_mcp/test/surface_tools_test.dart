@@ -959,6 +959,135 @@ void main() {
     );
   });
 
+  group('a running experiment', () {
+    const experiment = <String, Object?>{
+      '__className__': 'SurfaceRunningExperiment',
+      'experimentId': 'exp-1',
+      'experimentLabel': 'Checkout copy',
+      'audienceLabel': 'Everyone',
+      'lifecycleOrdinal': 2,
+    };
+    // The call that ends it names the same target the publish did.
+    String tool(String target) =>
+        'Try restage_experiment_apply with operation: concludeExperiment, '
+        'payload: {"experimentId": "exp-1", "expectedLifecycleOrdinal": 2}, '
+        '$target to end it.';
+
+    test('is named by a publish, with how to end it', () async {
+      final connection = await connect(
+        (_) async => http.Response(
+          jsonEncode({
+            ..._activation(5),
+            'runningExperiments': [experiment],
+          }),
+          200,
+        ),
+      );
+
+      final result = await connection.callTool(
+        CallToolRequest(name: 'restage_publish_surface', arguments: _surface),
+      );
+
+      expect(result.isError, isNot(true), reason: _text(result));
+      expect(result.structuredContent!['experimentNotices'], [
+        'Experiment "Checkout copy" (exp-1) is running on this surface. '
+            'Devices in its "Everyone" audience keep their arm\'s version '
+            'until it ends; every other device gets this version now. '
+            '${tool('organizationId: 7, projectSlug: demo, appSlug: mobile, '
+            'environmentSlug: staging, environmentTargetId: 42, '
+            'runtimePlane: sandbox')}',
+      ]);
+    });
+
+    // A slug-only call still names the exact target the apply call requires.
+    test('is named by a rollback preview in the conditional', () async {
+      final connection = await connect(
+        (_) async => http.Response(
+          jsonEncode({
+            '__className__': 'RollbackPreflightView',
+            'surfaceType': 'onboarding',
+            'surfaceSlug': 'first-run',
+            'environmentSlug': 'staging',
+            'toVersion': 1,
+            'classification': 'compatible',
+            'blockingChanges': <String>[],
+            'runningExperiments': [experiment],
+          }),
+          200,
+        ),
+      );
+
+      final result = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_rollback_preflight',
+          arguments: {..._surface, 'toVersion': 1},
+        ),
+      );
+
+      expect(result.isError, isNot(true), reason: _text(result));
+      expect(result.structuredContent!['experimentNotices'], [
+        'Experiment "Checkout copy" (exp-1) is running on this surface. '
+            'Devices in its "Everyone" audience keep their arm\'s version '
+            'until it ends; every other device would get this version. '
+            '${tool('organizationId: 7, projectSlug: demo, appSlug: mobile, '
+            'environmentSlug: staging, environmentTargetId: 42, '
+            'runtimePlane: sandbox')}',
+      ]);
+    });
+
+    test(
+      'keeps the preview when the exact target cannot be resolved',
+      () async {
+        final connection = await connect(
+          (_) async => http.Response(
+            jsonEncode({
+              '__className__': 'RollbackPreflightView',
+              'surfaceType': 'onboarding',
+              'surfaceSlug': 'first-run',
+              'environmentSlug': 'staging',
+              'toVersion': 1,
+              'classification': 'compatible',
+              'blockingChanges': <String>[],
+              'runningExperiments': [experiment],
+            }),
+            200,
+          ),
+          // No membership, so target discovery fails after the preview.
+          organizations: const [],
+        );
+
+        final result = await connection.callTool(
+          CallToolRequest(
+            name: 'restage_rollback_preflight',
+            arguments: {..._surface, 'toVersion': 1},
+          ),
+        );
+
+        expect(result.isError, isNot(true), reason: _text(result));
+        expect(result.structuredContent!['classification'], 'compatible');
+        expect(result.structuredContent!['experimentNotices'], [
+          'Experiment "Checkout copy" (exp-1) is running on this surface. '
+              'Devices in its "Everyone" audience keep their arm\'s version '
+              'until it ends; every other device would get this version. '
+              '${tool('projectSlug: demo, appSlug: mobile, '
+              'environmentSlug: staging')}',
+        ]);
+      },
+    );
+
+    test('is absent when none runs', () async {
+      final connection = await connect(
+        (_) async => http.Response(jsonEncode(_activation(5)), 200),
+      );
+
+      final result = await connection.callTool(
+        CallToolRequest(name: 'restage_publish_surface', arguments: _surface),
+      );
+
+      expect(result.structuredContent, isNot(contains('experimentNotices')));
+    });
+  });
+
   test(
     'a typed surface refusal reads with the sentence the CLI prints',
     () async {

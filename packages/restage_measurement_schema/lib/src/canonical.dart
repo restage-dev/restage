@@ -27,6 +27,25 @@ final class CanonicalFormatException implements Exception {
   String toString() => 'CanonicalFormatException: $message';
 }
 
+var _trusted = false;
+
+/// Runs [decode] over input known to be this profile's canonical encoding,
+/// skipping the re-encoding comparisons that only refuse other spellings of
+/// it. Key checks still run. Every input the strict decoders accept decodes to
+/// the same value.
+T decodeTrustedCanonical<T>(T Function() decode) {
+  final previous = _trusted;
+  _trusted = true;
+  try {
+    return decode();
+  } finally {
+    _trusted = previous;
+  }
+}
+
+/// Whether a [decodeTrustedCanonical] decode is running.
+bool get canonicalDecodeTrusted => _trusted;
+
 /// Byte-exact canonical JSON used by all measurement hashes and fixtures.
 abstract final class CanonicalJsonCodec {
   /// Encodes [value] using the frozen canonical profile.
@@ -57,6 +76,7 @@ abstract final class CanonicalJsonCodec {
       throw CanonicalFormatException('Invalid JSON: ${error.message}');
     }
 
+    if (_trusted) return value;
     final canonicalSource = _encodeText(value);
     if (canonicalSource != source || _hasLeadingUtf8Bom(bytes)) {
       throw const CanonicalFormatException(
@@ -682,14 +702,14 @@ final class CanonicalObjectReader {
     required Set<String> requiredKeys,
     required this.path,
   }) {
-    final unknown = _values.keys.toSet().difference(allowedKeys);
-    if (unknown.isNotEmpty) {
+    if (_values.keys.any((key) => !allowedKeys.contains(key))) {
+      final unknown = _values.keys.toSet().difference(allowedKeys);
       throw CanonicalFormatException(
         '$path contains unknown keys: ${_sorted(unknown).join(', ')}',
       );
     }
-    final missing = requiredKeys.difference(_values.keys.toSet());
-    if (missing.isNotEmpty) {
+    if (requiredKeys.any((key) => !_values.containsKey(key))) {
+      final missing = requiredKeys.difference(_values.keys.toSet());
       throw CanonicalFormatException(
         '$path is missing keys: ${_sorted(missing).join(', ')}',
       );
@@ -822,6 +842,14 @@ T verifyCanonicalRoundTrip<T extends CanonicalValue>(
   List<int> suppliedBytes, {
   required String path,
 }) {
+  if (_trusted) {
+    // Any input the strict check accepts re-encodes to exactly these bytes.
+    if (value is ImmutableCanonicalDocument) {
+      _canonicalByteStrings[value] ??= Uint8List.fromList(suppliedBytes);
+      _canonicalTexts[value] ??= utf8.decode(suppliedBytes);
+    }
+    return value;
+  }
   if (!_bytesEqual(value.canonicalBytes, suppliedBytes)) {
     throw CanonicalFormatException(
       '$path does not reconstruct the supplied canonical bytes',
@@ -879,13 +907,18 @@ T decodeStrictCanonicalObject<T>(
   List<int> bytes,
   T Function(Map<String, Object?> root) callback,
 ) =>
-    callback(_StrictCanonicalMap.fromCanonical(decodeCanonicalObject(bytes)));
+    callback(
+      _trusted
+          ? decodeCanonicalObject(bytes)
+          : _StrictCanonicalMap.fromCanonical(decodeCanonicalObject(bytes)),
+    );
 
 /// Internal structural check for an audited strict parsed object graph.
 bool strictCanonicalFidelityCanReturn(
   Map<String, Object?> supplied,
   Map<String, Object?> Function() reconstruct,
 ) {
+  if (_trusted) return true;
   if (supplied is! _StrictCanonicalMap) return false;
 
   final expected = reconstruct();

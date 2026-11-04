@@ -5,7 +5,8 @@ import 'package:restage_cli/api.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show
         DeliveryMeasurementMutationReviewV1,
-        DeliveryMeasurementMutationProceedV1;
+        DeliveryMeasurementMutationProceedV1,
+        TargetCoordinate;
 
 import 'api_runner.dart';
 import 'tool_support.dart';
@@ -545,6 +546,7 @@ Future<CallToolResult> _publishSurface(
           impact.at.environment,
         ),
       'result': publication.result.toJson(),
+      ..._experimentNotices(publication.result.runningExperiments, impact.at),
       'showInApp': mountGuide(
         publication.result.sourceKind == null
             ? publication.family.sourceKind
@@ -578,8 +580,58 @@ Future<CallToolResult> _rollbackPreflight(
     contractVersion: identity.contractVersion,
     sourceKind: identity.sourceKind,
   );
-  return jsonResult(preflight.toJson());
+  // The hint needs the exact target, resolved only when there is a hint; a
+  // failed lookup keeps the slug-only hint rather than failing the preview.
+  final experiments = preflight.runningExperiments;
+  TargetCoordinate? coordinate;
+  if (experiments.isNotEmpty) {
+    try {
+      coordinate = await exactTargetCoordinate(api, request);
+    } on Exception {
+      coordinate = null;
+    }
+  }
+  final FamilyTarget hinted = coordinate == null
+      ? target
+      : (
+          project: target.project,
+          app: target.app,
+          environment: target.environment,
+          environmentTargetId: coordinate.environmentTargetId.value,
+          runtimePlane: RuntimePlane.fromWireName(coordinate.runtimePlane.name),
+          organizationId: coordinate.organizationId.value,
+        );
+  return jsonResult(<String, Object?>{
+    ...preflight.toJson(),
+    ..._experimentNotices(experiments, hinted, preview: true),
+  });
 });
+
+/// What each running experiment means for the publish, and how to end it at
+/// the same [target].
+Map<String, Object?> _experimentNotices(
+  List<SurfaceRunningExperiment> experiments,
+  FamilyTarget target, {
+  bool preview = false,
+}) {
+  String end(SurfaceRunningExperiment experiment) => concludeExperimentSentence(
+    experiment,
+    project: target.project,
+    app: target.app,
+    environment: target.environment,
+    organizationId: target.organizationId,
+    environmentTargetId: target.environmentTargetId,
+    runtimePlane: target.runtimePlane,
+  );
+  return {
+    if (experiments.isNotEmpty)
+      'experimentNotices': [
+        for (final experiment in experiments)
+          '${runningExperimentSentence(experiment, preview: preview)} '
+              '${end(experiment)}',
+      ],
+  };
+}
 
 /// The trimmed reason a mutation records, or null when it is blank.
 String? _reasonOf(CallToolRequest request) {
@@ -629,6 +681,7 @@ Future<CallToolResult> _rollbackSurface(
       'rolledBackTo': toVersion,
       'frozen': freeze,
       'result': ?result?.toJson(),
+      ..._experimentNotices(result?.runningExperiments ?? const [], target),
     });
   });
 }

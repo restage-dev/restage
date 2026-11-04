@@ -5,7 +5,9 @@ export 'src/canonical.dart'
     hide
         CanonicalForms,
         adoptCanonicalForms,
+        canonicalDecodeTrusted,
         decodeStrictCanonicalObject,
+        decodeTrustedCanonical,
         isUnpaddedBase64UrlAlphabet,
         recordCanonicalForms,
         strictCanonicalFidelityCanReturn;

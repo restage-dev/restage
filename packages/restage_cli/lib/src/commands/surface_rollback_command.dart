@@ -7,6 +7,7 @@ import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/authed.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/live_guard.dart';
+import 'package:restage_cli/src/commands/running_experiments_output.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/commands/surface_measurement_review.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -248,6 +249,12 @@ class SurfaceRollbackCommand extends Command<int>
       sourceKind: identity.sourceKind,
     );
     _io.stdout.writeln(_compatibilityNote(preflight));
+    writeRunningExperiments(
+      _io.stderr,
+      preflight.runningExperiments,
+      target: ctx,
+      preview: true,
+    );
     if (preview) {
       _io.stdout.writeln(
         'Preview only — nothing was rolled back. Re-run without --preview '
