@@ -62,6 +62,9 @@ revision together, so one surface with two revisions is two entries.
 `restage_config.yaml` may leave either out; commands then take it from
 `--project` / `--app` or discovery, and name the missing key when neither
 supplies it. `restage init --force` updates an existing config without asking.
+`restage init` with a `--organization`, `--project`, `--app`, `--env` or
+`--plane` value the existing config does not hold updates the config without
+`--force`. It changes only the target and keeps every other setting.
 
 Commands:
 

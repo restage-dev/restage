@@ -166,29 +166,40 @@ class InitCommand extends Command<int> {
       }
     }
 
-    final context = await _resolveInitContext(results);
+    final force = results['force'] as bool;
+    final configFile = File(p.join(root.path, 'restage_config.yaml'));
+    final existing = await _readConfig(configFile);
+    final retarget =
+        existing != null && !force && _namesNewTarget(results, existing);
+
+    final context = await _resolveInitContext(
+      results,
+      seed: retarget ? existing : null,
+    );
     if (context == null) {
       return _failureExit;
     }
 
-    final config = RestageConfig(
-      project: context.project,
-      app: context.app,
-      defaultEnvironment: context.environment,
-      organization: context.organization,
-      endpoint: context.endpoint,
-      plane: context.plane,
-      previewWrapper: _flag(results, 'preview-wrapper'),
-      organizationId: context.organizationId,
-      appId: context.appId,
-      environmentTargetId: context.environmentTargetId,
-      namedEnvironmentId: context.namedEnvironmentId,
-    );
+    final previewWrapper = _flag(results, 'preview-wrapper');
+    final config = existing != null && retarget
+        ? _retargeted(existing, context, previewWrapper)
+        : RestageConfig(
+            project: context.project,
+            app: context.app,
+            defaultEnvironment: context.environment,
+            organization: context.organization,
+            endpoint: context.endpoint,
+            plane: context.plane,
+            previewWrapper: previewWrapper,
+            organizationId: context.organizationId,
+            appId: context.appId,
+            environmentTargetId: context.environmentTargetId,
+            namedEnvironmentId: context.namedEnvironmentId,
+          );
 
     final wantsStarter = results['starter'] as bool;
     final wantsDeps = results['add-deps'] as bool;
     final dryRun = results['dry-run'] as bool;
-    final force = results['force'] as bool;
 
     // Read the pubspec once; both the dry-run plan and the apply path
     // consume the same source.
@@ -201,7 +212,6 @@ class InitCommand extends Command<int> {
           )
         : null;
 
-    final configFile = File(p.join(root.path, 'restage_config.yaml'));
     final starterFile = File(
       p.join(root.path, 'lib', 'paywalls', 'starter.dart'),
     );
@@ -240,7 +250,7 @@ class InitCommand extends Command<int> {
 
     final configAction = !configFile.existsSync()
         ? 'create'
-        : force
+        : force || retarget
         ? 'update'
         : _interactive.isInteractive
         ? 'ask to update'
@@ -303,13 +313,19 @@ class InitCommand extends Command<int> {
       _stdout.writeln('Wrote restage_config.yaml.');
       _reportEndpoint(context);
     } else if (force ||
+        retarget ||
         (_interactive.isInteractive &&
             await _interactive.confirm(
               'restage_config.yaml already exists. Update it with these '
               'values?',
             ))) {
-      await _updateConfig(configFile, config);
-      _stdout.writeln('Updated restage_config.yaml.');
+      await _updateConfig(configFile, config, retarget ? null : existing);
+      _stdout.writeln(
+        retarget
+            ? 'Updated the target in restage_config.yaml to match your flags. '
+                  'Other settings are unchanged.'
+            : 'Updated restage_config.yaml.',
+      );
       _reportEndpoint(context);
     } else if (_interactive.isInteractive) {
       _stdout.writeln('Kept existing restage_config.yaml.');
@@ -421,12 +437,13 @@ class InitCommand extends Command<int> {
   }
 
   /// Writes [config] over [file], keeping the settings init does not ask
-  /// about when the existing file parses.
-  Future<void> _updateConfig(File file, RestageConfig config) async {
-    final RestageConfig existing;
-    try {
-      existing = RestageConfig.fromYaml(await file.readAsString());
-    } on RestageConfigFormatException {
+  /// about from [existing].
+  Future<void> _updateConfig(
+    File file,
+    RestageConfig config,
+    RestageConfig? existing,
+  ) async {
+    if (existing == null) {
       await writeRestageConfig(file, config);
       return;
     }
@@ -455,17 +472,20 @@ class InitCommand extends Command<int> {
   static const _unchecked =
       'Continuing with the slugs you passed; they were not checked.';
 
-  Future<_InitContext?> _resolveInitContext(ArgResults results) async {
-    final organizationFlag = _flag(results, 'organization');
-    final projectFlag = _flag(results, 'project');
-    final appFlag = _flag(results, 'app');
-    final envFlag = _flag(results, 'env');
+  /// Resolves the target, taking selectors no flag passes from [seed].
+  Future<_InitContext?> _resolveInitContext(
+    ArgResults results, {
+    RestageConfig? seed,
+  }) async {
+    final organizationFlag =
+        _flag(results, 'organization') ?? seed?.organization;
+    final projectFlag = _flag(results, 'project') ?? seed?.project;
+    final appFlag = _flag(results, 'app') ?? seed?.app;
+    final envFlag = _flag(results, 'env') ?? seed?.defaultEnvironment;
 
     final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
     final credential = await store.read();
-    final explicitPlane = results.wasParsed('plane')
-        ? RuntimePlane.fromWireName(results['plane'] as String)
-        : null;
+    final explicitPlane = _planeFlag(results) ?? seed?.plane;
     final flagsContext = _InitContext(
       organization: organizationFlag,
       project: projectFlag ?? '',
@@ -741,6 +761,67 @@ class InitCommand extends Command<int> {
       allowEmpty: allowEmpty,
     );
   }
+
+  /// The config in [file], or null when it is missing or does not parse.
+  Future<RestageConfig?> _readConfig(File file) async {
+    if (!file.existsSync()) return null;
+    try {
+      return RestageConfig.fromYaml(await file.readAsString());
+    } on RestageConfigFormatException {
+      return null;
+    }
+  }
+
+  /// Whether a target flag names a value [existing] does not hold.
+  bool _namesNewTarget(ArgResults results, RestageConfig existing) {
+    bool differs(String flag, String? current) {
+      final value = _flag(results, flag);
+      return value != null && value != current;
+    }
+
+    final plane = _planeFlag(results);
+    return differs('organization', existing.organization) ||
+        differs('project', existing.project) ||
+        differs('app', existing.app) ||
+        differs('env', existing.defaultEnvironment) ||
+        (plane != null && plane != existing.plane);
+  }
+
+  /// [existing] with its target replaced by [context]. Ids for a target that
+  /// changed are dropped unless [context] resolved new ones.
+  RestageConfig _retargeted(
+    RestageConfig existing,
+    _InitContext context,
+    String? previewWrapper,
+  ) {
+    final sameOrganization = context.organization == existing.organization;
+    final sameApp =
+        sameOrganization &&
+        context.project == existing.project &&
+        context.app == existing.app;
+    return RestageConfig(
+      project: context.project,
+      app: context.app,
+      defaultEnvironment: context.environment,
+      organization: context.organization,
+      endpoint: context.endpoint ?? existing.endpoint,
+      plane: context.plane,
+      recordGit: existing.recordGit,
+      declareAssets: existing.declareAssets,
+      flutterRoot: existing.flutterRoot,
+      previewWrapper: previewWrapper ?? existing.previewWrapper,
+      organizationId:
+          context.organizationId ??
+          (sameOrganization ? existing.organizationId : null),
+      appId: context.appId ?? (sameApp ? existing.appId : null),
+      environmentTargetId: context.environmentTargetId,
+      namedEnvironmentId: context.namedEnvironmentId,
+    );
+  }
+
+  RuntimePlane? _planeFlag(ArgResults results) => results.wasParsed('plane')
+      ? RuntimePlane.fromWireName(results['plane'] as String)
+      : null;
 
   String? _flag(ArgResults results, String optionName) {
     final value = results[optionName] as String?;
