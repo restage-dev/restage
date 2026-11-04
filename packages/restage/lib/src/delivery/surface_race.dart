@@ -96,6 +96,7 @@ Future<RaceOutcome<T>> raceSurface<T extends Object>({
 
   void settle(RaceOutcome<T> outcome) {
     if (!settled.isCompleted) {
+      deadline.markSettled();
       settled.complete(outcome);
     }
   }

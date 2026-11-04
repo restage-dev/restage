@@ -59,7 +59,7 @@ can also render. Hosted delivery and measurement stay off.
 
 ## First-launch wait
 
-A mount with nothing saved waits up to 1 s for delivered content, then shows its
+A mount with nothing saved waits up to 3 s for delivered content, then shows its
 compiled fallback or its unavailable policy. A mount with a saved version waits up
 to 150 ms for a newer one, then shows the saved version. A saved version is used
 only if it matches the surface and the installed build, comes from the current
@@ -75,8 +75,14 @@ init --sdk-key rs_pk_...` writes them). The answer is usually on the device befo
 the first mount, and the mount shows it at once.
 
 An answer that arrives after the wait is kept for the next mount.
-[Live refresh](/delivery/live-refresh) updates supported mounts when safe; a
-standalone screen already showing its compiled fallback needs a remount.
+
+On a fresh install, delivered content reached the device about 0.6 s after app
+start on Wi-Fi in our measurements, about 2 s on a throttled slow-3G connection
+and 3.1–3.7 s on EDGE (2026-11-04, one Android phone and an Android emulator).
+The 3 s default covers slow 3G with about 1 s to spare. Lower `firstLaunchWait`
+for a surface whose compiled fallback is a fine first impression, show a
+`loadingBuilder` during longer waits, and watch `SurfaceLoadCompleted` events to
+see how often the wait runs out.
 
 A fallback shown before any assignment doesn't count as showing an experiment arm.
 Assignment and rendering are separate: a response that arrives late, or an

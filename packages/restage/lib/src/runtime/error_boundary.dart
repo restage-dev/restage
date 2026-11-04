@@ -405,6 +405,18 @@ final class _InstalledErrorHandlers {
   }
 }
 
+/// Whether the boundary and lease around [context] still let a first paint
+/// count as a successful render.
+@internal
+bool canReportRenderSuccessAt(BuildContext context) {
+  final scope =
+      context.getInheritedWidgetOfExactType<_RuntimeErrorBoundaryScope>();
+  if (scope != null && scope.boundary._pipelineBlocked) return false;
+  return FirstPaintLeaseScope.maybeOf(context)
+          ?.canReportFrameworkRenderSuccess ??
+      true;
+}
+
 class _RuntimeErrorBoundaryScope extends InheritedWidget {
   const _RuntimeErrorBoundaryScope({
     required this.boundary,

@@ -4,6 +4,9 @@
 
 - **Breaking:** `A2uiDartCoverageReason` gains `unsupportedScalarCallback`; exhaustive switches must handle it.
 - **Breaking:** `A2uiDartWidgetPlan.usesPropsNamespace` is removed; A2UI 1.0 components carry their properties at the top level.
+- **Breaking:** generated event types are named `<Class>SurfaceEvent`, and
+  per-field events `<Class>Surface<Field>Event`. They were `<Class>Event`, which
+  could collide with your own classes. Rename references to them in your code.
 - **Breaking:** the `restage_early_template` builder requires `api_key` and
   `base_url` options in `build.yaml`. Without them the build stops and prints
   the lines to add. `early_request: false` under the options opts out; the first

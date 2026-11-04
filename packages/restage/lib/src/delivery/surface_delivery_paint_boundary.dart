@@ -3,6 +3,8 @@ import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart' show Surface;
 
+import '../runtime/error_boundary.dart' show canReportRenderSuccessAt;
+
 import 'surface_delivery_receipt.dart';
 import 'surface_delivery_receipt_batch.dart';
 import 'surface_delivery_receipt_uploader.dart';
@@ -94,31 +96,110 @@ void markSurfaceDeliveryRenderFailedFor(
       ?.failed(reason);
 }
 
+/// Reports a load once, after the frame in which [child] first painted for
+/// [load]. A new [load] re-arms it.
+@internal
+final class SurfaceLoadPaint extends StatefulWidget {
+  /// Calls [onPainted] after [child]'s first painted frame for [load].
+  const SurfaceLoadPaint({
+    super.key,
+    required this.load,
+    required this.onPainted,
+    this.requireRenderSuccess = false,
+    required this.child,
+  });
+
+  /// Whether a paint the enclosing error boundary or lease counts as failed
+  /// is ignored, for hosts that settle on paint without a commit of their own.
+  final bool requireRenderSuccess;
+
+  /// The load this paint settles; identity only.
+  final Object? load;
+
+  /// Settles the load; runs after the frame, outside paint.
+  final VoidCallback onPainted;
+
+  final Widget child;
+
+  @override
+  State<SurfaceLoadPaint> createState() => _SurfaceLoadPaintState();
+}
+
+final class _SurfaceLoadPaintState extends State<SurfaceLoadPaint> {
+  Object? _builtFor = const Object();
+
+  void _afterFrame() {
+    final report = widget.onPainted;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.requireRenderSuccess && !canReportRenderSuccessAt(context)) {
+        // The failure path settles the load with what paints instead.
+        return;
+      }
+      report();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final child = widget.child;
+    // A parent-data child must stay its parent's direct child, so it reports
+    // after the frame that built it.
+    if (child is ParentDataWidget) {
+      if (!identical(_builtFor, widget.load)) {
+        _builtFor = widget.load;
+        _afterFrame();
+      }
+      return child;
+    }
+    return _PaintObserver(
+      token: widget.load,
+      onPainted: _afterFrame,
+      child: child,
+    );
+  }
+}
+
 final class _PaintObserver extends SingleChildRenderObjectWidget {
-  const _PaintObserver({required this.onPainted, required super.child});
+  const _PaintObserver({
+    required this.onPainted,
+    this.token,
+    required super.child,
+  });
 
   final VoidCallback onPainted;
+  final Object? token;
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      _RenderPaintObserver(onPainted);
+      _RenderPaintObserver(onPainted, token);
 
   @override
   void updateRenderObject(
     BuildContext context,
     _RenderPaintObserver renderObject,
   ) {
-    renderObject.onPainted = onPainted;
+    renderObject
+      ..onPainted = onPainted
+      ..token = token;
   }
 }
 
 /// Reports the first paint; a build failure never reaches paint and is
 /// reported by the mount's error boundary instead.
 final class _RenderPaintObserver extends RenderProxyBox {
-  _RenderPaintObserver(this.onPainted);
+  _RenderPaintObserver(this.onPainted, this._token);
 
   VoidCallback onPainted;
+  Object? _token;
   bool _reported = false;
+
+  set token(Object? value) {
+    if (identical(value, _token)) return;
+    _token = value;
+    _reported = false;
+    markNeedsPaint();
+  }
 
   @override
   void paint(PaintingContext context, Offset offset) {

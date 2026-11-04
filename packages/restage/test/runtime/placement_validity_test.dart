@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/delivery/render_deadline.dart';
 import 'package:restage/src/delivery/surface_artifact_store.dart';
 import 'package:restage/src/measurement/placement_mount_attribution.dart';
 import 'package:restage/src/refresh/surface_refresh_registry.dart';
@@ -117,7 +118,8 @@ void main() {
         await tester.pumpWidget(MaterialApp(home: host));
         await _finishScreenFrames(tester);
         final state = tester.state(find.byWidget(host));
-        expect(Restage.firstLaunchWaitFor(""), const Duration(seconds: 1));
+        expect(Restage.firstLaunchWaitFor(""),
+            RenderDeadline.defaultFirstLaunchWait);
         expect(find.text('Welcome'), findsOneWidget);
         expect(find.text('Bundled screen'), findsNothing);
         expect(requests, hasLength(1));

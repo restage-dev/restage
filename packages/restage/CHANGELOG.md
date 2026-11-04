@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+`firstLaunchWait` now defaults to 3 s instead of 300 ms. On a fresh install, a
+mount waits up to 3 s for delivered content before it shows its compiled
+widget, so users on slower mobile networks see your current content on the
+first launch. Content still paints as soon as it arrives. Set
+`Restage.configure(firstLaunchWait: ...)` to keep a shorter wait.
+`doc/first_launch.md` gives typical delivery times and how to choose the wait.
+
+Every mount now reports its load, for placements, paywalls, generated
+surfaces, screens and flows, on `Restage.events`, and to the `onEvent` of
+paywalls and placements. A `RestageFlowController` you create reports only to
+its own `onEvent`. `SurfaceLoadStarted` fires when a load starts. A paywall or
+placement starts a new load when its placement changes; a screen or flow starts
+one for a different surface or a new resolver object, and a flow also for a
+different placement or a new `actions` or installed-signals object. Then at
+most one terminal event fires, after the frame in which the mount first paints,
+and none if the mount is disposed first. `SurfaceLoadCompleted.source` is `delivered`, `saved`
+or `original`: a mount that paints its compiled widget or fallback completes
+with `original`, including when nothing is published. `SurfaceLoadFailed` fires
+when the mount paints its error state or nothing: it had no content to show, or
+its content failed to render. It comes with a `reason` of `unavailable`,
+`invalid`, `renderError` or `unknown`. The paywall load events are unchanged. These are new
+`RestageEvent` subtypes, so an exhaustive `switch` over `RestageEvent` with no
+`case _:` no longer compiles.
+
 The SDK keeps the surfaces an install has shown since the service last
 answered, with the UTC month of each, and sends them in the next placement
 request. A surface counts when content the service delivered paints, under the
@@ -24,9 +48,8 @@ way. A rollback, a rule change or a new experiment authorizes its versions
 again, and they render.
 
 **Breaking:** `renderDeadline` on `Restage.configure` and
-`Restage.configureWithInstalledCatalog` is now `firstLaunchWait`, and its
-default is 1 s instead of 300 ms. A surface with nothing saved waits that long
-for delivered content before it shows the compiled widget. A surface with a saved
+`Restage.configureWithInstalledCatalog` is now `firstLaunchWait` (its new
+default is described above). A surface with a saved
 version waits `freshWindow` (150 ms by default) for a newer one, then shows the
 saved version. `dart fix --apply` renames the parameter.
 

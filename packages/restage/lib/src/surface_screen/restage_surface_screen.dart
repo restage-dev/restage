@@ -12,12 +12,14 @@ import '../delivery/delivered_fonts.dart';
 import '../delivery/raced_surface_resolver.dart';
 import '../delivery/surface_sections_carrier.dart';
 import '../delivery/render_deadline.dart';
+import '../delivery/surface_load_cycle.dart';
 import '../delivery/surface_delivery_paint_boundary.dart';
 import '../delivery/surface_race.dart';
 import '../analytics/root_analytics_context.dart';
 import '../authoring/onboarding_event_dispatcher.dart'
     show DeclaredEventDispatcher, SurfaceEventHandler;
-import '../events/restage_event.dart' show PagerPageChanged;
+import '../events/restage_event.dart'
+    show PagerPageChanged, SurfaceLoadFailureReason;
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_runtime_support.dart';
 import '../measurement/measurement_event_sanitizer.dart';
@@ -143,6 +145,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   SurfaceScreenUnavailableError? _unavailableError;
   SurfaceDeliveryObservationCell? _observationCell;
   RenderDeadline? _renderDeadline;
+  SurfaceLoad? _surfaceLoad;
 
   /// Delivered content that arrived after the compiled fallback painted.
   ({Object? version})? _late;
@@ -231,9 +234,14 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     _placementInteracted = false;
     final epoch = ++_resolutionEpoch;
     _renderDeadline?.cancel();
-    _renderDeadline = RenderDeadline.start(
+    final deadline = _renderDeadline = RenderDeadline.start(
         Restage.firstLaunchWaitFor(widget.screen.slug),
         window: Restage.freshWindow);
+    _surfaceLoad = SurfaceLoad(
+        surfaceId: widget.screen.slug,
+        surface: widget.screen.surface,
+        deadline: deadline)
+      ..start(Restage.fireEvent);
     _disposeStage();
     setState(() {
       _unavailableError = null;
@@ -995,6 +1003,56 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     widget.onUnavailable?.call(error);
   }
 
+  /// Completes the load inside [presentation]'s context once it is active.
+  void _completeLoad(SurfaceLoad? load, _ScreenStage stage) {
+    stage.presentation.captureDeferredContextOnActivation((attribution) {
+      if (!mounted) return;
+      final event = load?.complete(stage.resolved);
+      if (event != null) {
+        attribution.runWithEventContext(() => Restage.fireEvent(event));
+      }
+    });
+  }
+
+  void _completeLoadWithOriginal(SurfaceLoad? load) {
+    if (!mounted) return;
+    final event = load?.complete(null);
+    if (event == null) return;
+    final owner = _fallbackReadOwner;
+    if (owner == null) {
+      Restage.fireEvent(event);
+    } else {
+      owner.runWithEventContext(() => Restage.fireEvent(event));
+    }
+  }
+
+  void _failLoad(SurfaceLoad? load, SurfaceScreenUnavailableError error) {
+    if (!mounted) return;
+    final event =
+        load?.fail(_failureFor(error.reason), detail: _detailOf(error.reason));
+    if (event != null) Restage.fireEvent(event);
+  }
+
+  /// The snake_case code other hosts use for their own failures.
+  static String _detailOf(SurfaceScreenUnavailableReason reason) =>
+      reason.name.replaceAllMapped(
+          RegExp('[A-Z]'), (match) => '_${match[0]!.toLowerCase()}');
+
+  static SurfaceLoadFailureReason _failureFor(
+          SurfaceScreenUnavailableReason reason) =>
+      switch (reason) {
+        SurfaceScreenUnavailableReason.missing =>
+          SurfaceLoadFailureReason.unavailable,
+        SurfaceScreenUnavailableReason.renderFailure =>
+          SurfaceLoadFailureReason.renderError,
+        SurfaceScreenUnavailableReason.identityMismatch ||
+        SurfaceScreenUnavailableReason.contractMismatch ||
+        SurfaceScreenUnavailableReason.incompatible ||
+        SurfaceScreenUnavailableReason.invalidPayload ||
+        SurfaceScreenUnavailableReason.eventRejected =>
+          SurfaceLoadFailureReason.invalid,
+      };
+
   bool _isCurrent(int epoch) => mounted && epoch == _resolutionEpoch;
 
   static const SurfaceScreenUnavailableError _deadlineFallbackError =
@@ -1022,7 +1080,13 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
             ? _deadlineFallbackError
             : null);
     if (error != null) {
-      if (widget.unavailable.hide) return const SizedBox.shrink();
+      final load = _surfaceLoad;
+      if (widget.unavailable.hide) {
+        return SurfaceLoadPaint(
+            load: load,
+            onPainted: () => _failLoad(load, error),
+            child: const SizedBox.shrink());
+      }
       if (_fallbackAttributionEpoch != _resolutionEpoch) {
         _fallbackAttributionEpoch = _resolutionEpoch;
         _fallbackReadOwner?.dispose();
@@ -1047,10 +1111,14 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         onEvent: _fallbackEventHandler,
         child: Builder(builder: (context) {
           final fallback = widget.unavailable.fallbackBuilder!(context, error);
+          Widget painted(Widget child) => SurfaceLoadPaint(
+              load: load,
+              onPainted: () => _completeLoadWithOriginal(load),
+              child: child);
           // A parent-data fallback stays the direct child of its parent.
-          if (fallback is ParentDataWidget) return fallback;
+          if (fallback is ParentDataWidget) return painted(fallback);
           final late = _late;
-          return withSourceBadge(
+          return painted(withSourceBadge(
               () => late == null
                   ? sourceBadgeLabel(null, null)
                   : lateSourceBadgeLabel(late.version),
@@ -1059,7 +1127,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
                   child: fallback),
               description: () => late == null
                   ? null
-                  : lateSourceBadgeDescription(late.version));
+                  : lateSourceBadgeDescription(late.version)));
         }),
       );
     }
@@ -1094,25 +1162,33 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
               sink: _pagerSinkForStage(stage),
               child: SurfaceDeliveryPaintBoundary(
                 resolved: stage.resolved,
-                child: DeliveredIconFontLoader.scope(
-                  stage.sections.iconFonts,
-                  child: Listener(
-                      onPointerDown: (_) => _placementInteracted = true,
-                      child: RemoteWidget(
-                        runtime: stage.runtime,
-                        data: stage.data,
-                        widget: placementWidgetNameFor(
-                            stage.resolved, kFlowScreenWidget),
-                        onEvent: (name, value) =>
-                            _handleEvent(stage, name, value),
-                      )),
-                ),
+                child: _completeOnPaint(
+                    stage,
+                    DeliveredIconFontLoader.scope(
+                      stage.sections.iconFonts,
+                      child: Listener(
+                          onPointerDown: (_) => _placementInteracted = true,
+                          child: RemoteWidget(
+                            runtime: stage.runtime,
+                            data: stage.data,
+                            widget: placementWidgetNameFor(
+                                stage.resolved, kFlowScreenWidget),
+                            onEvent: (name, value) =>
+                                _handleEvent(stage, name, value),
+                          )),
+                    )),
               ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  Widget _completeOnPaint(_ScreenStage stage, Widget child) {
+    final load = _surfaceLoad;
+    return SurfaceLoadPaint(
+        load: load, onPainted: () => _completeLoad(load, stage), child: child);
   }
 }
 

@@ -424,9 +424,18 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
   @override
   Widget build(BuildContext context) {
     if (_entryIds.isEmpty) {
+      final controller = widget.controller;
+      final waiting =
+          widget.loadingBuilder?.call(context) ?? const SizedBox.shrink();
       return _wrapWithSystemBack(
         context,
-        widget.loadingBuilder?.call(context) ?? const SizedBox.shrink(),
+        // After a failure, the loading state is all this view paints.
+        controller.loadFailed
+            ? SurfaceLoadPaint(
+                load: controller.surfaceLoadToken,
+                onPainted: controller.reportNothingPainted,
+                child: waiting)
+            : waiting,
       );
     }
     final pages = <Page<Object?>>[
@@ -605,16 +614,21 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
       child: SurfaceDeliveryPaintBoundary.forSurface(
         surfaceType: controller.flow.surface,
         surfaceSlug: controller.flow.id,
-        child: screen.nativeScreen != null
-            ? Builder(builder: (_) => screen.nativeScreen!())
-            : DeliveredIconFontLoader.scope(
-                screen.iconFonts,
-                child: RemoteWidget(
-                    runtime: screen.runtime!,
-                    data: screen.data,
-                    widget: kFlowScreenWidget,
-                    onEvent: screen.onEvent),
-              ),
+        child: SurfaceLoadPaint(
+          load: controller.surfaceLoadToken,
+          onPainted: controller.reportLoadPainted,
+          requireRenderSuccess: true,
+          child: screen.nativeScreen != null
+              ? Builder(builder: (_) => screen.nativeScreen!())
+              : DeliveredIconFontLoader.scope(
+                  screen.iconFonts,
+                  child: RemoteWidget(
+                      runtime: screen.runtime!,
+                      data: screen.data,
+                      widget: kFlowScreenWidget,
+                      onEvent: screen.onEvent),
+                ),
+        ),
       ),
     );
 

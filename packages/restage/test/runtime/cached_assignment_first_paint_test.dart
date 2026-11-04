@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage/restage.dart';
+import 'package:restage/src/delivery/render_deadline.dart';
 import 'package:restage/src/delivery/raced_surface_resolver.dart';
 import 'package:restage/src/delivery/surface_store_key.dart';
 import 'package:restage/src/delivery/surface_delivery_receipt.dart';
@@ -108,7 +109,7 @@ void main() {
       expect(observed.local!.assignmentLease!.isCurrent, isTrue);
       expect(fetches, 2);
       credentials.now += Duration.microsecondsPerHour;
-      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(RenderDeadline.defaultFirstLaunchWait);
       await tester.pump();
       await tester.pump();
       final local = observed.local;

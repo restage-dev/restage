@@ -50,6 +50,31 @@ Map<String, Object> _analyticsPropertiesFor(RestageEvent event) {
           timeOnPaywall.inMilliseconds);
     case SurfaceDeliveryRateLimited(:final retryAfter):
       _number(properties, 'restage_retry_after_ms', retryAfter.inMilliseconds);
+    case SurfaceLoadStarted(:final surfaceId, :final surface):
+      _surface(properties, surfaceId, surface);
+    case SurfaceLoadCompleted(
+        :final surfaceId,
+        :final surface,
+        :final source,
+        :final elapsed,
+        :final firstLaunchWaitPassed,
+        :final freshWindowPassed,
+      ):
+      _surface(properties, surfaceId, surface);
+      _string(properties, 'restage_load_source', source.wireName);
+      _number(properties, 'restage_load_duration_ms', elapsed.inMilliseconds);
+      properties['restage_first_launch_wait_passed'] =
+          firstLaunchWaitPassed ? 1 : 0;
+      properties['restage_fresh_window_passed'] = freshWindowPassed ? 1 : 0;
+    case SurfaceLoadFailed(
+        :final surfaceId,
+        :final surface,
+        :final reason,
+        :final elapsed,
+      ):
+      _surface(properties, surfaceId, surface);
+      _string(properties, 'restage_reason', reason.wireName);
+      _number(properties, 'restage_load_duration_ms', elapsed.inMilliseconds);
     case PagerPageChanged(:final pageIndex, :final pageCount):
       _number(properties, 'restage_page_index', pageIndex);
       _number(properties, 'restage_page_count', pageCount);
@@ -119,6 +144,12 @@ Map<String, Object> _analyticsPropertiesFor(RestageEvent event) {
       properties['restage_granted'] = granted ? 1 : 0;
   }
   return Map<String, Object>.unmodifiable(properties);
+}
+
+/// The event's own surface wins over the presentation that emitted it.
+void _surface(Map<String, Object> properties, String id, Surface surface) {
+  _string(properties, 'restage_surface_id', id);
+  properties['restage_surface_type'] = surface.wireName;
 }
 
 void _flow(

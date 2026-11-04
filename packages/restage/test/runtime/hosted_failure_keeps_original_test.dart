@@ -97,6 +97,7 @@ void main() {
           (tester) async {
         final requests = <PlacementBatchModeV1>[];
         final reports = _configure(server, liveRefresh, requests: requests);
+        final loads = _loads();
         final failures = <FlowUnavailableError>[];
         await tester.pumpWidget(MaterialApp(
             home: NativeClassFlowSurface(onFlowUnavailable: failures.add)));
@@ -109,12 +110,14 @@ void main() {
         expect(failures, isEmpty);
         _expectReportedFallback(reports, server.reason);
         _expectMountRequests(requests, liveRefresh, server);
+        _expectOriginalLoad(loads);
       });
 
       testWidgets('a screen mount renders its compiled original: $label',
           (tester) async {
         final requests = <PlacementBatchModeV1>[];
         final reports = _configure(server, liveRefresh, requests: requests);
+        final loads = _loads();
         await tester.pumpWidget(const MaterialApp(
             home: Scaffold(body: NativeNoticeSurface('Notice original'))));
         await _finish(tester,
@@ -125,12 +128,14 @@ void main() {
         expect(shown, 1);
         _expectReportedFallback(reports, server.reason);
         _expectMountRequests(requests, liveRefresh, server);
+        _expectOriginalLoad(loads);
       });
 
       testWidgets('a paywall mount renders its compiled original: $label',
           (tester) async {
         final requests = <PlacementBatchModeV1>[];
         final reports = _configure(server, liveRefresh, requests: requests);
+        final loads = _loads();
         await tester.pumpWidget(
             const MaterialApp(home: Scaffold(body: NativeOfferSurface())));
         await _finish(tester,
@@ -141,6 +146,7 @@ void main() {
         expect(shown, 1);
         _expectReportedFallback(reports, server.reason);
         _expectMountRequests(requests, liveRefresh, server);
+        _expectOriginalLoad(loads);
       });
     }
   }
@@ -654,4 +660,26 @@ final class _RebuildingHostState extends State<_RebuildingHost> {
             onFlowUnavailable: widget.failures.add,
             onComplete: (_) => debugPrint('completed after $builds builds')));
   }
+}
+
+/// The load events the app sees from now on.
+List<RestageEvent> _loads() {
+  final events = <RestageEvent>[];
+  final subscription = Restage.events.listen((event) {
+    if (event is SurfaceLoadStarted ||
+        event is SurfaceLoadCompleted ||
+        event is SurfaceLoadFailed) {
+      events.add(event);
+    }
+  });
+  addTearDown(subscription.cancel);
+  return events;
+}
+
+/// One load that paints the compiled original, whatever the service said.
+void _expectOriginalLoad(List<RestageEvent> loads) {
+  expect(loads.map((event) => event.runtimeType),
+      [SurfaceLoadStarted, SurfaceLoadCompleted]);
+  expect(
+      (loads.last as SurfaceLoadCompleted).source, SurfaceLoadSource.original);
 }

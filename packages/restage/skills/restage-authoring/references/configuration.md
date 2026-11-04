@@ -11,7 +11,7 @@ provide registration, implicit placements and compiled-widget fallback.
 | --- | --- | --- |
 | `apiKey`, `baseUrl` | Unset; no hosted delivery | Supply the public SDK key and HTTPS service URL for hosted delivery. A blank key clears hosted configuration. |
 | `surfaces` | Empty list | Pass generated `restageSurfaces` to prefetch known surfaces after the first frame. Prefetch does not enroll experiment participants. |
-| `firstLaunchWait` | `Duration(seconds: 1)` | How long a placement with nothing saved shows nothing while delivered content arrives, before its compiled fallback. `firstLaunchWaits` overrides it per placement id. |
+| `firstLaunchWait` | `Duration(seconds: 3)` | How long a placement with nothing saved shows nothing while delivered content arrives, before its compiled fallback. `firstLaunchWaits` overrides it per placement id. |
 | `freshWindow` | `Duration(milliseconds: 150)` | How long a placement with saved content waits for a fresher version before showing the saved one. |
 | `channel` | Unset | Label the app build for delivery rules, such as `beta` or `stable`. Empty values and values over 128 UTF-8 bytes are omitted. |
 | `environment` | `RestageEnvironment.production` | Set a matching local hint for sandbox integrations. Hosted authorization uses the environment bound to the API key; this setting does not select a server environment. |

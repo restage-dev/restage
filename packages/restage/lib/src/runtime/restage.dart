@@ -317,7 +317,7 @@ abstract final class Restage {
   /// references are fetched after the first frame without an assignment.
   /// Previously stored paywalls and listed surfaces are also refreshed. A
   /// placement with nothing saved shows nothing for up to [firstLaunchWait]
-  /// (default 1 s; [firstLaunchWaits] overrides it per placement id) while
+  /// (default 3 s; [firstLaunchWaits] overrides it per placement id) while
   /// delivered content arrives, then renders its compiled widget. A placement
   /// with saved content waits up to [freshWindow] for a fresher version, then
   /// renders the saved one. A direct mount with no compiled widget can keep

@@ -12,6 +12,7 @@ import '../authoring/event_dispatch_admission.dart';
 import '../delivery/raced_surface_resolver.dart';
 import '../resolver/placement_mount_resolver.dart';
 import '../delivery/render_deadline.dart';
+import '../delivery/surface_load_cycle.dart';
 import '../delivery/surface_race.dart';
 import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart';
@@ -46,7 +47,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
     required this.onComplete,
     required this.onUnavailable,
   })  : _onMeasurementLifecycle = null,
-        _onMeasurementAnswer = null {
+        _onMeasurementAnswer = null,
+        _onLoadPainted = null {
     _installFlowVocabularies();
   }
 
@@ -64,7 +66,9 @@ final class RestageFlowController<R> extends ChangeNotifier {
     void Function(MeasurementOccurrenceChannelV1 channel, String? screenId)?
         onMeasurementLifecycle,
     void Function(String questionId, Object? value)? onMeasurementAnswer,
+    void Function()? onLoadPainted,
   })  : _onMeasurementAnswer = onMeasurementAnswer,
+        _onLoadPainted = onLoadPainted,
         _onMeasurementLifecycle = onMeasurementLifecycle,
         _onRootResolved = onRootResolved,
         _sanitizeAndRecordEvent = sanitizeAndRecordEvent {
@@ -425,6 +429,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
           FlowDocumentCodec.encodeCanonicalJson(resolved.document),
         ).value,
       );
+      _rootLeaf = resolved;
       await _goTo(rootFrame, resolved.document.initial);
       if (_isDisposed || _isUnavailable || _isComplete) return;
       _emitFlowStarted(rootFrame);
@@ -441,6 +446,45 @@ final class RestageFlowController<R> extends ChangeNotifier {
   }
 
   RenderDeadline? _rootDeadline;
+  SurfaceLoad? _surfaceLoad;
+  ResolvedFlow? _rootLeaf;
+  FlowUnavailableError? _loadFailure;
+  final void Function()? _onLoadPainted;
+
+  void _emitLoadEvent(RestageEvent? event) {
+    if (event != null && !_isDisposed) _emitEvent(event);
+  }
+
+  /// Identifies this controller's current load, for paint observers.
+  @internal
+  Object? get surfaceLoadToken => _surfaceLoad;
+
+  /// Whether the load failed, so a view showing no screen paints nothing.
+  @internal
+  bool get loadFailed => _loadFailure != null;
+
+  /// Settles the load: the first screen painted.
+  @internal
+  void reportLoadPainted() {
+    final host = _onLoadPainted;
+    if (host != null) {
+      host();
+      return;
+    }
+    _emitLoadEvent(_surfaceLoad?.complete(_rootLeaf));
+  }
+
+  /// Settles the load: the host painted its original in place of the flow.
+  @internal
+  void reportOriginalPainted() => _emitLoadEvent(_surfaceLoad?.complete(null));
+
+  /// Settles the load: the host painted nothing in place of the flow.
+  @internal
+  void reportNothingPainted() {
+    final reason = _loadFailure?.reason ?? 'unknown';
+    _emitLoadEvent(
+        _surfaceLoad?.fail(surfaceLoadFailureFor(reason), detail: reason));
+  }
 
   /// Called with fresh root content accepted after the mount settled on
   /// other content; a mount that adopts it sends [report] once it paints.
@@ -459,6 +503,12 @@ final class RestageFlowController<R> extends ChangeNotifier {
     final deadline = _rootDeadline = RenderDeadline.start(
         Restage.firstLaunchWaitFor(flow.id),
         window: Restage.freshWindow);
+    // A host that reports its own load owns none here.
+    if (_onLoadPainted == null) {
+      _surfaceLoad = SurfaceLoad(
+          surfaceId: flow.id, surface: flow.surface, deadline: deadline)
+        ..start(_emitLoadEvent);
+    }
     late final Future<ResolvedFlow?> freshFuture;
     Future<ResolvedFlow?> fresh() => freshFuture = raced != null
         ? raced.fresh(
@@ -2066,6 +2116,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     _activeActionToken = null;
     _currentScreenEntryId = null;
     _frames.clear();
+    _loadFailure = error;
     _emitEvent(FlowUnavailable(
       flowId: error.flowId,
       flowVersion: error.flowVersion,
@@ -2571,6 +2622,7 @@ RestageFlowController<R> createHostMeasurementFlowController<R>({
   void Function(MeasurementOccurrenceChannelV1 channel, String? screenId)?
       onMeasurementLifecycle,
   void Function(String questionId, Object? value)? onMeasurementAnswer,
+  void Function()? onLoadPainted,
 }) {
   return RestageFlowController<R>._forHostMeasurement(
     flow: flow,
@@ -2585,6 +2637,7 @@ RestageFlowController<R> createHostMeasurementFlowController<R>({
     sanitizeAndRecordEvent: sanitizeAndRecordEvent,
     onMeasurementLifecycle: onMeasurementLifecycle,
     onMeasurementAnswer: onMeasurementAnswer,
+    onLoadPainted: onLoadPainted,
   );
 }
 
