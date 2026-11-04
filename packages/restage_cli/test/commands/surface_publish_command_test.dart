@@ -15,7 +15,11 @@ import 'package:test/test.dart';
 import '../_helpers/test_fixtures.dart';
 
 /// The control response returned by `activateSurface`.
-String _activationResponse({required int revision, int? before}) => jsonEncode({
+String _activationResponse({
+  required int revision,
+  int? before,
+  List<Map<String, Object?>>? runningExperiments,
+}) => jsonEncode({
   '__className__': 'SurfaceContractFamilyOperationResult',
   'family': {
     '__className__': 'SurfaceContractFamilyReference',
@@ -27,6 +31,7 @@ String _activationResponse({required int revision, int? before}) => jsonEncode({
   'activePublishedRevisionBefore': ?before,
   'activePublishedRevisionAfter': revision,
   'identityFrozenAfter': false,
+  'runningExperiments': ?runningExperiments,
 });
 
 void main() {
@@ -180,6 +185,50 @@ void main() {
       ),
     );
     expect(err.toString(), isEmpty);
+  });
+
+  test('a running experiment is named with how to end it', () async {
+    final client = mockHttpClient(
+      (request) => http.Response(
+        _activationResponse(
+          revision: 4,
+          runningExperiments: [
+            {
+              '__className__': 'SurfaceRunningExperiment',
+              'experimentId': 'exp-1',
+              'experimentLabel': 'Checkout copy',
+              'audienceLabel': 'Everyone',
+              'lifecycleOrdinal': 2,
+            },
+            {
+              '__className__': 'SurfaceRunningExperiment',
+              'experimentId': 'exp-2',
+              'lifecycleOrdinal': 5,
+            },
+          ],
+        ),
+        200,
+      ),
+    );
+
+    final code = await runWith(client, ['pro', '--revision', '4']);
+
+    expect(code, 0, reason: err.toString());
+    expect(
+      err.toString(),
+      'Experiment "Checkout copy" (exp-1) is running on this surface. '
+      'Devices in its "Everyone" audience keep their arm\'s version until it '
+      'ends; every other device gets this version now.\n'
+      'Try `restage experiment conclude --experiment-id exp-1 '
+      '--expected-lifecycle-ordinal 2 --organization restage --project demo '
+      '--app mobile --env staging` to end it.\n'
+      'Experiment exp-2 is running on this surface. Devices its audience '
+      'admits keep their arm\'s version until it ends; every other device '
+      'gets this version now.\n'
+      'Try `restage experiment conclude --experiment-id exp-2 '
+      '--expected-lifecycle-ordinal 5 --organization restage --project demo '
+      '--app mobile --env staging` to end it.\n',
+    );
   });
 
   test('without --revision the server publishes the newest revision', () async {

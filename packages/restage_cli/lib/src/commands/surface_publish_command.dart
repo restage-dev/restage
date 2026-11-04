@@ -12,6 +12,7 @@ import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/commands/surface_measurement_review.dart';
 import 'package:restage_cli/src/commands/surface_publish_operation.dart';
 import 'package:restage_cli/src/commands/surface_reach_output.dart';
+import 'package:restage_cli/src/commands/running_experiments_output.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
@@ -195,6 +196,11 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
                 mountName: result.mountName,
               ),
             );
+          writeRunningExperiments(
+            _io.stderr,
+            result.runningExperiments,
+            target: target,
+          );
         },
       );
       await printPublishedReach(

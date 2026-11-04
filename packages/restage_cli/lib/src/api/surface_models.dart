@@ -886,6 +886,69 @@ class SurfaceIdentityMutationResult {
   };
 }
 
+/// An active experiment that pins an arm of a surface at the target.
+///
+/// Devices it enrolls keep their arm's version until it ends.
+@experimental
+@immutable
+class SurfaceRunningExperiment {
+  /// Construct a running experiment.
+  const SurfaceRunningExperiment({
+    required this.experimentId,
+    required this.lifecycleOrdinal,
+    this.experimentLabel,
+    this.audienceLabel,
+  });
+
+  /// Experiment identity.
+  final String experimentId;
+
+  /// The experiment's name, when it has one.
+  final String? experimentLabel;
+
+  /// The audience whose devices enroll, when it is named.
+  final String? audienceLabel;
+
+  /// The lifecycle ordinal a pause or conclude names as expected.
+  final int lifecycleOrdinal;
+
+  /// Decode the generated wire shape.
+  factory SurfaceRunningExperiment.fromJson(Object? raw) {
+    if (raw is! Map<String, dynamic> ||
+        raw['experimentId'] is! String ||
+        raw['lifecycleOrdinal'] is! int) {
+      throw const FormatException(
+        'The response contained an invalid running experiment.',
+      );
+    }
+    return SurfaceRunningExperiment(
+      experimentId: raw['experimentId'] as String,
+      experimentLabel: raw['experimentLabel'] as String?,
+      audienceLabel: raw['audienceLabel'] as String?,
+      lifecycleOrdinal: raw['lifecycleOrdinal'] as int,
+    );
+  }
+
+  /// Decode an optional list; absent means none.
+  static List<SurfaceRunningExperiment> listFromJson(Object? raw) {
+    if (raw == null) return const [];
+    if (raw is! List) {
+      throw const FormatException(
+        'The response contained invalid running experiments.',
+      );
+    }
+    return [for (final item in raw) SurfaceRunningExperiment.fromJson(item)];
+  }
+
+  /// Encode for JSON-shaped consumer output.
+  Map<String, dynamic> toJson() => {
+    'experimentId': experimentId,
+    if (experimentLabel != null) 'experimentLabel': experimentLabel,
+    if (audienceLabel != null) 'audienceLabel': audienceLabel,
+    'lifecycleOrdinal': lifecycleOrdinal,
+  };
+}
+
 /// Family-scoped activation or rollback result.
 @experimental
 @immutable
@@ -903,6 +966,7 @@ class SurfaceFamilyMutationResult {
     required this.activeRevisionAfter,
     required this.frozen,
     this.mountName,
+    this.runningExperiments = const [],
   });
 
   /// Surface type wire name.
@@ -937,6 +1001,9 @@ class SurfaceFamilyMutationResult {
 
   /// The generated widget an app mounts to show the revision, when named.
   final String? mountName;
+
+  /// Active experiments whose enrolled devices keep their arm's version.
+  final List<SurfaceRunningExperiment> runningExperiments;
 
   /// Decode the non-null generated family-operation result.
   static SurfaceFamilyMutationResult fromJson(
@@ -977,6 +1044,9 @@ class SurfaceFamilyMutationResult {
       activeRevisionAfter: activeRevisionAfter,
       frozen: identityFrozenAfter,
       mountName: raw['mountName'] as String?,
+      runningExperiments: SurfaceRunningExperiment.listFromJson(
+        raw['runningExperiments'],
+      ),
     );
   }
 
@@ -1030,6 +1100,9 @@ class SurfaceFamilyMutationResult {
                   false)
               as bool,
       mountName: raw['mountName'] as String?,
+      runningExperiments: SurfaceRunningExperiment.listFromJson(
+        raw['runningExperiments'],
+      ),
     );
   }
 
@@ -1046,6 +1119,10 @@ class SurfaceFamilyMutationResult {
     'activeRevisionAfter': activeRevisionAfter,
     'frozen': frozen,
     if (mountName != null) 'mountName': mountName,
+    if (runningExperiments.isNotEmpty)
+      'runningExperiments': [
+        for (final experiment in runningExperiments) experiment.toJson(),
+      ],
   };
 }
 
@@ -1361,6 +1438,7 @@ class RollbackPreflightResult {
     required this.classification,
     required this.blockingChanges,
     this.rawClassification,
+    this.runningExperiments = const [],
   });
 
   /// Surface type wire name (`paywall` / `onboarding` / `message` / `survey` /
@@ -1388,6 +1466,9 @@ class RollbackPreflightResult {
   /// when constructed directly rather than decoded from the wire.
   final String? rawClassification;
 
+  /// Active experiments whose enrolled devices would keep their arm's version.
+  final List<SurfaceRunningExperiment> runningExperiments;
+
   /// The classification's wire name for output: the raw backend value when
   /// one was decoded, else the enum name. Keeps a classification this client
   /// does not recognize legible instead of laundering it to `"unknown"`.
@@ -1407,6 +1488,9 @@ class RollbackPreflightResult {
       ),
       blockingChanges: [for (final c in rawChanges) c.toString()],
       rawClassification: rawClassification,
+      runningExperiments: SurfaceRunningExperiment.listFromJson(
+        json['runningExperiments'],
+      ),
     );
   }
 
@@ -1421,6 +1505,10 @@ class RollbackPreflightResult {
     'toVersion': toVersion,
     'classification': classificationWireName,
     'blockingChanges': blockingChanges,
+    if (runningExperiments.isNotEmpty)
+      'runningExperiments': [
+        for (final experiment in runningExperiments) experiment.toJson(),
+      ],
   };
 }
 
