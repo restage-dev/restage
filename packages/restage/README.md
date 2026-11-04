@@ -275,13 +275,82 @@ covers screens, paywalls and flows by default, including each generated mount's
 placement. Leave `flowResolver` unset for ordinary setup; a resolver you set
 replaces that default for flows.
 
-A placement with nothing saved shows nothing for up to 1 s while its delivered
-content arrives, then its compiled fallback. Set the wait with
+A placement with nothing saved shows nothing for up to 3 s while its delivered
+content arrives, then its compiled fallback. See
+[doc/first_launch.md](doc/first_launch.md) for typical delivery times and how to
+choose the wait. Set the wait with
 `Restage.configure(firstLaunchWait: ...)`, or per placement with
 `firstLaunchWaits`. A placement with saved content waits 150 ms for a fresher
 version, then shows the saved one; set that with `freshWindow`. A saved version
 is used only if it matches the surface and the installed build, comes from the
 current delivery decision, and hasn't expired.
+
+### Load events
+
+Each mount reports its load on `Restage.events`. `RestagePaywall`,
+`RestagePlacement` (including `RestagePlacement.flow`) and generated paywall
+surfaces also pass the events to their `onEvent`. Screens, whose `onEvent` is
+typed to their own events, and other onboarding and flow mounts report only on
+`Restage.events`. A `RestageFlowController` you
+create yourself reports only to its own `onEvent`.
+
+`SurfaceLoadStarted` fires when the load starts. A paywall or placement starts
+a new load when its placement changes. A screen or flow starts one when it gets
+a different surface or a new resolver object, and a flow also when it gets a new
+`actions` or `installedSignalNames` object. Then at most one
+terminal event fires, after the frame in which the mount first paints. None
+fires if the mount is disposed before that, or while it is kept offstage. No
+order is guaranteed relative to the `PaywallLoad*` events.
+
+- `SurfaceLoadCompleted` means content painted. `source` says which:
+  `delivered` (content the service delivered for this mount, including the
+  answer to this launch's startup request), `saved` (content already on the
+  device: an earlier delivery, including one an earlier mount received in this
+  launch) or `original` (the compiled widget, the bundled copy or your
+  fallback). A mount whose placement has nothing published completes with
+  `original`. `firstLaunchWaitPassed` and `freshWindowPassed` say whether each
+  wait had passed when the mount chose what to show, and `elapsed` is the time
+  from the start of the load to the paint. A later live swap does not fire it
+  again.
+- `SurfaceLoadFailed` means the mount painted its error state or nothing: it
+  had no delivered, saved or original content, or its content failed to
+  render. `reason` is a `SurfaceLoadFailureReason`: `unavailable`,
+  `invalid`, `renderError` or `unknown`, sent to analytics as `unavailable`,
+  `invalid`, `render_error` or `unknown`. `detail` is a diagnostic code, such as
+  `decode_failed`, whose values may change. The SDK's own codes are snake_case;
+  an error code from your own resolver passes through unchanged.
+
+`loadingBuilder` shows while a mount waits. To wait longer for one placement,
+raise its wait, and use the events to see how often the wait runs out:
+
+```dart
+Restage.configure(
+  apiKey: 'rs_pk_...',
+  baseUrl: 'https://api.example.com',
+  firstLaunchWaits: {'home_banner': Duration(seconds: 3)},
+);
+
+RestagePlacement(
+  id: 'home_banner',
+  fallback: (_) => const DefaultBanner(),
+  loadingBuilder: (_) => const BannerSkeleton(),
+);
+
+Restage.events.listen((event) {
+  switch (event) {
+    case SurfaceLoadCompleted(
+        surfaceId: 'home_banner',
+        source: SurfaceLoadSource.original,
+        firstLaunchWaitPassed: true,
+        :final elapsed,
+      ):
+      // Delivery missed the wait; the fallback is showing.
+      log('home_banner showed its fallback after $elapsed');
+    case _:
+      break;
+  }
+});
+```
 
 A response that arrives after the wait can be saved for later mounts. `surfaces`
 adds generated placements to the startup request, sent at startup; that request can

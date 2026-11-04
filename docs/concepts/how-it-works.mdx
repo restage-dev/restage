@@ -62,7 +62,7 @@ Bundled surfaces load from the app's assets and need no account or network. When
 is connected to Restage Cloud or your own server, the SDK asks for the live version and
 checks it before rendering it.
 
-A mount with nothing saved waits up to 1 s for delivered content; one with a saved version waits 150 ms for a newer one.
+A mount with nothing saved waits up to 3 s for delivered content; one with a saved version waits 150 ms for a newer one.
 The fetch continues after a fallback appears. Each kind of mount has its own fallback:
 
 - A generated `<ClassName>Surface` or `RestageScreen<E>` checks the version's id,

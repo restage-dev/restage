@@ -183,7 +183,16 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
     final runtime = _runtime;
     final data = _data;
     if (runtime == null || data == null) {
-      return widget.loadingBuilder?.call(context) ?? const SizedBox.shrink();
+      final controller = widget.controller;
+      final waiting =
+          widget.loadingBuilder?.call(context) ?? const SizedBox.shrink();
+      // After a failure, the loading state is all this view paints.
+      return controller.loadFailed
+          ? SurfaceLoadPaint(
+              load: controller.surfaceLoadToken,
+              onPainted: controller.reportNothingPainted,
+              child: waiting)
+          : waiting;
     }
     // Capture the controller + entry so a stale event or render failure routes
     // to the owner gated to the owner's current entry.
@@ -209,23 +218,25 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
       child: SurfaceDeliveryPaintBoundary.forSurface(
         surfaceType: controller.flow.surface,
         surfaceSlug: controller.flow.id,
-        child: RemoteWidget(
-          runtime: runtime,
-          data: data,
-          widget: kFlowScreenWidget,
-          onEvent: (name, args) {
-            // Inert unless this is the owning controller's current screen.
-            if (entryId != controller.currentScreenEntryId) return;
-            if (isMeasurementTapEventName(name)) return;
-            final sanitized = MeasurementEventSanitizer.sanitize(
-              withoutContextItemIndexes(args),
-            );
-            controller.handleEvent(
-              name,
-              normalizeEventArgs(sanitized.businessValue),
-            );
-          },
-        ),
+        child: _paintsLoad(
+            controller,
+            RemoteWidget(
+              runtime: runtime,
+              data: data,
+              widget: kFlowScreenWidget,
+              onEvent: (name, args) {
+                // Inert unless this is the owning controller's current screen.
+                if (entryId != controller.currentScreenEntryId) return;
+                if (isMeasurementTapEventName(name)) return;
+                final sanitized = MeasurementEventSanitizer.sanitize(
+                  withoutContextItemIndexes(args),
+                );
+                controller.handleEvent(
+                  name,
+                  normalizeEventArgs(sanitized.businessValue),
+                );
+              },
+            )),
       ),
     );
     return RestageFlowEventRegistration(
@@ -241,4 +252,11 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
       child: child,
     );
   }
+
+  Widget _paintsLoad(RestageFlowController<R> controller, Widget child) =>
+      SurfaceLoadPaint(
+          load: controller.surfaceLoadToken,
+          onPainted: controller.reportLoadPainted,
+          requireRenderSuccess: true,
+          child: child);
 }

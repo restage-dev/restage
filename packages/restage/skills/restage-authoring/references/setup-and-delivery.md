@@ -152,7 +152,7 @@ selection, refresh triggers, reporting controls and resolution diagnostics.
 
 ## When delivery fails
 
-A mount with nothing saved waits up to `firstLaunchWait` (1 s by default, set
+A mount with nothing saved waits up to `firstLaunchWait` (3 s by default, set
 with `Restage.configure(firstLaunchWait: ...)`); a mount with saved content
 waits up to `freshWindow` (150 ms). It then uses an eligible local
 candidate ready by that time: retained content or an optional bundle, otherwise

@@ -17,8 +17,12 @@ import '../events/restage_event.dart'
         FlowUnavailable,
         OnboardingStepViewed,
         PagerPageChanged,
-        RestageEvent;
+        RestageEvent,
+        SurfaceLoadCompleted,
+        SurfaceLoadFailed,
+        SurfaceLoadStarted;
 import '../measurement/measurement_event_sanitizer.dart';
+import '../delivery/surface_delivery_paint_boundary.dart' show SurfaceLoadPaint;
 import '../delivery/surface_race.dart';
 import '../measurement/measurement_host_session.dart';
 import '../measurement/placement_mount_attribution.dart';
@@ -425,6 +429,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
           return;
         }
         if (!mounted || !identical(_controller, pending)) return;
+        if (!_admitLoadEvent(event)) return;
         _fireControllerEvent(pending, event);
       },
       onComplete: (result) {
@@ -709,6 +714,8 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       _observationCell = null;
       _rejectedHostedIdentityAttempts = 0;
       _forceUnassignedFallback = false;
+      _loadStarted = false;
+      _loadSettled = false;
     }
     // A hard (re)start renders immediately and fails closed to the fallback,
     // exactly as the first mount does. Any in-flight refresh pending controller
@@ -730,6 +737,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
             )) {
           return;
         }
+        if (!_admitLoadEvent(event)) return;
         _fireControllerEvent(controller, event);
       },
       onComplete: (result) {
@@ -795,6 +803,23 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   }
 
   bool _refreshAfterFirstLoad = false;
+
+  // A retried first load and a promoted refresh report under the same mount.
+  bool _loadStarted = false;
+  bool _loadSettled = false;
+
+  bool _admitLoadEvent(RestageEvent event) {
+    switch (event) {
+      case SurfaceLoadStarted():
+        if (_loadStarted) return false;
+        _loadStarted = true;
+      case SurfaceLoadCompleted() || SurfaceLoadFailed():
+        if (_loadSettled) return false;
+        _loadSettled = true;
+      default:
+    }
+    return true;
+  }
 
   bool get _firstLoadInFlight {
     final current = _controller;
@@ -1343,10 +1368,19 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
           }
         });
       }
-      final fallback = widget.unavailable.isFallback
+      final controller = _controller;
+      final shown = widget.unavailable.isFallback
           ? withSourceBadge(() => sourceBadgeLabel(null, null),
               widget.unavailable.fallbackBuilder!(context, error))
           : const SizedBox.shrink();
+      final fallback = controller == null
+          ? shown
+          : SurfaceLoadPaint(
+              load: controller.surfaceLoadToken,
+              onPainted: widget.unavailable.isFallback
+                  ? controller.reportOriginalPainted
+                  : controller.reportNothingPainted,
+              child: shown);
       // A refresh stages its candidate beside the fallback until it paints.
       final staged = _pendingIsStaged ? _pendingController : null;
       if (staged == null) return fallback;

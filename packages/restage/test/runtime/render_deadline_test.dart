@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/delivery/render_deadline.dart';
 import 'package:restage/src/delivery/surface_artifact_store.dart'
     show MemorySurfaceArtifactStore;
 import 'package:restage/src/flow/flow_resolver.dart' show ActiveArmFlowResolver;
@@ -663,6 +664,271 @@ widget OnboardingScreen = ThrowingWidget();
     });
   });
 
+  group('surface load events', () {
+    setUp(() => Restage.configure(
+          firstLaunchWait: const Duration(seconds: 1),
+          freshWindow: const Duration(milliseconds: 100),
+        ));
+
+    testWidgets('a paywall reports delivered content', (tester) async {
+      final events = _listen();
+      final resolver = _PaywallResolver();
+      await tester.pumpWidget(_paywall(resolver));
+      await tester.pump(const Duration(milliseconds: 50));
+      resolver.freshResult.complete(
+          labelSurfaceSource(_blob('Fresh'), SurfaceResolutionSource.fresh));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Fresh'), findsOneWidget);
+      final completed = _onlyCompletion(events, 'pro', Surface.paywall);
+      expect(completed.source, SurfaceLoadSource.delivered);
+      expect(completed.firstLaunchWaitPassed, isFalse);
+      expect(completed.freshWindowPassed, isFalse);
+      expect(events.whereType<PaywallLoadStarted>(), hasLength(1));
+      expect(events.whereType<PaywallLoadCompleted>(), hasLength(1));
+    });
+
+    testWidgets('a paywall with nothing by the wait reports the original',
+        (tester) async {
+      final events = _listen();
+      final resolver = _PaywallResolver();
+      await tester.pumpWidget(_paywall(resolver));
+      await tester.pump(const Duration(milliseconds: 999));
+      expect(events.whereType<SurfaceLoadCompleted>(), isEmpty);
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(find.text('Compiled'), findsOneWidget);
+      resolver.freshResult.complete(
+          labelSurfaceSource(_blob('Fresh'), SurfaceResolutionSource.fresh));
+      await tester.pump();
+      await tester.pump();
+      final completed = _onlyCompletion(events, 'pro', Surface.paywall);
+      expect(completed.source, SurfaceLoadSource.original);
+      expect(completed.firstLaunchWaitPassed, isTrue);
+      expect(completed.freshWindowPassed, isTrue);
+    });
+
+    testWidgets('a paywall reports saved content once across a late swap',
+        (tester) async {
+      final events = _listen();
+      final resolver = _PaywallResolver(
+          local: labelSurfaceSource(
+              _blob('Disk'), SurfaceResolutionSource.holdLastGood));
+      await tester.pumpWidget(_paywall(
+        resolver,
+        liveRefresh: const {SurfaceRefreshTrigger.appResume},
+      ));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      expect(find.text('Disk'), findsOneWidget);
+      resolver.freshResult.complete(
+          labelSurfaceSource(_blob('Fresh'), SurfaceResolutionSource.fresh));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Fresh'), findsOneWidget);
+      final completed = _onlyCompletion(events, 'pro', Surface.paywall);
+      expect(completed.source, SurfaceLoadSource.saved);
+      expect(completed.firstLaunchWaitPassed, isFalse);
+      expect(completed.freshWindowPassed, isTrue);
+      expect(events.whereType<PaywallLoadCompleted>(), hasLength(2));
+    });
+
+    testWidgets('a paywall that fails to load paints and reports its original',
+        (tester) async {
+      final events = _listen();
+      final resolver = _PaywallResolver();
+      await tester.pumpWidget(_paywall(resolver));
+      resolver.freshResult.completeError(const RestagePaywallError(
+          code: RestageErrorCodes.deliveryUnavailable, message: 'offline'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Compiled'), findsOneWidget);
+      final completed = _onlyCompletion(events, 'pro', Surface.paywall);
+      expect(completed.source, SurfaceLoadSource.original);
+      expect(completed.firstLaunchWaitPassed, isFalse);
+      expect(events.whereType<PaywallLoadFailed>(), hasLength(1));
+    });
+
+    final screen = stringScreenFixture(text: 'Hosted screen');
+
+    testWidgets('a screen reports delivered content', (tester) async {
+      final events = _listen();
+      final resolver = _ScreenResolver();
+      await tester.pumpWidget(_screen(screen, resolver));
+      await tester.pump(const Duration(milliseconds: 50));
+      resolver.freshResult.complete(
+          labelSurfaceSource(screen.hosted(), SurfaceResolutionSource.fresh));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Hosted screen'), findsOneWidget);
+      final completed =
+          _onlyCompletion(events, screen.ref.slug, screen.ref.surface);
+      expect(completed.source, SurfaceLoadSource.delivered);
+      expect(completed.firstLaunchWaitPassed, isFalse);
+    });
+
+    testWidgets('a screen with nothing by the wait reports the original',
+        (tester) async {
+      final events = _listen();
+      final resolver = _ScreenResolver();
+      await tester.pumpWidget(_screen(screen, resolver));
+      await tester.pump(RenderDeadline.defaultFirstLaunchWait);
+      await tester.pump();
+      expect(find.text('Compiled screen'), findsOneWidget);
+      final completed =
+          _onlyCompletion(events, screen.ref.slug, screen.ref.surface);
+      expect(completed.source, SurfaceLoadSource.original);
+      expect(completed.firstLaunchWaitPassed, isTrue);
+    });
+
+    testWidgets('a screen reports saved content at the fresh window',
+        (tester) async {
+      final events = _listen();
+      final resolver = _ScreenResolver(
+          local: labelSurfaceSource(
+              screen.bundled(), SurfaceResolutionSource.holdLastGood));
+      await tester.pumpWidget(_screen(screen, resolver));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      expect(find.text('Hosted screen'), findsOneWidget);
+      final completed =
+          _onlyCompletion(events, screen.ref.slug, screen.ref.surface);
+      expect(completed.source, SurfaceLoadSource.saved);
+      expect(completed.firstLaunchWaitPassed, isFalse);
+      expect(completed.freshWindowPassed, isTrue);
+    });
+
+    testWidgets('an onboarding flow reports delivered content', (tester) async {
+      final events = _listen();
+      final resolver = _FlowRacer();
+      await tester.pumpWidget(_onboarding(flows.firstRunFlowRef, resolver));
+      await tester.pump(const Duration(milliseconds: 50));
+      resolver.freshResult.complete(labelSurfaceSource(
+          flows.resolvedFlow(welcomeText: 'Fresh'),
+          SurfaceResolutionSource.fresh));
+      await _settleFlow(tester);
+      expect(find.text('Fresh'), findsOneWidget);
+      final completed =
+          _onlyCompletion(events, flows.firstRunFlowRef.id, Surface.onboarding);
+      expect(completed.source, SurfaceLoadSource.delivered);
+      expect(completed.firstLaunchWaitPassed, isFalse);
+      expect(completed.freshWindowPassed, isFalse);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets(
+        'an onboarding flow with nothing by the wait reports the '
+        'original', (tester) async {
+      final events = _listen();
+      await tester
+          .pumpWidget(_onboarding(nativeOfferFlowRef, _PendingFlowResolver()));
+      await tester.pump(RenderDeadline.defaultFirstLaunchWait);
+      await _settleFlow(tester);
+      expect(find.text('Offer original'), findsOneWidget);
+      final completed =
+          _onlyCompletion(events, nativeOfferFlowRef.id, Surface.onboarding);
+      expect(completed.source, SurfaceLoadSource.original);
+      expect(completed.firstLaunchWaitPassed, isTrue);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('an onboarding flow reports saved content at the fresh window',
+        (tester) async {
+      final events = _listen();
+      final resolver = _FlowRacer(
+          local: labelSurfaceSource(flows.resolvedFlow(welcomeText: 'Stored'),
+              SurfaceResolutionSource.holdLastGood));
+      await tester.pumpWidget(_onboarding(flows.firstRunFlowRef, resolver));
+      await tester.pump(const Duration(milliseconds: 100));
+      await _settleFlow(tester);
+      expect(find.text('Stored'), findsOneWidget);
+      final completed =
+          _onlyCompletion(events, flows.firstRunFlowRef.id, Surface.onboarding);
+      expect(completed.source, SurfaceLoadSource.saved);
+      expect(completed.firstLaunchWaitPassed, isFalse);
+      expect(completed.freshWindowPassed, isTrue);
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
+
+  group('surface load events on a controller you create', () {
+    setUp(_configureFast);
+
+    List<String> loads(List<RestageEvent> events) => [
+          for (final event in events)
+            switch (event) {
+              SurfaceLoadStarted() => 'started',
+              SurfaceLoadCompleted(:final source) =>
+                'completed ${source.wireName}',
+              SurfaceLoadFailed(:final reason) => 'failed ${reason.wireName}',
+              _ => null,
+            },
+        ].nonNulls.toList();
+
+    testWidgets('a flow view completes on its first screen', (tester) async {
+      final events = <RestageEvent>[];
+      final resolver = _FlowRacer();
+      final controller =
+          _flowController(flows.firstRunFlowRef, resolver, onEvent: events.add);
+      await _mountFlow(tester, controller);
+      resolver.freshResult.complete(labelSurfaceSource(
+          flows.resolvedFlow(welcomeText: 'Fresh'),
+          SurfaceResolutionSource.fresh));
+      await _settleFlow(tester);
+      expect(find.text('Fresh'), findsOneWidget);
+      expect(loads(events), ['started', 'completed delivered']);
+      await _unmountFlow(tester, controller);
+    });
+
+    testWidgets('a screen view completes on its screen', (tester) async {
+      final events = <RestageEvent>[];
+      final resolver = _FlowRacer();
+      final controller =
+          _flowController(flows.firstRunFlowRef, resolver, onEvent: events.add);
+      unawaited(controller.load());
+      await tester.pumpWidget(
+          MaterialApp(home: RestageScreenView(controller: controller)));
+      resolver.freshResult.complete(labelSurfaceSource(
+          flows.resolvedFlow(welcomeText: 'Fresh'),
+          SurfaceResolutionSource.fresh));
+      await _settleFlow(tester);
+      expect(find.text('Fresh'), findsOneWidget);
+      expect(loads(events), ['started', 'completed delivered']);
+      await _unmountFlow(tester, controller);
+    });
+
+    for (final screenView in [false, true]) {
+      testWidgets(
+          'a failed controller under a ${screenView ? 'screen' : 'flow'} view '
+          'fails its load', (tester) async {
+        final events = <RestageEvent>[];
+        final resolver = _FlowRacer();
+        final controller = _flowController(flows.firstRunFlowRef, resolver,
+            onEvent: events.add);
+        unawaited(controller.load());
+        await tester.pumpWidget(MaterialApp(
+            home: screenView
+                ? RestageScreenView(
+                    controller: controller,
+                    loadingBuilder: (_) => const Text('Waiting'))
+                : RestageFlowView(
+                    controller: controller,
+                    loadingBuilder: (_) => const Text('Waiting'))));
+        resolver.freshResult.completeError(const FlowUnavailableError(
+            flowId: 'first_run',
+            flowVersion: 1,
+            reason: 'delivery_unavailable',
+            message: 'offline'));
+        await _settleFlow(tester);
+        expect(find.text('Waiting'), findsOneWidget);
+        expect(loads(events), ['started', 'failed unavailable']);
+        await _unmountFlow(tester, controller);
+      });
+    }
+  });
+
   group('slow measurement', () {
     late AdmittedConstructionOwnerHostTestHarness harness;
     setUp(() {
@@ -738,12 +1004,12 @@ widget OnboardingScreen = ThrowingWidget();
       support.deleteSync(recursive: true);
     });
 
-    test('the first-launch wait defaults to 1 s and the fresh window to 150 ms',
+    test('the first-launch wait defaults to 3 s and the fresh window to 150 ms',
         () {
       Restage.debugReset();
       Restage.configure();
       expect(Restage.freshWindow, const Duration(milliseconds: 150));
-      expect(Restage.firstLaunchWaitFor(""), const Duration(seconds: 1));
+      expect(Restage.firstLaunchWaitFor(""), const Duration(seconds: 3));
     });
 
     test('configure sets the render deadline', () {
@@ -951,7 +1217,8 @@ widget OnboardingScreen = ThrowingWidget();
     test('a reset restores the default deadline', () {
       Restage.configure(firstLaunchWait: const Duration(milliseconds: 120));
       Restage.debugReset();
-      expect(Restage.firstLaunchWaitFor(""), const Duration(seconds: 1));
+      expect(Restage.firstLaunchWaitFor(""),
+          RenderDeadline.defaultFirstLaunchWait);
     });
   });
 }
@@ -1182,13 +1449,14 @@ final class _PendingScreenResolver implements SurfaceScreenResolver {
 
 RestageFlowController<R> _flowController<R>(
   SurfaceFlowRef<R> flow,
-  FlowResolver resolver,
-) =>
+  FlowResolver resolver, {
+  void Function(RestageEvent event)? onEvent,
+}) =>
     RestageFlowController<R>(
       flow: flow,
       resolver: resolver,
       actions: null,
-      onEvent: (_) {},
+      onEvent: onEvent ?? (_) {},
       onComplete: (_) {},
       onUnavailable: (_) {},
     );
@@ -1276,6 +1544,46 @@ final class _FlowRacer
     return freshResult.future;
   }
 }
+
+List<RestageEvent> _listen() {
+  final events = <RestageEvent>[];
+  final subscription = Restage.events.listen(events.add);
+  addTearDown(subscription.cancel);
+  return events;
+}
+
+List<RestageEvent> _loads(List<RestageEvent> events) => [
+      for (final event in events)
+        if (event is SurfaceLoadStarted ||
+            event is SurfaceLoadCompleted ||
+            event is SurfaceLoadFailed)
+          event,
+    ];
+
+/// Asserts one start and one completion for [id], and returns the completion.
+SurfaceLoadCompleted _onlyCompletion(
+  List<RestageEvent> events,
+  String id,
+  Surface surface,
+) {
+  final loads = _loads(events);
+  expect(loads.map((event) => event.runtimeType),
+      [SurfaceLoadStarted, SurfaceLoadCompleted]);
+  final started = loads.first as SurfaceLoadStarted;
+  final completed = loads.last as SurfaceLoadCompleted;
+  expect((started.surfaceId, started.surface), (id, surface));
+  expect((completed.surfaceId, completed.surface), (id, surface));
+  return completed;
+}
+
+Widget _onboarding<R>(SurfaceFlowRef<R> flow, FlowResolver resolver) =>
+    MaterialApp(
+      home: RestageOnboarding<R>(
+        flow: flow,
+        resolver: resolver,
+        unavailable: const FlowUnavailablePolicy.hide(),
+      ),
+    );
 
 Future<void> _pumpPrefetch(WidgetTester tester) async {
   for (var i = 0; i < 5; i += 1) {

@@ -1261,6 +1261,7 @@ void main() {
 
       expect(completed?.completed, isTrue);
       expect(events.map((event) => event.runtimeType), [
+        SurfaceLoadStarted,
         FlowStarted,
         FlowCompleted,
       ]);

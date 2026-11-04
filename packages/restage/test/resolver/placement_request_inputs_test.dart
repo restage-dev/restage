@@ -471,7 +471,7 @@ void main() {
       );
       await tester.runAsync(() async => _configure(channel: 'beta'));
       debugResetAppBuildOrdinal();
-      expect(Restage.firstLaunchWaitFor(""), const Duration(seconds: 1));
+      final wait = Restage.firstLaunchWaitFor("");
       final fixture = stringScreenFixture();
       final sent = <Map<String, Object?>>[];
       final response = Completer<http.Response>();
@@ -493,7 +493,7 @@ void main() {
         resolver: resolver,
         unavailable: const SurfaceScreenUnavailablePolicy.hide(),
       )));
-      await tester.pump(const Duration(milliseconds: 999));
+      await tester.pump(wait - const Duration(milliseconds: 1));
       expect(find.text('Bundled screen'), findsNothing);
       await tester.pump(const Duration(milliseconds: 1));
       await tester.pump();

@@ -263,7 +263,12 @@ final class _Harness {
 
   /// Configures the SDK without mounting a screen.
   Future<void> configureOnly() async {
-    Restage.configure(apiKey: _apiKey, baseUrl: _baseUrl);
+    // Shorter than the input budget, so the deadline comes first.
+    Restage.configure(
+      apiKey: _apiKey,
+      baseUrl: _baseUrl,
+      firstLaunchWait: const Duration(seconds: 1),
+    );
     Restage.debugRestageRpcClient = _client;
   }
 

@@ -9,6 +9,7 @@ part 'delivery_events.dart';
 part 'flow_events.dart';
 part 'interaction_events.dart';
 part 'presentation_events.dart';
+part 'surface_load_events.dart';
 
 /// Base type for every event the Restage SDK emits.
 ///
@@ -128,6 +129,47 @@ RestageEvent snapshotRestageEventForEmission(
           surface: surface,
           surfaceId: surfaceId,
           retryAfter: retryAfter,
+          firedAt: event.firedAt ?? firedAt,
+          attribution: attribution,
+        ),
+      SurfaceLoadStarted(:final surfaceId, :final surface) =>
+        SurfaceLoadStarted(
+          surfaceId: surfaceId,
+          surface: surface,
+          firedAt: event.firedAt ?? firedAt,
+          attribution: attribution,
+        ),
+      SurfaceLoadCompleted(
+        :final surfaceId,
+        :final surface,
+        :final source,
+        :final elapsed,
+        :final firstLaunchWaitPassed,
+        :final freshWindowPassed,
+      ) =>
+        SurfaceLoadCompleted(
+          surfaceId: surfaceId,
+          surface: surface,
+          source: source,
+          elapsed: elapsed,
+          firstLaunchWaitPassed: firstLaunchWaitPassed,
+          freshWindowPassed: freshWindowPassed,
+          firedAt: event.firedAt ?? firedAt,
+          attribution: attribution,
+        ),
+      SurfaceLoadFailed(
+        :final surfaceId,
+        :final surface,
+        :final reason,
+        :final detail,
+        :final elapsed,
+      ) =>
+        SurfaceLoadFailed(
+          surfaceId: surfaceId,
+          surface: surface,
+          reason: reason,
+          detail: detail,
+          elapsed: elapsed,
           firedAt: event.firedAt ?? firedAt,
           attribution: attribution,
         ),

@@ -25,7 +25,7 @@ final class RenderDeadline {
 
   /// The default time a placement with nothing saved waits for delivered
   /// content before it renders its original.
-  static const Duration defaultFirstLaunchWait = Duration(seconds: 1);
+  static const Duration defaultFirstLaunchWait = Duration(seconds: 3);
 
   /// The default time a placement with saved content waits for a fresher
   /// version.
@@ -47,6 +47,25 @@ final class RenderDeadline {
 
   /// Completes when the deadline passes.
   Future<void> get reached => _reached.future;
+
+  bool? _passedWhenSettled;
+  bool? _windowPassedWhenSettled;
+
+  /// Records the waits when the mount settles on what to show; the first
+  /// settlement is kept.
+  void markSettled() {
+    _passedWhenSettled ??= hasPassed;
+    _windowPassedWhenSettled ??= windowHasPassed;
+  }
+
+  /// Whether the deadline had passed when the mount settled, or has passed
+  /// now if it has not settled.
+  bool get passedWhenSettled => _passedWhenSettled ?? hasPassed;
+
+  /// Whether the fresh window had passed when the mount settled, or has
+  /// passed now if it has not settled.
+  bool get windowPassedWhenSettled =>
+      _windowPassedWhenSettled ?? windowHasPassed;
 
   /// Stops the timer; [reached] then never completes.
   void cancel() {

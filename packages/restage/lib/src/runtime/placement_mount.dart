@@ -168,6 +168,17 @@ final class PlacementMountBinding {
   @internal
   bool get isExplicit => _mount != null;
 
+  /// The surface category an explicit mount declares, if any.
+  @internal
+  Surface? get declaredSurface {
+    final mount = _mount;
+    final type = mount?.surfaceType ?? mount?.defaultSurface?.surfaceType;
+    for (final surface in Surface.values) {
+      if (surface.wireName == type?.value) return surface;
+    }
+    return null;
+  }
+
   /// Compares the declaration provider and placement name, or explicit facts.
   @internal
   bool sameDeclarationAs(PlacementMountBinding? other) =>

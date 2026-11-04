@@ -413,6 +413,39 @@ void main() {
     });
   }
 
+  testWidgets('a hosted flow that paints nothing fails with its own reason',
+      (tester) async {
+    registerThrowingWidget();
+    final entry = throwingScreenBlob();
+    final bundle = _FlowAssetBundle()
+      ..writeFlow(
+        'native_offer',
+        _navFlowDocument(entryBytes: entry, plansBytes: entry)
+            .copyWith(flow: 'native_offer'),
+      )
+      ..writeScreen('paywall_pro_upgrade.rfw', entry)
+      ..writeScreen('paywall_pro_upgrade_plans.rfw', entry);
+    final events = <RestageEvent>[];
+    final subscription = Restage.events.listen(events.add);
+    addTearDown(subscription.cancel);
+    await tester.pumpWidget(MaterialApp(
+      home: RestagePaywall(
+        id: 'native_offer',
+        resolver: AssetVariantResolver(bundle: bundle),
+        errorBuilder: (_, __) => const Text('Navigation unavailable'),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNotNull);
+    expect(find.text('Navigation unavailable'), findsOneWidget);
+    final failed = events.whereType<SurfaceLoadFailed>().single;
+    expect(failed.reason, SurfaceLoadFailureReason.renderError);
+    expect(failed.detail, 'render_failed');
+    expect(events.whereType<SurfaceLoadCompleted>(), isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+  });
+
   testWidgets('a flow-shaped paywall forwards context after controlled load',
       (tester) async {
     final resolver = _ControlledFlowPayloadResolver();

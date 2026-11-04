@@ -17,6 +17,7 @@ import '../delivery/render_deadline.dart';
 import '../delivery/surface_delivery_paint_boundary.dart';
 import '../delivery/surface_race.dart';
 import '../delivery/surface_delivery_receipt.dart';
+import '../delivery/surface_load_cycle.dart';
 import '../authoring/event_dispatch_admission.dart';
 import '../analytics/root_analytics_context.dart';
 import '../authoring/event_dispatcher.dart';
@@ -229,7 +230,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
   int _loadEpoch = 0;
   RestagePaywallError? _error;
   bool _useAuthoredFallback = false;
-  late final RenderDeadline _renderDeadline;
+  late RenderDeadline _renderDeadline;
+  late SurfaceLoad _surfaceLoad;
+
+  /// The load that settled on the fallback or error state shown now.
+  SurfaceLoad? _fallbackLoad;
 
   /// The compiled widget shown because nothing was ready by the deadline.
   bool _showDeadlineFallback = false;
@@ -352,6 +357,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _renderDeadline = RenderDeadline.start(
         Restage.firstLaunchWaitFor(widget.id),
         window: Restage.freshWindow);
+    _surfaceLoad = _newSurfaceLoad();
     widget.controller?.attachInternal(
       onDismiss: ({required DismissReason reason}) {
         _fireDismissed(reason);
@@ -563,6 +569,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     // The first load starts once the host theme and media are known.
     if (_initialLoadPending) {
       _initialLoadPending = false;
+      _surfaceLoad.start(_fireEvent);
       if (!_presentHeld()) _load();
     }
   }
@@ -622,6 +629,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
     if (!(oldWidget.placementBinding
             ?.sameDeclarationAs(widget.placementBinding) ??
         widget.placementBinding == null)) {
+      // A new declaration is a new load, with its own waits.
+      _renderDeadline.cancel();
+      _renderDeadline = RenderDeadline.start(
+          Restage.firstLaunchWaitFor(widget.id),
+          window: Restage.freshWindow);
+      _surfaceLoad = _newSurfaceLoad()..start(_fireEvent);
       unawaited(_load(announceLoadStarted: false));
     }
     for (final stage in <_BlobStage?>[
@@ -683,6 +696,66 @@ class _RestagePaywallState extends State<RestagePaywall> {
     } else {
       mountContext.run(dispatch);
     }
+  }
+
+  SurfaceLoad _newSurfaceLoad() {
+    final binding = widget.placementBinding;
+    return SurfaceLoad(
+      surfaceId: widget.id,
+      surface: binding == null || !binding.isExplicit
+          ? Surface.paywall
+          : binding.declaredSurface ?? Surface.general,
+      deadline: _renderDeadline,
+    );
+  }
+
+  /// Completes [load] once [presentation] is active, inside its context.
+  void _completeSurfaceLoad(
+    SurfaceLoad load,
+    RootAnalyticsPresentation? presentation,
+    ResolvedPaywallPayload? payload,
+  ) {
+    void fire([RootAnalyticsContextSource? attribution]) {
+      if (!mounted) return;
+      final event = load.complete(
+          payload == null ? null : placementResolvedLeaf(payload), payload);
+      if (event != null) _fireEvent(event, attribution: attribution);
+    }
+
+    if (presentation == null) {
+      fire();
+    } else {
+      presentation.captureDeferredContextOnActivation(fire);
+    }
+  }
+
+  /// Completes [load] with the original, inside the fallback's context.
+  void _completeSurfaceLoadWithOriginal(SurfaceLoad load) {
+    if (!mounted) return;
+    final event = load.complete(null);
+    if (event != null) {
+      _fireEvent(event, attribution: _fallbackAnalyticsPresentation);
+    }
+  }
+
+  /// Fails [load] when this mount paints its error state.
+  Widget _failSurfaceLoadOnPaint(RestagePaywallError error, Widget child,
+      {SurfaceLoad? load}) {
+    final settles = load ?? _fallbackLoad ?? _surfaceLoad;
+    return SurfaceLoadPaint(
+      load: settles,
+      onPainted: () {
+        if (!mounted) return;
+        // A hosted flow's failure keeps its own reason.
+        final code = switch (error.cause) {
+          FlowUnavailableError(:final reason) => reason,
+          _ => error.code,
+        };
+        final event = settles.fail(surfaceLoadFailureFor(code), detail: code);
+        if (event != null) _fireEvent(event);
+      },
+      child: child,
+    );
   }
 
   MountAttributionEventContext? get _activeMountEventContext {
@@ -928,8 +1001,16 @@ class _RestagePaywallState extends State<RestagePaywall> {
       case RaceNone(freshPending: true):
         if (widget.fallbackBuilder != null && !_viewedFired) {
           report(null);
-          setState(() => _showDeadlineFallback = true);
+          setState(() {
+            _showDeadlineFallback = true;
+            _fallbackLoad = _surfaceLoad;
+          });
         } else {
+          // A rebound mount keeps the fallback or error it shows, which is
+          // then what this load paints.
+          if (_error != null || _showDeadlineFallback) {
+            setState(() => _fallbackLoad = _surfaceLoad);
+          }
           // Nothing to show yet: the mount settles on fresh's outcome.
           unawaited(freshFuture.then(
             (payload) {
@@ -1177,6 +1258,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   void _setInitialError(RestagePaywallError error) {
     _error = error;
+    _fallbackLoad = _surfaceLoad;
     _useAuthoredFallback = widget.fallbackBuilder != null && !_viewedFired;
   }
 
@@ -2063,8 +2145,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
     required void Function(FlowUnavailableError) onUnavailable,
   }) {
     final document = payload.flow.document;
+    final load = _surfaceLoad;
     late final RestageFlowController<void> controller;
     controller = createHostMeasurementFlowController<void>(
+      onLoadPainted: () =>
+          _completeSurfaceLoad(load, _flowPresentations[controller], payload),
       flow: OnboardingFlowRef<void>(
         id: document.flow,
         version: document.version,
@@ -2333,6 +2418,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       code: RestageErrorCodes.renderError,
       message: 'The navigation paywall "${widget.id}" could not be hosted '
           '(${error.reason}): ${error.message}',
+      cause: error,
     );
     _removeInitialFlowReadinessListener(controller);
     _flowTransaction?.supersede();
@@ -2426,6 +2512,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       },
     );
     stage = _BlobStage(
+      load: _surfaceLoad,
       payload: payload,
       runtime: runtime,
       data: data,
@@ -2839,9 +2926,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
               isCurrent: () =>
                   mounted && _useAuthoredFallback && identical(_error, error),
             )
-          : builder == null
-              ? const SizedBox.shrink()
-              : _markErrorPainted(error, builder(context, error));
+          : _failSurfaceLoadOnPaint(
+              error,
+              builder == null
+                  ? const SizedBox.shrink()
+                  : _markErrorPainted(error, builder(context, error)));
       // A refreshed flow stages beside the fallback until it paints.
       final staged = _pendingFlowIsStaged ? _pendingFlowController : null;
       if (staged == null || !_canBuildHostedFlow(staged)) return fallback;
@@ -2922,6 +3011,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
           captureMountAttribution(_placementDiscovery.declaration?.mount);
     }
     final snapshot = _fallbackMountAttribution;
+    final load = _fallbackLoad ?? _surfaceLoad;
     return RestageContextSnapshotScope(
       snapshot: _context,
       child: RestagePaywallEventTargetScope(
@@ -2961,7 +3051,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
                 widget.errorBuilder
                     ?.call(context, _unexpectedLoadError(exception, stack)) ??
                 const SizedBox.shrink(),
-            child: Builder(builder: widget.fallbackBuilder!),
+            child: SurfaceLoadPaint(
+              load: load,
+              onPainted: () => _completeSurfaceLoadWithOriginal(load),
+              child: Builder(builder: widget.fallbackBuilder!),
+            ),
           ),
         ),
       ),
@@ -3065,16 +3159,19 @@ class _RestagePaywallState extends State<RestagePaywall> {
                         if (!stage.transaction.isCommitted) {
                           return const SizedBox.shrink();
                         }
-                        final eb = widget.errorBuilder;
-                        if (eb == null) return const SizedBox.shrink();
-                        return eb(
-                          context,
-                          const RestagePaywallError(
-                            code: RestageErrorCodes.renderError,
-                            message:
-                                'A widget in the paywall threw during build.',
-                          ),
+                        const error = RestagePaywallError(
+                          code: RestageErrorCodes.renderError,
+                          message:
+                              'A widget in the paywall threw during build.',
                         );
+                        final eb = widget.errorBuilder;
+                        // Content that failed after it committed paints this.
+                        return _failSurfaceLoadOnPaint(
+                            error,
+                            eb == null
+                                ? const SizedBox.shrink()
+                                : eb(context, error),
+                            load: stage.load);
                       },
                       child: stage.measurementSession.wrapRootSubtree(
                         // Keep paint authority at the RFW boundary so a build
@@ -3083,18 +3180,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
                           transaction: stage.transaction,
                           child: SurfaceDeliveryPaintBoundary(
                             resolved: stage.payload.variant,
-                            child: DeliveredIconFontLoader.scope(
-                              stage.sections.iconFonts,
-                              child: RemoteWidget(
-                                runtime: stage.runtime,
-                                data: stage.data,
-                                widget: placementWidgetNameFor(
-                                    stage.payload.variant,
-                                    const FullyQualifiedWidgetName(
-                                        _paywallLibrary, _paywallRootWidget)),
-                                onEvent: stage.eventHandler,
-                              ),
-                            ),
+                            child: _completeOnPaint(stage),
                           ),
                         ),
                       ),
@@ -3104,6 +3190,27 @@ class _RestagePaywallState extends State<RestagePaywall> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _completeOnPaint(_BlobStage stage) {
+    final load = stage.load;
+    return SurfaceLoadPaint(
+      load: load,
+      onPainted: () => _completeSurfaceLoad(
+          load, stage.analyticsPresentation, stage.payload),
+      child: DeliveredIconFontLoader.scope(
+        stage.sections.iconFonts,
+        child: RemoteWidget(
+          runtime: stage.runtime,
+          data: stage.data,
+          widget: placementWidgetNameFor(
+              stage.payload.variant,
+              const FullyQualifiedWidgetName(
+                  _paywallLibrary, _paywallRootWidget)),
+          onEvent: stage.eventHandler,
         ),
       ),
     );
@@ -3172,6 +3279,7 @@ final class _BlobStage {
     required this.analyticsPresentation,
     required this.measurementSession,
     required this.mountAttribution,
+    required this.load,
   }) : local = LocalValues(
           data,
           seed: sections.localSeeds[_RestagePaywallState._paywallRootWidget],
@@ -3189,6 +3297,9 @@ final class _BlobStage {
   final bool cacheHit;
   final FirstPaintLeaseTransaction transaction;
   final RootAnalyticsPresentation analyticsPresentation;
+
+  /// The load this stage was staged for.
+  final SurfaceLoad load;
   final MeasurementHostSessionController measurementSession;
   final MountAttributionSnapshotV1? mountAttribution;
   late final PaywallEventHandler eventHandler;

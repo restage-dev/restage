@@ -164,6 +164,35 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('a delivered placement mount reports delivered content',
+      (tester) async {
+    _configure(<PlacementBatchRequestV1>[]);
+    final events = <RestageEvent>[];
+    final subscription = Restage.events.listen(events.add);
+    addTearDown(subscription.cancel);
+    final host = readPlacementDeliveryFixture()
+        .request
+        .buildContract
+        .contractsByHash
+        .values
+        .first;
+    final definition = _paywallDefinition('original', host);
+    await tester.pumpWidget(MaterialApp(
+        home: RestagePaywall(
+      id: 'original',
+      placementBinding: PlacementMountBinding(
+          definition: () => definition, name: 'home_card'),
+      fallbackBuilder: (_) => const Text('Original'),
+    )));
+    await _finish(tester);
+    expect(find.text('Welcome'), findsOneWidget);
+    final completed = events.whereType<SurfaceLoadCompleted>().single;
+    expect(events.whereType<SurfaceLoadStarted>(), hasLength(1));
+    expect(completed.source, SurfaceLoadSource.delivered);
+    expect(completed.firstLaunchWaitPassed, isFalse);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   for (final after in [false, true]) {
     testWidgets(
         'the first request names every declared placement '
@@ -906,6 +935,44 @@ void main() {
       await tester.pump(slowMount);
       await _finish(tester);
       await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('each placement mount reports where its first paint came from',
+        (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      launch(requests);
+      final events = <RestageEvent>[];
+      final subscription = Restage.events.listen(events.add);
+      addTearDown(subscription.cancel);
+      // The answer misses the wait, so the original paints and it is kept.
+      await accept(tester);
+      // The next mount paints the decision it kept.
+      await tester.pumpWidget(mount(name: 'home_card'));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+      expect(find.text('Welcome'), findsOneWidget);
+      await tester.pump(slowMount);
+      await _finish(tester);
+      await tester.pumpWidget(const SizedBox());
+      final loads = [
+        for (final event in events)
+          if (event is SurfaceLoadStarted ||
+              event is SurfaceLoadCompleted ||
+              event is SurfaceLoadFailed)
+            event,
+      ];
+      expect(loads.map((event) => event.runtimeType), [
+        SurfaceLoadStarted,
+        SurfaceLoadCompleted,
+        SurfaceLoadStarted,
+        SurfaceLoadCompleted,
+      ]);
+      final [first, second] = loads.whereType<SurfaceLoadCompleted>().toList();
+      expect((first.surfaceId, first.surface), ('original', Surface.paywall));
+      expect(first.source, SurfaceLoadSource.original);
+      expect(first.firstLaunchWaitPassed, isTrue);
+      expect(second.source, SurfaceLoadSource.saved);
+      expect(second.firstLaunchWaitPassed, isFalse);
     });
 
     testWidgets('a mount right after configure waits for the saved decisions',
