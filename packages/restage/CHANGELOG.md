@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+A navigation paywall that fails after the user left its first screen, or after
+the user tapped its content, shows `errorBuilder` when one is set, and its
+fallback otherwise (nothing if it has none, as before). Going back to the first
+screen does not change this. A failure on the first screen before that shows the
+original, even after the screen painted: the paywall fires
+`PaywallDismissed` for the delivered view, then `PaywallLoadFailed`, then
+`PaywallViewed` for the original. A single-screen paywall whose delivered
+content fails after it painted still shows `errorBuilder`, or nothing when none
+is set.
+
+A paywall now handles a new placement the way a first mount does. It drops the
+earlier placement's content at once, waits for the new placement's content or
+original under the same rules, and reports that load's own outcome. Rebinding a
+viewed paywall fires `PaywallDismissed` for the earlier view, to the earlier
+widget's `onEvent`, before the new load starts.
+
 `firstLaunchWait` now defaults to 3 s instead of 300 ms. On a fresh install, a
 mount waits up to 3 s for delivered content before it shows its compiled
 widget, so users on slower mobile networks see your current content on the

@@ -10,7 +10,7 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage_shared/restage_shared.dart';
-import 'package:rfw/formats.dart';
+import 'package:rfw/formats.dart' hide WidgetLibrary;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fixtures/compiled_surfaces/native_flow.dart';
@@ -250,6 +250,30 @@ final class _ControlledFlowPayloadResolver
   }
 }
 
+/// A flow-capable resolver that answers each fetch through [answer].
+final class _AnswerResolver
+    implements VariantResolver, FlowCapableVariantResolver {
+  _AnswerResolver(this.answer);
+
+  final Future<ResolvedPaywallPayload> Function(String id) answer;
+
+  @override
+  Future<ResolvedVariant> resolve(
+    String id, {
+    String? placementId,
+    Locale? locale,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<ResolvedPaywallPayload> resolvePayload(
+    String id, {
+    String? placementId,
+    Locale? locale,
+  }) =>
+      answer(id);
+}
+
 /// A root flow whose initial state enters a child before any screen exists.
 ///
 /// Paywall payloads are re-hosted through the already-resolved root artifact,
@@ -353,6 +377,97 @@ Future<void> _pumpFlowPaywall(
   await tester.pumpAndSettle();
 }
 
+const _armedLibrary = WidgetLibrary.custom('acme.armed');
+
+/// Builds an empty box, or throws once [armed]; it reads the view size, so a
+/// resize rebuilds it.
+final class _ArmedThrow extends StatelessWidget {
+  const _ArmedThrow();
+
+  static bool armed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    MediaQuery.sizeOf(context);
+    if (armed) throw StateError('armed');
+    return const SizedBox.shrink();
+  }
+}
+
+/// View-pairing lifecycle labels.
+List<String> _views(List<RestageEvent> events) => [
+      for (final event in events)
+        if (event is PaywallViewed)
+          'viewed'
+        else if (event is PaywallDismissed)
+          'dismissed ${event.reason.name}'
+        else if (event is PaywallLoadCompleted)
+          'loadCompleted'
+        else if (event is PaywallLoadFailed)
+          'loadFailed',
+    ];
+
+/// An entry screen labelled [label], with one tap target per entry of
+/// [labelToEvent], that holds an [_ArmedThrow].
+Uint8List _armedEntryBlob(Map<String, String> labelToEvent,
+    {String label = 'Entry'}) {
+  final buttons = [
+    for (final entry in labelToEvent.entries)
+      'SizedBox(height: 100.0, child: GestureDetector('
+          "onTap: event '${entry.value}' { }, "
+          'child: Center(child: Text(text: "${entry.key}")))),',
+  ].join('\n');
+  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile('''
+    import restage.core;
+    import acme.armed;
+    widget OnboardingScreen = Column(children: [
+      SizedBox(height: 96.0),
+      Text(text: "$label"),
+      $buttons
+      ArmedThrow(),
+    ]);
+  ''')));
+}
+
+/// Makes the shown [_ArmedThrow] throw on a rebuild driven by a resize.
+Future<void> _throwOnRebuild(WidgetTester tester) async {
+  _ArmedThrow.armed = true;
+  tester.view.physicalSize = const Size(1000, 700);
+  addTearDown(tester.view.resetPhysicalSize);
+  await tester.pumpAndSettle();
+}
+
+_FlowAssetBundle _navBundle(Uint8List entry, Uint8List plans) =>
+    _FlowAssetBundle()
+      ..writeFlow(
+        'native_offer',
+        _navFlowDocument(entryBytes: entry, plansBytes: plans)
+            .copyWith(flow: 'native_offer'),
+      )
+      ..writeScreen('paywall_pro_upgrade.rfw', entry)
+      ..writeScreen('paywall_pro_upgrade_plans.rfw', plans);
+
+ResolvedFlow _navResolvedFlowOf(Uint8List entry, Uint8List plans) =>
+    ResolvedFlow(
+      document: _navFlowDocument(entryBytes: entry, plansBytes: plans),
+      screenBlobs: {'entry': entry, 'plans': plans},
+      cacheHit: false,
+    );
+
+/// A blob paywall labelled [text] whose tap fires a custom event.
+ResolvedPaywallPayload _tappableBlob(String text) =>
+    BlobPaywallPayload(ResolvedVariant(
+      bytes: Uint8List.fromList(encodeLibraryBlob(parseLibraryFile('''
+        import restage.core;
+        widget Paywall = GestureDetector(
+          onTap: event "promo" { },
+          child: Text(text: "$text"),
+        );
+      '''))),
+      surfaceVersion: text,
+      paywallId: 'pro_upgrade',
+    ));
+
 /// The stub delivery for this file: it describes surfaces AND answers for
 /// their content, so no test here can stub half a wire.
 final HostedArtifactFixture _delivery = HostedArtifactFixture();
@@ -365,7 +480,8 @@ void main() {
 
   for (final firstScreenFails in [true, false]) {
     testWidgets(
-        'generated paywall uses its original only before a flow is viewed: '
+        'generated paywall uses its original only before the flow leaves its '
+        'first screen: '
         'first screen fails = $firstScreenFails', (tester) async {
       registerThrowingWidget();
       final entry = firstScreenFails
@@ -412,6 +528,412 @@ void main() {
       await tester.pump();
     });
   }
+
+  group('a navigation paywall', () {
+    setUp(() {
+      _ArmedThrow.armed = false;
+      Restage.registerWidgetLibrary(_armedLibrary, widgets: [
+        RestageWidgetFactory(
+            name: 'ArmedThrow', builder: (_, __) => const _ArmedThrow()),
+      ]);
+    });
+
+    Future<List<RestageEvent>> mount(
+      WidgetTester tester, {
+      required Uint8List entry,
+      required Uint8List plans,
+      bool withErrorBuilder = true,
+    }) async {
+      final events = <RestageEvent>[];
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+      });
+      await tester.pumpWidget(MaterialApp(
+        home: NativeOfferSurface(
+          resolver: AssetVariantResolver(bundle: _navBundle(entry, plans)),
+          onEvent: events.add,
+          errorBuilder: withErrorBuilder
+              ? (_, __) => const Text('Navigation unavailable')
+              : null,
+        ),
+      ));
+      await tester.pumpAndSettle();
+      return events;
+    }
+
+    testWidgets(
+        'that fails on its first screen with no user state shows its original '
+        'and ends the delivered view first', (tester) async {
+      final events = await mount(tester,
+          entry: _armedEntryBlob(const {}),
+          plans: _screenBlob({'Buy': 'restage.purchase'}));
+      expect(find.text('Entry'), findsOneWidget);
+      await _throwOnRebuild(tester);
+      expect(tester.takeException(), isNotNull);
+      expect(find.text('Offer original'), findsOneWidget);
+      expect(find.text('Navigation unavailable'), findsNothing);
+      expect(_views(events), [
+        'loadCompleted',
+        'viewed',
+        'dismissed programmatic',
+        'loadFailed',
+        'viewed',
+      ]);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(_views(events).skip(5), ['dismissed programmatic']);
+    });
+
+    testWidgets(
+        'that fails on its first screen after the user tapped it keeps its '
+        'error builder', (tester) async {
+      await mount(tester,
+          entry: _armedEntryBlob({'Buy': 'buy_tapped'}),
+          plans: _screenBlob({'Back': 'back'}));
+      await tester.tap(find.text('Buy'));
+      await tester.pump();
+      await _throwOnRebuild(tester);
+      expect(tester.takeException(), isNotNull);
+      expect(find.text('Navigation unavailable'), findsOneWidget);
+      expect(find.text('Offer original'), findsNothing);
+    });
+
+    testWidgets(
+        'that fails after leaving its first screen without an error builder '
+        'shows its original rather than nothing', (tester) async {
+      registerThrowingWidget();
+      final events = await mount(tester,
+          entry: _screenBlob({'See plans': 'restageNav0'}),
+          plans: throwingScreenBlob(),
+          withErrorBuilder: false);
+      await tester.tap(find.text('See plans'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNotNull);
+      expect(find.text('Offer original'), findsOneWidget);
+      expect(_views(events), [
+        'loadCompleted',
+        'viewed',
+        'dismissed programmatic',
+        'loadFailed',
+        'viewed',
+      ]);
+    });
+
+    testWidgets(
+        'that went back to its first screen keeps its error builder on '
+        'failure', (tester) async {
+      await mount(tester,
+          entry: _armedEntryBlob({'See plans': 'restageNav0'}),
+          plans: _screenBlob({'Back': 'back'}));
+      await tester.tap(find.text('See plans'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+      expect(find.text('Entry'), findsOneWidget);
+      await _throwOnRebuild(tester);
+      expect(tester.takeException(), isNotNull);
+      expect(find.text('Navigation unavailable'), findsOneWidget);
+      expect(find.text('Offer original'), findsNothing);
+    });
+
+    testWidgets(
+        'rebound to another placement drops the old flow and starts a new '
+        'view', (tester) async {
+      final bundle = _navBundle(_screenBlob({'See plans': 'restageNav0'}),
+          _screenBlob({'Buy': 'restage.purchase'}));
+      final events = <RestageEvent>[];
+      Widget paywall({bool rebound = false}) => MaterialApp(
+            home: NativeOfferSurface(
+              resolver: AssetVariantResolver(bundle: bundle),
+              placement: rebound ? 'checkout' : null,
+              onEvent: events.add,
+              errorBuilder: (_, __) => const Text('Navigation unavailable'),
+            ),
+          );
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+      });
+      await tester.pumpWidget(paywall());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('See plans'));
+      await tester.pumpAndSettle();
+      expect(find.text('Buy'), findsOneWidget);
+      await tester.pumpWidget(paywall(rebound: true));
+      expect(find.text('Buy'), findsNothing);
+      expect(find.text('See plans'), findsNothing);
+      await tester.pumpAndSettle();
+      expect(find.text('See plans'), findsOneWidget);
+      expect(_views(events), [
+        'loadCompleted',
+        'viewed',
+        'dismissed programmatic',
+        'loadCompleted',
+        'viewed',
+      ]);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(_views(events).skip(5), ['dismissed programmatic']);
+    });
+
+    testWidgets(
+        'promoted by a refresh in the frame after first paint still views once',
+        (tester) async {
+      final first = Completer<ResolvedPaywallPayload>();
+      var calls = 0;
+      final resolver = _AnswerResolver((_) {
+        calls++;
+        if (calls == 1) return first.future;
+        return Future.value(FlowPaywallPayload(
+          flow: _singleScreenResolvedFlow('Second'),
+          paywallId: 'pro_upgrade',
+        ));
+      });
+      final events = <RestageEvent>[];
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+      });
+      await tester.pumpWidget(MaterialApp(
+        home: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: resolver,
+          onEvent: events.add,
+          fallbackBuilder: (_) => const Text('Original'),
+        ),
+      ));
+      await tester.pump();
+      unawaited(Restage.reloadSurfaces());
+      await tester.pump(Duration.zero);
+      first.complete(FlowPaywallPayload(
+        flow: _singleScreenResolvedFlow('First'),
+        paywallId: 'pro_upgrade',
+      ));
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(Duration.zero);
+      }
+      await tester.pumpAndSettle();
+      expect(calls, 2);
+      expect(find.text('Second'), findsOneWidget);
+      expect(_views(events), ['loadCompleted', 'viewed']);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(_views(events).skip(2), ['dismissed programmatic']);
+    });
+
+    testWidgets(
+        'promoted by a refresh over its error state keeps that load advanced',
+        (tester) async {
+      registerThrowingWidget();
+      final resolver = _ControlledFlowPayloadResolver();
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+      });
+      await tester.pumpWidget(MaterialApp(
+        home: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: resolver,
+          fallbackBuilder: (_) => const Text('Original'),
+          errorBuilder: (_, __) => const Text('Unavailable'),
+        ),
+      ));
+      await tester.pump();
+      resolver.responses.single.complete(FlowPaywallPayload(
+        flow: _navResolvedFlowOf(
+            _screenBlob({'See plans': 'restageNav0'}), throwingScreenBlob()),
+        paywallId: 'pro_upgrade',
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('See plans'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNotNull);
+      expect(find.text('Unavailable'), findsOneWidget);
+      final refresh = Restage.reloadSurfaces();
+      await tester.pump();
+      expect(resolver.responses, hasLength(2));
+      resolver.responses[1].complete(FlowPaywallPayload(
+        flow: _navResolvedFlowOf(_armedEntryBlob(const {}, label: 'Candidate'),
+            _screenBlob({'Back': 'back'})),
+        paywallId: 'pro_upgrade',
+      ));
+      await refresh;
+      await tester.pumpAndSettle();
+      expect(find.text('Candidate'), findsOneWidget);
+      await _throwOnRebuild(tester);
+      expect(tester.takeException(), isNotNull);
+      expect(find.text('Unavailable'), findsOneWidget);
+      expect(find.text('Original'), findsNothing);
+    });
+
+    testWidgets(
+        'rebound after an advanced failure lets the new load show its '
+        'original', (tester) async {
+      registerThrowingWidget();
+      final bundle = _navBundle(
+          _armedEntryBlob({'See plans': 'restageNav0'}), throwingScreenBlob());
+      Widget paywall({bool rebound = false}) => MaterialApp(
+            home: NativeOfferSurface(
+              resolver: AssetVariantResolver(bundle: bundle),
+              placement: rebound ? 'checkout' : null,
+              errorBuilder: (_, __) => const Text('Navigation unavailable'),
+            ),
+          );
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+      });
+      await tester.pumpWidget(paywall());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('See plans'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNotNull);
+      expect(find.text('Navigation unavailable'), findsOneWidget);
+      await tester.pumpWidget(paywall(rebound: true));
+      await tester.pumpAndSettle();
+      expect(find.text('Entry'), findsOneWidget);
+      await _throwOnRebuild(tester);
+      expect(tester.takeException(), isNotNull);
+      expect(find.text('Offer original'), findsOneWidget);
+      expect(find.text('Navigation unavailable'), findsNothing);
+    });
+
+    testWidgets(
+        'promoted by a refresh keeps the progress of the flow it replaced',
+        (tester) async {
+      final resolver = _ControlledFlowPayloadResolver();
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+      });
+      await tester.pumpWidget(MaterialApp(
+        home: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: resolver,
+          fallbackBuilder: (_) => const Text('Original'),
+          errorBuilder: (_, __) => const Text('Unavailable'),
+        ),
+      ));
+      await tester.pump();
+      resolver.responses.single.complete(FlowPaywallPayload(
+        flow: _navResolvedFlowOf(_screenBlob({'See plans': 'restageNav0'}),
+            _screenBlob({'Back': 'back'})),
+        paywallId: 'pro_upgrade',
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('See plans'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+      final refresh = Restage.reloadSurfaces();
+      await tester.pump();
+      expect(resolver.responses, hasLength(2));
+      resolver.responses[1].complete(FlowPaywallPayload(
+        flow: _navResolvedFlowOf(_armedEntryBlob(const {}, label: 'Candidate'),
+            _screenBlob({'Back': 'back'})),
+        paywallId: 'pro_upgrade',
+      ));
+      await refresh;
+      await tester.pumpAndSettle();
+      expect(find.text('Candidate'), findsOneWidget);
+      await _throwOnRebuild(tester);
+      expect(tester.takeException(), isNotNull);
+      expect(find.text('Unavailable'), findsOneWidget);
+      expect(find.text('Original'), findsNothing);
+    });
+  });
+
+  testWidgets(
+      'a rebind sends the old view its dismiss after the build, under its '
+      'own id and callback', (tester) async {
+    final resolver = _ControlledFlowPayloadResolver();
+    final oldEvents = <RestageEvent>[];
+    final newEvents = <RestageEvent>[];
+    var rebound = false;
+    var hostBuilds = 0;
+    late StateSetter updateHost;
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    });
+    await tester.pumpWidget(MaterialApp(
+      home: StatefulBuilder(builder: (context, setState) {
+        updateHost = setState;
+        hostBuilds++;
+        final sink = rebound ? newEvents : oldEvents;
+        return Scaffold(
+          body: Builder(
+            builder: (_) => RestagePaywall(
+              id: rebound ? 'pro_upgrade_annual' : 'pro_upgrade',
+              placementBinding: RestagePaywall.generatedPlacementBinding(
+                definition: nativeOfferPlacementDefinition,
+                name: rebound ? 'checkout' : null,
+              ),
+              resolver: resolver,
+              onEvent: (event) {
+                sink.add(event);
+                if (event is PaywallDismissed) updateHost(() {});
+              },
+            ),
+          ),
+        );
+      }),
+    ));
+    await tester.pump();
+    resolver.responses.single.complete(FlowPaywallPayload(
+      flow: _singleScreenResolvedFlow('First'),
+      paywallId: 'pro_upgrade',
+    ));
+    await tester.pumpAndSettle();
+    expect(oldEvents.whereType<PaywallViewed>(), hasLength(1));
+    final buildsBefore = hostBuilds;
+    updateHost(() => rebound = true);
+    await tester.pump();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    final dismissed = oldEvents.whereType<PaywallDismissed>().single;
+    expect(dismissed.paywallId, 'pro_upgrade');
+    expect(dismissed.reason, DismissReason.programmatic);
+    expect(newEvents.whereType<PaywallDismissed>(), isEmpty);
+    expect(hostBuilds, greaterThan(buildsBefore + 1));
+  });
+
+  testWidgets('a rebound paywall can refresh content the user has not touched',
+      (tester) async {
+    final resolver = _ControlledFlowPayloadResolver();
+    Widget paywall({bool rebound = false}) => MaterialApp(
+          home: RestagePaywall(
+            id: 'pro_upgrade',
+            placementBinding: RestagePaywall.generatedPlacementBinding(
+              definition: nativeOfferPlacementDefinition,
+              name: rebound ? 'checkout' : null,
+            ),
+            resolver: resolver,
+          ),
+        );
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    });
+    await tester.pumpWidget(paywall());
+    await tester.pump();
+    resolver.responses.single.complete(_tappableBlob('First'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('First'));
+    await tester.pumpWidget(paywall(rebound: true));
+    await tester.pump();
+    resolver.responses.last.complete(_tappableBlob('Checkout'));
+    await tester.pumpAndSettle();
+    expect(find.text('Checkout'), findsOneWidget);
+    final refresh = Restage.reloadSurfaces();
+    await tester.pump();
+    expect(resolver.responses, hasLength(3));
+    resolver.responses.last.complete(_tappableBlob('Refreshed'));
+    await refresh;
+    await tester.pumpAndSettle();
+    expect(find.text('Refreshed'), findsOneWidget);
+  });
 
   testWidgets('a hosted flow that paints nothing fails with its own reason',
       (tester) async {

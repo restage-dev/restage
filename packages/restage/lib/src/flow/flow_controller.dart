@@ -478,6 +478,22 @@ final class RestageFlowController<R> extends ChangeNotifier {
   @internal
   void reportOriginalPainted() => _emitLoadEvent(_surfaceLoad?.complete(null));
 
+  /// Whether the user entered a second screen or a host action ran. Never
+  /// cleared: going back does not undo it.
+  @internal
+  bool get hasAdvanced => _advanced;
+
+  /// Carries [previous]'s progress into this controller when it replaces
+  /// [previous] within one load.
+  @internal
+  void inheritProgress(RestageFlowController<Object?> previous) {
+    if (previous.hasAdvanced) _advanced = true;
+  }
+
+  bool _advanced = false;
+  int _screensEntered = 0;
+  bool _handlerInFlight = false;
+
   /// Settles the load: the host painted nothing in place of the flow.
   @internal
   void reportNothingPainted() {
@@ -1714,6 +1730,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       library: library,
       nativeScreen: nativeScreen,
     ));
+    if (++_screensEntered > 1) _advanced = true;
     _evictScreenHistory(frame);
     _emitFlowStarted(frame);
     // `_emitFlowStarted` invokes the host's synchronous `onEvent`, which can
@@ -2105,6 +2122,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
     // A completed flow already delivered its result; it can never retroactively
     // fail closed (e.g. a late render error from a lingering completed screen).
     if (_isDisposed || _isUnavailable || _isComplete) return;
+    // A host handler still running may already have taken effect.
+    if (_handlerInFlight) _advanced = true;
     final surveyTransaction = _activeSurveyTransaction;
     if (surveyTransaction != null &&
         surveyTransaction.stage == _SurveyTransactionStage.runningTrigger) {
@@ -2211,9 +2230,17 @@ final class RestageFlowController<R> extends ChangeNotifier {
         isRetry: false,
         attemptNumber: 1,
       );
-      final result = await Future<dynamic>.value(
-        binding.invokeRuntimeHandler(decodedArgs, context),
-      );
+      final dynamic result;
+      _handlerInFlight = true;
+      try {
+        result = await Future<dynamic>.value(
+          binding.invokeRuntimeHandler(decodedArgs, context),
+        );
+      } finally {
+        _handlerInFlight = false;
+      }
+      // The host operation ran, so a later failure keeps the error state.
+      _advanced = true;
       if (!_isActiveAction(token, frame)) return;
       final encoded = binding.encodeRuntimeResult(result);
       if (!_isActiveAction(token, frame)) return;
