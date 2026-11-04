@@ -385,7 +385,25 @@ void main() {
 
     group('an existing restage_config.yaml', () {
       const existing =
+          'project: p\napp: a\ndefaultEnvironment: dev\n'
           'plane: sandbox\nrecordGit: true\nflutterRoot: ../flutter\n';
+      const settings =
+          'endpoint: https://backend.example/\nplane: live\n'
+          'recordGit: true\nflutterRoot: ../flutter\ndeclareAssets: true\n'
+          'previewWrapper: lib/restage_preview.dart#wrapPreview\n'
+          'organizationId: 3\nappId: 4\n'
+          'environmentTargetId: 5\nnamedEnvironmentId: 6\n';
+      const retargeted =
+          'Updated the target in restage_config.yaml to match your flags. '
+          'Other settings are unchanged.';
+
+      void expectSettingsKept(RestageConfig config) {
+        expect(config.recordGit, isTrue);
+        expect(config.flutterRoot, '../flutter');
+        expect(config.declareAssets, isTrue);
+        expect(config.previewWrapper, 'lib/restage_preview.dart#wrapPreview');
+      }
+
       late File configFile;
 
       setUp(() async {
@@ -406,6 +424,96 @@ void main() {
           ),
         );
       });
+
+      test('signed out, a retarget replaces only the flagged field', () async {
+        configFile.writeAsStringSync(
+          'organization: acme\nproject: p\napp: old\ndefaultEnvironment: dev\n'
+          '$settings',
+        );
+        final exitCode = await _runInit(stdout, stderr, store, tempDir);
+
+        expect(exitCode, 0, reason: stderr.toString());
+        final config = (await loadRestageConfig(from: tempDir))!.config;
+        expect(config.app, 'a');
+        expect(config.organization, 'acme');
+        expect(config.project, 'p');
+        expect(config.defaultEnvironment, 'dev');
+        expect(config.endpoint, 'https://backend.example/');
+        expect(config.plane, RuntimePlane.live);
+        expectSettingsKept(config);
+        expect(config.organizationId, 3);
+        expect(config.appId, isNull);
+        expect(config.environmentTargetId, isNull);
+        expect(config.namedEnvironmentId, isNull);
+        expect(stdout.toString(), contains(retargeted));
+      });
+
+      test('signed in, a retarget keeps the target it was not given', () async {
+        await seedCredential(store, endpoint: 'https://backend.example/');
+        configFile.writeAsStringSync(
+          'organization: default\nproject: default-project\napp: old\n'
+          'defaultEnvironment: production\n$settings',
+        );
+        final exitCode =
+            await RestageCli(
+              stdout: stdout,
+              stderr: stderr,
+              credentialStore: store,
+              httpClient: _discoveryClient(
+                grid: [('staging', 'sandbox'), ('production', 'live')],
+              ),
+            ).run([
+              '--non-interactive',
+              'init',
+              '--directory',
+              tempDir.path,
+              '--no-starter',
+              '--no-add-deps',
+              '--app',
+              'default-app',
+            ]);
+
+        expect(exitCode, 0, reason: stderr.toString());
+        final config = (await loadRestageConfig(from: tempDir))!.config;
+        expect(config.app, 'default-app');
+        expect(config.organization, 'default');
+        expect(config.project, 'default-project');
+        expect(config.defaultEnvironment, 'production');
+        expect(config.endpoint, 'https://backend.example/');
+        expect(config.plane, RuntimePlane.live);
+        expectSettingsKept(config);
+        expect(config.organizationId, 7);
+        expect(config.appId, 5);
+        expect(config.environmentTargetId, 12);
+        expect(config.namedEnvironmentId, 10);
+        expect(stdout.toString(), contains(retargeted));
+      });
+
+      for (final (flag, value) in [
+        ('--organization', 'acme'),
+        ('--plane', 'live'),
+      ]) {
+        test('a $flag the file does not hold updates the target', () async {
+          final exitCode = await _runInit(
+            stdout,
+            stderr,
+            store,
+            tempDir,
+            extra: [flag, value],
+          );
+
+          expect(exitCode, 0, reason: stderr.toString());
+          final config = (await loadRestageConfig(from: tempDir))!.config;
+          expect(config.organization, flag == '--organization' ? 'acme' : null);
+          expect(
+            config.plane,
+            flag == '--plane' ? RuntimePlane.live : RuntimePlane.sandbox,
+          );
+          expect(config.recordGit, isTrue);
+          expect(config.flutterRoot, '../flutter');
+          expect(stdout.toString(), contains(retargeted));
+        });
+      }
 
       test(
         'is updated with --force, keeping settings init does not ask',
