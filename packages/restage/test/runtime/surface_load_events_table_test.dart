@@ -7,7 +7,11 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/delivery/raced_surface_resolver.dart';
 import 'package:restage/src/delivery/surface_artifact_store.dart';
 import 'package:restage/src/flow/flow_resolver.dart' show ActiveArmFlowResolver;
+import 'package:restage/src/measurement/placement_mount_attribution.dart'
+    show MountAttributionEventContext;
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
+import 'package:restage/src/resolver/surface_delivery_observations.dart'
+    show SurfaceDeliveryObservationCell, currentSurfaceDeliveryObservationCell;
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
 import '../fixtures/compiled_surfaces/native_flow.dart';
@@ -36,39 +40,323 @@ void main() {
     _FlowHost.new,
   ];
 
-  // After its original was viewed, a rebound placement with nothing published
-  // paints its error state, and its load fails.
+  // A rebind is a new load, so a viewed original does not stop the rebound
+  // placement from painting its original again.
   testWidgets('a placement rebound to nothing published reports what it paints',
       (tester) async {
     final host = _PlacementHost();
-    Restage.configure(
-      firstLaunchWait: const Duration(seconds: 1),
-      freshWindow: const Duration(milliseconds: 100),
-      resolver: host.globalResolver,
-    );
-    final events = <RestageEvent>[];
-    final subscription = Restage.events.listen(events.add);
-    addTearDown(subscription.cancel);
+    final events = _observe(tester, resolver: host.globalResolver);
     await tester.pumpWidget(host.mount());
     await tester.pump(const Duration(milliseconds: 50));
     host.publishNothing();
     await _settle(tester);
     await tester.pumpWidget(host.mount(rebound: true));
-    await _settle(tester);
+    await tester.pump(const Duration(milliseconds: 50));
     host.publishNothing();
     await _settle(tester);
-    expect(find.text('Original'), findsNothing);
-    expect([
-      for (final event in events)
-        if (event is SurfaceLoadStarted ||
-            event is SurfaceLoadCompleted ||
-            event is SurfaceLoadFailed)
-          _describe(event),
-    ], [
+    expect(find.text('Original'), findsOneWidget);
+    expect(events.where(_isLoadEvent).map(_describe), [
       'started',
       'completed original wait=false window=false',
       'started',
+      'completed original wait=false window=false',
+    ]);
+  });
+
+  testWidgets(
+      'a paywall viewed with delivered content and rebound to nothing '
+      'published paints its original and ends the old view first',
+      (tester) async {
+    final host = _GeneratedHost();
+    final events = _observe(tester);
+    await tester.pumpWidget(host.mount());
+    await tester.pump(const Duration(milliseconds: 50));
+    host.deliver();
+    await _settle(tester);
+    expect(find.text('Fresh'), findsOneWidget);
+    await tester.pumpWidget(host.mount(rebound: true));
+    await tester.pump(const Duration(milliseconds: 50));
+    host.publishNothing();
+    await _settle(tester);
+    expect(find.text('Fresh'), findsNothing);
+    expect(find.text('Offer original'), findsOneWidget);
+    expect(_lifecycle(events), [
+      'started',
+      'completed delivered wait=false window=false',
+      'viewed',
+      'dismissed programmatic',
+      'started',
+      'completed original wait=false window=false',
+      'viewed',
+    ]);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(_lifecycle(events).skip(7), ['dismissed programmatic']);
+  });
+
+  group('a rebound paywall', () {
+    testWidgets(
+        'sends the old view its dismiss with the attribution and placement of '
+        'its view', (tester) async {
+      final host = _GeneratedHost();
+      _observe(tester);
+      final seen = <(RestageEvent, Object?)>[];
+      final subscription = Restage.events.listen((event) =>
+          seen.add((event, MountAttributionEventContext.bound?.snapshot)));
+      addTearDown(subscription.cancel);
+      await tester.pumpWidget(host.mount());
+      await tester.pump(const Duration(milliseconds: 50));
+      host.resolver.answer(_blob('Bundled', SurfaceResolutionSource.bundled));
+      await _settle(tester);
+      await tester.pumpWidget(host.mount(rebound: true));
+      await tester.pump(const Duration(milliseconds: 50));
+      host.publishNothing();
+      await _settle(tester);
+      final viewed = seen.firstWhere((entry) => entry.$1 is PaywallViewed);
+      final dismissed =
+          seen.singleWhere((entry) => entry.$1 is PaywallDismissed);
+      expect(viewed.$1.attribution?.surfaceVersion, 'Bundled');
+      expect(dismissed.$1.attribution?.surfaceVersion, 'Bundled');
+      expect(viewed.$2, isNotNull);
+      expect(dismissed.$2, same(viewed.$2));
+    });
+
+    testWidgets(
+        'with an original attributes the new original to a new presentation',
+        (tester) async {
+      final host = _GeneratedHost();
+      final events = _observe(tester);
+      await tester.pumpWidget(host.mount());
+      await tester.pump(const Duration(seconds: 1));
+      await _settle(tester);
+      await tester.pumpWidget(host.mount(rebound: true));
+      await tester.pump(const Duration(seconds: 1));
+      await _settle(tester);
+      expect(find.text('Offer original'), findsOneWidget);
+      final viewed = events.whereType<PaywallViewed>().toList();
+      final completed = events.whereType<SurfaceLoadCompleted>().toList();
+      expect(viewed, hasLength(2));
+      expect(completed, hasLength(2));
+      expect(identical(viewed[1].attribution, viewed[0].attribution), isFalse);
+      expect(
+          identical(completed[1].attribution, viewed[0].attribution), isFalse);
+    });
+
+    testWidgets('times the new view from the rebind, not from the first mount',
+        (tester) async {
+      final host = _GeneratedHost();
+      final events = _observe(tester);
+      await tester.pumpWidget(host.mount());
+      await tester.pump(const Duration(milliseconds: 50));
+      // A little real time passes while the first placement shows nothing.
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)));
+      final rebound = DateTime.now();
+      await tester.pumpWidget(host.mount(rebound: true));
+      await tester.pump(const Duration(milliseconds: 50));
+      host.deliver();
+      await _settle(tester);
+      expect(find.text('Fresh'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      final sinceRebind = DateTime.now().difference(rebound);
+      await tester.pump();
+      final dismissed = events.whereType<PaywallDismissed>().single;
+      expect(dismissed.timeOnPaywall, lessThanOrEqualTo(sinceRebind));
+    });
+
+    testWidgets(
+        'in the frame after first paint never views the dropped content',
+        (tester) async {
+      final host = _GeneratedHost();
+      final events = _observe(tester);
+      await tester.pumpWidget(host.mount());
+      await tester.pump(const Duration(milliseconds: 50));
+      host.deliver();
+      while (!events.any((event) => event is SurfaceLoadCompleted)) {
+        await tester.pump();
+      }
+      await tester.pumpWidget(host.mount(rebound: true));
+      await tester.pump(const Duration(seconds: 1));
+      await _settle(tester);
+      expect(find.text('Offer original'), findsOneWidget);
+      expect(_lifecycle(events), [
+        'started',
+        'completed delivered wait=false window=false',
+        'started',
+        'completed original wait=true window=true',
+        'viewed',
+      ]);
+    });
+
+    testWidgets('drops the late-answer badge of the old placement',
+        (tester) async {
+      final host = _GeneratedHost();
+      _observe(tester, showSourceBadges: true);
+      await tester.pumpWidget(host.mount());
+      await tester.pump(const Duration(seconds: 1));
+      await _settle(tester);
+      host.deliver();
+      await _settle(tester);
+      expect(find.text('compiled · next mount'), findsOneWidget);
+      await tester.pumpWidget(host.mount(rebound: true));
+      await tester.pump(const Duration(seconds: 1));
+      await _settle(tester);
+      expect(find.text('Offer original'), findsOneWidget);
+      expect(find.text('compiled · next mount'), findsNothing);
+      expect(find.text('compiled'), findsOneWidget);
+    });
+
+    testWidgets('reads device observations afresh for the new placement',
+        (tester) async {
+      final host = _GeneratedHost();
+      _observe(tester);
+      await tester.pumpWidget(host.mount());
+      await tester.pump(const Duration(milliseconds: 50));
+      host.deliver();
+      await _settle(tester);
+      await tester.pumpWidget(host.mount(rebound: true));
+      await tester.pump(const Duration(milliseconds: 50));
+      host.deliver();
+      await _settle(tester);
+      final cells = host.resolver.observationCells;
+      expect(cells, hasLength(2));
+      expect(cells, everyElement(isNotNull));
+      expect(identical(cells[0], cells[1]), isFalse);
+    });
+
+    testWidgets('never shows the old placement content after the rebind frame',
+        (tester) async {
+      final host = _GeneratedHost();
+      _observe(tester);
+      await tester.pumpWidget(host.mount());
+      await tester.pump(const Duration(milliseconds: 50));
+      host.deliver();
+      await _settle(tester);
+      expect(find.text('Fresh'), findsOneWidget);
+      await tester.pumpWidget(host.mount(rebound: true));
+      expect(find.text('Fresh'), findsNothing);
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(find.text('Fresh'), findsNothing);
+      }
+      expect(find.text('Offer original'), findsOneWidget);
+    });
+
+    testWidgets('without an original shows a late answer and reports it',
+        (tester) async {
+      final resolver = _PaywallResolver();
+      final events = _observe(tester);
+      Widget mount({bool rebound = false}) => MaterialApp(
+            home: RestagePaywall(
+              id: 'native_offer',
+              placementBinding: RestagePaywall.generatedPlacementBinding(
+                definition: nativeOfferPlacementDefinition,
+                name: rebound ? 'checkout' : null,
+              ),
+              resolver: resolver,
+            ),
+          );
+      await tester.pumpWidget(mount());
+      await tester.pump(const Duration(milliseconds: 50));
+      resolver.answer(_blob('Fresh', SurfaceResolutionSource.fresh));
+      await _settle(tester);
+      expect(find.text('Fresh'), findsOneWidget);
+      await tester.pumpWidget(mount(rebound: true));
+      await tester.pump(const Duration(seconds: 1));
+      await _settle(tester);
+      resolver.answer(_blob('Checkout', SurfaceResolutionSource.fresh));
+      await _settle(tester);
+      expect(find.text('Fresh'), findsNothing);
+      expect(find.text('Checkout'), findsOneWidget);
+      expect(events.where(_isLoadEvent).map(_describe), [
+        'started',
+        'completed delivered wait=false window=false',
+        'started',
+        'completed delivered wait=true window=true',
+      ]);
+    });
+
+    testWidgets(
+        'with an original keeps it and stores a late answer for the next '
+        'mount', (tester) async {
+      final host = _GeneratedHost();
+      final events = _observe(tester);
+      await tester.pumpWidget(host.mount());
+      await tester.pump(const Duration(milliseconds: 50));
+      host.deliver();
+      await _settle(tester);
+      await tester.pumpWidget(host.mount(rebound: true));
+      await tester.pump(const Duration(seconds: 1));
+      await _settle(tester);
+      expect(find.text('Offer original'), findsOneWidget);
+      host.resolver.answer(_blob('Checkout', SurfaceResolutionSource.fresh));
+      await _settle(tester);
+      expect(find.text('Offer original'), findsOneWidget);
+      expect(find.text('Checkout'), findsNothing);
+      expect(find.text('Fresh'), findsNothing);
+      expect(host.resolver.kept, hasLength(1));
+      expect(events.where(_isLoadEvent).map(_describe), [
+        'started',
+        'completed delivered wait=false window=false',
+        'started',
+        'completed original wait=true window=true',
+      ]);
+    });
+  });
+
+  testWidgets('a paywall rebound from its error state reports its own outcome',
+      (tester) async {
+    final resolver = _PaywallResolver();
+    final events = _observe(tester);
+    Widget mount({bool rebound = false}) => MaterialApp(
+          home: RestagePaywall(
+            id: 'native_offer',
+            placementBinding: RestagePaywall.generatedPlacementBinding(
+              definition: nativeOfferPlacementDefinition,
+              name: rebound ? 'checkout' : null,
+            ),
+            resolver: resolver,
+            errorBuilder: (_, error) => Text('Error ${error.code}'),
+          ),
+        );
+    await tester.pumpWidget(mount());
+    await tester.pump(const Duration(milliseconds: 50));
+    resolver.refuse(const RestagePaywallError(
+        code: RestageErrorCodes.decodeFailed, message: 'corrupt'));
+    await _settle(tester);
+    expect(find.text('Error decode_failed'), findsOneWidget);
+    await tester.pumpWidget(mount(rebound: true));
+    // Fresh is still pending when the new load's wait passes.
+    await tester.pump(const Duration(seconds: 1));
+    await _settle(tester);
+    resolver.refuse(const RestagePaywallError(
+        code: RestageErrorCodes.deliveryUnavailable, message: 'offline'));
+    await _settle(tester);
+    expect(find.text('Error delivery_unavailable'), findsOneWidget);
+    expect(events.where(_isLoadEvent).map(_describe), [
+      'started',
+      'failed invalid',
+      'started',
       'failed unavailable',
+    ]);
+  });
+
+  testWidgets('a screen that fails after painting shows its original',
+      (tester) async {
+    final host = _ScreenHost();
+    final events = _observe(tester);
+    await tester.pumpWidget(host.mount());
+    await tester.pump(const Duration(milliseconds: 50));
+    host.deliver();
+    await _settle(tester);
+    // No event callback is installed, so the tap is rejected.
+    await tester.tap(find.text('Screen'));
+    await _settle(tester);
+    expect(find.text('Screen'), findsNothing);
+    expect(find.text('Original'), findsOneWidget);
+    expect(events.where(_isLoadEvent).map(_describe), [
+      'started',
+      'completed delivered wait=false window=false',
     ]);
   });
 
@@ -127,8 +415,46 @@ String _describe(RestageEvent event) => switch (event) {
         'completed ${source.wireName} '
             'wait=$firstLaunchWaitPassed window=$freshWindowPassed',
       SurfaceLoadFailed(:final reason) => 'failed ${reason.wireName}',
+      PaywallViewed() => 'viewed',
+      PaywallDismissed(:final reason) => 'dismissed ${reason.name}',
       _ => event.name,
     };
+
+bool _isLoadEvent(RestageEvent event) =>
+    event is SurfaceLoadStarted ||
+    event is SurfaceLoadCompleted ||
+    event is SurfaceLoadFailed;
+
+List<String> _lifecycle(List<RestageEvent> events) => [
+      for (final event in events)
+        if (_isLoadEvent(event) ||
+            event is PaywallViewed ||
+            event is PaywallDismissed)
+          _describe(event),
+    ];
+
+/// Configures short waits, records every event, and unmounts after the test.
+List<RestageEvent> _observe(
+  WidgetTester tester, {
+  VariantResolver? resolver,
+  bool showSourceBadges = false,
+}) {
+  Restage.configure(
+    firstLaunchWait: const Duration(seconds: 1),
+    freshWindow: const Duration(milliseconds: 100),
+    liveRefresh: const {},
+    resolver: resolver,
+    showSourceBadges: showSourceBadges,
+  );
+  final events = <RestageEvent>[];
+  final subscription = Restage.events.listen(events.add);
+  addTearDown(subscription.cancel);
+  addTearDown(() async {
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+  });
+  return events;
+}
 
 enum _Row {
   deliveredBeforeWait('delivered before the wait',
@@ -271,6 +597,26 @@ final class _PaywallResolver extends VariantResolver
     with
         RacedSurfaceReporting<ResolvedPaywallPayload>,
         _Answers<ResolvedPaywallPayload> {
+  /// Keys whose late answers were kept for the next mount.
+  final List<SurfaceStoreKey> kept = [];
+
+  /// The device-observation cell each fetch ran under.
+  final List<SurfaceDeliveryObservationCell?> observationCells = [];
+
+  @override
+  Future<ResolvedPaywallPayload?> fresh(
+    SurfaceStoreKey key, {
+    required bool sendAssignmentKey,
+    Future<void>? keyDeadline,
+  }) {
+    observationCells.add(currentSurfaceDeliveryObservationCell());
+    return super.fresh(key,
+        sendAssignmentKey: sendAssignmentKey, keyDeadline: keyDeadline);
+  }
+
+  @override
+  void lateAnswerKept(SurfaceStoreKey key) => kept.add(key);
+
   @override
   Future<ResolvedVariant> resolve(String id,
           {String? placementId, Locale? locale}) =>

@@ -195,7 +195,9 @@ class RestagePaywall extends StatefulWidget implements RestagePlacementMount {
       errorBuilder;
 
   /// Compiled authored widget used if initial delivery is unavailable.
-  /// Generated paywall mounts supply the original constructor here. Events
+  /// Once the user leaves a navigation paywall's first screen or taps its
+  /// content, a failure in that load shows [errorBuilder] instead, when one is
+  /// set. Generated paywall mounts supply the original constructor here. Events
   /// retain the paywall dispatcher; no hosted attribution is invented.
   final WidgetBuilder? fallbackBuilder;
 
@@ -247,6 +249,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
   );
   DateTime? _mountedAt;
   bool _viewedFired = false;
+
+  /// Whether this load has advanced; a flow that replaces an advanced one
+  /// keeps it.
+  bool _loadAdvanced = false;
   final Expando<bool> _viewedPresentations =
       Expando<bool>('viewed paywall presentations');
   bool _dismissedFired = false;
@@ -629,7 +635,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
     if (!(oldWidget.placementBinding
             ?.sameDeclarationAs(widget.placementBinding) ??
         widget.placementBinding == null)) {
-      // A new declaration is a new load, with its own waits.
+      _endView(from: oldWidget);
+      // A new declaration is a new load and starts as a first mount does.
+      _discardPresentation();
       _renderDeadline.cancel();
       _renderDeadline = RenderDeadline.start(
           Restage.firstLaunchWaitFor(widget.id),
@@ -665,6 +673,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
   void _fireEvent(
     RestageEvent event, {
     RootAnalyticsContextSource? attribution,
+    MountAttributionEventContext? mountContext,
+    RestagePaywall? target,
   }) {
     if (event is PaywallCustomEvent) {
       final flow = _flowController;
@@ -686,15 +696,16 @@ class _RestagePaywallState extends State<RestagePaywall> {
     void dispatch() {
       late final RestageEvent emitted;
       source.runWithEventContext(() => emitted = emitRestageEvent(event));
-      if (mounted) widget.onEvent?.call(emitted);
+      if (mounted) (target ?? widget).onEvent?.call(emitted);
     }
 
-    final mountContext =
-        MountAttributionEventContext.current ?? _activeMountEventContext;
-    if (mountContext == null) {
+    final context = mountContext ??
+        MountAttributionEventContext.current ??
+        _activeMountEventContext;
+    if (context == null) {
       dispatch();
     } else {
-      mountContext.run(dispatch);
+      context.run(dispatch);
     }
   }
 
@@ -839,9 +850,72 @@ class _RestagePaywallState extends State<RestagePaywall> {
     );
   }
 
-  /// Fire `PaywallDismissed` exactly once per mount, regardless of which
-  /// path triggered the dismiss (controller dismiss + dispose race).
-  void _fireDismissed(DismissReason reason) {
+  /// Drops everything the previous load shows or stages.
+  void _discardPresentation() {
+    final stages = {_blobPresentation, _pendingBlobStage};
+    final controllers = {_flowController, _pendingFlowController};
+    // A Viewed still scheduled for dropped content never fires.
+    for (final presentation in [
+      for (final stage in stages) stage?.analyticsPresentation,
+      for (final controller in controllers) _flowPresentations[controller],
+    ]) {
+      if (presentation != null) _viewedPresentations[presentation] = true;
+    }
+    _pendingBlobStage?.transaction.supersede();
+    _flowTransaction?.supersede();
+    _pendingFlowTransaction?.supersede();
+    _blobPresentation = null;
+    _pendingBlobStage = null;
+    _flowController = null;
+    _flowTransaction = null;
+    _flowEpoch = null;
+    _initialFlowIsStaged = false;
+    _pendingFlowController = null;
+    _pendingFlowTransaction = null;
+    _pendingFlowEpoch = null;
+    _pendingFlowIsStaged = false;
+    _pendingFlowPromotionScheduled = false;
+    _flowLoadAnnounced = false;
+    _userInteracted = false;
+    _resolvedPaywallPublishedVersion = null;
+    _renderedAssignmentLease = null;
+    _renderedSurfaceVersion = null;
+    _error = null;
+    _useAuthoredFallback = false;
+    _showDeadlineFallback = false;
+    _fallbackLoad = null;
+    _late = null;
+    _loadAdvanced = false;
+    _fallbackAnalyticsPresentation?.dispose();
+    _fallbackAnalyticsPresentation = null;
+    _fallbackAttributionIdentity = null;
+    _fallbackMountAttribution = null;
+    _observationCell = null;
+    _mountedAt = DateTime.now();
+    for (final stage in stages) {
+      if (stage != null) _disposeBlobStageAfterDetach(stage);
+    }
+    for (final controller in controllers) {
+      if (controller != null) _disposeFlowControllerAfterDetach(controller);
+    }
+  }
+
+  /// Ends the open view, so the next presentation pairs its own
+  /// `PaywallViewed` and `PaywallDismissed`. A rebind passes the replaced
+  /// widget as [from].
+  void _endView({RestagePaywall? from}) {
+    if (!_viewedFired) return;
+    _fireDismissed(DismissReason.programmatic, from: from);
+    _viewedFired = false;
+    _dismissedFired = false;
+    _mountedAt = DateTime.now();
+  }
+
+  /// Fire `PaywallDismissed` exactly once per view, regardless of which
+  /// path triggered the dismiss (controller dismiss + dispose race). With
+  /// [from], the event goes to that widget after the current build, with the
+  /// attribution captured now.
+  void _fireDismissed(DismissReason reason, {RestagePaywall? from}) {
     if (_dismissedFired) return;
     _dismissedFired = true;
     final owner = _activeFlowMeasurementController;
@@ -849,13 +923,21 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _flowMeasurementSessions[owner]?.recordSurfaceEnd();
     }
     _blobPresentation?.measurementSession.recordSurfaceEnd();
-    _fireEvent(PaywallDismissed(
-      paywallId: widget.id,
+    final event = PaywallDismissed(
+      paywallId: (from ?? widget).id,
       reason: reason,
       timeOnPaywall: _mountedAt == null
           ? Duration.zero
           : DateTime.now().difference(_mountedAt!),
-    ));
+    );
+    if (from == null) {
+      _fireEvent(event);
+      return;
+    }
+    final attribution = _activeAnalyticsPresentation?.captureDeferredContext();
+    final mountContext = _activeMountEventContext?.capture();
+    scheduleMicrotask(() => _fireEvent(event,
+        attribution: attribution, mountContext: mountContext, target: from));
   }
 
   SurfaceDeliveryObservationCell _presentationObservations() =>
@@ -999,18 +1081,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
         report(value);
         return value;
       case RaceNone(freshPending: true):
-        if (widget.fallbackBuilder != null && !_viewedFired) {
+        if (_failureShowsOriginal()) {
           report(null);
           setState(() {
             _showDeadlineFallback = true;
             _fallbackLoad = _surfaceLoad;
           });
         } else {
-          // A rebound mount keeps the fallback or error it shows, which is
-          // then what this load paints.
-          if (_error != null || _showDeadlineFallback) {
-            setState(() => _fallbackLoad = _surfaceLoad);
-          }
           // Nothing to show yet: the mount settles on fresh's outcome.
           unawaited(freshFuture.then(
             (payload) {
@@ -1256,11 +1333,17 @@ class _RestagePaywallState extends State<RestagePaywall> {
     ));
   }
 
-  void _setInitialError(RestagePaywallError error) {
+  void _setInitialError(RestagePaywallError error, {bool advanced = false}) {
     _error = error;
     _fallbackLoad = _surfaceLoad;
-    _useAuthoredFallback = widget.fallbackBuilder != null && !_viewedFired;
+    _useAuthoredFallback = _failureShowsOriginal(advanced: advanced);
   }
+
+  /// A load that [advanced] shows [RestagePaywall.errorBuilder] when one is
+  /// set, and the original otherwise, so a failure never goes blank.
+  bool _failureShowsOriginal({bool advanced = false}) =>
+      widget.fallbackBuilder != null &&
+      (!advanced || widget.errorBuilder == null);
 
   void _reportUnexpectedLoadFailure(Object error, StackTrace stackTrace) {
     // Surface the original exception + stack to the developer console so
@@ -1549,6 +1632,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   ) {
     _flowToDisposeAfterPromotion = _flowController;
     _blobToDisposeAfterPromotion = _blobPresentation;
+    if (_flowController case final previous?) pending.inheritProgress(previous);
     _flowController = pending;
     _flowTransaction = transaction;
     _flowEpoch = epoch;
@@ -2420,6 +2504,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
           '(${error.reason}): ${error.message}',
       cause: error,
     );
+    // A tap on delivered content may have started a purchase in the host.
+    final advanced = _loadAdvanced =
+        _loadAdvanced || controller.hasAdvanced || _userInteracted;
+    // The original replaces the viewed flow, so that view ends first.
+    if (_failureShowsOriginal(advanced: advanced)) _endView();
     _removeInitialFlowReadinessListener(controller);
     _flowTransaction?.supersede();
     setState(() {
@@ -2427,7 +2516,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _flowTransaction = null;
       _flowEpoch = null;
       _initialFlowIsStaged = false;
-      _setInitialError(err);
+      _setInitialError(err, advanced: advanced);
     });
     _disposeFlowControllerAfterDetach(controller);
     _fireEvent(PaywallLoadFailed(
