@@ -15,6 +15,7 @@ import 'package:restage_material/src/widgets/restage_radio_group.dart';
 import 'package:restage_material/src/widgets/restage_segmented_button.dart';
 import 'package:restage_material/src/widgets/restage_toggle_buttons.dart';
 import 'package:restage_core/restage_core.dart';
+import 'theme_binding_resolver.dart';
 import 'package:rfw/rfw.dart' hide Switch;
 
 /// One [LocalWidgetBuilder] per widget entry in `lib/registry.dart`,

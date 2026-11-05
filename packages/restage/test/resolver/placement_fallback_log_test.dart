@@ -376,6 +376,30 @@ void main() {
           '(compatibleSince: 4). $republish See $libraryDocs');
     });
 
+    test('widget app-code gaps name the widget by its label', () {
+      const name = 'app.islands:paywall__screen_ListView_0';
+      for (final (code, clause) in [
+        (
+          SurfaceFitFailureCodeV1.missingIsland,
+          "this build doesn't include its app code.",
+        ),
+        (
+          SurfaceFitFailureCodeV1.changedIsland,
+          'this build changed its app code.',
+        ),
+      ]) {
+        final fit = token(
+            code, '\$.requiredIslands.$name', 'ListView in PaywallScreen');
+        final described = describeFitTokens([fit], published: published);
+        expect(
+            described,
+            'the published message `spring-sale` r7 doesn\'t fit this build: '
+            'ListView in PaywallScreen: $clause $republish',
+            reason: fit);
+        expect(described, isNot(contains('island')));
+      }
+    });
+
     test('a library gap is described from the token, not this device', () {
       LibraryRuntimeRegistry.clear();
       addTearDown(LibraryRuntimeRegistry.clear);

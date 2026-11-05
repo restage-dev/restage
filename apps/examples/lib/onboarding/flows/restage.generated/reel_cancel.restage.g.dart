@@ -1,6 +1,6 @@
 part of '../reel_cancel.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _reelCancelFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -54,6 +54,7 @@ const reelCancelFlowRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'ReelCancelFlowSurface',
   measurementPublicationDraftDigest:
       '057157cac2db926ca766bbb7e629704b01e201dd2caf433b9724fa1b16275cba',
   vocabulary: _reelCancelFlowRefVocabulary,
@@ -135,8 +136,8 @@ final _reelCancelFlowPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

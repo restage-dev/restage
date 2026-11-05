@@ -1,6 +1,6 @@
 part of '../tally_debt.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const tallyDebtScreenRef = NeutralFlowScreenRef(
   id: 'tally_debt',

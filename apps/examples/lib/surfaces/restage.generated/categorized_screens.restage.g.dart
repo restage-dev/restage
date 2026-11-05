@@ -1,6 +1,6 @@
 part of '../categorized_screens.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 sealed class GeneralStatusSurfaceEvent {
   const GeneralStatusSurfaceEvent();
@@ -97,8 +97,8 @@ final _generalStatusPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -112,6 +112,7 @@ final _generalStatusPlacementDefinitionValue =
     'flowBoundary': null
   },
   vocabulary: generalStatusRef.provenance.vocabulary,
+  surfaceWidget: 'GeneralStatusSurface',
 );
 
 final generalStatusPlacementDefinition =
@@ -158,21 +159,27 @@ final class GeneralStatusSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<GeneralStatusSurfaceEvent>(
-      screen: generalStatusRef,
-      placementBinding: RestageScreen.generatedPlacementBinding(
-        definition: generalStatusPlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      unavailable: unavailable ??
-          SurfaceScreenUnavailablePolicy.fallback(
-            builder: (context, error) => GeneralStatus(),
-          ),
-      onEvent: onEvent,
-      resolver: resolver,
-      onUnavailable: onUnavailable,
-      loadingBuilder: loadingBuilder,
-    );
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      return RestageScreen<GeneralStatusSurfaceEvent>(
+        screen: generalStatusRef,
+        placementBinding: RestageScreen.generatedPlacementBinding(
+          definition: generalStatusPlacementDefinition,
+          name: _restagePlacementName,
+        ),
+        unavailable: unavailable ??
+            SurfaceScreenUnavailablePolicy.fallback(
+              builder: (_, error) => _restageBuilt,
+            ),
+        onEvent: onEvent,
+        resolver: resolver,
+        onUnavailable: onUnavailable,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return (() => _restageDesign(GeneralStatus()))();
   }
 }
 
@@ -272,8 +279,8 @@ final _messageNoticePlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -287,6 +294,7 @@ final _messageNoticePlacementDefinitionValue =
     'flowBoundary': null
   },
   vocabulary: messageNoticeRef.provenance.vocabulary,
+  surfaceWidget: 'MessageNoticeSurface',
 );
 
 final messageNoticePlacementDefinition =
@@ -333,21 +341,27 @@ final class MessageNoticeSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<MessageNoticeSurfaceEvent>(
-      screen: messageNoticeRef,
-      placementBinding: RestageScreen.generatedPlacementBinding(
-        definition: messageNoticePlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      unavailable: unavailable ??
-          SurfaceScreenUnavailablePolicy.fallback(
-            builder: (context, error) => MessageNotice(),
-          ),
-      onEvent: onEvent,
-      resolver: resolver,
-      onUnavailable: onUnavailable,
-      loadingBuilder: loadingBuilder,
-    );
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      return RestageScreen<MessageNoticeSurfaceEvent>(
+        screen: messageNoticeRef,
+        placementBinding: RestageScreen.generatedPlacementBinding(
+          definition: messageNoticePlacementDefinition,
+          name: _restagePlacementName,
+        ),
+        unavailable: unavailable ??
+            SurfaceScreenUnavailablePolicy.fallback(
+              builder: (_, error) => _restageBuilt,
+            ),
+        onEvent: onEvent,
+        resolver: resolver,
+        onUnavailable: onUnavailable,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return (() => _restageDesign(MessageNotice()))();
   }
 }
 
@@ -446,8 +460,8 @@ final _onboardingWelcomePlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -461,6 +475,7 @@ final _onboardingWelcomePlacementDefinitionValue =
     'flowBoundary': null
   },
   vocabulary: onboardingWelcomeRef.provenance.vocabulary,
+  surfaceWidget: 'OnboardingWelcomeSurface',
 );
 
 final onboardingWelcomePlacementDefinition =
@@ -507,20 +522,26 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<OnboardingWelcomeSurfaceEvent>(
-      screen: onboardingWelcomeRef,
-      placementBinding: RestageScreen.generatedPlacementBinding(
-        definition: onboardingWelcomePlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      unavailable: unavailable ??
-          SurfaceScreenUnavailablePolicy.fallback(
-            builder: (context, error) => OnboardingWelcome(),
-          ),
-      onEvent: onEvent,
-      resolver: resolver,
-      onUnavailable: onUnavailable,
-      loadingBuilder: loadingBuilder,
-    );
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      return RestageScreen<OnboardingWelcomeSurfaceEvent>(
+        screen: onboardingWelcomeRef,
+        placementBinding: RestageScreen.generatedPlacementBinding(
+          definition: onboardingWelcomePlacementDefinition,
+          name: _restagePlacementName,
+        ),
+        unavailable: unavailable ??
+            SurfaceScreenUnavailablePolicy.fallback(
+              builder: (_, error) => _restageBuilt,
+            ),
+        onEvent: onEvent,
+        resolver: resolver,
+        onUnavailable: onUnavailable,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return (() => _restageDesign(OnboardingWelcome()))();
   }
 }

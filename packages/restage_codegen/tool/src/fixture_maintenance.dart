@@ -95,13 +95,31 @@ final class HistoricalFixtureArchive {
         !historicalCatalogAssets.every(sources.containsKey)) {
       throw StateError('Exactly the three installed catalogs are required.');
     }
-    final updated = {...sources, ...catalogs};
+    return _replacing(catalogs);
+  }
+
+  /// Replaces the author sources [migrated] with the output of a shipped
+  /// migration, retaining every other archived byte.
+  HistoricalFixtureArchive withMigratedSources(Map<String, String> migrated) {
+    if (migrated.isEmpty ||
+        migrated.keys.any(historicalCatalogAssets.contains) ||
+        !migrated.keys.every(sources.containsKey)) {
+      throw StateError('Only existing author sources can be migrated.');
+    }
+    if (migrated.entries.any((entry) => sources[entry.key] == entry.value)) {
+      throw StateError('A migrated source must change.');
+    }
+    return _replacing(migrated);
+  }
+
+  HistoricalFixtureArchive _replacing(Map<String, String> replaced) {
+    final updated = {...sources, ...replaced};
     final encoded = gzip.encode(utf8.encode(jsonEncode(updated)));
     final entries = <String, Object?>{
       for (final entry in (manifest['entries']! as Map).entries)
         entry.key as String: entry.value,
     };
-    for (final entry in catalogs.entries) {
+    for (final entry in replaced.entries) {
       final bytes = utf8.encode(entry.value);
       entries[entry.key] = {
         ...Map<String, Object?>.from(entries[entry.key]! as Map),

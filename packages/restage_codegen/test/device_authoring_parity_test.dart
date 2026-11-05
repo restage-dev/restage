@@ -225,9 +225,15 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
         expect(capability.manifest!.builtInFloor, lessThan(18));
         expect(result.hoisted, hasLength(1));
         expect(result.hoisted.single.kind, HoistValueKind.scalar);
+        // The app evaluates the whole argument as written, in the mount's
+        // context.
+        final written = expression.substring(
+          "Text('Hi', softWrap: ".length,
+          expression.length - 1,
+        );
         expect(
           result.hoisted.single.mountSource((name) => name),
-          contains('MediaQuery.boldTextOf(context)'),
+          written.replaceAll('(context)', '(restageRootContext)'),
         );
         expect(result.dsl, isNot(contains('data.device.')));
       });
@@ -337,9 +343,11 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
       declarations:
           'class TextScaler { const TextScaler.linear(double factor); }',
     );
-    expect(result.issues, isNotEmpty);
-    expect(result.hoisted, isEmpty);
+    // No framework recipe stands in for the app's own class: the Text renders
+    // from the app.
     expect(result.dsl, isNot(contains('kind: "linear"')));
+    expect(result.dsl, 'Probe_Text_0()');
+    expect(result.islands, hasLength(1));
   });
 
   test('a descendant context never becomes the root snapshot', () async {
@@ -403,16 +411,26 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
     expect(result.hoisted, isEmpty);
   });
 
-  test('primitive kind mismatch fails before emission', () async {
-    for (final source in [
-      'SizedBox(width: MediaQuery.boldTextOf(context))',
-      'SizedBox(width: !MediaQuery.boldTextOf(context))',
-      'SizedBox(width: MediaQuery.boldTextOf(context) && MediaQuery.highContrastOf(context))',
-      "Text('Hi', softWrap: MediaQuery.viewInsetsOf(context).bottom + 1)",
-      "Text('Hi', softWrap: MediaQuery.viewInsetsOf(context).bottom)",
+  // A value of the wrong kind never reaches the payload: the widget renders
+  // from the app.
+  test('primitive kind mismatch stays out of the payload', () async {
+    for (final (source, island) in [
+      ('SizedBox(width: MediaQuery.boldTextOf(context))', 'SizedBox'),
+      ('SizedBox(width: !MediaQuery.boldTextOf(context))', 'SizedBox'),
+      (
+        'SizedBox(width: MediaQuery.boldTextOf(context) && MediaQuery.highContrastOf(context))',
+        'SizedBox',
+      ),
+      (
+        "Text('Hi', softWrap: MediaQuery.viewInsetsOf(context).bottom + 1)",
+        'Text',
+      ),
+      ("Text('Hi', softWrap: MediaQuery.viewInsetsOf(context).bottom)", 'Text'),
     ]) {
       final result = await _translate(source);
-      expect(result.issues, isNotEmpty, reason: source);
+      expect(result.dsl, 'Probe_${island}_0()', reason: source);
+      expect(result.hoisted, isEmpty, reason: source);
+      expect(result.islands, hasLength(1), reason: source);
     }
   });
 }

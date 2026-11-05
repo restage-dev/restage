@@ -43,11 +43,14 @@ final class MeasurementSourceDiscoveryInput {
     required this.sourceClass,
     required this.rootExpression,
     required this.catalog,
+    List<Expression> rootBranches = const [],
     Map<String, CustomWidgetBlueprint> inlinedCustomWidgetBlueprints = const {},
     Map<String, String> inlinedCustomWidgetCollectionRefusals = const {},
     Map<Element, Expression> rootLocalBindings = const {},
     Map<Element, HelperDef> rootHelpers = const {},
-  }) : inlinedCustomWidgetBlueprints = Map.unmodifiable(
+    this.rendersFromApp = _nothingFromApp,
+  }) : rootBranches = List.unmodifiable(rootBranches),
+       inlinedCustomWidgetBlueprints = Map.unmodifiable(
          inlinedCustomWidgetBlueprints,
        ),
        inlinedCustomWidgetCollectionRefusals = Map.unmodifiable(
@@ -67,6 +70,10 @@ final class MeasurementSourceDiscoveryInput {
   /// Resolved expression returned by the source root's effective `build()`.
   final Expression rootExpression;
 
+  /// Each path the build renders when it has several, in the order its
+  /// mount numbers them; empty for one.
+  final List<Expression> rootBranches;
+
   /// The root `build()`'s leading `final` locals, keyed by element. A widget
   /// held in one resolves to its initializer at the widget position.
   final Map<Element, Expression> rootLocalBindings;
@@ -77,6 +84,12 @@ final class MeasurementSourceDiscoveryInput {
 
   /// Exact merged catalog used by the same compiler pass.
   final Catalog catalog;
+
+  /// Whether a widget renders from the app's compiled code, which records no
+  /// events of its own; only its widget arguments are walked.
+  final bool Function(AstNode node) rendersFromApp;
+
+  static bool _nothingFromApp(AstNode node) => false;
 
   /// Compiler-captured bodies for custom widgets that actually inline.
   ///
@@ -399,11 +412,24 @@ final class _MeasurementSourceDiscovery {
       input.rootLocalBindings,
       input.rootHelpers,
     );
-    _admitOrdinaryLeaf(input.rootExpression, rootContext);
-    _visitWidgetExpression(
-      input.rootExpression,
-      rootContext,
-    );
+    if (input.rootBranches.length > 1) {
+      // Each path is its own static occurrence; only the rendered one reports
+      // at run time. A path that throws renders nothing.
+      for (final (index, branch) in input.rootBranches.indexed) {
+        if (_withoutParentheses(branch) is ThrowExpression) continue;
+        final context = rootContext.withOccurrenceScope(
+          rootContext.occurrenceScope.enterBuildBranch(index),
+        );
+        _admitOrdinaryLeaf(branch, context);
+        _visitWidgetExpression(branch, context);
+      }
+    } else {
+      _admitOrdinaryLeaf(input.rootExpression, rootContext);
+      _visitWidgetExpression(
+        input.rootExpression,
+        rootContext,
+      );
+    }
     if (_nodes.isEmpty) {
       throw ArgumentError(
         'Measurement source discovery requires one statically resolved '
@@ -512,6 +538,10 @@ final class _MeasurementSourceDiscovery {
       }
       return;
     }
+    if (input.rendersFromApp(expression)) {
+      _visitAppRendered(expression, resolved.context);
+      return;
+    }
     if (expression is MethodInvocation) {
       final method = expression.methodName.element;
       final owner = method?.enclosingElement;
@@ -540,17 +570,50 @@ final class _MeasurementSourceDiscovery {
       _visitFlutterWidget(expression, classElement, resolved.context);
       return;
     }
-    if (!_hasResolvedAnnotationFromOrigin(
-      classElement,
-      annotationName: 'RestageWidget',
-      libraryOrigin: _kCatalogSchemaOrigin,
-    )) {
+    // An app widget inlines without the marker.
+    if (!input.inlinedCustomWidgetBlueprints.containsKey(
+          _classIdentity(classElement),
+        ) &&
+        !_hasResolvedAnnotationFromOrigin(
+          classElement,
+          annotationName: 'RestageWidget',
+          libraryOrigin: _kCatalogSchemaOrigin,
+        )) {
       throw ArgumentError(
         'A non-Flutter widget occurrence must resolve to the real '
         '@RestageWidget marker',
       );
     }
     _visitCustomWidget(expression, classElement, resolved.context);
+  }
+
+  void _visitAppRendered(Expression expression, _WidgetVisitContext context) {
+    // A call the app renders, a helper's included, is the widget it builds.
+    final widgetClass = switch (expression) {
+      InstanceCreationExpression(:final constructorName) =>
+        constructorName.type.element,
+      MethodInvocation(:final staticType) => staticType?.element,
+      _ => null,
+    };
+    if (widgetClass is! InterfaceElement) {
+      throw ArgumentError(
+        'A measurement widget occurrence requires a resolved class element',
+      );
+    }
+    final node = _recordNode(context: context, widgetClass: widgetClass);
+    _visitOpaqueSlotChildren(
+      [
+        for (final argument in _resolvedArguments(
+          expression,
+          widgetClass,
+          anyOwner: true,
+        ))
+          if (!_returnsWidget(argument.parameter.type)) argument,
+      ],
+      customClass: widgetClass,
+      node: node,
+      context: context,
+    );
   }
 
   void _visitFlutterWidget(
@@ -566,7 +629,7 @@ final class _MeasurementSourceDiscovery {
     final arguments = _resolvedArguments(expression, widgetClass);
     final eventPropertyNames = {
       for (final property in catalogEntry.properties)
-        if (property.type == PropertyType.event) property.name,
+        if (isMeasurableEvent(property)) property.name,
     };
     final childOrdinals = <String, int>{};
     for (final argument in arguments) {
@@ -837,11 +900,20 @@ final class _MeasurementSourceDiscovery {
       budget: budget,
       session: _collectionSession,
       bindings: bindings,
+      rendersFromApp: input.rendersFromApp,
     );
     for (final entry in traversal.entries) {
       final ordinal = ordinals.next(entry);
       // A run-time collection-`if` is one element built from several
       // branches, so every branch is visited at the same ordinal.
+      // An element the app builds itself, as an island, records nothing here.
+      if (entry case CollectionListRefusal(
+        refusal: CollectionUnrollRefused(
+          reason: CollectionUnrollRefusal.appRendered,
+        ),
+      )) {
+        continue;
+      }
       final occurrences = switch (entry) {
         CollectionListElement(:final occurrence) => [occurrence],
         CollectionListRefusal(:final refusal) => switch (refusal.runtimeIf) {
@@ -1289,8 +1361,9 @@ final class _MeasurementSourceDiscovery {
 
   List<_ResolvedArgument> _resolvedArguments(
     Expression expression,
-    InterfaceElement widgetClass,
-  ) {
+    InterfaceElement widgetClass, {
+    bool anyOwner = false,
+  }) {
     final (callable, argumentList) = switch (expression) {
       InstanceCreationExpression() => (
         expression.constructorName.element,
@@ -1302,9 +1375,11 @@ final class _MeasurementSourceDiscovery {
       ),
       _ => throw ArgumentError('A widget requires a resolved callable'),
     };
+    // An app-rendered call may be any function that builds the widget.
     if (callable is! ExecutableElement ||
-        callable.enclosingElement != widgetClass ||
-        (callable is MethodElement && !callable.isStatic)) {
+        !anyOwner &&
+            (callable.enclosingElement != widgetClass ||
+                (callable is MethodElement && !callable.isStatic))) {
       throw ArgumentError(
         'A measurement Flutter widget requires a resolved callable element',
       );

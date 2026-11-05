@@ -16,6 +16,86 @@ void main() {
     expect(describeFitVerdict(_verdict(const [])), ['fits']);
   });
 
+  // Each row: an island failure and the exact reason a developer reads.
+  for (final (code, reason) in [
+    (
+      'missingIsland',
+      "An installed build doesn't include the app code of `ListView in "
+          'PaywallScreen`. Try removing it from the version, or releasing an '
+          'app build that includes it.',
+    ),
+    (
+      'changedIsland',
+      'An installed build changed the app code of `ListView in '
+          'PaywallScreen`. Try republishing the version to show it on an '
+          'installed build.',
+    ),
+  ]) {
+    test('$code names the widget by its label', () {
+      final reasons = describeFitVerdict(
+        _verdict([
+          {
+            'code': code,
+            'path': r'$.requiredIslands.app.islands:paywall__screen_ListView_0',
+            'required': 'ListView in PaywallScreen',
+            'available': null,
+          },
+        ]),
+      );
+      expect(reasons, ['does not fit', reason]);
+      expect(reasons.join(), isNot(matches(RegExp('island'))));
+    });
+  }
+
+  for (final (code, path, label, reason) in [
+    (
+      'unproducedHostField',
+      r'$.layoutReads.values._hT',
+      'plan.name',
+      "`plan.name` is shown where `PlanPicker.build` doesn't compute it. "
+          'The build computes it only when `offer != null` '
+          '(lib/plans.dart:12:9). Try showing it only in that case, or '
+          'computing it before that `if`.',
+    ),
+    (
+      'unproducedIsland',
+      r'$.layoutReads.islands.app.islands:paywall__screen_Badge_0',
+      'Badge in PaywallScreen',
+      "`Badge` is placed where `PlanPicker.build` doesn't create it. The "
+          'build creates it only when `offer != null` (lib/plans.dart:12:9). '
+          'Try placing it only in that case, or creating it before that '
+          '`if`.',
+    ),
+  ]) {
+    test('$code names what the build computes elsewhere', () {
+      expect(
+        describeFitVerdict(
+          _verdict([
+            {
+              'code': code,
+              'path': path,
+              'required': label,
+              'available': {
+                'needs': {
+                  '_hB': [1],
+                },
+                'build': 'PlanPicker.build',
+                'when': [
+                  {
+                    'source': 'offer != null',
+                    'plain': "when there's an offer",
+                    'location': 'lib/plans.dart:12:9',
+                  },
+                ],
+              },
+            },
+          ]),
+        ),
+        ['does not fit', reason],
+      );
+    });
+  }
+
   test('a placement no build has shown is not checked yet', () {
     expect(
       describeFitVerdict(
@@ -30,13 +110,14 @@ void main() {
         ]),
       ),
       [
-        'not checked yet; needs an app build that showed this placement in '
-            'the last 30 days',
+        'not checked yet',
+        'No app build has shown this placement in the last 30 days. Try '
+            'opening it in an app build, then pushing again.',
       ],
     );
   });
 
-  test('missing host fields collapse into one line, other reasons follow', () {
+  test('each distinct failure reads as the publish confirmation words it', () {
     expect(
       describeFitVerdict(
         _verdict(const [
@@ -77,9 +158,17 @@ void main() {
       ),
       [
         'does not fit',
-        'the app does not pass `activePlan`, `busy` to this placement',
-        'the surface is one screen; this placement shows a flow',
-        'the app does not handle the event `restore` here',
+        "This version is one screen, and this placement doesn't show single "
+            'screens. Try publishing it to a placement that does.',
+        "An installed build doesn't pass `activePlan` to this placement. Try "
+            "removing `activePlan` from the version, or passing it in the "
+            "placement's `context` in a new app build.",
+        "An installed build doesn't pass `busy` to this placement. Try "
+            "removing `busy` from the version, or passing it in the "
+            "placement's `context` in a new app build.",
+        'This version sends the event `restore`, which an installed build '
+            "doesn't handle here. Try removing it from the version, or "
+            'handling it where a new app build shows this placement.',
       ],
     );
   });
@@ -124,10 +213,12 @@ void main() {
       ),
       [
         'does not fit',
-        "This version reads 'VColors.of(context).ink', which installed builds "
-            "don't compute. It needs an app release",
-        "This version reads '_hfedcba9876', which installed builds don't "
-            'compute. It needs an app release',
+        'This version reads `VColors.of(context).ink`, which an installed '
+            "build doesn't compute. Try removing `VColors.of(context).ink` "
+            'from the version, or releasing an app build that computes it.',
+        'This version reads `plants[]._hfedcba9876`, which an installed '
+            "build doesn't compute. Try removing `plants[]._hfedcba9876` from "
+            'the version, or releasing an app build that computes it.',
       ],
     );
   });

@@ -67,11 +67,11 @@ final class TallyOnboardingFlow extends RestageFlow {
           route,
           branches: [
             flowBranch(
-              when: state('goal').equals('debt'),
+              when: flowState('goal').equals('debt'),
               target: tallyRecapDebtScreenRef,
             ),
             flowBranch(
-              when: state('goal').equals('savings'),
+              when: flowState('goal').equals('savings'),
               target: tallyRecapSavingsScreenRef,
             ),
           ],

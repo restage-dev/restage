@@ -162,15 +162,17 @@ void main() {
         'LayoutBuilder(builder: (context, constraints) => ColoredBox(color: MaterialColor(0xff102030, {500: color})))',
       ]) {
         final result = await _translate(expression);
+        // The widget renders from the app.
         expect(
           result.issues.where((issue) => !issue.code.isBuildNotice),
-          isNotEmpty,
+          isEmpty,
         );
+        expect(result.islands, isNotEmpty, reason: expression);
       }
     },
   );
 
-  test('fresh root Color locals require an ordered build prelude', () async {
+  test('fresh root Color locals are the ones the build computes', () async {
     for (final declaration in ['final', 'final Color']) {
       for (final value in [
         'local',
@@ -185,9 +187,16 @@ void main() {
               '$declaration local = MaterialColor(0xff102030, {500: color}); '
               'final alias = true ? (local as Color) : Colors.red;',
         );
+        // The mount records the color where the build computes it, as a
+        // native object, never as ARGB.
         expect(
           result.issues.where((issue) => !issue.code.isBuildNotice),
-          isNotEmpty,
+          isEmpty,
+          reason: '$declaration $value',
+        );
+        expect(
+          result.islands.isNotEmpty || result.hoisted.isNotEmpty,
+          isTrue,
           reason: '$declaration $value',
         );
         expect(
@@ -217,9 +226,10 @@ void main() {
       final result = await _translate('ColoredBox(color: $value)');
       expect(
         result.issues.where((issue) => !issue.code.isBuildNotice),
-        crosses ? isEmpty : isNotEmpty,
+        isEmpty,
         reason: value,
       );
+      expect(result.islands, crosses ? isEmpty : isNotEmpty, reason: value);
       expect(
         result.hoisted.map((value) => value.nativeContract?.type),
         crosses ? contains('flutter.Color') : isEmpty,

@@ -6,6 +6,8 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
+import 'package:restage_codegen/src/islands/context_reach.dart'
+    show isFlutterFrameworkType;
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
@@ -525,12 +527,23 @@ final class InlinedDefinitions {
   const InlinedDefinitions({
     this.localBindings = const {},
     this.helpers = const {},
+    this.statements = const [],
+    this.returns = const [],
   });
 
   /// The empty set — a `build()` with no inlinable named intermediate.
   const InlinedDefinitions.empty()
     : localBindings = const {},
-      helpers = const {};
+      helpers = const {},
+      statements = const [],
+      returns = const [];
+
+  /// A mounted `build()`'s statements before its last return, which its
+  /// mount runs as written.
+  final List<Statement> statements;
+
+  /// Every return of a mounted `build()` that has more than one, in order.
+  final List<ReturnStatement> returns;
 
   /// Leading `final`/`const` local bindings in `build()`, keyed by the
   /// binding's resolved [Element]; the value is the binding's initializer
@@ -672,7 +685,9 @@ final class ClassificationResult {
     required Map<String, WidgetClassification> classifications,
     required Map<String, CustomWidgetBlueprint> blueprints,
     Map<String, String> collectionRefusals = const {},
+    Map<String, ClassElement> classes = const {},
   }) : classifications = Map.unmodifiable(classifications),
+       classes = Map.unmodifiable(classes),
        blueprints = Map.unmodifiable(blueprints),
        collectionRefusals = Map.unmodifiable(collectionRefusals);
 
@@ -687,4 +702,28 @@ final class ClassificationResult {
 
   /// Static collection refusals keyed by the custom widget they invalidate.
   final Map<String, String> collectionRefusals;
+
+  /// The class of each classified widget, by class key.
+  final Map<String, ClassElement> classes;
+}
+
+/// The `super.key` formal of [constructor], when it takes its key from the
+/// caller.
+SuperFormalParameterElement? superKeyFormal(ConstructorElement? constructor) =>
+    constructor?.formalParameters
+        .whereType<SuperFormalParameterElement>()
+        .where((parameter) => parameter.name == 'key')
+        .firstOrNull;
+
+/// Whether [element] is Flutter's `Widget.key`.
+bool isWidgetKeyField(Element? element) {
+  final variable = element is PropertyAccessorElement
+      ? element.variable
+      : element;
+  final owner = variable?.enclosingElement;
+  return variable is FieldElement &&
+      variable.name == 'key' &&
+      owner is InterfaceElement &&
+      owner.name == 'Widget' &&
+      isFlutterFrameworkType(owner, 'Widget');
 }

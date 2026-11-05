@@ -218,7 +218,9 @@ void main() {
         out.toString(),
         contains(
           '  named:promo: does not fit.\n'
-          '    the app does not pass `plan` to this placement.',
+          "    An installed build doesn't pass `plan` to this placement. Try "
+          "removing `plan` from the version, or passing it in the placement's "
+          '`context` in a new app build.',
         ),
       );
       expect(out.toString(), isNot(contains('default:onboarding:intro')));

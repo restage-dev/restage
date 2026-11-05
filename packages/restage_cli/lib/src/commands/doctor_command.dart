@@ -204,7 +204,7 @@ class DoctorCommand extends Command<int> {
   Future<void> _checkBuildOutputIgnored(Directory root) async {
     void line(String status, String detail) {
       _stdout
-        ..writeln('$status  Build output ignored by git')
+        ..writeln('$status  Build metadata ignored by git')
         ..writeln('      $detail');
     }
 
@@ -240,12 +240,12 @@ class DoctorCommand extends Command<int> {
       }
     }
     if (tracked.isEmpty) {
-      line('PASS', 'Build output is ignored by git.');
+      line('PASS', 'Git ignores every build metadata file.');
     } else {
       line(
         'WARN',
-        "Git doesn't ignore these build files: ${tracked.join(', ')}. Add "
-            'them to .gitignore.',
+        "Git doesn't ignore ${tracked.join(', ')}. These files change with "
+            'every build. Try adding them to .gitignore.',
       );
     }
   }

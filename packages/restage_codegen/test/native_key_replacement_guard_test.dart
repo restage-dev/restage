@@ -34,13 +34,20 @@ void main() {
         "PageView(key:$key,children:[const SizedBox()])",
         catalog,
       );
+      // The original PageView keeps its native key by rendering from the app.
       expect(
-        result.issues.map((issue) => issue.message),
-        contains(contains('original PageView owner')),
+        result.issues,
+        isEmpty,
+        reason: result.issues.map((issue) => issue.message).join('\n'),
+      );
+      expect(
+        [for (final island in result.islands) island.reason?.message],
+        [contains('original PageView owner')],
       );
     });
   }
-  test('PageView scalar ValueKey compatibility remains admitted', () async {
+  // The pager lowering can't carry a key, so the PageView keeps it from the app.
+  test('PageView with a scalar ValueKey renders from the app', () async {
     final result = await translateKey(
       "PageView(key:const ValueKey<String>('legacy'),children:[const SizedBox()])",
       catalog,
@@ -50,7 +57,11 @@ void main() {
       isEmpty,
       reason: result.issues.map((i) => i.message).join('\n'),
     );
-    expect(result.dsl, startsWith('RestagePager('));
+    expect(result.dsl, isNot(startsWith('RestagePager(')));
+    expect(
+      [for (final island in result.islands) island.reason?.message],
+      [contains("Restage keeps a widget's key only through")],
+    );
   });
   for (final site in ['group', 'container', 'option', 'label', 'dropdown']) {
     for (final native in [true, false]) {
@@ -107,14 +118,24 @@ void main() {
           ),
         },
       );
-      if (native) {
+      // Without a mount to carry it, the widget keeps its key from the app.
+      {
         expect(
-          result.issues.map((issue) => issue.message),
-          contains(contains('original custom widget owner')),
+          result.issues,
+          isEmpty,
+          reason: result.issues.map((issue) => issue.message).join('\n'),
         );
-      } else {
-        expect(result.issues, isEmpty);
-        expect(result.dsl, 'Inline()');
+        expect(
+          [for (final island in result.islands) island.reason?.message],
+          [
+            contains(
+              native
+                  ? 'original custom widget owner'
+                  : "Restage keeps a widget's key only through",
+            ),
+          ],
+        );
+        expect(result.dsl, isNot(contains('Inline()')));
       }
     });
   }

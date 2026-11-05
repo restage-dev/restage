@@ -64,6 +64,7 @@ final class WidgetEntry {
     this.deprecatedSince,
     this.stability = Stability.volatile,
     this.deprecated,
+    this.itemInputs = 0,
   }) : assert(
           sinceVersion >= kBaselineCatalogVersion,
           'sinceVersion must be at or above the baseline content version',
@@ -161,4 +162,8 @@ final class WidgetEntry {
   /// Two-layer deprecation status (source-level `@Deprecated` plus
   /// catalog-lifecycle `deprecate` event).
   final DeprecationInfo? deprecated;
+
+  /// How many delivered loops the compiler placed this app-rendered widget
+  /// in; it takes its position in each and may read the items of some.
+  final int itemInputs;
 }

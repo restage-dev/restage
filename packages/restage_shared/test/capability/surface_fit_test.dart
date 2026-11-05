@@ -53,6 +53,51 @@ const _itemColor = SurfaceScreenHostDataNativeBindingShapeV1(
     NativeBindingContract(type: 'flutter.Color'));
 
 void main() {
+  test('a failure names its label, else the subject its path names', () {
+    SurfaceFitFailureV1 failure(
+      SurfaceFitFailureCodeV1 code,
+      String path, {
+      Object? required,
+      Object? available,
+    }) =>
+        SurfaceFitFailureV1(
+          code: code,
+          path: path,
+          required: required,
+          available: available,
+        );
+    final labelled = failure(
+      SurfaceFitFailureCodeV1.missingHostField,
+      r'$.requiredContext._h0123456789',
+      required: {'kind': 'int', 'label': 'plan.name'},
+    );
+    expect(labelled.subject, '_h0123456789');
+    expect(labelled.label, 'plan.name');
+    expect(
+      failure(SurfaceFitFailureCodeV1.unhandledEvent,
+              r'$.emittedEvents.dismiss')
+          .label,
+      'dismiss',
+    );
+    expect(
+      failure(
+        SurfaceFitFailureCodeV1.hostingMismatch,
+        r'$.hosting',
+        required: {
+          'allowedPresentations': ['inline'],
+          'contentKind': 'single',
+        },
+        available: {'contentKind': 'flow', 'presentation': 'inline'},
+      ).label,
+      'single',
+    );
+    expect(
+      failure(SurfaceFitFailureCodeV1.resultMismatch, r'$.flowBoundary.result')
+          .label,
+      isNull,
+    );
+  });
+
   test('projects global child bindings while retaining root-only state/results',
       () {
     final root = experimentDocument().copyWith(
@@ -1223,6 +1268,85 @@ void main() {
     });
   });
 
+  group('islands', () {
+    const name = 'app.islands:Paywall_ListView_0';
+    const label = 'ListView in Paywall';
+    const need = '@ListView%20in%20Paywall';
+    for (final (row, provided, token) in [
+      ('fits the same token', {name: 'w0012'}, null),
+      (
+        'refuses an absent island',
+        <String, String>{},
+        'missingIsland:$name$need'
+      ),
+      ('refuses a changed island', {name: 'w0034'}, 'changedIsland:$name$need'),
+    ]) {
+      test(row, () {
+        final verdict = _evaluate(
+          host: _host(islands: provided),
+          requirement: _requirement(
+            islands: {name: 'w0012'},
+            islandLabels: {name: label},
+          ),
+        );
+        expect(
+          [for (final failure in verdict.failures) failure.token],
+          [if (token != null) token],
+        );
+        // The failure carries the island's readable label.
+        for (final failure in verdict.failures) {
+          expect(failure.required, label);
+        }
+      });
+    }
+
+    test('every required island needs exactly one label', () {
+      expect(
+        () => _requirement(islands: {name: 'w0012'}),
+        throwsFormatException,
+      );
+    });
+
+    test('both facets round-trip through canonical JSON', () {
+      final host = _host(islands: {name: 'w0012'});
+      final requirement = _requirement(
+        islands: {name: 'w0012'},
+        islandLabels: {name: label},
+      );
+      final decodedHost = SurfaceHostContractV1.fromJson(
+        jsonDecode(utf8.decode(host.canonicalBytes)),
+      );
+      final decodedRequirement = SurfaceFitRequirementV1.fromJson(
+        jsonDecode(utf8.decode(requirement.canonicalBytes)),
+      );
+      expect(decodedHost.islands, {name: 'w0012'});
+      expect(decodedHost.contentHash, host.contentHash);
+      expect(decodedRequirement.requiredIslands, {name: 'w0012'});
+      expect(decodedRequirement.islandLabels, {name: label});
+      expect(decodedRequirement.contentHash, requirement.contentHash);
+      // No islands leaves the wire, and so every existing hash, unchanged.
+      expect(_host().toJson().containsKey('islands'), isFalse);
+      expect(_requirement().toJson().containsKey('requiredIslands'), isFalse);
+      // An empty or null facet is not canonical.
+      for (final value in [const <String, Object?>{}, null]) {
+        expect(
+          () => SurfaceHostContractV1.fromJson(
+            {..._host().toJson(), 'islands': value},
+          ),
+          throwsFormatException,
+          reason: '$value',
+        );
+        expect(
+          () => SurfaceFitRequirementV1.fromJson(
+            {..._requirement().toJson(), 'requiredIslands': value},
+          ),
+          throwsFormatException,
+          reason: '$value',
+        );
+      }
+    });
+  });
+
   group('failure tokens', () {
     List<String> tokens(SurfaceFitVerdictV1 verdict) =>
         [for (final failure in verdict.failures) failure.token];
@@ -1563,12 +1687,14 @@ SurfaceHostContractV1 _host({
       const SurfaceScreenHostDataSchema.empty(),
   SurfaceScreenEventSchema? events,
   FlowHostBoundaryV1? boundary,
+  Map<String, String> islands = const {},
 }) =>
     SurfaceHostContractV1(
       hosting: hosting,
       providedContext: context,
       handledEvents: events ?? SurfaceScreenEventSchema(events: const []),
       flowBoundary: boundary,
+      islands: islands,
     );
 
 SurfaceFitRequirementV1 _requirement({
@@ -1583,6 +1709,8 @@ SurfaceFitRequirementV1 _requirement({
   CapabilityManifest? capabilities,
   WidgetVocabulary? vocabulary,
   FlowHostBoundaryV1? boundary,
+  Map<String, String> islands = const {},
+  Map<String, String> islandLabels = const {},
 }) =>
     SurfaceFitRequirementV1(
       hosting: SurfaceHostingRequirementV1(
@@ -1595,6 +1723,8 @@ SurfaceFitRequirementV1 _requirement({
           CapabilityManifest(builtInFloor: 1, requiredLibraries: const []),
       requiredVocabulary: vocabulary ?? WidgetVocabulary.empty,
       flowBoundary: boundary,
+      requiredIslands: islands,
+      islandLabels: islandLabels,
     );
 
 InstalledCapability _installed({

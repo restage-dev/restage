@@ -9,7 +9,7 @@ import 'package:restage/src/flow/flow_controller.dart'
     show createHostMeasurementFlowController;
 // `package:matcher` (via `flutter_test`) also exports `allOf`, used below as a
 // matcher; hide the flow-authoring `allOf` here since this file only needs the
-// `state(...)` predicate sugar.
+// `flowState(...)` predicate sugar.
 import 'package:restage/restage.dart' hide allOf;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart';
@@ -2017,16 +2017,16 @@ void main() {
       expect(cancelled.isComplete, isTrue);
     });
 
-    test('a captured answer routes a decision via state().equals() sugar',
+    test('a captured answer routes a decision via flowState().equals() sugar',
         () async {
-      const flowState = {
+      const declared = {
         'goal': FlowStateDeclaration(
           type: FlowDataType.string,
           classification: FlowStateClassification.internal,
         ),
       };
       // The decision branch predicate is built by the authoring SUGAR
-      // (state('goal').equals('sleep')), proving the sugar's output is a real,
+      // (flowState('goal').equals('sleep')), proving the sugar's output is a real,
       // engine-routable predicate fed by a captured scalar answer.
       final states = <String, FlowState>{
         'welcome': const ScreenFlowState(
@@ -2046,7 +2046,7 @@ void main() {
         'route': DecisionFlowState(
           branches: [
             FlowBranch(
-              when: state('goal').equals('sleep'),
+              when: flowState('goal').equals('sleep'),
               target: 'profile',
             ),
           ],
@@ -2075,7 +2075,7 @@ void main() {
           resolver: _StaticFlowResolver(
             _resolvedFlow(
               document: _document(
-                flowState: flowState,
+                flowState: declared,
                 states: states,
                 outbound: outbound,
               ),

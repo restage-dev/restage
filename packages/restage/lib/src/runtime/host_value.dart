@@ -1,41 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/painting.dart';
-
-/// Encodes each app value a generated mount computes, keyed as the surface
-/// reads it, from its source expression and its computation. A value whose
-/// computation throws is left out, so the surface reads it as missing.
-Map<String, Object?> restageHostValues(
-  Map<String, (String, Object? Function())> values,
-) =>
-    restageNativeObjects(values)
-        .map((key, value) => MapEntry(key, restageHostValue(value)));
-
-/// Computes the objects a mount build passes to its surface, keyed as the
-/// surface reads them. An object whose computation throws is left out.
-Map<String, T> restageNativeObjects<T>(
-  Map<String, (String, T Function())> values,
-) {
-  final objects = <String, T>{};
-  for (final MapEntry(key: key, value: (expression, compute))
-      in values.entries) {
-    try {
-      objects[key] = compute();
-    } on Object catch (error) {
-      assert(() {
-        if (_reportedThrows.add(expression)) {
-          debugPrint(
-              "[restage] '$expression' threw while computing in the app: "
-              '$error');
-        }
-        return true;
-      }());
-    }
-  }
-  return objects;
-}
-
-/// Expressions already reported as throwing, so each is logged once.
-final Set<String> _reportedThrows = {};
 
 /// Encodes an app value a generated mount passes to its surface.
 ///

@@ -593,10 +593,12 @@ SurfaceVocabularyReferences referencesOfCatalogEntries(
 /// [sdkPrefix] qualifies the SDK types, the re-exported per-widget builder
 /// functions, and `IconData`. Custom-library widgets are carried by
 /// [libraries], the source of their registration list, when given.
+/// [stepMounts] is the source of a flow's step mounts by screen, when given.
 String emitSurfaceVocabulary(
   SurfaceVocabularyReferences references, {
   String sdkPrefix = '',
   String? libraries,
+  String? stepMounts,
 }) {
   final buildersByArgument = <String, List<String>>{};
   for (final qualified in references.widgetNames) {
@@ -612,7 +614,7 @@ String emitSurfaceVocabulary(
   final hasWidgets = buildersByArgument.isNotEmpty;
   final hasMirroredIcons = references.mirroredIcons.isNotEmpty;
   final hasIcons = references.icons.isNotEmpty || hasMirroredIcons;
-  if (!hasWidgets && !hasIcons && libraries == null) {
+  if (!hasWidgets && !hasIcons && libraries == null && stepMounts == null) {
     return '${sdkPrefix}SurfaceVocabulary.none';
   }
 
@@ -641,6 +643,7 @@ String emitSurfaceVocabulary(
     buffer.write('),');
   }
   if (libraries != null) buffer.write('libraries: $libraries,');
+  if (stepMounts != null) buffer.write('stepMounts: $stepMounts,');
   buffer.write(')');
   return buffer.toString();
 }

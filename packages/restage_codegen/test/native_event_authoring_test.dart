@@ -350,7 +350,7 @@ class NativeEventSource extends StatelessWidget {
   );
 
   test(
-    'effectful callback getters and callback-producing calls stay refused',
+    'effectful callback getters and callback-producing calls run in the mount',
     () async {
       for (final value in ['getCallback()', 'callbackGetter']) {
         final result = await _translate('''
@@ -362,9 +362,15 @@ class NativeEventSource extends f.StatelessWidget {
   @override f.Widget build(f.BuildContext context) => f.FilledButton(onPressed: $value, child: const f.Text('Tap'));
 }
 ''');
+        // The mount computes the callback where the build does.
         expect(
           result.issues.where((issue) => !issue.code.isInformational),
-          isNotEmpty,
+          isEmpty,
+          reason: value,
+        );
+        expect(
+          result.islands.isNotEmpty || result.hoisted.isNotEmpty,
+          isTrue,
           reason: value,
         );
       }

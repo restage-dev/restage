@@ -34,6 +34,7 @@ import 'package:restage_cli/src/receipts/release_receipt.dart';
 import 'package:restage_cli/src/render_bundles/surface_capture.dart';
 import 'package:restage_cli/src/render_bundles/surface_capture_source.dart'
     show hostDataAppValueLabels, hostDataHasAppValues;
+import 'package:restage_cli/src/libraries/generated_part_check.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     hide RuntimePlane;
@@ -55,6 +56,7 @@ class SurfacePushCommand extends Command<int> {
     GitProcessRunner? processRunner,
     ReceiptGeneratorRunner? generator,
     SurfaceImageCapturer? imageCapturer,
+    GeneratedPartAnalyzer? analyze,
   }) : _stdout = stdout,
        _stderr = stderr,
        _interactive = interactive,
@@ -64,7 +66,8 @@ class SurfacePushCommand extends Command<int> {
        _bundleReader = bundleReader,
        _processRunner = processRunner,
        _generator = generator,
-       _imageCapturer = imageCapturer ?? captureSurfaceImages {
+       _imageCapturer = imageCapturer ?? captureSurfaceImages,
+       _analyze = analyze {
     argParser
       ..addFlag(
         'build',
@@ -133,6 +136,7 @@ class SurfacePushCommand extends Command<int> {
     addOrganizationIdOption(argParser);
   }
 
+  final GeneratedPartAnalyzer? _analyze;
   final StringSink _stdout;
   final StringSink _stderr;
   final Interactive _interactive;
@@ -228,6 +232,13 @@ class SurfacePushCommand extends Command<int> {
     } else {
       recorder = null;
       recordedSource = null;
+    }
+
+    // A generated part that doesn't compile would ship a build the app can't.
+    final broken = await generatedPartErrors(projectRoot, analyze: _analyze);
+    if (broken.isNotEmpty) {
+      broken.map(generatedPartErrorSentence).forEach(_stderr.writeln);
+      return 1;
     }
 
     final List<AssembledSurfacePublication> assembled;
@@ -789,7 +800,7 @@ class SurfacePushCommand extends Command<int> {
         );
         _stdout.writeln('  $label: $verdict.');
         for (final reason in reasons) {
-          _stdout.writeln('    $reason.');
+          _stdout.writeln('    ${reason.endsWith('.') ? reason : '$reason.'}');
         }
       }
       if (shown.isEmpty) {

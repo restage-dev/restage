@@ -17,6 +17,15 @@ const _annotation = '''
 )
 ''';
 
+// [code] in the source, however the formatter lays it out.
+Matcher _containsCode(String code) {
+  String packed(String text) => text.replaceAll(RegExp(r'\s+'), '');
+  return predicate<String>(
+    (source) => packed(source).contains(packed(code)),
+    'contains code `$code`',
+  );
+}
+
 void main() {
   group('constructor-first custom catalog authoring', () {
     test('unresolved-type detection is exhaustive over analyzer DartType', () {
@@ -235,7 +244,7 @@ class Probe {
       );
       expect(
         flat,
-        contains(
+        _containsCode(
           'RestageDecoders.string(source, restagePresenceLabel.valuePath, context: context)',
         ),
       );
@@ -381,7 +390,7 @@ class Probe {
       expect(factory, isNot(contains("import 'dart:ui'")));
       expect(
         factory,
-        contains(
+        _containsCode(
           'RestageDecoders.color(source, restagePresenceColor.valuePath)',
         ),
       );

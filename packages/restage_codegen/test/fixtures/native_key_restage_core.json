@@ -93,10 +93,6 @@
           "type": "alignment",
           "description": "How to align the child.",
           "required": true,
-          "defaultSource": {
-            "kind": "literal",
-            "value": "center"
-          },
           "category": "layout",
           "priority": "primary",
           "valueShape": {
@@ -188,6 +184,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },

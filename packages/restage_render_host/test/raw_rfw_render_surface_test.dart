@@ -323,6 +323,54 @@ widget Preview = Text(
     expect(find.text('day'), findsOneWidget);
   });
 
+  testWidgets(
+      "raw core publishes the host's own theme, under the shell's theme",
+      (tester) async {
+    final blob = encodeLibraryBlob(
+      parseLibraryFile('''
+import restage.core;
+widget Preview = Container(color: data.theme.colorScheme.primary,
+    child: Text(text: "x", color: data.theme.colorScheme.onPrimary));
+'''),
+    );
+    Future<(Color?, Color?, Color)> colors(Map<String, Object?> theme) async {
+      await tester.pumpWidget(MaterialApp(
+        home: RawRfwRenderSurface(
+          epoch: 1,
+          blob: blob,
+          data: const <String, Object?>{},
+          environment: _environment(brightness: 'light', theme: theme),
+          registrations: const <RestageWidgetLibraryRegistration>[],
+          entryWidgetName: 'Preview',
+          onRemoteEvent: (_, __) {},
+        ),
+      ));
+      await tester.pump();
+      final box = tester.widget<DecoratedBox>(find.byType(DecoratedBox).first);
+      final text = tester.widget<RichText>(find.byType(RichText).first);
+      return (
+        (box.decoration as BoxDecoration).color,
+        text.text.style?.color,
+        // What app code under the host reads.
+        Theme.of(tester.element(find.byType(RichText).first))
+            .colorScheme
+            .primary,
+      );
+    }
+
+    final scheme = ThemeData(useMaterial3: true).colorScheme;
+    final (primary, onPrimary, appPrimary) = await colors(const {});
+    expect(primary, scheme.primary);
+    expect(primary, appPrimary);
+    expect(onPrimary, scheme.onPrimary);
+    // An explicit shell theme still wins, key by key.
+    final (shellPrimary, shellOnPrimary, _) = await colors(const {
+      'colorScheme': {'primary': 0xFF00FF00},
+    });
+    expect(shellPrimary, const Color(0xFF00FF00));
+    expect(shellOnPrimary, scheme.onPrimary);
+  });
+
   testWidgets('raw core renders measurement-wrapped content', (tester) async {
     final blob = encodeLibraryBlob(
       parseLibraryFile('''

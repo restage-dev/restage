@@ -117,9 +117,9 @@ class PaywallFeatureRow extends StatelessWidget {
   const PaywallFeatureRow({this.label});
   final String? label;
   Widget build(BuildContext context) => Container(
-        padding: EdgeInsets.all(_kRowGap),
-        child: Row(children: [Text(label)]),
-      );
+    padding: EdgeInsets.all(_kRowGap),
+    child: Row(children: [Text(label)]),
+  );
 }
 
 // ─── inlinable / + declarative-state ──────────────────────────────────
@@ -138,9 +138,9 @@ class _PaywallAnnualToggleState extends State<PaywallAnnualToggle> {
   bool annual = false;
   void toggle() => setState(() => annual = !annual);
   Widget build(BuildContext context) => GestureDetector(
-        onTap: toggle,
-        child: const Text('Monthly / Annual'),
-      );
+    onTap: toggle,
+    child: const Text('Monthly / Annual'),
+  );
 }
 
 // ─── deferred (inline closure for a primary action) ───────────────────

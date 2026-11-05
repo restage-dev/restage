@@ -20,3 +20,11 @@ transforms:
       - kind: 'renameParameter'
         oldName: 'renderDeadline'
         newName: 'firstLaunchWait'
+  - title: "Rename to 'flowState'"
+    date: 2026-11-04
+    element:
+      uris: ['package:restage/restage.dart']
+      function: 'state'
+    changes:
+      - kind: 'rename'
+        newName: 'flowState'

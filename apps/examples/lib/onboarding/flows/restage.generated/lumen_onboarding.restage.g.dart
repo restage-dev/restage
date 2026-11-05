@@ -1,6 +1,6 @@
 part of '../lumen_onboarding.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _lumenOnboardingFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -58,6 +58,7 @@ const lumenOnboardingFlowRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'LumenOnboardingFlowSurface',
   measurementPublicationDraftDigest:
       '166c6211e11399c1bdb227f7daa2b3593d7fffe308700c9d02a86024540200d7',
   vocabulary: _lumenOnboardingFlowRefVocabulary,
@@ -141,8 +142,8 @@ final _lumenOnboardingFlowPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

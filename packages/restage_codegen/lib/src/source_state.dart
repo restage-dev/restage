@@ -1,5 +1,8 @@
+import 'dart:collection';
+
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
@@ -9,6 +12,8 @@ import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
+import 'package:restage_codegen/src/islands/context_reach.dart';
+import 'package:restage_codegen/src/islands/islands.dart' show readableSource;
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
@@ -30,6 +35,11 @@ final class SourceBuildBlueprint {
     Map<String, RecognisedSetState> eventHandlers = const {},
     Map<Element, Expression> localBindings = const {},
     Map<Element, HelperDef> helpers = const {},
+    this.liftedState,
+    this.liftable,
+    this.contentFree = ContentFreeBuilders.none,
+    List<Statement> statements = const [],
+    List<ReturnStatement> returns = const [],
   }) : state = state == null ? null : List.unmodifiable(state),
        rootParams = List.unmodifiable(rootParams),
        constructorParams = List.unmodifiable(constructorParams ?? rootParams),
@@ -40,6 +50,8 @@ final class SourceBuildBlueprint {
            withHelperLocals(localBindings, helpers.values),
          ),
          helpers: Map.unmodifiable(helpers),
+         statements: List.unmodifiable(statements),
+         returns: List.unmodifiable(returns),
        );
 
   /// The returned expression from the effective `build()` host.
@@ -66,6 +78,15 @@ final class SourceBuildBlueprint {
 
   /// Root `State` fields, or `null` for a stateless root.
   final List<CustomWidgetStateField>? state;
+
+  /// The root's `State` class when it moves into the generated mount whole.
+  final ClassElement? liftedState;
+
+  /// This build with its lowerable `State` moved into the mount instead.
+  final SourceBuildBlueprint? liftable;
+
+  /// Which builders in this build run once per build of their widget.
+  final ContentFreeBuilders contentFree;
 
   /// Root constructor parameters in declaration order.
   final List<RootContextParam> rootParams;
@@ -118,6 +139,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
   required List<Issue> issues,
   required String location,
   Catalog? catalog,
+  bool liftState = false,
 }) async {
   final kind = _widgetKind(sourceClass);
   if (kind == null) {
@@ -171,24 +193,40 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     );
     return null;
   }
-  final extracted = extractInlinableBuildBody(buildNode.body);
-  if (extracted == null) {
+  // A mounted surface's mount runs any other build as written.
+  final mounted = liftState ? mountedBuildBody(buildNode.body) : null;
+  var extracted = extractInlinableBuildBody(buildNode.body);
+  final preludeProblem = extracted == null
+      ? null
+      : inlinableBuildBodyProblem(extracted, keepsKeys: mounted != null);
+  final statements = <Statement>[];
+  final returns = <ReturnStatement>[];
+  if ((extracted == null || preludeProblem != null) && mounted != null) {
+    statements.addAll(mounted.statements);
+    if (mounted.returns.length > 1) returns.addAll(mounted.returns);
+    extracted = InlinableBuildBody(
+      expression: mounted.returns.last.expression!,
+      declarations: const [],
+      finalLocals: const [],
+    );
+  } else if (extracted == null) {
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
         message:
             preludeDeclarationProblem(buildNode.body) ??
-            'build() must be one returned widget expression, optionally '
-                'preceded by initialized simple final or const variable '
-                'declarations.',
+            _buildStatementRefusal(
+              refusedBuildStatement(
+                    buildNode.body,
+                    mounted: mounted == null && liftState,
+                  ) ??
+                  buildNode.body,
+            ),
         location: '$location.build',
       ),
     );
     return null;
-  }
-  final localBindings = extracted.localBindings;
-  final preludeProblem = inlinableBuildBodyProblem(extracted);
-  if (preludeProblem != null) {
+  } else if (preludeProblem != null) {
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
@@ -198,8 +236,13 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     );
     return null;
   }
+  final localBindings = extracted.localBindings;
   final reachable = await reachableArtifactHelpers(
-    [extracted.expression, ...localBindings.values],
+    [
+      extracted.expression,
+      ...localBindings.values,
+      for (final statement in returns) statement.expression!,
+    ],
     astNodeFor: astNodeFor,
     admittedHelperPackages: artifactHelperPackages(catalog),
   );
@@ -224,7 +267,12 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
   final rootParams = constructorParams
       .where((parameter) => !parameter.forwardsFlutterKey)
       .toList(growable: false);
+  final contentFree = await contentFreeBuilders(
+    [extracted.expression, ...localBindings.values],
+    astNodeFor: astNodeFor,
+  );
   final blueprint = SourceBuildBlueprint(
+    contentFree: contentFree,
     rootExpression: extracted.expression,
     buildContextParameter: buildContextParameter,
     rootParams: rootParams,
@@ -233,16 +281,35 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     buildArguments: buildArguments,
     localBindings: localBindings,
     helpers: reachable.helpers,
+    statements: statements,
+    returns: returns,
   );
   if (stateClass == null) return blueprint;
 
+  SourceBuildBlueprint lifted() => SourceBuildBlueprint(
+    contentFree: contentFree,
+    rootExpression: blueprint.rootExpression,
+    buildContextParameter: blueprint.buildContextParameter,
+    rootParams: rootParams,
+    constructorParams: constructorParams,
+    mountConstructorProblem: blueprint.mountConstructorProblem,
+    localBindings: blueprint.localBindings,
+    helpers: blueprint.helpers,
+    liftedState: stateClass,
+    statements: statements,
+    returns: returns,
+  );
+  // A build the mount runs as written runs where its State is.
+  if (statements.isNotEmpty) return lifted();
+  // A mounted surface whose State does not lower moves it into the mount.
+  final stateIssues = <Issue>[];
   final state = await _collectStateFields(
     stateClass,
     astNodeFor: astNodeFor,
-    issues: issues,
+    issues: liftState ? stateIssues : issues,
     location: location,
   );
-  if (state == null) return null;
+  if (state == null) return liftState ? lifted() : null;
   final eventHandlers = await _collectReferencedHandlers(
     [blueprint.rootExpression, ...blueprint.localBindings.values],
     stateClass: stateClass,
@@ -253,6 +320,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
   for (final entry in eventHandlers.entries) {
     final verdict = entry.value;
     if (verdict is SetStateUnrecognised) {
+      if (liftState) return lifted();
       issues.add(
         Issue(
           code: IssueCode.stateShapeUnsupported,
@@ -267,6 +335,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     }
   }
   return SourceBuildBlueprint(
+    contentFree: contentFree,
     rootExpression: blueprint.rootExpression,
     buildContextParameter: blueprint.buildContextParameter,
     state: state,
@@ -276,6 +345,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     eventHandlers: eventHandlers,
     localBindings: blueprint.localBindings,
     helpers: blueprint.helpers,
+    liftable: liftState ? lifted() : null,
   );
 }
 
@@ -705,19 +775,21 @@ Future<ClassElement?> _resolveStateClass(
       .where((method) => method.name == 'createState')
       .firstOrNull;
   if (createState == null) return null;
-  final returnType = createState.returnType;
-  if (returnType is InterfaceType) {
-    final element = returnType.element;
-    if (element is ClassElement && element.name != 'State') {
-      return element;
-    }
-  }
   final node = await astNodeFor(createState.firstFragment);
   if (node is MethodDeclaration) {
     final returned = singleReturnExpressionOf(node.body);
     if (returned is InstanceCreationExpression) {
       final element = returned.constructorName.type.element;
       if (element is ClassElement) return element;
+    }
+  }
+  final returnType = createState.returnType;
+  if (returnType is InterfaceType) {
+    final element = returnType.element;
+    if (element is ClassElement &&
+        element.name != 'State' &&
+        !element.isAbstract) {
+      return element;
     }
   }
   return null;
@@ -893,4 +965,454 @@ bool _isNumericType(DartType type) {
   if (type is! InterfaceType) return false;
   final name = type.element.name;
   return name == 'double' || name == 'num';
+}
+
+/// The builder arguments in a surface's build whose widget builds only what
+/// that builder returns, wrapped in no widget that builds a render object.
+/// Such a builder runs once per build of its widget; any other builder, or
+/// one that cannot be decided, may run many times.
+@immutable
+final class ContentFreeBuilders {
+  /// Creates the verdicts, keyed by widget class and argument name.
+  const ContentFreeBuilders(this._verdicts, [this._valueEquals = const {}]);
+
+  /// No builder is content-free.
+  static const none = ContentFreeBuilders({});
+
+  final Map<(InterfaceElement, String), bool> _verdicts;
+  final Set<InterfaceElement> _valueEquals;
+
+  /// Whether the class [key]'s `==` compares values without `identical`.
+  bool equalsByValue(InterfaceElement key) => _valueEquals.contains(key);
+
+  /// Whether the [argument] builder of [widget] is content-free.
+  bool contains(InterfaceElement widget, String argument) =>
+      _verdicts[(widget.baseElement, argument)] ?? false;
+}
+
+/// Decides [ContentFreeBuilders] for every widget construction in [roots]
+/// that passes a builder closure.
+Future<ContentFreeBuilders> contentFreeBuilders(
+  Iterable<Expression> roots, {
+  required Future<AstNode?> Function(Fragment fragment) astNodeFor,
+}) async {
+  final walk = _ContentFree(astNodeFor);
+  final verdicts = <(InterfaceElement, String), bool>{};
+  final constructions = <InstanceCreationExpression>[];
+  for (final root in roots) {
+    root.accept(_Constructions(constructions));
+  }
+  for (final construction in constructions) {
+    final widget = construction.constructorName.type.element?.baseElement;
+    if (widget is! ClassElement) continue;
+    for (final argument in construction.argumentList.arguments) {
+      if (argument.argumentExpression is! FunctionExpression) continue;
+      final key = (widget, _argumentName(argument));
+      if (verdicts.containsKey(key)) continue;
+      final fields = await walk.fieldsOf(argument.correspondingParameter);
+      verdicts[key] = await walk.buildsOnly(widget, fields, 4);
+    }
+  }
+  final valueEquals = <InterfaceElement>{};
+  for (final construction in constructions) {
+    final type = construction.staticType;
+    if (type is! InterfaceType ||
+        ![type, ...type.allSupertypes].any(
+          (t) =>
+              t.element.name == 'LocalKey' &&
+              t.element.library.identifier ==
+                  'package:flutter/src/foundation/key.dart',
+        )) {
+      continue;
+    }
+    final equals = type.lookUpMethod(
+      '==',
+      type.element.library,
+      concrete: true,
+    );
+    if (equals == null ||
+        equals.enclosingElement?.library?.isDartCore != false) {
+      continue;
+    }
+    final declaration = await astNodeFor(equals.baseElement.firstFragment);
+    var identity = declaration == null;
+    declaration?.accept(_Identical(() => identity = true));
+    if (!identity) valueEquals.add(type.element);
+  }
+  return ContentFreeBuilders(verdicts, valueEquals);
+}
+
+String _argumentName(Argument argument) =>
+    argument.correspondingParameter?.name ?? '';
+
+// Calls `identical` from dart:core.
+final class _Identical extends RecursiveAstVisitor<void> {
+  _Identical(this.found);
+
+  final void Function() found;
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    final element = node.methodName.element;
+    if (node.methodName.name == 'identical' &&
+        (element?.library?.isDartCore ?? false)) {
+      found();
+    }
+    super.visitMethodInvocation(node);
+  }
+}
+
+final class _Constructions extends RecursiveAstVisitor<void> {
+  _Constructions(this.found);
+
+  final List<InstanceCreationExpression> found;
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    found.add(node);
+    super.visitInstanceCreationExpression(node);
+  }
+}
+
+// A method parameter bound to the caller's argument, read in the caller's
+// own bindings.
+final class _Bound {
+  const _Bound(this.argument, this.caller);
+
+  final Expression argument;
+  final _Bindings caller;
+}
+
+typedef _Bindings = Map<Element, _Bound>;
+
+// Follows builds to decide whether a widget returns only what one of its
+// fields holds or builds.
+final class _ContentFree {
+  _ContentFree(this.astNodeFor);
+
+  final Future<AstNode?> Function(Fragment fragment) astNodeFor;
+
+  /// The fields a constructor [parameter] is stored in: directly, through
+  /// the initializer list, or through `super(...)`.
+  Future<Set<FieldElement>> fieldsOf(FormalParameterElement? parameter) async {
+    final base = parameter?.baseElement;
+    if (base == null) return const {};
+    final fields = <FieldElement>{};
+    if (base is FieldFormalParameterElement) {
+      if (base.field?.baseElement case final field?) fields.add(field);
+    }
+    if (base is SuperFormalParameterElement) {
+      fields.addAll(await fieldsOf(base.superConstructorParameter));
+    }
+    final constructor = base.enclosingElement;
+    if (constructor is! ConstructorElement) return fields;
+    final node = await astNodeFor(constructor.firstFragment);
+    if (node is! ConstructorDeclaration) return fields;
+    bool passes(Expression value) =>
+        value.unParenthesized is SimpleIdentifier &&
+        (value.unParenthesized as SimpleIdentifier).element?.baseElement ==
+            base;
+    for (final initializer in node.initializers) {
+      switch (initializer) {
+        case ConstructorFieldInitializer(:final fieldName, :final expression)
+            when passes(expression):
+          if (fieldName.element case final FieldElement field) {
+            fields.add(field.baseElement);
+          }
+        case SuperConstructorInvocation(:final argumentList) ||
+            RedirectingConstructorInvocation(:final argumentList):
+          for (final argument in argumentList.arguments) {
+            final value = argument is NamedArgument
+                ? argument.argumentExpression
+                : argument as Expression;
+            if (passes(value)) {
+              fields.addAll(await fieldsOf(argument.correspondingParameter));
+            }
+          }
+        default:
+      }
+    }
+    return fields;
+  }
+
+  /// Whether every build of [widget], or of its State, returns only what
+  /// [fields] hold or build, followed [depth] levels deep.
+  Future<bool> buildsOnly(
+    InterfaceElement widget,
+    Set<FieldElement> fields,
+    int depth,
+  ) async {
+    if (depth == 0 || fields.isEmpty) return false;
+    if (isFlutterFrameworkType(widget, 'RenderObjectWidget')) return false;
+    // A proxy builds only its `child`.
+    if (isFlutterFrameworkType(widget, 'ProxyWidget')) {
+      return fields.any((field) {
+        final owner = field.enclosingElement;
+        return field.name == 'child' &&
+            owner is InterfaceElement &&
+            owner.name == 'ProxyWidget' &&
+            isFlutterFrameworkType(owner, 'ProxyWidget');
+      });
+    }
+    var host = widget;
+    if (isFlutterFrameworkType(widget, 'StatefulWidget')) {
+      final created = await _returns(widget, 'createState');
+      final state = switch (created) {
+        [InstanceCreationExpression(:final constructorName)] =>
+          constructorName.type.element,
+        _ => null,
+      };
+      if (state is! InterfaceElement) return false;
+      host = state;
+    }
+    return _allYield(
+      await _returns(host, 'build'),
+      fields,
+      widget,
+      host,
+      const {},
+      depth,
+    );
+  }
+
+  Future<bool> _allYield(
+    List<Expression>? returned,
+    Set<FieldElement> fields,
+    InterfaceElement widget,
+    InterfaceElement host,
+    _Bindings bindings,
+    int depth,
+  ) async {
+    if (returned == null || returned.isEmpty) return false;
+    for (final expression in returned) {
+      if (!await _yields(expression, fields, widget, host, bindings, depth)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Whether [expression] is what [fields] hold or build, or a widget or
+  // method that passes it through. Methods dispatch on the concrete [widget]
+  // and its State [host].
+  Future<bool> _yields(
+    Expression expression,
+    Set<FieldElement> fields,
+    InterfaceElement widget,
+    InterfaceElement host,
+    _Bindings bindings,
+    int depth,
+  ) async {
+    var value = expression.unParenthesized;
+    if (value is PostfixExpression && value.operator.type == TokenType.BANG) {
+      value = value.operand.unParenthesized;
+    }
+    if (value is SimpleIdentifier) {
+      if (bindings[value.element?.baseElement] case final bound?) {
+        return _yields(
+          bound.argument,
+          fields,
+          widget,
+          host,
+          bound.caller,
+          depth,
+        );
+      }
+    }
+    if (_reads(value, fields, widget, host)) return true;
+    switch (value) {
+      case FunctionExpressionInvocation(:final function):
+        return _reads(function.unParenthesized, fields, widget, host);
+      case MethodInvocation(:final methodName, :final target):
+        final method = methodName.element;
+        if (method is GetterElement) {
+          return fields.contains(method.variable.baseElement);
+        }
+        if (method is! MethodElement || method.isStatic || depth <= 1) {
+          return false;
+        }
+        // Templates dispatch on the concrete widget or its State; any other
+        // receiver is undecidable.
+        final receiver = switch (target?.unParenthesized) {
+          null || ThisExpression() => host,
+          SimpleIdentifier(element: final GetterElement getter)
+              when getter.baseElement == _stateWidgetGetter(getter) =>
+            widget,
+          _ => null,
+        };
+        if (receiver is! InterfaceElement) return false;
+        final declaration = await _declaration(receiver, method.name ?? '');
+        if (declaration == null) return false;
+        final parameters =
+            declaration.parameters?.parameters ?? const <FormalParameter>[];
+        // Positional arguments bind by position, named ones by name, so an
+        // override may rename its parameters.
+        final positional = [
+          for (final parameter in parameters)
+            if (parameter.isPositional) parameter,
+        ];
+        final callee = <Element, _Bound>{};
+        for (final (index, argument) in value.argumentList.arguments.indexed) {
+          final declared =
+              (argument is NamedArgument
+                      ? parameters
+                            .where(
+                              (candidate) =>
+                                  candidate.isNamed &&
+                                  candidate.name?.lexeme ==
+                                      argument.name.lexeme,
+                            )
+                            .firstOrNull
+                      : index < positional.length
+                      ? positional[index]
+                      : null)
+                  ?.declaredFragment
+                  ?.element;
+          if (declared == null) continue;
+          callee[declared] = _Bound(
+            argument is NamedArgument
+                ? argument.argumentExpression
+                : argument as Expression,
+            bindings,
+          );
+        }
+        return _allYield(
+          _returnsOf(declaration),
+          fields,
+          widget,
+          host,
+          callee,
+          depth - 1,
+        );
+      case InstanceCreationExpression(
+        :final constructorName,
+        :final argumentList,
+      ):
+        final wrapper = constructorName.type.element;
+        if (wrapper is! InterfaceElement || depth <= 1) return false;
+        for (final argument in argumentList.arguments) {
+          final passed = argument is NamedArgument
+              ? argument.argumentExpression
+              : argument as Expression;
+          if (await _yields(
+            passed,
+            fields,
+            widget,
+            host,
+            bindings,
+            depth - 1,
+          )) {
+            return buildsOnly(
+              wrapper,
+              await fieldsOf(argument.correspondingParameter),
+              depth - 1,
+            );
+          }
+        }
+        return false;
+      default:
+        return false;
+    }
+  }
+
+  // Whether [expression] reads one of [fields], with an inherited getter
+  // resolved on the concrete widget or State.
+  static bool _reads(
+    Expression expression,
+    Set<FieldElement> fields,
+    InterfaceElement widget,
+    InterfaceElement host,
+  ) {
+    final element = switch (expression) {
+      SimpleIdentifier(:final element) => element,
+      PrefixedIdentifier(:final identifier) => identifier.element,
+      PropertyAccess(:final propertyName) => propertyName.element,
+      _ => null,
+    };
+    if (element is! GetterElement) return false;
+    final name = element.name ?? '';
+    return [
+      element,
+      for (final owner in [widget, host])
+        owner.thisType.lookUpGetter(name, owner.library, concrete: true),
+    ].nonNulls.any((getter) => fields.contains(getter.variable.baseElement));
+  }
+
+  // The concrete declaration of [name] on [owner], mixins included.
+  Future<MethodDeclaration?> _declaration(
+    InterfaceElement owner,
+    String name,
+  ) async {
+    final method = owner.thisType.lookUpMethod(
+      name,
+      owner.library,
+      concrete: true,
+    );
+    if (method == null || method.isAbstract) return null;
+    final node = await astNodeFor(method.baseElement.firstFragment);
+    return node is MethodDeclaration ? node : null;
+  }
+
+  Future<List<Expression>?> _returns(
+    InterfaceElement owner,
+    String name,
+  ) async {
+    final declaration = await _declaration(owner, name);
+    return declaration == null ? null : _returnsOf(declaration);
+  }
+
+  // Every expression [declaration] returns; null when one returns nothing.
+  static List<Expression>? _returnsOf(MethodDeclaration declaration) {
+    final body = declaration.body;
+    if (body is ExpressionFunctionBody) return [body.expression];
+    final returns = <ReturnStatement>[];
+    body.accept(_Returns(returns));
+    final expressions = [
+      for (final statement in returns) statement.expression,
+    ];
+    return expressions.contains(null) ? null : expressions.nonNulls.toList();
+  }
+
+  // Flutter's `State.widget`, when [getter] is declared on `State`.
+  static GetterElement? _stateWidgetGetter(GetterElement getter) {
+    final owner = getter.enclosingElement;
+    return owner is InterfaceElement &&
+            owner.name == 'State' &&
+            isFlutterFrameworkType(owner, 'State')
+        ? owner.getGetter('widget')
+        : null;
+  }
+}
+
+// The returns of one body, not of the closures inside it.
+final class _Returns extends RecursiveAstVisitor<void> {
+  _Returns(this.found);
+
+  final List<ReturnStatement> found;
+
+  @override
+  void visitReturnStatement(ReturnStatement node) => found.add(node);
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {}
+}
+
+// The refusal for a build [statement], named with its source and place.
+String _buildStatementRefusal(AstNode statement) {
+  final unit = statement.root;
+  var place = '';
+  if (unit is CompilationUnit) {
+    final uri = unit.declaredFragment?.source.uri;
+    final path = uri == null
+        ? unit.declaredFragment?.source.shortName ?? 'this file'
+        : uri.scheme == 'package'
+        ? 'lib/${uri.pathSegments.skip(1).join('/')}'
+        : '$uri';
+    final location = unit.lineInfo.getLocation(statement.offset);
+    place = ' ($path:${location.lineNumber}:${location.columnNumber})';
+  }
+  return '`${readableSource(statement.toSource())}`$place: Restage can\'t '
+      'translate this statement in a build method. Try using a `switch` or '
+      '`?:` expression in the returned widget, or moving the code into a '
+      'widget of its own.';
 }

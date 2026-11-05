@@ -4,6 +4,11 @@
 
 Initial release of the `restage` command-line interface.
 
+`restage build push` names each live version that shows the app's compiled
+screen on the pushed build, because widget app code it draws is gone or
+changed, until it is republished. Render bundles build each surface's
+app-rendered widgets outside its screen.
+
 `restage keys delivery` prints the public keys an app passes to
 `Restage.configure(deliveryKeys: ...)`.
 

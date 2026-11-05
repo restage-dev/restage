@@ -235,6 +235,19 @@ StructuredWalkResult _walkConcrete({
       );
       continue;
     }
+    // A zero-argument void callback is an event the payload fires.
+    if (_isVoidCallback(field.type)) {
+      fields.add(
+        _structuredField(
+          field,
+          descriptionModel: descriptionModel,
+          ownerSourceType: fqn,
+          kind: ResolvedTypeKind.event,
+          valueShape: const ScalarShape(propertyType: PropertyType.event),
+        ),
+      );
+      continue;
+    }
     final scalarKind = _inlineScalarKind(field.type);
     if (scalarKind != null) {
       fields.add(
@@ -771,6 +784,12 @@ ResolvedTypeKind _resolvedKindForPropertyType(PropertyType type) {
       ),
   };
 }
+
+bool _isVoidCallback(DartType type) =>
+    type is FunctionType &&
+    type.typeParameters.isEmpty &&
+    type.formalParameters.isEmpty &&
+    type.returnType is VoidType;
 
 ResolvedTypeKind? _inlineScalarKind(DartType type) {
   switch (_displayName(type)) {

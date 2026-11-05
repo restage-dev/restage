@@ -918,74 +918,19 @@ void main() {
       },
     );
 
-    test(
-      'required typed-handler emits a no-op closure fallback when the '
-      'Flutter ctor param is non-nullable',
-      () {
-        // Mirrors the CupertinoDatePicker shape: required event with a
-        // typed `ValueChanged<DateTime>` callback. `source.handler<T>(...)`
-        // returns `T?`, so the emit threads a no-op `(DateTime _) {}`
-        // fallback so the assignment to the non-nullable
-        // `onDateTimeChanged` Flutter param compiles. Binding an event
-        // handler is an authoring-time choice; the catalog stays renderable
-        // without one.
-        const entry = WidgetEntry(
+    for (final (signature, argument) in [
+      ('ValueChanged<DateTime>', 'DateTime'),
+      ('ValueChanged<bool?>', 'bool?'),
+      ('ValueChanged<List<String>>', 'List<String>'),
+    ]) {
+      test('an absent required $signature handler is refused', () {
+        final entry = WidgetEntry(
           wireId: WireId.unallocatedWidget,
-          name: 'RequiredTypedHandler',
-          library: WidgetLibrary.cupertino,
-          category: WidgetCategory.input,
-          description: '',
-          flutterType: 'package:test_pkg/w.dart#RequiredTypedHandler',
-          childrenSlot: ChildrenSlot.none,
-          properties: [
-            PropertyEntry(
-              wireId: WireId.unallocatedProperty,
-              name: 'onDateTimeChanged',
-              type: PropertyType.event,
-              description: '',
-              required: true,
-              callbackSignature: 'ValueChanged<DateTime>',
-            ),
-          ],
-        );
-        final source = emitFactoryFunction(entry);
-        expect(source, isNotNull);
-        // The handler call is present + the no-op closure fallback is
-        // appended via `??`.
-        expect(
-          source,
-          contains('RestageDecoders.valueChanged<DateTime>'),
-        );
-        expect(source, contains('?? (DateTime _) {}'));
-        // The required-scalar throw fallback must not be emitted for a
-        // typed handler — the user-facing diagnostic is "no handler
-        // bound = no event fires", not "paywall load failed".
-        expect(
-          source,
-          isNot(
-            contains(
-              "'RequiredTypedHandler.onDateTimeChanged is required.'",
-            ),
-          ),
-        );
-      },
-    );
-
-    test(
-      'required typed-handler with nullable type parameter emits a '
-      'nullable-typed no-op fallback',
-      () {
-        // Covers the shared RFW callback contract's nullable scalar arm:
-        // `ValueChanged<bool?>` (tristate checkbox shape) when
-        // `required: true` must emit
-        // `?? (bool? _) {}`, not `?? (bool _) {}`.
-        const entry = WidgetEntry(
-          wireId: WireId.unallocatedWidget,
-          name: 'TristateHandler',
+          name: 'RequiredHandler',
           library: WidgetLibrary.material,
           category: WidgetCategory.input,
           description: '',
-          flutterType: 'package:test_pkg/w.dart#TristateHandler',
+          flutterType: 'package:test_pkg/w.dart#RequiredHandler',
           childrenSlot: ChildrenSlot.none,
           properties: [
             PropertyEntry(
@@ -994,16 +939,19 @@ void main() {
               type: PropertyType.event,
               description: '',
               required: true,
-              callbackSignature: 'ValueChanged<bool?>',
+              callbackSignature: signature,
             ),
           ],
         );
-        final source = emitFactoryFunction(entry);
-        expect(source, isNotNull);
-        expect(source, contains('RestageDecoders.valueChanged<bool?>'));
-        expect(source, contains('?? (bool? _) {}'));
-      },
-    );
+        final source = emitFactoryFunction(entry)!;
+        expect(source, contains('RestageDecoders.valueChanged<$argument>'));
+        expect(
+          source,
+          contains("ArgumentError('RequiredHandler.onChanged is required.')"),
+        );
+        expect(source, isNot(contains('_) {}')));
+      });
+    }
 
     test(
       'emits a list-valued typed handler for ValueChanged<List<String>> '
@@ -1068,47 +1016,6 @@ void main() {
         expect(
           source,
           contains('RestageDecoders.valueChanged<List<String?>>'),
-        );
-      },
-    );
-
-    test(
-      'required list-valued typed-handler emits a List<String> no-op '
-      'closure fallback',
-      () {
-        // The required-event analogue of the scalar no-op fallback: a
-        // required `ValueChanged<List<String>>` whose Flutter ctor param is
-        // non-nullable threads a `(List<String> _) {}` fallback so the
-        // assignment compiles, never the required-scalar throw.
-        const entry = WidgetEntry(
-          wireId: WireId.unallocatedWidget,
-          name: 'RequiredMultiSelect',
-          library: WidgetLibrary.material,
-          category: WidgetCategory.input,
-          description: '',
-          flutterType: 'package:test_pkg/w.dart#RequiredMultiSelect',
-          childrenSlot: ChildrenSlot.none,
-          properties: [
-            PropertyEntry(
-              wireId: WireId.unallocatedProperty,
-              name: 'onChanged',
-              type: PropertyType.event,
-              description: '',
-              required: true,
-              callbackSignature: 'ValueChanged<List<String>>',
-            ),
-          ],
-        );
-        final source = emitFactoryFunction(entry);
-        expect(source, isNotNull);
-        expect(
-          source,
-          contains('RestageDecoders.valueChanged<List<String>>'),
-        );
-        expect(source, contains('?? (List<String> _) {}'));
-        expect(
-          source,
-          isNot(contains("'RequiredMultiSelect.onChanged is required.'")),
         );
       },
     );
@@ -1832,30 +1739,35 @@ void main() {
       },
     );
 
-    test('renders string defaultValue on alignment as '
-        'AlignmentDirectional.<value>', () {
-      const entry = WidgetEntry(
-        wireId: WireId.unallocatedWidget,
-        name: 'WithAlignedAlignment',
-        library: WidgetLibrary.core,
-        category: WidgetCategory.layout,
-        description: '',
-        flutterType: 'package:test_pkg/w.dart#WithAlignedAlignment',
-        childrenSlot: ChildrenSlot.none,
-        properties: [
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'alignment',
-            type: PropertyType.alignment,
-            description: '',
-            defaultSource: LiteralDefault('topStart'),
-          ),
-        ],
-      );
-      final source = emitFactoryFunction(entry);
-      expect(source, isNotNull);
-      expect(source, contains('?? AlignmentDirectional.topStart'));
-    });
+    for (final (member, expected) in [
+      ('topStart', 'AlignmentDirectional.topStart'),
+      ('center', 'Alignment.center'),
+      ('bottomCenter', 'Alignment.bottomCenter'),
+    ]) {
+      test('renders string defaultValue $member on alignment as $expected', () {
+        final entry = WidgetEntry(
+          wireId: WireId.unallocatedWidget,
+          name: 'WithAlignedAlignment',
+          library: WidgetLibrary.core,
+          category: WidgetCategory.layout,
+          description: '',
+          flutterType: 'package:test_pkg/w.dart#WithAlignedAlignment',
+          childrenSlot: ChildrenSlot.none,
+          properties: [
+            PropertyEntry(
+              wireId: WireId.unallocatedProperty,
+              name: 'alignment',
+              type: PropertyType.alignment,
+              description: '',
+              defaultSource: LiteralDefault(member),
+            ),
+          ],
+        );
+        final source = emitFactoryFunction(entry);
+        expect(source, isNotNull);
+        expect(source, contains('?? $expected'));
+      });
+    }
 
     test('renders string defaultValue on alignmentXY as '
         'Alignment.<value>', () {
@@ -2659,12 +2571,8 @@ void main() {
   });
 
   group('theme-binding defaults', () {
-    test('emits a runtime-resolver call as the ?? fallback for a '
-        'ThemeBindingDefault color property', () {
-      // A `color`-typed property whose default resolves against the
-      // active Flutter theme at render time. The emitter routes the
-      // `??` fallback through the runtime resolver, cast to the
-      // property's nullable Flutter type.
+    test('passes null for a ThemeBindingDefault color property so the widget '
+        'resolves its own theme', () {
       const entry = WidgetEntry(
         wireId: WireId.unallocatedWidget,
         name: 'ThemedIcon',
@@ -2690,11 +2598,9 @@ void main() {
       expect(source, isNotNull);
       expect(
         source,
-        contains(
-          "RestageDecoders.color(source, <Object>['color']) ?? "
-          "resolveThemeBinding(context, path: 'iconTheme.color') as Color?",
-        ),
+        contains("RestageDecoders.color(source, <Object>['color'])"),
       );
+      expect(source, isNot(contains('resolveThemeBinding')));
     });
 
     test('a FlutterCtorDefault property with no legacy defaultValue emits '

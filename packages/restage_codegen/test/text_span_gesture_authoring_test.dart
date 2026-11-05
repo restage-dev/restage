@@ -183,10 +183,8 @@ Object x() => Text.rich(TextSpan(text: 'Tap', recognizer: TapGestureRecognizer()
     expect(result.dsl, isEmpty);
     expect(result.issues.where((i) => !i.code.isInformational), isNotEmpty);
   });
-  test(
-    'global lazy recognizer read requires an installed owner input',
-    () async {
-      final expression = await parseExpressionFromSourceForTest("""
+  test('a global lazy recognizer read renders from the app', () async {
+    final expression = await parseExpressionFromSourceForTest("""
 import 'package:flutter/widgets.dart';
 import 'package:flutter/gestures.dart';
 final shared = TapGestureRecognizer();
@@ -195,18 +193,20 @@ Object x() => Text.rich(TextSpan(children: [
   TextSpan(text: 'Second', recognizer: shared),
 ]));
 """, rootPackage: 'apps_examples');
-      final result = translator.translate(expression, hoistInMount: true);
-      expect(result.dsl, isEmpty);
-      expect(
-        result.issues.where((issue) => !issue.code.isInformational),
-        isNotEmpty,
-      );
-    },
-  );
+    final result = translator.translate(expression, hoistInMount: true);
+    // The text renders from the app with its recognizers.
+    expect(
+      result.issues.where((issue) => !issue.code.isInformational),
+      isEmpty,
+    );
+    expect([for (final island in result.islands) island.widget], ['Text.rich']);
+  });
 
   for (final reference in ['fresh', 'owner().recognizer']) {
-    test('refuses unowned fresh recognizer through $reference', () async {
-      final expression = await parseExpressionFromSourceForTest("""
+    test(
+      'an unowned fresh recognizer renders from the app: $reference',
+      () async {
+        final expression = await parseExpressionFromSourceForTest("""
 import 'package:flutter/widgets.dart';
 import 'package:flutter/gestures.dart';
 GestureRecognizer get fresh => TapGestureRecognizer();
@@ -214,13 +214,17 @@ class Owner { final recognizer = TapGestureRecognizer(); }
 Owner owner() => Owner();
 Object x() => Text.rich(TextSpan(recognizer: $reference));
 """, rootPackage: 'apps_examples');
-      final result = translator.translate(expression, hoistInMount: true);
-      expect(result.dsl, isEmpty);
-      expect(
-        result.issues.where((issue) => !issue.code.isInformational),
-        isNotEmpty,
-      );
-    });
+        final result = translator.translate(expression, hoistInMount: true);
+        expect(
+          result.issues.where((issue) => !issue.code.isInformational),
+          isEmpty,
+        );
+        expect(
+          [for (final island in result.islands) island.widget],
+          ['Text.rich'],
+        );
+      },
+    );
   }
   test('root BuildContext escape requires an installed owner', () async {
     final expression = await parseExpressionFromSourceForTest("""

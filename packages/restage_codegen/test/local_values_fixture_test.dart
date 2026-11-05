@@ -48,7 +48,7 @@ void main() {
       );
       expect(
         part.split('\n').take(4),
-        contains('// ignore_for_file: type=lint'),
+        contains('// ignore_for_file: type=lint, unnecessary_cast'),
         reason: path,
       );
     }

@@ -60,6 +60,18 @@ final class PaywallSourceFound {
 
   /// The single returned `Expression` from the effective `build()`.
   Expression get rootExpression => build.rootExpression;
+
+  /// This source with [build] in place of its own.
+  PaywallSourceFound withBuild(SourceBuildBlueprint build) =>
+      PaywallSourceFound(
+        id: id,
+        slot: slot,
+        className: className,
+        assetId: assetId,
+        build: build,
+        isCanonical: isCanonical,
+        hasExplicitId: hasExplicitId,
+      );
 }
 
 /// Result of walking a library for `@PaywallSource` classes.
@@ -201,6 +213,7 @@ Future<VisitorResult> visitPaywallSources(
       issues: issues,
       location: location,
       catalog: catalog,
+      liftState: canonical,
     );
     if (build == null) continue;
 

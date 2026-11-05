@@ -402,10 +402,18 @@ void main() {
     expect(find.text('B'), findsNothing);
   });
 
-  for (final name in const <String>['purchase', 'restage.purchase']) {
+  // A tap holds no swap itself; the event it fires decides.
+  for (final (name, reserved) in const [
+    ('purchase', true),
+    ('restage.purchase', true),
+    ('poke', false),
+  ]) {
     testWidgets(
-      'a reserved raw "$name" event does not reach host callbacks or mark a '
-      'paywall as interacted',
+      reserved
+          ? 'a reserved raw "$name" event does not reach host callbacks or '
+              'mark a paywall as interacted'
+          : 'an authored "$name" event reaches host callbacks and marks a '
+              'paywall as interacted',
       (tester) async {
         var hostCallbackCount = 0;
         final resolver = _MutableResolver(_tappableBlob('A', name), version: 1);
@@ -419,10 +427,10 @@ void main() {
         );
         hostCallbackCount = 0;
 
-        await tester.tap(find.text('A'));
+        await tester.tap(find.byType(ElevatedButton));
         await tester.pumpAndSettle();
 
-        expect(hostCallbackCount, 0, reason: name);
+        expect(hostCallbackCount, reserved ? 0 : 1, reason: name);
 
         resolver
           ..bytes = _tappableBlob('B', 'poke')
@@ -430,8 +438,8 @@ void main() {
         await Restage.reloadSurfaces();
         await tester.pumpAndSettle();
 
-        expect(find.text('B'), findsOneWidget);
-        expect(find.text('A'), findsNothing);
+        expect(find.text('B'), reserved ? findsOneWidget : findsNothing);
+        expect(find.text('A'), reserved ? findsNothing : findsOneWidget);
       },
     );
   }

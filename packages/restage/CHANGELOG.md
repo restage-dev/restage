@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+A generated surface can render parts of its widget tree from the app's own code. `RestageIslandScope` supplies those widgets to published content. Each keeps its element and state when a newer version replaces the shown one. `RestageIslandScope.keyed` gives a widget the same identity in the compiled fallback. `RestageIslandPlaceholder` stands in for a widget whose app code isn't available. A version that draws these widgets is laid out before it is shown. It counts as shown from its first paint. `RestageWidgetLibraryRegistration.islands` marks the libraries that hold them.
+
+`SurfaceVocabulary.stepMounts` maps a flow step to a `RestageStepMount`. A `RestageStepMount` renders the step's published content with the values the app computes for it. It reads the step's inputs from the step widget the app builds. `RestageStepValues` carries those values to the content. A flow becomes unavailable when a step has a `RestageStepMount` and no bound screen builder.
+
+- Add `SurfaceFlowRef.surfaceWidget`, the name of the widget generated for a flow. Error messages use it to name the widget to switch to.
+- Add `PaywallRef.surfaceWidget`, the name of the widget generated for a paywall. Error messages use it to name the widget to switch to.
+- Add `SurfaceScreenRef.surfaceWidget`, the name of the widget generated for a screen. Messages use it to name that widget.
+- Add `RestageIslandScope.hostOf`. Generated step code uses it to keep a separate copy of a step's widgets for each place the step is shown.
+- **Breaking:** Rename the flow function `state` to `flowState`, so it no longer hides the `state` a `Cubit` or `Notifier` inherits in files that import Restage. `dart fix --apply` renames existing calls.
+- Add `@RenderInApp`, which leaves a widget to the app's code instead of putting it in the design. Put it on a widget class, a `library` directive or a local variable in `build`.
+
 A navigation paywall that fails after the user left its first screen, or after
 the user tapped its content, shows `errorBuilder` when one is set, and its
 fallback otherwise (nothing if it has none, as before). Going back to the first

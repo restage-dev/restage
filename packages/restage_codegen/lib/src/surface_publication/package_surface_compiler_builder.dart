@@ -9,6 +9,7 @@ import 'package:build/build.dart';
 import 'package:glob/glob.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
@@ -17,12 +18,14 @@ import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/durable_state.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/hoisting.dart';
+import 'package:restage_codegen/src/islands/islands.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_configuration.dart';
 import 'package:restage_codegen/src/measurement/measurement_publication_planner.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/measurement/measurement_source_discovery.dart';
+import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/flow_builder.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_helpers.dart';
@@ -36,14 +39,17 @@ import 'package:restage_codegen/src/restage_source_roster_builder.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart'
     show paywallRootWidgetName;
 import 'package:restage_codegen/src/source_visitor.dart';
+import 'package:restage_codegen/src/surface_publication/split_widgets.dart';
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
+import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/output_location_registry.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler.dart';
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
+import 'package:restage_codegen/src/surface_publication/generated_widget_required.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_codegen/src/surface_publication/surface_capture_plan.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
@@ -297,11 +303,17 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         rendered.add(
           CompiledSurfaceArtifact(
             declaration: screen.input.declaration,
+            splitWidgets: screen.splitWidgets,
             compiledScreenInput: ResolvedWidgetMountInput(
               assetId: screen.input.assetId,
               screen: screen.input.declaration,
               rootParams: screen.input.build.rootParams,
+              constructorParams: screen.input.build.constructorParams,
+              mountConstructorProblem:
+                  screen.input.build.mountConstructorProblem,
               hoisted: screen.hoisted,
+              islands: screen.islands,
+              split: screen.split,
               buildArguments: screen.input.build.buildArguments,
             ),
             blob: screen.blob,
@@ -344,6 +356,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
             mountConstructorProblem: screen.input.build.mountConstructorProblem,
             plan: plan,
             hoisted: screen.hoisted,
+            islands: screen.islands,
+            split: screen.split,
             buildArguments: screen.input.build.buildArguments,
             bundleEntryMetadata: bundleEntryMetadata,
             vocabulary: screen.vocabulary,
@@ -450,6 +464,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
             assetId: assetId,
             screen: declaration,
             rootParams: legacySource.build.rootParams,
+            constructorParams: legacySource.build.constructorParams,
           ),
           blob: blob,
           capabilitySidecar: sidecarBytes,
@@ -567,6 +582,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     jobs: paywallJobs,
     mergedCatalog: mergedCatalog,
     retainSource: (source) => source.isCanonical,
+    // Without Measurement this pass is the final one.
+    refuseWithoutMount: measurementEnabled ? null : plan,
     rendered: rendered,
     sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
     analyticsIdControlCaptures: provisionalAnalyticsIdControlCaptures,
@@ -689,10 +706,23 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         renderedSources: rendered,
       );
   final appWidgets = await _appWidgetMountFactories(buildStep, rendered);
+  final ownSplits = await ownSplitWidgets(
+    buildStep,
+    catalog: await mergedCatalog(),
+    noticeKeys: buildNoticeKeys,
+    placed: {
+      for (final artifact in rendered) ...[
+        ...artifact.vocabulary.widgetNames,
+        ...artifact.mountVocabulary.widgetNames,
+        ...artifact.packageWidgetNames,
+      ],
+    },
+  );
   final provisionalResult = compilePackageSurfacePublications(
     PackageSurfaceCompilationInput(
       roster: roster,
       catalog: await mergedCatalog(),
+      splitWidgets: ownSplits,
       appWidgets: appWidgets,
       flows: flows,
       renderedSources: rendered,
@@ -746,6 +776,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     buildStep,
     screens: measurementScreenInputs,
     paywallJobs: paywallJobs,
+    rendered: rendered,
     catalog: catalog,
     rejections: measurementRejections,
     issues: issues,
@@ -876,6 +907,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     buildStep,
     jobs: paywallJobs,
     mergedCatalog: mergedCatalog,
+    refuseWithoutMount: plan,
     rendered: finalRendered,
     sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
     measurementRoutePlans: emissionPlans,
@@ -926,6 +958,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     PackageSurfaceCompilationInput(
       roster: roster,
       catalog: await mergedCatalog(),
+      splitWidgets: ownSplits,
       appWidgets: appWidgets,
       flows: flows,
       renderedSources: finalRendered,
@@ -996,6 +1029,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     PackageSurfaceCompilationInput(
       roster: roster,
       catalog: await mergedCatalog(),
+      splitWidgets: ownSplits,
       appWidgets: appWidgets,
       flows: flows,
       renderedSources: finalRendered,
@@ -1035,7 +1069,11 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       );
     }
   }
-  final appValues = {for (final value in hoisted) value.label}.toList()..sort();
+  // An item's position is bookkeeping, never something the developer wrote.
+  final appValues = {
+    for (final value in hoisted)
+      if (value.kind != HoistValueKind.itemIndex) value.label,
+  }.toList()..sort();
   if (appValues.isNotEmpty) {
     // Build output the developer reads, like the app vocabulary summary.
     // ignore: avoid_print
@@ -1204,6 +1242,10 @@ TrackedPackageSurfaceCompilation _validCompilation(
       ownedOutputs: ownedOutputs,
       artifactLibraryPaths: bundle.artifactLibraryPaths,
       surfaceWidgetNames: bundle.surfaceWidgetNames,
+      splitSites: bundle.splitSites,
+      surfaceIslands: bundle.surfaceIslands,
+      surfaceComponents: bundle.surfaceComponents,
+      splitRegistrations: bundle.splitRegistrations,
     ),
     measurementCompilerOutput: measurementCompilerOutput,
     analyticsIdControlOutput: analyticsIdControlOutput,
@@ -1440,8 +1482,8 @@ void _logCompilationSummary(TrackedPackageSurfaceCompilation compilation) {
   }.toList()..sort();
   final surfaceCount = publications.length;
   final mountSummary = mounts.isEmpty
-      ? 'no generated mounts'
-      : 'generated mounts: ${mounts.join(', ')}';
+      ? 'no generated surface classes'
+      : 'generated surface classes: ${mounts.join(', ')}';
   log.info(
     '[restage] Compiled $surfaceCount '
     'surface${surfaceCount == 1 ? '' : 's'} ($countSummary); $mountSummary.',
@@ -1532,11 +1574,17 @@ _discoverMeasurementSources(
   BuildStep buildStep, {
   required List<ResolvedScreenCompilationInput> screens,
   required List<_PaywallCompilationJob> paywallJobs,
+  required List<CompiledSurfaceArtifact> rendered,
   required Catalog catalog,
   required Map<String, String> rejections,
   required List<Issue> issues,
 }) async {
   final discoveries = <String, MeasurementSourceDiscoveryResult>{};
+  final mounts = {
+    for (final artifact in rendered)
+      if (artifact.compiledScreenInput case final input?)
+        artifact.declarationIdentity: input,
+  };
 
   Future<void> addDiscovery({
     required String declarationIdentity,
@@ -1579,13 +1627,29 @@ _discoverMeasurementSources(
         input: MeasurementSourceDiscoveryInput(
           authority: MeasurementSourceAuthority.screen,
           sourceClass: screen.declaration,
-          rootExpression: screen.build.rootExpression,
+          rootExpression:
+              mounts[screen.declarationIdentity]?.split?.designRoot ??
+              screen.build.rootExpression,
+          rootBranches: mounts.containsKey(screen.declarationIdentity)
+              ? buildBranches(
+                  screen.build.rootExpression,
+                  screen.build.inlined.returns,
+                )
+              : const [],
           catalog: catalog,
           inlinedCustomWidgetBlueprints: classification.blueprints,
           inlinedCustomWidgetCollectionRefusals:
               classification.collectionRefusals,
           rootLocalBindings: screen.build.localBindings,
           rootHelpers: screen.build.helpers,
+          rendersFromApp: switch (mounts[screen.declarationIdentity]) {
+            final mount? => (node) => rendersFromApp(
+              node,
+              mount.islands,
+              mount.split,
+            ),
+            null => (_) => false,
+          },
         ),
       );
     }
@@ -1631,13 +1695,29 @@ _discoverMeasurementSources(
         input: MeasurementSourceDiscoveryInput(
           authority: MeasurementSourceAuthority.paywall,
           sourceClass: declaration,
-          rootExpression: entry.source.rootExpression,
+          rootExpression:
+              mounts[identity]?.split?.designRoot ??
+              entry.source.rootExpression,
+          rootBranches: mounts.containsKey(identity)
+              ? buildBranches(
+                  entry.source.rootExpression,
+                  entry.source.build.inlined.returns,
+                )
+              : const [],
           catalog: catalog,
           inlinedCustomWidgetBlueprints: classification.blueprints,
           inlinedCustomWidgetCollectionRefusals:
               classification.collectionRefusals,
           rootLocalBindings: entry.source.build.localBindings,
           rootHelpers: entry.source.build.helpers,
+          rendersFromApp: switch (mounts[identity]) {
+            final mount? => (node) => rendersFromApp(
+              node,
+              mount.islands,
+              mount.split,
+            ),
+            null => (_) => false,
+          },
         ),
       );
     }
@@ -2101,11 +2181,16 @@ Future<void> _appendResolvedScreens(
     rendered.add(
       CompiledSurfaceArtifact(
         declaration: screen.input.declaration,
+        splitWidgets: screen.splitWidgets,
         compiledScreenInput: ResolvedWidgetMountInput(
           assetId: screen.input.assetId,
           screen: screen.input.declaration,
           rootParams: screen.input.build.rootParams,
+          constructorParams: screen.input.build.constructorParams,
+          mountConstructorProblem: screen.input.build.mountConstructorProblem,
           hoisted: screen.hoisted,
+          islands: screen.islands,
+          split: screen.split,
           buildArguments: screen.input.build.buildArguments,
         ),
         blob: screen.blob,
@@ -2138,6 +2223,8 @@ Future<void> _appendResolvedScreens(
           mountConstructorProblem: screen.input.build.mountConstructorProblem,
           plan: placement,
           hoisted: screen.hoisted,
+          islands: screen.islands,
+          split: screen.split,
           buildArguments: screen.input.build.buildArguments,
           vocabulary: screen.vocabulary,
           bundleEntryMetadata: ResolvedScreenBundleEntryMetadata(
@@ -2156,6 +2243,26 @@ Future<void> _appendResolvedScreens(
         contracts.add(resolved);
       }
     } else {
+      if (generatedWidgetRequiredIssue(
+            code: IssueCode.unrecognizedMethodCall,
+            screen: screen.input.declaration.name!,
+            widget: generatedSurfaceName(
+              screen.input.declaration.name!,
+              fallback: 'SurfaceScreen',
+            ),
+            missing: LegacyAnnotation(
+              '@${source.legacyAnnotation ?? 'ScreenSource'}',
+              '@Screen',
+            ),
+            location: screen.input.assetId.path,
+            hoisted: screen.hoisted,
+            islands: screen.islands,
+            split: screen.split,
+          )
+          case final issue?) {
+        issues.add(issue);
+        continue;
+      }
       final contract = inspectLegacyStandaloneScreenContract(
         LegacyStandaloneScreenContractInput(
           assetId: screen.input.assetId,
@@ -2609,6 +2716,7 @@ Future<void> _compilePaywalls(
   required Set<String> buildNoticeKeys,
   required void Function(Issue issue, bool isCanonical)
   appFactoryNoticeCollector,
+  RestageOutputLocationPlan? refuseWithoutMount,
   Map<String, MeasurementRouteEmissionPlan> measurementRoutePlans = const {},
   Map<String, MeasurementPaywallRouteEmissionOwnership>
       measurementRouteOwnership =
@@ -2787,22 +2895,48 @@ Future<void> _compilePaywalls(
         location: entry.value.assetId.path,
         issues: issues,
       );
+      final hasMount = source.outputs.any(
+        (output) => output.role == 'paywall-descriptor',
+      );
+      if (refuseWithoutMount != null && !hasMount) {
+        final library = entry.value.assetId.path;
+        final part = neutralPartUri(refuseWithoutMount, library);
+        final issue = generatedWidgetRequiredIssue(
+          code: source.isCanonical
+              ? IssueCode.missingPartDirective
+              : IssueCode.unrecognizedMethodCall,
+          screen: entry.value.declaration.name!,
+          widget: generatedSurfaceName(
+            entry.value.declaration.name!,
+            fallback: 'SurfaceScreen',
+          ),
+          missing: source.isCanonical
+              ? MissingPartLine(library, part)
+              : const LegacyAnnotation('@PaywallSource', '@Paywall'),
+          location: entry.value.assetId.path,
+          hoisted: compiled.hoisted,
+          islands: compiled.islands,
+          split: compiled.split,
+        );
+        if (issue != null) issues.add(issue);
+      }
       rendered.add(
         CompiledSurfaceArtifact.fromPaywallAdapter(
           declaration: entry.value.declaration,
+          splitWidgets: compiled.splitWidgets,
           compiledScreenInput: ResolvedWidgetMountInput(
             assetId: entry.value.assetId,
             screen: entry.value.declaration,
             rootParams: compiled.source.build.rootParams,
+            constructorParams: compiled.source.build.constructorParams,
             hoisted: compiled.hoisted,
+            islands: compiled.islands,
+            split: compiled.split,
             buildArguments: compiled.source.build.buildArguments,
           ),
           facts: facts,
           mountVocabulary: mountVocabulary,
-          nativeMountInput:
-              source.outputs.any(
-                (output) => output.role == 'paywall-descriptor',
-              )
+          nativeMountInput: hasMount
               ? ResolvedWidgetMountInput(
                   assetId: entry.value.assetId,
                   screen: entry.value.declaration,
@@ -2811,6 +2945,8 @@ Future<void> _compilePaywalls(
                   mountConstructorProblem:
                       compiled.source.build.mountConstructorProblem,
                   hoisted: compiled.hoisted,
+                  islands: compiled.islands,
+                  split: compiled.split,
                   buildArguments: compiled.source.build.buildArguments,
                   partPath: source.outputs
                       .firstWhere(
@@ -2822,7 +2958,17 @@ Future<void> _compilePaywalls(
           flowArtifactPath: 'paywall_$id.rfw',
           packageWidgetNames: _paywallWidgetNames(
             facts,
-            await mergedCatalog(),
+            withSplits(
+              await mergedCatalog(),
+              [
+                for (final other in compiledById.values)
+                  ...other.artifacts.islands,
+              ],
+              [
+                for (final other in compiledById.values)
+                  ...other.artifacts.splitWidgets,
+              ],
+            ),
             location: entry.value.assetId.path,
             issues: issues,
             hoistedByBlob: {

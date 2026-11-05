@@ -1,3 +1,4 @@
+import 'package:restage_compiler_core/src/builder_scope_values.dart';
 import 'package:restage_compiler_core/src/rfw_program_envelope.dart';
 import 'package:restage_compiler_core/src/surface_capability_derivation.dart'
     show validateRfwNativeReferences;
@@ -5,6 +6,8 @@ import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/optional_native_values.dart';
+import 'package:restage_codegen/src/surface_publication/split_widgets.dart'
+    show kAppWidgetPlacementArguments;
 import 'package:restage_codegen/src/native_binding_routes.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
@@ -21,7 +24,7 @@ import 'package:restage_shared/restage_shared.dart'
         kCollectionValueOperations,
         kGridValueOperations,
         kIntlValueOperations;
-import 'package:restage_shared/rfw_formats.dart';
+import 'package:restage_shared/rfw_formats.dart' hide WidgetLibrary;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// The nine canonical `FontWeight` member names the
@@ -69,6 +72,7 @@ List<Issue> validateModelAgainstCatalog(
   final scope = RfwProgramScope(
     library.widgets.map((widget) => widget.root),
     operations: operations,
+    scopedNativeValues: rfwBuilderScopeValues(library, catalog),
   );
   final issues = validateCommerceAuthoring(library, rootLabels: rootLabels);
   final localNames = {for (final widget in library.widgets) widget.name};
@@ -103,8 +107,9 @@ void _walkNode(
   String location,
   Map<String, ValueOperation> operations,
   RfwProgramScope scope,
-  SurfaceScreenHostDataSchema hostDataContract,
-) {
+  SurfaceScreenHostDataSchema hostDataContract, {
+  List<SurfaceScreenHostDataShape?> loops = const [],
+}) {
   if (node is ConstructorCall) {
     if (node.name == kBuilderContinuationWidgetName) {
       for (final value in node.arguments.values) {
@@ -117,6 +122,7 @@ void _walkNode(
           operations,
           scope,
           hostDataContract,
+          loops: loops,
         );
       }
       return;
@@ -145,6 +151,13 @@ void _walkNode(
         for (final argEntry in node.arguments.entries) {
           final propName = argEntry.key;
           final matches = entry.properties.where((p) => p.name == propName);
+          // Where the design places an app widget, read by its factory.
+          if (matches.isEmpty &&
+              WidgetLibrary.builtInByNamespace(entry.library.namespace) ==
+                  null &&
+              kAppWidgetPlacementArguments.contains(propName)) {
+            continue;
+          }
           if (matches.isEmpty) {
             issues.add(
               Issue(
@@ -182,11 +195,13 @@ void _walkNode(
           if (structured != null &&
               nativeBindingRoute(structured.sourceType)?.contractType ==
                   'flutter.Key' &&
+              !_forwardedArg(argEntry.value) &&
               !_validNativeKeyArgument(
                 argEntry.value,
                 property,
                 scope,
                 hostDataContract,
+                loops,
               )) {
             issues.add(
               Issue(
@@ -218,30 +233,21 @@ void _walkNode(
             );
           }
         }
-        // Required widget / widgetList slots must be present. A required
-        // `widget` left out decodes to a runtime cast error; a required
-        // `widgetList` silently decodes to an empty list. Required scalars are
-        // already enforced by the typed decode, and a required event is an
-        // authoring choice (by design), so only widget-shaped slots are
-        // checked here.
+        // A required argument Flutter can't take as null must be present:
+        // absence has no Flutter meaning. Widget slots are checked always.
         for (final property in entry.properties) {
           final isWidgetSlot =
               property.type == PropertyType.widget ||
               property.type == PropertyType.widgetList;
           if (property.required &&
-              isWidgetSlot &&
+              (isWidgetSlot || property.constructorNullable != true) &&
               !node.arguments.containsKey(property.name)) {
-            final shape = property.type == PropertyType.widgetList
-                ? 'widget-list'
-                : 'widget';
             issues.add(
               Issue(
                 code: IssueCode.missingRequiredSlot,
                 message:
-                    "Required $shape slot '${property.name}' is missing "
-                    "on '${entry.name}'. Supply it — a missing required slot "
-                    'ships a degraded blob (a runtime cast error for a widget, '
-                    'or a silently-empty list).',
+                    '`${entry.name}` is missing its required argument '
+                    '`${property.name}`. Try passing `${property.name}`.',
                 location: '$location/${node.name}',
               ),
             );
@@ -261,6 +267,7 @@ void _walkNode(
         operations,
         scope,
         hostDataContract,
+        loops: loops,
       );
     }
   } else if (node is List) {
@@ -274,6 +281,7 @@ void _walkNode(
         operations,
         scope,
         hostDataContract,
+        loops: loops,
       );
     }
   } else if (node is Switch) {
@@ -291,10 +299,14 @@ void _walkNode(
         operations,
         scope,
         hostDataContract,
+        loops: loops,
       );
     }
   } else if (node is Loop) {
-    // The loop template is applied per element; walk it for nested calls.
+    // The loop template is applied per element; walk it for nested calls,
+    // with each item read against its list's item shape.
+    var input = _referencedShape(node.input, hostDataContract, loops);
+    while (input is SurfaceScreenHostDataNullableShapeV1) input = input.value;
     _walkNode(
       node.output,
       catalog,
@@ -304,6 +316,10 @@ void _walkNode(
       operations,
       scope,
       hostDataContract,
+      loops: [
+        ...loops,
+        input is SurfaceScreenHostDataListShapeV1 ? input.items : null,
+      ],
     );
   } else if (node is WidgetBuilderDeclaration) {
     // The builder's returned widget (usually a constructor call) must be
@@ -317,6 +333,7 @@ void _walkNode(
       operations,
       scope,
       hostDataContract,
+      loops: loops,
     );
   } else if (node is Map) {
     // A map literal bound to a structured slot can carry nested calls in its
@@ -369,6 +386,7 @@ void _walkNode(
         operations,
         scope,
         hostDataContract,
+        loops: loops,
       );
     }
   }
@@ -376,11 +394,56 @@ void _walkNode(
   // `EventHandler`) carry no catalog references — skip them.
 }
 
+/// The host-data shape [value] reads: `data.context.<input>…`, or an item of
+/// an enclosing loop, whose item shapes [loops] holds, nearest last.
+SurfaceScreenHostDataShape? _referencedShape(
+  Object? value,
+  SurfaceScreenHostDataSchema contract,
+  List<SurfaceScreenHostDataShape?> loops,
+) {
+  if (value is DataReference) {
+    final parts = value.parts;
+    if (parts.length < 2 || parts.first != 'context') return null;
+    return _shapeAt(contract.inputs[parts[1]], parts.skip(2));
+  }
+  if (value is LoopReference) {
+    if (value.loop >= loops.length) return null;
+    return _shapeAt(loops[loops.length - 1 - value.loop], value.parts);
+  }
+  return null;
+}
+
+/// The shape at [parts] below [shape].
+SurfaceScreenHostDataShape? _shapeAt(
+  SurfaceScreenHostDataShape? shape,
+  Iterable<Object> parts,
+) {
+  for (final part in parts) {
+    while (shape is SurfaceScreenHostDataNullableShapeV1) shape = shape.value;
+    shape = switch (shape) {
+      SurfaceScreenHostDataObjectShapeV1(:final fields) => fields[part],
+      SurfaceScreenHostDataMapShapeV1(:final values) when part is String =>
+        values,
+      SurfaceScreenHostDataListShapeV1(:final items)
+          when part is int && part >= 0 =>
+        items,
+      _ => null,
+    };
+  }
+  return shape;
+}
+
+// A custom widget forwards a native value it was given as that same value;
+// its own placement was checked.
+bool _forwardedArg(Object? value) =>
+    value is ArgsReference && value.parts.length == 1;
+
 bool _validNativeKeyArgument(
   Object? value,
   PropertyEntry property,
   RfwProgramScope scope,
   SurfaceScreenHostDataSchema hostDataContract,
+  List<SurfaceScreenHostDataShape?> loops,
 ) {
   if (RfwConstructorPresenceProtocol.appliesTo(property) &&
       value is Map &&
@@ -396,25 +459,16 @@ bool _validNativeKeyArgument(
   if (value == null) return property.constructorNullable;
   if (value is Switch)
     return value.outputs.values.every(
-      (branch) =>
-          _validNativeKeyArgument(branch, property, scope, hostDataContract),
+      (branch) => _validNativeKeyArgument(
+        branch,
+        property,
+        scope,
+        hostDataContract,
+        loops,
+      ),
     );
-  if (value is DataReference) {
-    final parts = value.parts;
-    if (parts.length < 2 || parts.first != 'context') return false;
-    SurfaceScreenHostDataShape? shape = hostDataContract.inputs[parts[1]];
-    for (final part in parts.skip(2)) {
-      while (shape is SurfaceScreenHostDataNullableShapeV1) shape = shape.value;
-      shape = switch (shape) {
-        SurfaceScreenHostDataObjectShapeV1(:final fields) => fields[part],
-        SurfaceScreenHostDataMapShapeV1(:final values) when part is String =>
-          values,
-        SurfaceScreenHostDataListShapeV1(:final items)
-            when part is int && part >= 0 =>
-          items,
-        _ => null,
-      };
-    }
+  if (value is DataReference || value is LoopReference) {
+    final shape = _referencedShape(value, hostDataContract, loops);
     return shape is SurfaceScreenHostDataNativeBindingShapeV1 &&
         shape.contract.type == 'flutter.Key' &&
         shape.contract.call == null &&

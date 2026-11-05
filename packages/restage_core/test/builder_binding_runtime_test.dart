@@ -116,6 +116,54 @@ void main() {
     }
   });
 
+  testWidgets('a builder decodes its program once across rebuilds',
+      (tester) async {
+    const program = BuilderProgram(
+        values: ValueProgram(nodes: [
+          ValueNode('literal', ValueType.string, value: 'decoded once'),
+        ], root: 0),
+        result: BuilderResult.body(0),
+        bodyCount: 1);
+    final harness = _Harness(
+        'widget Root=Native(slot:${_slot(program, captures: '', body: '(frame)=>Body(title:"once",brightness:"dark")')});');
+    final before = debugProgramDecodes;
+    await tester.pumpWidget(harness.parent(320));
+    await tester.pumpWidget(harness.parent(500));
+    expect(tester.takeException(), isNull);
+    expect(harness.nativeCallbacks, 2);
+    expect(debugProgramDecodes - before, 1);
+    await _dispose(tester, harness);
+  });
+
+  testWidgets('a binding built again in place updates its invocation tree',
+      (tester) async {
+    const program = BuilderProgram(
+        values: ValueProgram(nodes: [
+          ValueNode('literal', ValueType.string, value: 'in place'),
+        ], root: 0),
+        result: BuilderResult.body(0),
+        bodyCount: 1);
+    final harness = _Harness(
+        'widget Root=Native(slot:${_slot(program, captures: '', body: '(frame)=>Body(title:"kept",brightness:"dark")')});',
+        nativeFactory: (context, source) {
+      context.dependOnInheritedWidgetOfExactType<_Tick>();
+      return RestageBuilderBinding.construct((owned) {
+        final binding = RestageBuilderBinding(
+            RestageValueBinding.dataSource(source, context), ['slot']);
+        owned.add(binding);
+        return binding.build(context, {});
+      });
+    });
+    await tester.pumpWidget(_Tick(0, child: harness.parent(320)));
+    await tester.pumpWidget(_Tick(1, child: harness.parent(320)));
+    expect(tester.takeException(), isNull);
+    expect(harness.nativeFactories, 2);
+    expect(find.text('kept dark'), findsOneWidget);
+    expect(harness.helperContexts, hasLength(1));
+    await _dispose(tester, harness);
+    expect(harness.helperContexts.single.mounted, isFalse);
+  });
+
   testWidgets('optional callbacks reject supplied scalar and container values',
       (tester) async {
     for (final value in ['false', '0', '1.0', '"text"', '{}', '[]']) {
@@ -422,6 +470,170 @@ widget Root { items: [{title:"state 0"},{title:"state 1"}] } = Column(
     await _dispose(tester, rejected);
   });
 
+  testWidgets('app value slots check the shape the app supplies',
+      (tester) async {
+    const state = ValueType('record', fields: {'label': ValueType.string});
+    const contract = WidgetBuilderContract(parameters: [
+      WidgetBuilderParameter.buildContext,
+      WidgetBuilderParameter.data,
+      WidgetBuilderParameter.child,
+    ]);
+    BuilderProgram reading(String name, ValueType type) => BuilderProgram(
+        values: ValueProgram(
+            nodes: [
+              ValueNode('parameter', type, name: name),
+              if (type.kind == 'record')
+                const ValueNode('field', ValueType.string,
+                    inputs: [0], name: 'label'),
+            ],
+            root: type.kind == 'record' ? 1 : 0,
+            parameters: {name: type}),
+        result: BuilderResult.body(0,
+            values: {'title': type.kind == 'record' ? 1 : 0}),
+        bodyCount: 1);
+    for (final (program, installed, shown) in [
+      (reading('arg1', state), state, 'counted dark'),
+      (
+        reading('arg1', state),
+        const ValueType('record', fields: {'other': ValueType.string}),
+        null
+      ),
+      (reading('arg2', ValueType.string), state, null),
+    ]) {
+      final harness = _Harness(
+          'widget Root=Native(slot:${_slot(program, captures: '', body: '(frame)=>Body(title:frame.values.title,brightness:"dark")')});',
+          nativeFactory: (context, source) =>
+              RestageBuilderBinding.construct((owned) {
+                final binding = RestageBuilderBinding(source, ['slot'],
+                    contract: contract, data: {'arg1': installed});
+                owned.add(binding);
+                final parameters = {
+                  'arg1': {'label': 'counted'},
+                  'arg2': 'child'
+                };
+                if (shown == null) {
+                  expect(() => binding.build(context, parameters),
+                      throwsFormatException);
+                  return const Text('refused');
+                }
+                return binding.build(context, parameters);
+              }));
+      await tester.pumpWidget(harness.parent(320));
+      expect(tester.takeException(), isNull);
+      expect(find.text(shown ?? 'refused'), findsOneWidget);
+      await _dispose(tester, harness);
+    }
+  });
+
+  testWidgets('an app builder renders its delivered body with its value',
+      (tester) async {
+    const program = BuilderProgram(
+        values: ValueProgram(
+            nodes: [
+              ValueNode('parameter', ValueType.integer, name: 'arg1'),
+              ValueNode('string', ValueType.string, inputs: [0]),
+            ],
+            root: 1,
+            parameters: {'arg1': ValueType.integer}),
+        result: BuilderResult.body(0, values: {'title': 1}),
+        bodyCount: 1);
+    final counter = ValueNotifier(1);
+    var bindings = <RestageBuilderBinding>[];
+    // The island build the compiler writes for this builder.
+    final harness = _Harness(
+        'widget Root=Native(slot:${_slot(program, captures: '', body: '(frame)=>Body(title:frame.values.title,brightness:"dark")')});',
+        nativeFactory: (c, s) =>
+            RestageBuilderBinding.construct((_restageBindings) {
+              bindings = _restageBindings;
+              final _restageBinding$builder = RestageBuilderBinding(
+                  RestageValueBinding.dataSource(s, c), const <Object>['slot'],
+                  contract: const WidgetBuilderContract(parameters: [
+                    WidgetBuilderParameter.buildContext,
+                    WidgetBuilderParameter.data,
+                    WidgetBuilderParameter.child
+                  ]),
+                  data: const <String, ValueType>{'arg1': ValueType('int')});
+              _restageBindings.add(_restageBinding$builder);
+              return ValueListenableBuilder<int>(
+                  valueListenable: counter,
+                  builder: (_restageArg0, _restageArg1, _restageArg2) =>
+                      _restageBinding$builder.build(_restageArg0,
+                          <String, Object?>{'arg1': _restageArg1}));
+            }));
+    await tester.pumpWidget(harness.parent(320));
+    expect(tester.takeException(), isNull);
+    expect(find.text('1 dark'), findsOneWidget);
+    counter.value = 2;
+    await tester.pump();
+    expect(find.text('2 dark'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    expect(tester.takeException(), isNull);
+    expect(bindings, isNotEmpty);
+    for (final binding in bindings) {
+      expect(() => binding.build(tester.binding.rootElement!, {'arg1': 3}),
+          throwsStateError);
+    }
+  });
+
+  testWidgets('each builder call reads only the values it recorded',
+      (tester) async {
+    const program = BuilderProgram(
+        values: ValueProgram(
+            nodes: [
+              ValueNode('parameter', ValueType.integer, name: 'arg1'),
+              ValueNode('parameter', ValueType.string, name: 'recorded:label'),
+              ValueNode('string', ValueType.string, inputs: [0]),
+              ValueNode('literal', ValueType.string, value: ' at '),
+              ValueNode('concat', ValueType.string, inputs: [1, 3, 2]),
+            ],
+            root: 4,
+            parameters: {
+              'arg1': ValueType.integer,
+              'recorded:label': ValueType.string,
+            }),
+        result: BuilderResult.body(0, values: {'title': 4}),
+        bodyCount: 1);
+    final calls = <int>[];
+    // The island build the compiler writes for a lazy list's builder whose
+    // body the app's copied closure records into.
+    final harness = _Harness(
+        'widget Root=Native(slot:${_slot(program, captures: '', body: '(frame)=>Body(title:frame.values.title,brightness:"dark")')});',
+        nativeFactory: (c, s) =>
+            RestageBuilderBinding.construct((_restageBindings) {
+              final _restageBinding$itemBuilder = RestageBuilderBinding(
+                  RestageValueBinding.dataSource(s, c), const <Object>['slot'],
+                  contract: const WidgetBuilderContract(parameters: [
+                    WidgetBuilderParameter.buildContext,
+                    WidgetBuilderParameter.data,
+                  ]),
+                  data: const <String, ValueType>{'arg1': ValueType('int')});
+              _restageBindings.add(_restageBinding$itemBuilder);
+              return SizedBox(
+                  height: 400,
+                  child: ListView.builder(
+                      itemCount: 4,
+                      itemBuilder: (context, index) {
+                        final _restageSlotRecording = <String, Object?>{};
+                        _restageRender(Object? _) =>
+                            _restageBinding$itemBuilder.build(
+                                context, <String, Object?>{'arg1': index},
+                                recorded: _restageSlotRecording);
+                        calls.add(index);
+                        final label = _restageSlotRecording['label'] =
+                            'row ${index * 10}';
+                        return _restageRender(Text('$label'));
+                      }));
+            }));
+    await tester.pumpWidget(harness.parent(320));
+    expect(tester.takeException(), isNull);
+    expect(calls, [0, 1, 2, 3]);
+    for (var index = 0; index < 4; index++) {
+      expect(find.text('row ${index * 10} at $index dark'), findsOneWidget);
+    }
+    await tester.pumpWidget(const SizedBox());
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('optional callbacks distinguish absence from a present program',
       (tester) async {
     final absent = _Harness('widget Root = Native();', optional: true);
@@ -637,4 +849,13 @@ final class _StatefulBody extends StatefulWidget {
 final class _StatefulBodyState extends State<_StatefulBody> {
   @override
   Widget build(BuildContext context) => Text(widget.label);
+}
+
+// Rebuilds what depends on it without rebuilding the remote widget above.
+final class _Tick extends InheritedWidget {
+  const _Tick(this.value, {required super.child});
+  final int value;
+
+  @override
+  bool updateShouldNotify(_Tick oldWidget) => value != oldWidget.value;
 }

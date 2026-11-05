@@ -128,11 +128,10 @@ passes at mount time, such as a name or a list of items. The generated mount tak
 same parameters. Supported types are `String`, `int`, finite `double`, `bool`, `num`,
 `List` and `Map<String, ...>` of those, nullable variants, and plain data classes with
 final fields of those types and a const constructor. List elements must have a
-concrete non-nullable type; map keys must be non-nullable `String`. Reading a
-parameter of another type (`DateTime`, a callback, a controller) in `build()` stops
-the build. Declaring one without reading it is fine. A parameter read by the
-compiled tree cannot have a non-null default; make it required and supply the
-default at the host call site.
+concrete non-nullable type; map keys must be non-nullable `String`. A parameter of
+another type, such as a callback or a controller, can also be read in `build()`, for
+example `onPressed: onBuy`: the object stays in the app, and the design refers to it.
+Parameters can have defaults; the generated mount takes the same defaults.
 
 Host render data stays on the device. It is separate from audience-routing inputs,
 and is not copied into measurement events. Pass only the values the surface needs;
@@ -140,9 +139,34 @@ keep services, controllers and formatting logic in app code.
 
 ## Composition and helpers
 
-Keep `build()` to one returned expression, optionally preceded by initialized
-`final` or `const` locals, one per statement. Each local must contribute to the
-returned tree. Theme reads such as `Theme.of(context).colorScheme` remain live.
+Write `build()` as you would for any Flutter widget. It can declare locals, run
+statements, loop, branch with `if` and `switch`, use `try` and `catch`, and
+return early. End `build()` with a `return` of the widget tree, or with a
+statement that returns on every path, such as a `switch` whose cases return. An
+arrow body also works.
+
+The generated widget runs your build's statements as written: once per build,
+in order. An exception is thrown or caught where your app throws or catches it.
+Each value the surface shows is taken where your build computes it, and the
+surface shows the `return` your build took. A `return` can read any local your
+build declares, including pattern variables, `catch` clause variables, loop
+variables and a classic `for` loop index that the loop body changes. Theme reads
+such as `Theme.of(context).colorScheme` remain live.
+
+A design published later can read a value only where your build computes it.
+For example, if `build()` returns early when `offer` is null and reads
+`offer.features` after that, a design can show the features only where it shows
+the later `return`. `restage surface push` names each app build that can't
+show such a design, and why. Publishing a delivery plan that serves it to those
+builds asks you to confirm first. Those builds keep showing what they showed
+before.
+
+Restage reserves names that start with `_restage` for the code it generates, so
+the build can't declare or read them. A statement that the generated widget
+can't copy, such as `super.build(context)`, stops the build with its location;
+move it into a method of the surface class or its `State`. In a `State`'s build,
+a call the generated widget can't make, such as `debugPrint(...)`, also stops
+the build and names the call; make the call through a method of the `State`.
 
 Keep supported helpers where they are. The compiler can inline the widget's own
 helper methods and top-level or static helpers from other files in the same
@@ -160,7 +184,8 @@ Widget build(BuildContext context) => Column(
     );
 ```
 
-Their bodies follow the same single-return rule. Pass every helper parameter,
+To inline, a helper's body must be one returned expression, optionally after
+initialized `final` or `const` locals. Pass every helper parameter,
 including optional parameters, explicitly. Recursive helpers, arbitrary instance
 method calls and unsupported helper bodies cannot compile. Helpers from a
 dependency package can also inline when that package supplies custom widgets in

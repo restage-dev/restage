@@ -1,7 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage_core/restage_core.dart';
-import 'package:restage_shared/restage_shared.dart' show WidgetLibrary;
+import 'package:restage_shared/restage_shared.dart'
+    show PropertyType, WidgetLibrary;
 import 'package:rfw/formats.dart' show parseLibraryFile;
 import 'package:rfw/rfw.dart' hide WidgetLibrary;
 
@@ -31,7 +32,10 @@ void main() {
         'tooltip',
       ]),
     );
-    expect(names, isNot(contains('onTap')));
+    // Semantics actions are callbacks Flutter declares, admitted as events.
+    final onTap = entry.properties.singleWhere((p) => p.name == 'onTap');
+    expect(onTap.type, PropertyType.event);
+    expect(onTap.callbackTypeId, '()->void');
   });
 
   testWidgets('flags reach the semantics node', (tester) async {

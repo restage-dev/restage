@@ -1,3 +1,4 @@
+import 'package:restage_compiler_core/src/builder_scope_values.dart';
 import 'package:restage_compiler_core/src/rfw_catalog_occurrence_resolution.dart';
 import 'package:restage_compiler_core/src/rfw_program_envelope.dart';
 import 'package:restage_compiler_core/src/surface_capability_derivation.dart';
@@ -56,6 +57,12 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
     final context = <String, SurfaceScreenHostDataShape>{};
     final events = <String, SurfaceScreenEvent>{};
     var vocabulary = WidgetVocabulary();
+    final islands = <String, String>{};
+    final islandLabels = <String, String>{};
+    final layoutValues = <String, List<SurfaceLayoutPath>>{};
+    final layoutIslands = <String, List<SurfaceLayoutPath>>{};
+    final screenValues = <String, Map<String, List<SurfaceLayoutPath>>>{};
+    final screenIslands = <String, Map<String, List<SurfaceLayoutPath>>>{};
     final modes = SurfacePresentationV1.values.toSet();
     final manifests = <CapabilityManifest>[];
     for (final node in nodes) {
@@ -102,7 +109,10 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
             widget.initialState,
             widget.root
           ]
-        ], operations: screenOperations);
+        ],
+            operations: screenOperations,
+            scopedNativeValues:
+                rfwBuilderScopeValues(library, contract.catalog));
         validateRfwNativeReferences(library, contract.catalog,
             scope: nativeScope);
         for (final entry in nativeScope.nativeBindings.entries) {
@@ -139,6 +149,21 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
           operations: screenOperations,
         );
         final body = resolved.inspectFinalBody(library);
+        Map<String, RfwPlacements>? placements;
+        Map<String, rfw.RfwSplitIslandPlacements>? splitIslands;
+        // Flow screens share discriminator names, so each screen of the flow
+        // and its subflows lists every read of its own.
+        final flowScreen = node.flowDocument != null;
+        final layouts =
+            rfwLayoutReads(library, renderRoot, everyRead: flowScreen);
+        final screen = '${node.flowDocument?.flow}/${entry.key}';
+        final readsHere =
+            flowScreen ? (screenValues[screen] ??= {}) : layoutValues;
+        final placedHere =
+            flowScreen ? (screenIslands[screen] ??= {}) : layoutIslands;
+        for (final MapEntry(:key, :value) in layouts.values.entries) {
+          (readsHere[key] ??= []).addAll(value);
+        }
         final imports =
             library.imports.map((value) => value.name.parts.join('.')).toSet();
         final names = <String>{};
@@ -178,6 +203,48 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
                 origin.catalogLibraryNamespace,
               ) ==
               null) {
+            // The mount renders its islands; the host lists each one's token.
+            if (contract.catalog.libraries[catalogEntry.library]?.islands ??
+                false) {
+              // A split widget's wrapper provides the islands its body
+              // places; the widget's library carries them, not the host.
+              final split = (splitIslands ??= rfw.rfwSplitIslandPlacements(
+                library,
+                renderRoot,
+                isSplitWrapper: (name) => _isSplitWrapper(
+                  name,
+                  contract.catalog,
+                  contract.catalogResolution,
+                ),
+              ))[call.name];
+              if (split != null && split.owners.isNotEmpty) {
+                final refusal = splitIslandPlacementRefusal(
+                  split,
+                  label: catalogEntry.description,
+                );
+                if (refusal != null) throw FormatException(refusal);
+                continue;
+              }
+              final name = WidgetVocabulary.qualifiedName(
+                origin.catalogLibraryNamespace,
+                call.name,
+              );
+              final token = catalogEntry.wireId.value;
+              if ((islands[name] ??= token) != token) {
+                throw FormatException('Conflicting island "$name".');
+              }
+              islandLabels[name] = catalogEntry.description;
+              if (layouts.constructors[call.name] case final paths?) {
+                (placedHere[name] ??= []).addAll(paths);
+              }
+              final refusal = islandPlacementRefusal(
+                (placements ??= rfwPlacements(library, renderRoot))[call.name]!,
+                label: catalogEntry.description,
+                itemInputs: catalogEntry.itemInputs,
+              );
+              if (refusal != null) throw FormatException(refusal);
+              continue;
+            }
             // The app compiles its own library's factories, so the host fits
             // when it installs that library at the declared version.
             final declared =
@@ -387,8 +454,450 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
       capabilities: capabilityManifestUnion(manifests),
       requiredVocabulary: vocabulary,
       flowBoundary: boundary,
+      requiredIslands: islands,
+      islandLabels: islandLabels,
+      layoutReads: SurfaceLayoutReadsV1(
+        values: layoutValues,
+        islands: layoutIslands,
+      ),
+      screenLayoutReads: {
+        for (final screen in {...screenValues.keys, ...screenIslands.keys})
+          screen: SurfaceLayoutReadsV1(
+            values: screenValues[screen] ?? const {},
+            islands: screenIslands[screen] ?? const {},
+          ),
+      },
     );
   }
+}
+
+/// How many times rendering [root] of [library] places each constructor
+/// outside any loop, how many times inside one, and the fewest loops around
+/// any placement inside one (0 when there is none); a switch counts as its
+/// busiest branch.
+typedef RfwPlacements = ({int outside, int looped, int shallowest});
+
+extension on RfwPlacements {
+  RfwPlacements _plus(RfwPlacements other) => (
+        outside: outside + other.outside,
+        looped: looped + other.looped,
+        shallowest: _shallower(other),
+      );
+
+  RfwPlacements _max(RfwPlacements other) => (
+        outside: outside > other.outside ? outside : other.outside,
+        looped: looped > other.looped ? looped : other.looped,
+        shallowest: _shallower(other),
+      );
+
+  int _shallower(RfwPlacements other) =>
+      switch ((shallowest, other.shallowest)) {
+        (0, final depth) || (final depth, 0) => depth,
+        (final a, final b) => a < b ? a : b,
+      };
+}
+
+/// [RfwPlacements] of every constructor [root] of [library] places.
+Map<String, RfwPlacements> rfwPlacements(
+  rfw.RemoteWidgetLibrary library,
+  String root,
+) {
+  final declarations = {
+    for (final widget in library.widgets) widget.name: widget.root,
+  };
+  const none = (outside: 0, looped: 0, shallowest: 0);
+  void combine(
+    Map<String, RfwPlacements> into,
+    Map<String, RfwPlacements> from,
+    RfwPlacements Function(RfwPlacements, RfwPlacements) how,
+  ) {
+    for (final MapEntry(:key, :value) in from.entries) {
+      into[key] = how(into[key] ?? none, value);
+    }
+  }
+
+  Map<String, RfwPlacements> visit(
+    Object? value,
+    Set<String> expanding,
+    int loops,
+    _Scope scope,
+  ) {
+    final found = <String, RfwPlacements>{};
+    void add(Object? child, {int depth = 0, _Scope? within}) => combine(
+          found,
+          visit(child, expanding, loops + depth, within ?? scope),
+          (a, b) => a._plus(b),
+        );
+    // A value read through a reference renders where the reference sits,
+    // and one never read still appears, placed zero times.
+    void keep(Object? unread, _Scope within) {
+      for (final name in visit(unread, expanding, loops, within).keys) {
+        found.putIfAbsent(name, () => none);
+      }
+    }
+
+    switch (value) {
+      case rfw.ConstructorCall(:final name, :final arguments):
+        found[name] = loops > 0
+            ? (outside: 0, looped: 1, shallowest: loops)
+            : (outside: 1, looped: 0, shallowest: 0);
+        if (declarations[name] case final local? when expanding.add(name)) {
+          add(local, within: _Scope(arguments, scope, const []));
+          expanding.remove(name);
+          keep(arguments, scope);
+        } else {
+          add(arguments);
+        }
+      case rfw.ArgsReference(:final parts) when scope.args != null:
+        add(_read(scope.args, parts), within: scope.outer);
+      case rfw.LoopReference(:final loop, :final parts)
+          when loop < scope.loops.length:
+        final (:input, :within) = scope.loops[scope.loops.length - 1 - loop];
+        add(
+          input is List<Object?>
+              ? [for (final item in input) _read(item, parts)]
+              : _read(input, parts),
+          within: within,
+        );
+      case rfw.Loop(:final input, :final output):
+        _Scope binding(Object? items) => _Scope(scope.args, scope.outer,
+            [...scope.loops, (input: items, within: scope)]);
+        if (input is List<Object?> && !input.any(_containsLoop)) {
+          // A literal list unrolls: its body renders once per element.
+          for (final item in input) {
+            add(output, within: binding([item]));
+          }
+          keep(output, binding(const []));
+        } else {
+          add(
+            output,
+            depth: _atMostOneItem(input) ? 0 : 1,
+            within: binding(input),
+          );
+        }
+        keep(input, scope);
+      case rfw.WidgetBuilderDeclaration(:final widget):
+        // A builder may build its body any number of times.
+        add(widget, depth: 1);
+      case rfw.Switch(:final outputs):
+        for (final branch in outputs.values) {
+          combine(found, visit(branch, expanding, loops, scope),
+              (a, b) => a._max(b));
+        }
+      case final Map<Object?, Object?> map:
+        map.values.forEach(add);
+      case final List<Object?> list:
+        list.forEach(add);
+    }
+    return found;
+  }
+
+  return switch (declarations[root]) {
+    final node? => visit(node, {root}, 0, const _Scope(null, null, [])),
+    null => const {},
+  };
+}
+
+/// The switch arms around every `data.context` read and constructor call
+/// rendering [root] of [library] reaches.
+///
+/// Values lists every path to each top-level key read inside a switch and
+/// to each item key a loop reads; constructors lists every path to each
+/// constructor placed inside a switch. With [everyRead], both list every
+/// read and placement.
+({
+  Map<String, List<SurfaceLayoutPath>> values,
+  Map<String, List<SurfaceLayoutPath>> constructors,
+}) rfwLayoutReads(
+  rfw.RemoteWidgetLibrary library,
+  String root, {
+  bool everyRead = false,
+}) {
+  final declarations = {
+    for (final widget in library.widgets) widget.name: widget.root,
+  };
+  final values = <String, List<SurfaceLayoutPath>>{};
+  final topLevel = <String>{};
+  final constructors = <String, List<SurfaceLayoutPath>>{};
+  final expanding = <String>{root};
+
+  void read(Map<String, List<SurfaceLayoutPath>> into, String key,
+          SurfaceLayoutPath path) =>
+      (into[key] ??= []).add(Map.unmodifiable(path));
+
+  // The discriminator [value] names, once references resolve.
+  String? subject(Object? value, _LayoutScope scope) {
+    switch (value) {
+      case rfw.DataReference(:final parts)
+          when parts.length == 2 &&
+              parts.first == 'context' &&
+              parts.last is String:
+        return parts.last as String;
+      case rfw.LoopReference(:final loop, :final parts)
+          when loop < scope.loops.length &&
+              parts.length == 1 &&
+              parts.single is String:
+        final binding = scope.loops[scope.loops.length - 1 - loop];
+        return binding.data ? parts.single as String : null;
+      case rfw.ArgsReference(:final parts) when scope.args != null:
+        return subject(_read(scope.args, parts), scope.outer!);
+    }
+    return null;
+  }
+
+  SurfaceLayoutPath and(
+    SurfaceLayoutPath path,
+    String key,
+    SurfaceLayoutArmV1 arm,
+  ) =>
+      {...path, key: path[key]?.and(arm) ?? arm};
+
+  // Each arm of a switch on [key], with the arm it takes.
+  Iterable<(Object, SurfaceLayoutPath)> arms(
+    rfw.Switch value,
+    SurfaceLayoutPath path,
+    String? key,
+  ) sync* {
+    final named = {
+      for (final caseKey in value.outputs.keys)
+        if (caseKey is int || caseKey is bool) caseKey!,
+    };
+    for (final MapEntry(key: caseKey, value: output) in value.outputs.entries) {
+      if (key == null) {
+        yield (output, path);
+      } else if (caseKey == null) {
+        yield (output, and(path, key, SurfaceLayoutArmV1.noneOf(named)));
+      } else if (caseKey is int || caseKey is bool) {
+        yield (output, and(path, key, SurfaceLayoutArmV1.oneOf({caseKey})));
+      } else {
+        yield (output, path);
+      }
+    }
+  }
+
+  late void Function(Object?, SurfaceLayoutPath, _LayoutScope) visit;
+
+  // The items a loop walks, and the path under which it walks each list.
+  void walkItems(
+    Object? input,
+    Object output,
+    SurfaceLayoutPath path,
+    _LayoutScope scope,
+  ) {
+    switch (input) {
+      case final rfw.Switch value:
+        for (final (arm, within)
+            in arms(value, path, subject(value.input, scope))) {
+          walkItems(arm, output, within, scope);
+        }
+      case final List<Object?> items:
+        // A literal list renders its body once per element.
+        for (final item in items) {
+          visit(output, path, scope.withLoop(item, data: false));
+        }
+      case rfw.ArgsReference(:final parts)
+          when scope.args != null &&
+              (_read(scope.args, parts) is rfw.Switch ||
+                  _read(scope.args, parts) is List):
+        walkItems(_read(scope.args, parts), output, path, scope);
+      default:
+        visit(output, path, scope.withLoop(input, data: true));
+    }
+  }
+
+  visit = (value, path, scope) {
+    switch (value) {
+      case rfw.ConstructorCall(:final name, :final arguments):
+        read(constructors, name, path);
+        if (declarations[name] case final local? when expanding.add(name)) {
+          visit(local, path, _LayoutScope(arguments, scope, const []));
+          expanding.remove(name);
+        } else {
+          visit(arguments, path, scope);
+        }
+      case rfw.DataReference(:final parts)
+          when parts.length >= 2 &&
+              parts.first == 'context' &&
+              parts[1] is String:
+        topLevel.add(parts[1] as String);
+        read(values, parts[1] as String, path);
+      case rfw.ArgsReference(:final parts) when scope.args != null:
+        visit(_read(scope.args, parts), path, scope.outer!);
+      case rfw.LoopReference(:final loop, :final parts)
+          when loop < scope.loops.length:
+        final binding = scope.loops[scope.loops.length - 1 - loop];
+        if (binding.data) {
+          if (parts.firstOrNull case final String key) read(values, key, path);
+        } else {
+          visit(_read(binding.input, parts), path, binding.within);
+        }
+      case rfw.Loop(:final input, :final output):
+        visit(input, path, scope);
+        walkItems(input, output, path, scope);
+      case rfw.Switch(:final input):
+        visit(input, path, scope);
+        for (final (arm, within) in arms(value, path, subject(input, scope))) {
+          visit(arm, within, scope);
+        }
+      case rfw.WidgetBuilderDeclaration(:final widget):
+        visit(widget, path, scope);
+      case rfw.EventHandler(:final eventArguments):
+        visit(eventArguments, path, scope);
+      case rfw.SetStateHandler(:final value):
+        visit(value, path, scope);
+      // A native binding is read by its context key.
+      case {'kind': 'nativeBinding', 'key': final String key}:
+        topLevel.add(key);
+        read(values, key, path);
+      case final Map<Object?, Object?> map:
+        for (final entry in map.values) {
+          visit(entry, path, scope);
+        }
+      case final List<Object?> list:
+        for (final entry in list) {
+          visit(entry, path, scope);
+        }
+    }
+  };
+
+  if (declarations[root] case final node?) {
+    visit(node, const {}, const _LayoutScope(null, null, []));
+  }
+  bool conditional(List<SurfaceLayoutPath> paths) =>
+      everyRead || paths.any((path) => path.isNotEmpty);
+  return (
+    values: {
+      for (final MapEntry(:key, value: paths) in values.entries)
+        if (!topLevel.contains(key) || conditional(paths)) key: paths,
+    },
+    constructors: {
+      for (final MapEntry(:key, value: paths) in constructors.entries)
+        if (conditional(paths)) key: paths,
+    },
+  );
+}
+
+// The arguments of the local widget being expanded, read in the caller's
+// scope, and the loops around a value: what each walks, and whether it is
+// host data rather than a literal element.
+final class _LayoutScope {
+  const _LayoutScope(this.args, this.outer, this.loops);
+  final Map<String, Object?>? args;
+  final _LayoutScope? outer;
+  final List<({Object? input, bool data, _LayoutScope within})> loops;
+
+  _LayoutScope withLoop(Object? input, {required bool data}) => _LayoutScope(
+        args,
+        outer,
+        [...loops, (input: input, data: data, within: this)],
+      );
+}
+
+// What references resolve to while counting: the arguments of the local
+// widget being expanded, read in the caller's scope, and the inputs of the
+// loops around the value, each read in the scope that encloses its loop.
+final class _Scope {
+  const _Scope(this.args, this.outer, this.loops);
+  final Map<String, Object?>? args;
+  final _Scope? outer;
+  final List<({Object? input, _Scope within})> loops;
+}
+
+// The part of [value] that [parts] select, or [value] itself from the first
+// part it can't follow.
+Object? _read(Object? value, List<Object> parts) {
+  for (final part in parts) {
+    switch ((value, part)) {
+      case (final Map<Object?, Object?> map, final String key):
+        value = map[key];
+      case (final List<Object?> list, final int index)
+          when index >= 0 && index < list.length:
+        value = list[index];
+      default:
+        return value;
+    }
+  }
+  return value;
+}
+
+// Whether [input] lists at most one item however it is evaluated: a literal
+// list of at most one element holding no loop, or a switch of such lists, as
+// a conditional element lowers to.
+bool _atMostOneItem(Object? input) => switch (input) {
+      final List<Object?> items =>
+        items.length <= 1 && !items.any(_containsLoop),
+      rfw.Switch(:final outputs) => outputs.values.every(_atMostOneItem),
+      _ => false,
+    };
+
+bool _containsLoop(Object? value) => switch (value) {
+      rfw.Loop() => true,
+      rfw.Switch(:final outputs) => outputs.values.any(_containsLoop),
+      final List<Object?> list => list.any(_containsLoop),
+      final Map<Object?, Object?> map => map.values.any(_containsLoop),
+      _ => false,
+    };
+
+/// Why a design places the app-rendered widget [label] where its app code
+/// can't render it, or null when it can. The compiler placed it in
+/// [itemInputs] delivered loops, taking its position in each: a design places
+/// it at most once, and only inside exactly that many loops.
+String? islandPlacementRefusal(
+  RfwPlacements placed, {
+  required String label,
+  required int itemInputs,
+}) {
+  if (placed.outside + placed.looped > 1 ||
+      (placed.looped == 1 && placed.shallowest > itemInputs)) {
+    return 'This design places `$label` more times than its app code '
+        'supports. Try removing the extra copies.';
+  }
+  if (itemInputs > 0 &&
+      (placed.outside > 0 ||
+          (placed.looped == 1 && placed.shallowest < itemInputs))) {
+    return '`$label` shows one item of a list. Try placing it inside that '
+        'list.';
+  }
+  return null;
+}
+
+/// Why a design places the island [label] of a split widget where its
+/// wrapper can't provide it, or null when it can: only inside the body of
+/// exactly one split widget, any number of times.
+String? splitIslandPlacementRefusal(
+  rfw.RfwSplitIslandPlacements placed, {
+  required String label,
+}) {
+  if (placed.outside == 0 && placed.owners.length == 1) return null;
+  final owner = placed.owners.first;
+  return 'This design shows `$label` outside `$owner`. Only `$owner`\'s app '
+      'code can draw it. Try placing it only inside `$owner`.';
+}
+
+// Whether [name] is the wrapper of a split widget: a custom catalog widget
+// that takes the widget's body.
+bool _isSplitWrapper(
+  String name,
+  Catalog catalog,
+  rfw.RfwCatalogOccurrenceResolutionInput resolution,
+) {
+  if (!name.endsWith(rfw.kSplitWrapperSuffix)) return false;
+  final origin = resolution.catalogConstructorForName(name);
+  if (origin == null ||
+      WidgetLibrary.builtInByNamespace(origin.catalogLibraryNamespace) !=
+          null) {
+    return false;
+  }
+  final entry = catalog.findByName(
+    name,
+    WidgetLibrary.fromNamespace(origin.catalogLibraryNamespace),
+  );
+  return entry != null &&
+      !(catalog.libraries[entry.library]?.islands ?? false) &&
+      entry.properties.any((property) =>
+          property.name == rfw.kSplitWidgetBodyArgument &&
+          property.type == PropertyType.widgetBuilder &&
+          (property.builderContract?.isAppValueSignature ?? false));
 }
 
 /// Where one emitted event sits: the loops around it, outermost first, and
@@ -665,12 +1174,28 @@ void _validateRfwNativeHostContract(
   required RfwProgramScope scope,
   Map<String, Object> localValues = const {},
 }) {
+  final loops = _enclosingLoops(library);
   validateRfwNativeReferences(library, catalog, scope: scope,
-      onReference: (value, expected, nativeOnly) {
+      onReference: (read, expected, nativeOnly) {
+    // A loop variable read is checked as a read of its list's item.
+    final value = read is rfw.LoopReference && loops[read] != null
+        ? _rewriteScopedValue(read, loops[read]!, const {})
+        : read;
     if (decodeRfwProgramEnvelope(value,
             operations: scope.operations, scope: scope) !=
         null) return;
     if (value is Map && value['kind'] == 'nativeLocal') return;
+    // A builder scope's value is checked against its slot's declared type.
+    if (value is rfw.WidgetBuilderArgReference) {
+      if (scope.scopedNativeValue(value) case final declared?) {
+        if (!expected.accepts(
+            ValueType.native(declared.type, nullable: declared.nullable))) {
+          throw const FormatException(
+              'A builder scope value differs from its consumer.');
+        }
+        return;
+      }
+    }
     if (!nativeOnly && value is rfw.Reference) {
       if (value is! rfw.DataReference ||
           value.parts.length < 2 ||
@@ -681,6 +1206,40 @@ void _validateRfwNativeHostContract(
     }
     _validateProgramCapture(value, expected, context, localValues);
   });
+}
+
+/// The inputs of the loops around each loop variable read in [library].
+Map<rfw.LoopReference, List<Object>> _enclosingLoops(
+  rfw.RemoteWidgetLibrary library,
+) {
+  final found = Map<rfw.LoopReference, List<Object>>.identity();
+  void visit(Object? node, List<Object> loops) {
+    switch (node) {
+      case rfw.LoopReference():
+        found[node] = loops;
+      case rfw.Loop(:final input, :final output):
+        visit(input, loops);
+        visit(output, [...loops, input]);
+      case rfw.ConstructorCall(:final arguments):
+        visit(arguments, loops);
+      case rfw.Switch(:final input, :final outputs):
+        visit(input, loops);
+        outputs.values.forEach((output) => visit(output, loops));
+      case rfw.WidgetBuilderDeclaration(:final widget):
+        visit(widget, loops);
+      case rfw.EventHandler(:final eventArguments):
+        visit(eventArguments, loops);
+      case final Map<Object?, Object?> map:
+        map.values.forEach((value) => visit(value, loops));
+      case final List<Object?> list:
+        list.forEach((item) => visit(item, loops));
+    }
+  }
+
+  for (final widget in library.widgets) {
+    visit(widget.root, const []);
+  }
+  return found;
 }
 
 bool _captureShapeFits(ValueType expected, SurfaceScreenHostDataShape actual) {

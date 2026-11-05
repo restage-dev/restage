@@ -1,6 +1,6 @@
 part of '../lumen_reminder.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const lumenReminderScreenRef = NeutralFlowScreenRef(
   id: 'lumen_reminder',

@@ -13,6 +13,7 @@ import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
+import 'package:restage_codegen/src/islands/islands.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/production_helpers.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
@@ -1126,9 +1127,11 @@ GestureDetector(
       },
     );
 
-    test('mount navigation pop keeps non-build context refusal', () async {
-      final translation = await _translateEntry(
-        '''
+    test(
+      'mount navigation pop through another context runs as the app wrote it',
+      () async {
+        final translation = await _translateEntry(
+          '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 Object x(BuildContext context, BuildContext rootContext) => GestureDetector(
@@ -1136,23 +1139,26 @@ Object x(BuildContext context, BuildContext rootContext) => GestureDetector(
   child: const Text('Back'),
 );
 ''',
-        flowScreenContext: true,
-        hoistInMount: true,
-      );
-      expect(translation.dsl, isEmpty);
-      expect(translation.suppressed, isFalse);
-      expect(translation.issues.map((issue) => issue.code), [
-        IssueCode.navigationFormUnsupported,
-      ]);
-      expect(
-        translation.issues.single.message,
-        contains('non-build-context targets a different navigator'),
-      );
-      expect(
-        translation.hoisted.where((value) => value.nativeCall != null),
-        isEmpty,
-      );
-    });
+          flowScreenContext: true,
+          hoistInMount: true,
+        );
+        // The root GestureDetector stays in the mount, so the app's own pop
+        // targets the navigator it names.
+        expect(translation.issues, isEmpty);
+        expect(
+          [
+            for (final node in translation.split!.shell) node.widget,
+          ],
+          ['GestureDetector'],
+        );
+        expect(translation.dsl, 'Text(text: "Back")');
+        expect(translation.dsl, isNot(contains('event')));
+        expect(
+          translation.hoisted.where((value) => value.nativeCall != null),
+          isEmpty,
+        );
+      },
+    );
 
     test(
       'mount navigation does not authorize independent root native context',
@@ -1165,21 +1171,10 @@ Object x(BuildContext context) => GestureDetector(
   child: const Text('Unfocus'),
 );
 ''', hoistInMount: true);
-        expect(translation.dsl, isEmpty);
-        expect(translation.suppressed, isFalse);
-        expect(translation.issues.map((issue) => issue.code), [
-          IssueCode.propertyValueTypeMismatch,
-        ]);
-        expect(
-          translation.issues.single.message,
-          contains(
-            'Native inputs require an existing callback or helper frame',
-          ),
-        );
-        expect(
-          translation.hoisted.where((value) => value.nativeCall != null),
-          isEmpty,
-        );
+        // The app's closure runs as an action.
+        expect(translation.issues, isEmpty);
+        expect(translation.dsl, contains('nativeEvent'));
+        expect(translation.hoisted.where(isIslandAction), hasLength(1));
       },
     );
 
@@ -1331,30 +1326,21 @@ Column(
 ''');
 
         // The paywall has a recognised push, so it is a flow ENTRY. Its
-        // Navigator.pop is a host dismiss, not a flow back, and must fatal-defer
-        // in BOTH artifacts rather than silently lower to a no-op `back`.
+        // Navigator.pop is a host dismiss, not a flow back: in BOTH artifacts it
+        // runs as the app's own action rather than lowering to a no-op `back`.
         for (final flowScreenContext in [true, false]) {
           final translation = await _translateEntry(
             source,
             flowScreenContext: flowScreenContext,
             hoistInMount: true,
           );
+          // The app's own pop runs as an action, never a lowered `back`.
           expect(
             translation.issues.map((issue) => issue.code),
-            contains(IssueCode.navigationFormUnsupported),
-            reason:
-                'entry pop must fatal-defer (flowScreenContext='
-                '$flowScreenContext)',
-          );
-          expect(
-            translation.issues.map((issue) => issue.message).join('\n'),
-            contains("paywallEvent('skip')"),
+            isNot(contains(IssueCode.navigationFormUnsupported)),
+            reason: 'flowScreenContext=$flowScreenContext',
           );
           expect(translation.dsl, isNot(contains('event "back"')));
-          expect(
-            translation.hoisted.where((value) => value.nativeCall != null),
-            isEmpty,
-          );
         }
       },
     );

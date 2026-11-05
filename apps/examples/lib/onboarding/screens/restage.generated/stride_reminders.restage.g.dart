@@ -1,6 +1,6 @@
 part of '../stride_reminders.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const strideRemindersScreenRef = NeutralFlowScreenRef(
   id: 'stride_reminders',

@@ -713,7 +713,7 @@ void main() {
     );
 
     test(
-      'diagnoses two custom widgets emitting under the same RFW name',
+      'two custom widgets sharing an RFW name each inline under their own',
       () async {
         const keyA = 'package:restage_codegen/_expr_probe.dart#CardA';
         const keyB = 'package:restage_codegen/_expr_probe.dart#CardB';
@@ -768,15 +768,21 @@ void main() {
       ''');
         final result = translator.translate(expr);
 
+        expect(result.issues, isEmpty);
+        // Each class gets a definition of its own, suffixed from its identity.
+        final names = result.widgetDefinitions.keys.toList();
+        expect(names, hasLength(2));
+        expect(names, everyElement(startsWith('Shared_')));
         expect(
-          result.issues.map((i) => i.code),
-          contains(IssueCode.customWidgetNameCollision),
+          {for (final name in names) result.widgetDefinitions[name]},
+          {'Text(text: "a")', 'Text(text: "b")'},
         );
+        expect(result.dsl, 'Column(children: [${names.join('(), ')}()])');
       },
     );
 
     test(
-      'diagnoses a custom widget whose name shadows a catalog widget',
+      'a custom widget named like a catalog widget inlines under its own name',
       () async {
         final body = await parseExpressionForTest('Container()');
         final translator = ExpressionTranslator(
@@ -796,7 +802,7 @@ void main() {
             ),
           },
           customWidgetBlueprints: {
-            // The custom widget would emit as `Text` — a catalog widget name.
+            // The custom widget's class name is `Text`, a catalog widget name.
             _cardKey: CustomWidgetBlueprint(
               classKey: _cardKey,
               rfwName: 'Text',
@@ -811,15 +817,17 @@ void main() {
       ''');
         final result = translator.translate(expr);
 
-        expect(
-          result.issues.map((i) => i.code),
-          contains(IssueCode.customWidgetNameCollision),
-        );
+        expect(result.issues, isEmpty);
+        // No definition shadows the catalog's Text.
+        final name = result.widgetDefinitions.keys.single;
+        expect(name, startsWith('Text_'));
+        expect(result.widgetDefinitions[name], 'Container()');
+        expect(result.dsl, '$name()');
       },
     );
 
     test(
-      'diagnoses a custom widget whose name shadows the paywall root',
+      'a custom widget named like the paywall root inlines under its own name',
       () async {
         final body = await parseExpressionForTest('Text("hi")');
         final translator = ExpressionTranslator(
@@ -838,7 +846,7 @@ void main() {
             ),
           },
           customWidgetBlueprints: {
-            // The custom widget would emit under the reserved root name.
+            // The custom widget's class name is the reserved root name.
             _cardKey: CustomWidgetBlueprint(
               classKey: _cardKey,
               rfwName: 'Paywall',
@@ -853,15 +861,17 @@ void main() {
       ''');
         final result = translator.translate(expr);
 
-        expect(
-          result.issues.map((i) => i.code),
-          contains(IssueCode.customWidgetNameCollision),
-        );
+        expect(result.issues, isEmpty);
+        // Nothing shadows the surface root definition.
+        final name = result.widgetDefinitions.keys.single;
+        expect(name, startsWith('Paywall_'));
+        expect(result.widgetDefinitions[name], 'Text(text: "hi")');
+        expect(result.dsl, '$name()');
       },
     );
 
     test(
-      'diagnoses a custom widget whose name shadows the onboarding root',
+      'a custom widget named like the onboarding root inlines under its own name',
       () async {
         final body = await parseExpressionForTest('Text("hi")');
         final translator = ExpressionTranslator(
@@ -880,7 +890,7 @@ void main() {
             ),
           },
           customWidgetBlueprints: {
-            // The custom widget would emit under the reserved root name.
+            // The custom widget's class name is the reserved root name.
             _cardKey: CustomWidgetBlueprint(
               classKey: _cardKey,
               rfwName: 'OnboardingScreen',
@@ -895,12 +905,12 @@ void main() {
       ''');
         final result = translator.translate(expr);
 
-        expect(
-          result.issues.map((i) => i.code),
-          contains(IssueCode.customWidgetNameCollision),
-        );
-        // Nothing may shadow the synthesized onboarding root definition.
-        expect(result.widgetDefinitions, isEmpty);
+        expect(result.issues, isEmpty);
+        // Nothing shadows the surface root definition.
+        final name = result.widgetDefinitions.keys.single;
+        expect(name, startsWith('OnboardingScreen_'));
+        expect(result.widgetDefinitions[name], 'Text(text: "hi")');
+        expect(result.dsl, '$name()');
       },
     );
 
@@ -1201,6 +1211,41 @@ Object x() => AcmeCard();
       );
     });
 
+    test('confirms a widget named like a catalog widget under the name the '
+        'production path emits', () async {
+      final body = await parseExpressionForTest('Text("Pro")');
+      final classification = ComposableWidget(
+        _cardKey,
+        requiredMechanisms: const {},
+        composedCustomWidgets: const [],
+      );
+      final blueprint = CustomWidgetBlueprint(
+        classKey: _cardKey,
+        rfwName: 'Container',
+        buildExpression: body,
+        params: const [],
+      );
+      final translator = ExpressionTranslator(
+        catalog: probeCatalogWith([
+          entry(name: 'Container', properties: const []),
+          entry(
+            name: 'Text',
+            properties: [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+        customWidgetClassifications: {_cardKey: classification},
+        customWidgetBlueprints: {_cardKey: blueprint},
+      );
+
+      final result = translator.attemptInlineEmit(classification, blueprint);
+
+      expect(result.issues, isEmpty);
+      final name = result.widgetDefinitions.keys.single;
+      expect(name, startsWith('Container_'));
+      expect(result.widgetDefinitions[name], 'Text(text: "Pro")');
+    });
+
     test('reports issues (emit-failed) when the catalog does not declare a '
         'property the body uses — confirms the metric measures real emit, '
         'not merely classifier recognition', () async {
@@ -1441,10 +1486,11 @@ Object x() => AcmeCard(tap: $argument);
         '(v) => Navigator.push<void>(context, '
         "MaterialPageRoute<void>(builder: (_) => const Text('d')))",
       );
-      expect(
-        r.issues.map((i) => i.message).join('\n'),
-        allOf(contains('FunctionExpression'), contains('Navigator.push')),
+      final issue = r.issues.singleWhere(
+        (i) => i.code == IssueCode.unrecognizedMethodCall,
       );
+      expect(issue.message, contains('Navigator.push'));
+      expect(issue.capabilityGapSubject, 'expression:FunctionExpression');
       expect(r.dsl, isNot(contains('tap:')));
     });
 

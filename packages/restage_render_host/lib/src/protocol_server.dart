@@ -387,6 +387,10 @@ final class RenderProtocolServer {
         blob: decodeRenderBlob(_requiredString(payload, 'blob')),
         data: _requiredMap(payload, 'data'),
         env: RenderEnv.fromJson(_requiredMap(payload, 'env')),
+        surface: switch (payload['surface']) {
+          final String surface => surface,
+          _ => null,
+        },
       ),
     );
   }

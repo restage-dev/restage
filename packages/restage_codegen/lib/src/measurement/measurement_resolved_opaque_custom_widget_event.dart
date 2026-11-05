@@ -147,7 +147,7 @@ final class MeasurementResolvedOpaqueCustomWidgetEvent
         );
       }
       final property = propertyCandidates.single;
-      if (property.type != PropertyType.event) continue;
+      if (!isMeasurableEvent(property)) continue;
 
       final staticType = argument.argumentExpression.staticType;
       if (staticType == null ||
@@ -319,3 +319,9 @@ InterfaceElement? _enclosingOpaqueClass(Element element) {
   }
   return null;
 }
+
+/// Whether [property] is an event a tap can measure: a callback that returns
+/// a value is passed to Flutter unmeasured.
+bool isMeasurableEvent(PropertyEntry property) =>
+    property.type == PropertyType.event &&
+    (property.callbackTypeId?.endsWith('->void') ?? true);

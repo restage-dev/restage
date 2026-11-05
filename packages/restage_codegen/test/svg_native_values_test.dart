@@ -144,9 +144,29 @@ void main() {
               hoistInMount: true,
             );
         if (name.startsWith('refused')) {
+          // Renders from the app when the mount can build it, else refuses.
           expect(
-            result.issues.where((i) => !i.code.isInformational),
-            isNotEmpty,
+            [
+              for (final island in result.islands) island.id,
+              for (final issue in result.issues)
+                if (!issue.code.isInformational) issue.code.name,
+            ],
+            [
+              {
+                'refused': 'ValueSource.refused/SvgPicture#0',
+                // A value its builder computes stays with the builder, which
+                // renders from the app.
+                'refusedFileConstruction':
+                    'ValueSource.refusedFileConstruction/LayoutBuilder#0',
+                'refusedMapper':
+                    'ValueSource.refusedMapper/SvgPicture.string#0',
+                'refusedHeaders':
+                    'ValueSource.refusedHeaders/SvgPicture.network#0',
+                'refusedGetter':
+                    'ValueSource.refusedGetter/SvgPicture.string#0',
+              }[name],
+            ],
+            reason: name,
           );
           expect(result.hoisted.where((h) => h.nativeCall != null), isEmpty);
           continue;

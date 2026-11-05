@@ -1,6 +1,6 @@
 part of '../notify.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const notifyScreenRef = NeutralFlowScreenRef(
   id: 'notify',

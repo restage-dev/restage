@@ -40,22 +40,17 @@ import 'package:restage_shared/restage_shared.dart';
 /// are excluded via the centralized type denylist (suffix `Node` and
 /// `Controller` respectively).
 const _kSharedButtonExcludeParams = <String>[
-  'onLongPress',
-  'onHover',
-  'onFocusChange',
   'style',
   'autofocus',
 ];
 
-/// Material 3 button padding default (LTRB: horizontal=24, vertical=12).
-/// Hoisted out of `<Button>.styleFrom(padding:)` and reused unchanged
-/// across all seven button variants.
+/// Button padding, hoisted out of `<Button>.styleFrom(padding:)`. Absent
+/// means Flutter's own themed default.
 const _kButtonPaddingSynthetic = PropertyEntry(
   wireId: WireId.unallocatedProperty,
   name: 'padding',
   type: PropertyType.edgeInsets,
   description: 'Padding inside the button.',
-  defaultSource: LiteralDefault([24.0, 12.0, 24.0, 12.0]),
 );
 
 /// Material button outline shape. Reassembled through
@@ -276,7 +271,6 @@ const _kSharedListTileExcludeParams = <String>[
   'controlAffinity',
   'contentPadding',
   'selectedTileColor',
-  'onFocusChange',
   'enableFeedback',
   'horizontalTitleGap',
   'minVerticalPadding',
@@ -454,7 +448,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     propertyOverrides: {
       'elevation': PropertyOverride(
         type: PropertyType.length,
-        defaultValue: 1.0,
       ),
     },
   ),
@@ -480,7 +473,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     propertyOverrides: {
       'elevation': PropertyOverride(
         type: PropertyType.length,
-        defaultValue: 0.0,
       ),
     },
   ),
@@ -500,7 +492,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     propertyOverrides: {
       'elevation': PropertyOverride(
         type: PropertyType.length,
-        defaultValue: 0.0,
       ),
     },
   ),
@@ -555,6 +546,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     ],
     brandTokens: {'activeColor': 'primary'},
     propertyOverrides: {
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
       'onChanged': PropertyOverride(callbackSignature: 'ValueChanged<bool?>'),
     },
   ),
@@ -567,12 +559,15 @@ const List<BuiltinWidgetCuration> kCuration = [
     excludeParams: [
       ..._kSharedChipExcludeParams,
       'deleteIcon',
-      'onDeleted',
       'deleteIconColor',
       'deleteButtonTooltipMessage',
       'deleteIconBoxConstraints',
     ],
     brandTokens: _kChipSurfaceBrandTokens,
+    // Callbacks the app's own closure fills.
+    propertyOverrides: {
+      'onDeleted': PropertyOverride(sinceVersion: 26),
+    },
   ),
   // Single-select chip group member whose `onSelected` callback retains its
   // precise Flutter constructor identity.
@@ -613,13 +608,9 @@ const List<BuiltinWidgetCuration> kCuration = [
       'controller',
     ],
     brandTokens: {'color': 'primary'},
-    // Flutter's `strokeWidth` field has no constructor literal default
-    // (the conceptual 4.0 is applied later in the build path); surface it
-    // here so the catalog still encodes the documented default.
     propertyOverrides: {
       'strokeWidth': PropertyOverride(
         type: PropertyType.length,
-        defaultValue: 4.0,
       ),
     },
   ),
@@ -630,11 +621,9 @@ const List<BuiltinWidgetCuration> kCuration = [
     propertyOverrides: {
       'height': PropertyOverride(
         type: PropertyType.length,
-        defaultValue: 16.0,
       ),
       'thickness': PropertyOverride(
         type: PropertyType.length,
-        defaultValue: 1.0,
       ),
     },
   ),
@@ -671,13 +660,18 @@ const List<BuiltinWidgetCuration> kCuration = [
         name: 'elevation',
         type: PropertyType.length,
         description: 'Material elevation in logical pixels.',
-        defaultSource: LiteralDefault(1.0),
       ),
       _kButtonShapeSynthetic,
       ..._kButtonStyleSizeSynthetics,
       _kButtonDisabledSynthetic,
     ],
     nativeDecomposes: [kFilledButtonStyleNativeDecompose],
+    // Callbacks the app's own closure fills.
+    propertyOverrides: {
+      'onLongPress': PropertyOverride(sinceVersion: 26),
+      'onHover': PropertyOverride(sinceVersion: 26),
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
+    },
   ),
   // FAQ sections, expandable feature lists. State pattern matches the
   // `Switch.value` / `Checkbox.value` convention: `initiallyExpanded`
@@ -742,13 +736,18 @@ const List<BuiltinWidgetCuration> kCuration = [
         name: 'elevation',
         type: PropertyType.length,
         description: 'Material elevation in logical pixels.',
-        defaultSource: LiteralDefault(0.0),
       ),
       _kButtonShapeSynthetic,
       ..._kButtonStyleSizeSynthetics,
       _kButtonDisabledSynthetic,
     ],
     nativeDecomposes: [kFilledButtonStyleNativeDecompose],
+    // Callbacks the app's own closure fills.
+    propertyOverrides: {
+      'onLongPress': PropertyOverride(sinceVersion: 26),
+      'onHover': PropertyOverride(sinceVersion: 26),
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
+    },
   ),
   // `FilledButton.tonal` is the M3 secondary CTA — flat tonal surface
   // tinted from `secondaryContainer`. Same property surface as
@@ -783,6 +782,12 @@ const List<BuiltinWidgetCuration> kCuration = [
       _kButtonDisabledSynthetic,
     ],
     nativeDecomposes: [kTonalButtonStyleNativeDecompose],
+    // Callbacks the app's own closure fills.
+    propertyOverrides: {
+      'onLongPress': PropertyOverride(sinceVersion: 26),
+      'onHover': PropertyOverride(sinceVersion: 26),
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
+    },
   ),
   // Multi-select chip with a typed `bool` payload. Flutter declares
   // `onSelected` as `required this.onSelected` but the field type is
@@ -795,7 +800,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     excludeParams: [
       ..._kSharedChipExcludeParams,
       'deleteIcon',
-      'onDeleted',
       'deleteIconColor',
       'deleteButtonTooltipMessage',
       'pressElevation',
@@ -809,6 +813,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     ],
     brandTokens: _kChipSurfaceBrandTokens,
     propertyOverrides: {
+      'onDeleted': PropertyOverride(sinceVersion: 26),
       'onSelected': PropertyOverride(
         required: false,
         callbackSignature: 'ValueChanged<bool>',
@@ -938,8 +943,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'highlightColor',
       'splashColor',
       'disabledColor',
-      'onHover',
-      'onLongPress',
       'autofocus',
       'enableFeedback',
       'constraints',
@@ -948,35 +951,23 @@ const List<BuiltinWidgetCuration> kCuration = [
       'selectedIcon',
     ],
     propertyOverrides: {
+      'onHover': PropertyOverride(sinceVersion: 26),
+      'onLongPress': PropertyOverride(sinceVersion: 26),
       'iconSize': PropertyOverride(
         type: PropertyType.length,
-        defaultValue: 24.0,
       ),
     },
   ),
   // Material tap visual feedback for arbitrary tap targets. Requires
   // a `Material` ancestor in the widget tree — satisfied by the
   // app's `Scaffold`, so no extra wrapping needed at runtime.
-  // Surfaces `onTap` only; richer gestures (`onDoubleTap`,
-  // `onLongPress`, secondary / hover / focus) deferred.
+  // Every gesture, hover and focus callback, typed as Flutter declares it.
   BuiltinWidgetCuration<InkWell>(
     category: WidgetCategory.input,
     excludeParams: [
       // `focusNode: FocusNode`, `mouseCursor: MouseCursor`, and
       // `statesController: WidgetStatesController` are excluded via
       // the centralized type denylist.
-      'onDoubleTap',
-      'onLongPress',
-      'onLongPressUp',
-      'onTapDown',
-      'onTapUp',
-      'onTapCancel',
-      'onSecondaryTap',
-      'onSecondaryTapUp',
-      'onSecondaryTapDown',
-      'onSecondaryTapCancel',
-      'onHighlightChanged',
-      'onHover',
       'focusColor',
       'hoverColor',
       'highlightColor',
@@ -988,10 +979,25 @@ const List<BuiltinWidgetCuration> kCuration = [
       'enableFeedback',
       'excludeFromSemantics',
       'canRequestFocus',
-      'onFocusChange',
       'autofocus',
       'hoverDuration',
     ],
+    // Callbacks the app's own closure fills.
+    propertyOverrides: {
+      'onDoubleTap': PropertyOverride(sinceVersion: 26),
+      'onLongPress': PropertyOverride(sinceVersion: 26),
+      'onLongPressUp': PropertyOverride(sinceVersion: 26),
+      'onTapDown': PropertyOverride(sinceVersion: 26),
+      'onTapUp': PropertyOverride(sinceVersion: 26),
+      'onTapCancel': PropertyOverride(sinceVersion: 26),
+      'onSecondaryTap': PropertyOverride(sinceVersion: 26),
+      'onSecondaryTapUp': PropertyOverride(sinceVersion: 26),
+      'onSecondaryTapDown': PropertyOverride(sinceVersion: 26),
+      'onSecondaryTapCancel': PropertyOverride(sinceVersion: 26),
+      'onHighlightChanged': PropertyOverride(sinceVersion: 26),
+      'onHover': PropertyOverride(sinceVersion: 26),
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
+    },
   ),
   // Loading bars, multi-step progress visualisation. Optional
   // `value: double?` — null renders the indeterminate animation;
@@ -1031,8 +1037,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'textColor',
       'contentPadding',
       'enabled',
-      'onLongPress',
-      'onFocusChange',
       'selected',
       'focusColor',
       'hoverColor',
@@ -1048,6 +1052,11 @@ const List<BuiltinWidgetCuration> kCuration = [
       'internalAddSemanticForOnTap',
       'minTileHeight',
     ],
+    // Callbacks the app's own closure fills.
+    propertyOverrides: {
+      'onLongPress': PropertyOverride(sinceVersion: 26),
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
+    },
   ),
   BuiltinWidgetCuration<MaterialApp>(
     category: WidgetCategory.layout,
@@ -1059,7 +1068,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'onGenerateRoute',
       'onGenerateInitialRoutes',
       'onUnknownRoute',
-      'onNavigationNotification',
       'navigatorObservers',
       'builder',
       'onGenerateTitle',
@@ -1073,8 +1081,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'themeAnimationCurve',
       'locale',
       'localizationsDelegates',
-      'localeListResolutionCallback',
-      'localeResolutionCallback',
       'supportedLocales',
       'debugShowMaterialGrid',
       'showPerformanceOverlay',
@@ -1096,6 +1102,12 @@ const List<BuiltinWidgetCuration> kCuration = [
       // follow-up; in the meantime the host app's own MaterialApp
       // wraps the rendered paywall and supplies the theme.
     ],
+    // Callbacks the app's own closure fills.
+    propertyOverrides: {
+      'onNavigationNotification': PropertyOverride(sinceVersion: 26),
+      'localeListResolutionCallback': PropertyOverride(sinceVersion: 26),
+      'localeResolutionCallback': PropertyOverride(sinceVersion: 26),
+    },
   ),
   // Modal bottom sheet for paywall surfaces. Owns its slide animation
   // and drag-to-dismiss gesture internally (no route, no host
@@ -1293,6 +1305,12 @@ const List<BuiltinWidgetCuration> kCuration = [
       _kButtonDisabledSynthetic,
     ],
     nativeDecomposes: [kTransparentButtonStyleNativeDecompose],
+    // Callbacks the app's own closure fills.
+    propertyOverrides: {
+      'onLongPress': PropertyOverride(sinceVersion: 26),
+      'onHover': PropertyOverride(sinceVersion: 26),
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
+    },
   ),
   // `OutlinedButton.icon` separates the icon and label into two named
   // widget slots — neither is a `child:` slot, so `childrenSlot` falls
@@ -1308,6 +1326,9 @@ const List<BuiltinWidgetCuration> kCuration = [
         'A secondary call-to-action button with a leading icon.',
     excludeParams: [..._kSharedButtonExcludeParams, 'iconAlignment'],
     propertyOverrides: {
+      'onLongPress': PropertyOverride(sinceVersion: 26),
+      'onHover': PropertyOverride(sinceVersion: 26),
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
       'icon': PropertyOverride(required: true),
     },
     synthetics: [
@@ -1337,9 +1358,7 @@ const List<BuiltinWidgetCuration> kCuration = [
       'persistentFooterButtons',
       'persistentFooterAlignment',
       'drawer',
-      'onDrawerChanged',
       'endDrawer',
-      'onEndDrawerChanged',
       'bottomNavigationBar',
       'bottomSheet',
       'resizeToAvoidBottomInset',
@@ -1356,6 +1375,8 @@ const List<BuiltinWidgetCuration> kCuration = [
     ],
     brandTokens: {'backgroundColor': 'background'},
     propertyOverrides: {
+      'onDrawerChanged': PropertyOverride(sinceVersion: 26),
+      'onEndDrawerChanged': PropertyOverride(sinceVersion: 26),
       // `PreferredSizeWidget` is on the centralized type denylist; the
       // explicit catalog type surfaces the slot, and the runtime adapter
       // named by `widgetType` wraps whatever the slot renders.
@@ -1401,10 +1422,10 @@ const List<BuiltinWidgetCuration> kCuration = [
     category: WidgetCategory.layout,
     excludeParams: [
       'controller',
-      'notificationPredicate',
       'scrollbarOrientation',
     ],
     propertyOverrides: {
+      'notificationPredicate': PropertyOverride(sinceVersion: 26),
       'thickness': PropertyOverride(type: PropertyType.length),
     },
   ),
@@ -1419,14 +1440,11 @@ const List<BuiltinWidgetCuration> kCuration = [
     excludeParams: [
       // `focusNode: FocusNode` and `mouseCursor: MouseCursor` are
       // excluded via the centralized type denylist.
-      'onChangeStart',
-      'onChangeEnd',
       'activeColor',
       'inactiveColor',
       'secondaryActiveColor',
       'thumbColor',
       'overlayColor',
-      'semanticFormatterCallback',
       'autofocus',
       'allowedInteraction',
       'padding',
@@ -1435,6 +1453,9 @@ const List<BuiltinWidgetCuration> kCuration = [
       'year2023',
     ],
     propertyOverrides: {
+      'onChangeStart': PropertyOverride(sinceVersion: 26),
+      'onChangeEnd': PropertyOverride(sinceVersion: 26),
+      'semanticFormatterCallback': PropertyOverride(sinceVersion: 26),
       'onChanged': PropertyOverride(
         required: false,
         callbackSignature: 'ValueChanged<double>',
@@ -1468,12 +1489,12 @@ const List<BuiltinWidgetCuration> kCuration = [
       'hoverColor',
       'overlayColor',
       'splashRadius',
-      'onFocusChange',
       'autofocus',
       'padding',
     ],
     brandTokens: {'activeThumbColor': 'primary'},
     propertyOverrides: {
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
       'onChanged': PropertyOverride(callbackSignature: 'ValueChanged<bool>'),
     },
   ),
@@ -1505,6 +1526,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     ],
     brandTokens: {'activeThumbColor': 'primary'},
     propertyOverrides: {
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
       'onChanged': PropertyOverride(callbackSignature: 'ValueChanged<bool>'),
     },
   ),
@@ -1525,6 +1547,12 @@ const List<BuiltinWidgetCuration> kCuration = [
       _kButtonDisabledSynthetic,
     ],
     nativeDecomposes: [kTransparentButtonStyleNativeDecompose],
+    // Callbacks the app's own closure fills.
+    propertyOverrides: {
+      'onLongPress': PropertyOverride(sinceVersion: 26),
+      'onHover': PropertyOverride(sinceVersion: 26),
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
+    },
   ),
   // Same `OutlinedButton.icon`-style icon+label split — neither slot is
   // a canonical `child:`, so `childrenSlot` falls through to `none`.
@@ -1535,6 +1563,9 @@ const List<BuiltinWidgetCuration> kCuration = [
     descriptionOverride: 'A low-emphasis text-only button with a leading icon.',
     excludeParams: [..._kSharedButtonExcludeParams, 'iconAlignment'],
     propertyOverrides: {
+      'onLongPress': PropertyOverride(sinceVersion: 26),
+      'onHover': PropertyOverride(sinceVersion: 26),
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
       'icon': PropertyOverride(required: true),
     },
     synthetics: [
@@ -1604,8 +1635,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'unselectedLabelStyle',
       'overlayColor',
       'enableFeedback',
-      'onHover',
-      'onFocusChange',
       'splashFactory',
       'splashBorderRadius',
       'tabAlignment',
@@ -1613,6 +1642,8 @@ const List<BuiltinWidgetCuration> kCuration = [
       'indicatorAnimation',
     ],
     propertyOverrides: {
+      'onHover': PropertyOverride(sinceVersion: 26),
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
       'controller':
           PropertyOverride(type: PropertyType.structured, sinceVersion: 24),
       'onTap': PropertyOverride(callbackSignature: 'ValueChanged<int>'),
@@ -1695,6 +1726,10 @@ const List<BuiltinWidgetCuration> kCuration = [
       _kKeyboardTypeSynthetic,
     ],
     propertyOverrides: {
+      'onEditingComplete': PropertyOverride(sinceVersion: 26),
+      'onTap': PropertyOverride(sinceVersion: 26),
+      'onTapOutside': PropertyOverride(sinceVersion: 26),
+      'onTapUpOutside': PropertyOverride(sinceVersion: 26),
       'onChanged': PropertyOverride(callbackSignature: 'ValueChanged<String>'),
       'onSubmitted': PropertyOverride(
         callbackSignature: 'ValueChanged<String>',
@@ -1732,7 +1767,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'minLines',
       'expands',
       'maxLengthEnforcement',
-      'onEditingComplete',
       'onAppPrivateCommand',
       'inputFormatters',
       'enabled',
@@ -1749,10 +1783,7 @@ const List<BuiltinWidgetCuration> kCuration = [
       'enableInteractiveSelection',
       'selectAllOnFocus',
       'selectionControls',
-      'onTap',
       'onTapAlwaysCalled',
-      'onTapOutside',
-      'onTapUpOutside',
       'buildCounter',
       'autofillHints',
       'restorationId',
@@ -1779,6 +1810,8 @@ const List<BuiltinWidgetCuration> kCuration = [
   BuiltinWidgetCuration<Tooltip>(
     category: WidgetCategory.decoration,
     propertyOverrides: {
+      'onTriggered': PropertyOverride(sinceVersion: 26),
+      'positionDelegate': PropertyOverride(sinceVersion: 26),
       'message': PropertyOverride(required: true),
     },
     excludeParams: [
@@ -1795,10 +1828,8 @@ const List<BuiltinWidgetCuration> kCuration = [
       'enableTapToDismiss',
       'triggerMode',
       'enableFeedback',
-      'onTriggered',
       'mouseCursor',
       'ignorePointer',
-      'positionDelegate',
     ],
   ),
 ];

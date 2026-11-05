@@ -371,10 +371,6 @@
           "type": "alignment",
           "description": "How to align the child.",
           "required": true,
-          "defaultSource": {
-            "kind": "literal",
-            "value": "center"
-          },
           "category": "layout",
           "priority": "primary",
           "valueShape": {
@@ -466,6 +462,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -664,6 +661,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -1112,7 +1110,8 @@
               "libraryUri": "package:flutter/src/painting/text_painter.dart",
               "symbolName": "TextOverflow"
             }
-          }
+          },
+          "sinceVersion": 25
         },
         {
           "wireId": "p0322",
@@ -1188,6 +1187,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -1565,6 +1565,21 @@
           }
         },
         {
+          "wireId": "p0966",
+          "name": "styleOverflow",
+          "type": "enumValue",
+          "description": "Text overflow behavior of the style.",
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "package:flutter/src/painting/text_painter.dart",
+              "symbolName": "TextOverflow"
+            }
+          },
+          "sinceVersion": 25
+        },
+        {
           "wireId": "p0592",
           "name": "analyticsId",
           "type": "string",
@@ -1772,7 +1787,7 @@
             },
             {
               "fieldRef": "p0294",
-              "propertyRef": "p0321",
+              "propertyRef": "p0966",
               "transform": {
                 "kind": "identity"
               }
@@ -1881,6 +1896,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -2002,6 +2018,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -2180,6 +2197,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -2302,6 +2320,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -2424,6 +2443,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -2564,6 +2584,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "Called every time an animation completes.",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -2618,10 +2639,6 @@
           "type": "offset",
           "description": "The target offset. The child will be translated horizontally by `width * dx` and vertically by `height * dy`",
           "required": true,
-          "defaultSource": {
-            "kind": "literal",
-            "value": "zero"
-          },
           "priority": "primary",
           "valueShape": {
             "kind": "scalar",
@@ -2671,6 +2688,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -4473,7 +4491,8 @@
               "libraryUri": "package:flutter/src/painting/text_painter.dart",
               "symbolName": "TextOverflow"
             }
-          }
+          },
+          "sinceVersion": 25
         },
         {
           "wireId": "p0057",
@@ -4896,6 +4915,21 @@
           }
         },
         {
+          "wireId": "p0967",
+          "name": "styleOverflow",
+          "type": "enumValue",
+          "description": "Text overflow behavior of the style.",
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "package:flutter/src/painting/text_painter.dart",
+              "symbolName": "TextOverflow"
+            }
+          },
+          "sinceVersion": 25
+        },
+        {
           "wireId": "p0611",
           "name": "analyticsId",
           "type": "string",
@@ -5103,7 +5137,7 @@
             },
             {
               "fieldRef": "p0294",
-              "propertyRef": "p0056",
+              "propertyRef": "p0967",
               "transform": {
                 "kind": "identity"
               }
@@ -5664,28 +5698,581 @@
           }
         },
         {
+          "wireId": "p0968",
+          "name": "onTapDown",
+          "type": "event",
+          "description": "A pointer that might cause a tap with a primary button has contacted the screen at a particular location.",
+          "callbackTypeId": "(package:flutter/src/gestures/tap.dart#TapDownDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0969",
+          "name": "onTapUp",
+          "type": "event",
+          "description": "A pointer that will trigger a tap with a primary button has stopped contacting the screen at a particular location.",
+          "callbackTypeId": "(package:flutter/src/gestures/tap.dart#TapUpDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
           "wireId": "p0081",
           "name": "onTap",
           "type": "event",
           "description": "A tap with a primary button has occurred.",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0970",
+          "name": "onTapMove",
+          "type": "event",
+          "description": "A pointer that triggered a tap has moved.",
+          "callbackTypeId": "(package:flutter/src/gestures/tap.dart#TapMoveDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0971",
+          "name": "onTapCancel",
+          "type": "event",
+          "description": "The pointer that previously triggered [onTapDown] will not end up causing a tap.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0972",
+          "name": "onSecondaryTap",
+          "type": "event",
+          "description": "A tap with a secondary button has occurred.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0973",
+          "name": "onSecondaryTapDown",
+          "type": "event",
+          "description": "A pointer that might cause a tap with a secondary button has contacted the screen at a particular location.",
+          "callbackTypeId": "(package:flutter/src/gestures/tap.dart#TapDownDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0974",
+          "name": "onSecondaryTapUp",
+          "type": "event",
+          "description": "A pointer that will trigger a tap with a secondary button has stopped contacting the screen at a particular location.",
+          "callbackTypeId": "(package:flutter/src/gestures/tap.dart#TapUpDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0975",
+          "name": "onSecondaryTapCancel",
+          "type": "event",
+          "description": "The pointer that previously triggered [onSecondaryTapDown] will not end up causing a tap.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0976",
+          "name": "onTertiaryTapDown",
+          "type": "event",
+          "description": "A pointer that might cause a tap with a tertiary button has contacted the screen at a particular location.",
+          "callbackTypeId": "(package:flutter/src/gestures/tap.dart#TapDownDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0977",
+          "name": "onTertiaryTapUp",
+          "type": "event",
+          "description": "A pointer that will trigger a tap with a tertiary button has stopped contacting the screen at a particular location.",
+          "callbackTypeId": "(package:flutter/src/gestures/tap.dart#TapUpDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0978",
+          "name": "onTertiaryTapCancel",
+          "type": "event",
+          "description": "The pointer that previously triggered [onTertiaryTapDown] will not end up causing a tap.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0979",
+          "name": "onDoubleTapDown",
+          "type": "event",
+          "description": "A pointer that might cause a double tap has contacted the screen at a particular location.",
+          "callbackTypeId": "(package:flutter/src/gestures/tap.dart#TapDownDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0082",
           "name": "onDoubleTap",
           "type": "event",
           "description": "The user has tapped the screen with a primary button at the same location twice in quick succession.",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0980",
+          "name": "onDoubleTapCancel",
+          "type": "event",
+          "description": "The pointer that previously triggered [onDoubleTapDown] will not end up causing a double tap.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0981",
+          "name": "onLongPressDown",
+          "type": "event",
+          "description": "The pointer has contacted the screen with a primary button, which might be the start of a long-press.",
+          "callbackTypeId": "(package:flutter/src/gestures/long_press.dart#LongPressDownDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0982",
+          "name": "onLongPressCancel",
+          "type": "event",
+          "description": "A pointer that previously triggered [onLongPressDown] will not end up causing a long-press.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0083",
           "name": "onLongPress",
           "type": "event",
           "description": "Called when a long press gesture with a primary button has been recognized.",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0983",
+          "name": "onLongPressStart",
+          "type": "event",
+          "description": "Called when a long press gesture with a primary button has been recognized.",
+          "callbackTypeId": "(package:flutter/src/gestures/long_press.dart#LongPressStartDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0984",
+          "name": "onLongPressMoveUpdate",
+          "type": "event",
+          "description": "A pointer has been drag-moved after a long-press with a primary button.",
+          "callbackTypeId": "(package:flutter/src/gestures/long_press.dart#LongPressMoveUpdateDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0985",
+          "name": "onLongPressUp",
+          "type": "event",
+          "description": "A pointer that has triggered a long-press with a primary button has stopped contacting the screen.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0986",
+          "name": "onLongPressEnd",
+          "type": "event",
+          "description": "A pointer that has triggered a long-press with a primary button has stopped contacting the screen.",
+          "callbackTypeId": "(package:flutter/src/gestures/long_press.dart#LongPressEndDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0987",
+          "name": "onSecondaryLongPressDown",
+          "type": "event",
+          "description": "The pointer has contacted the screen with a secondary button, which might be the start of a long-press.",
+          "callbackTypeId": "(package:flutter/src/gestures/long_press.dart#LongPressDownDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0988",
+          "name": "onSecondaryLongPressCancel",
+          "type": "event",
+          "description": "A pointer that previously triggered [onSecondaryLongPressDown] will not end up causing a long-press.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0989",
+          "name": "onSecondaryLongPress",
+          "type": "event",
+          "description": "Called when a long press gesture with a secondary button has been recognized.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0990",
+          "name": "onSecondaryLongPressStart",
+          "type": "event",
+          "description": "Called when a long press gesture with a secondary button has been recognized.",
+          "callbackTypeId": "(package:flutter/src/gestures/long_press.dart#LongPressStartDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0991",
+          "name": "onSecondaryLongPressMoveUpdate",
+          "type": "event",
+          "description": "A pointer has been drag-moved after a long press with a secondary button.",
+          "callbackTypeId": "(package:flutter/src/gestures/long_press.dart#LongPressMoveUpdateDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0992",
+          "name": "onSecondaryLongPressUp",
+          "type": "event",
+          "description": "A pointer that has triggered a long-press with a secondary button has stopped contacting the screen.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0993",
+          "name": "onSecondaryLongPressEnd",
+          "type": "event",
+          "description": "A pointer that has triggered a long-press with a secondary button has stopped contacting the screen.",
+          "callbackTypeId": "(package:flutter/src/gestures/long_press.dart#LongPressEndDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0994",
+          "name": "onTertiaryLongPressDown",
+          "type": "event",
+          "description": "The pointer has contacted the screen with a tertiary button, which might be the start of a long-press.",
+          "callbackTypeId": "(package:flutter/src/gestures/long_press.dart#LongPressDownDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0995",
+          "name": "onTertiaryLongPressCancel",
+          "type": "event",
+          "description": "A pointer that previously triggered [onTertiaryLongPressDown] will not end up causing a long-press.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0996",
+          "name": "onTertiaryLongPress",
+          "type": "event",
+          "description": "Called when a long press gesture with a tertiary button has been recognized.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0997",
+          "name": "onTertiaryLongPressStart",
+          "type": "event",
+          "description": "Called when a long press gesture with a tertiary button has been recognized.",
+          "callbackTypeId": "(package:flutter/src/gestures/long_press.dart#LongPressStartDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0998",
+          "name": "onTertiaryLongPressMoveUpdate",
+          "type": "event",
+          "description": "A pointer has been drag-moved after a long press with a tertiary button.",
+          "callbackTypeId": "(package:flutter/src/gestures/long_press.dart#LongPressMoveUpdateDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0999",
+          "name": "onTertiaryLongPressUp",
+          "type": "event",
+          "description": "A pointer that has triggered a long-press with a tertiary button has stopped contacting the screen.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1000",
+          "name": "onTertiaryLongPressEnd",
+          "type": "event",
+          "description": "A pointer that has triggered a long-press with a tertiary button has stopped contacting the screen.",
+          "callbackTypeId": "(package:flutter/src/gestures/long_press.dart#LongPressEndDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1001",
+          "name": "onVerticalDragDown",
+          "type": "event",
+          "description": "A pointer has contacted the screen with a primary button and might begin to move vertically.",
+          "callbackTypeId": "(package:flutter/src/gestures/drag_details.dart#DragDownDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1002",
+          "name": "onVerticalDragStart",
+          "type": "event",
+          "description": "A pointer has contacted the screen with a primary button and has begun to move vertically.",
+          "callbackTypeId": "(package:flutter/src/gestures/drag_details.dart#DragStartDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1003",
+          "name": "onVerticalDragUpdate",
+          "type": "event",
+          "description": "A pointer that is in contact with the screen with a primary button and moving vertically has moved in the vertical direction.",
+          "callbackTypeId": "(package:flutter/src/gestures/drag_details.dart#DragUpdateDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1004",
+          "name": "onVerticalDragEnd",
+          "type": "event",
+          "description": "A pointer that was previously in contact with the screen with a primary button and moving vertically is no longer in contact with the screen and was moving at a specific velocity when it stopped contacting the screen.",
+          "callbackTypeId": "(package:flutter/src/gestures/drag_details.dart#DragEndDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1005",
+          "name": "onVerticalDragCancel",
+          "type": "event",
+          "description": "The pointer that previously triggered [onVerticalDragDown] did not complete.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1006",
+          "name": "onHorizontalDragDown",
+          "type": "event",
+          "description": "A pointer has contacted the screen with a primary button and might begin to move horizontally.",
+          "callbackTypeId": "(package:flutter/src/gestures/drag_details.dart#DragDownDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1007",
+          "name": "onHorizontalDragStart",
+          "type": "event",
+          "description": "A pointer has contacted the screen with a primary button and has begun to move horizontally.",
+          "callbackTypeId": "(package:flutter/src/gestures/drag_details.dart#DragStartDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1008",
+          "name": "onHorizontalDragUpdate",
+          "type": "event",
+          "description": "A pointer that is in contact with the screen with a primary button and moving horizontally has moved in the horizontal direction.",
+          "callbackTypeId": "(package:flutter/src/gestures/drag_details.dart#DragUpdateDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1009",
+          "name": "onHorizontalDragEnd",
+          "type": "event",
+          "description": "A pointer that was previously in contact with the screen with a primary button and moving horizontally is no longer in contact with the screen and was moving at a specific velocity when it stopped contacting the screen.",
+          "callbackTypeId": "(package:flutter/src/gestures/drag_details.dart#DragEndDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1010",
+          "name": "onHorizontalDragCancel",
+          "type": "event",
+          "description": "The pointer that previously triggered [onHorizontalDragDown] did not complete.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1011",
+          "name": "onForcePressStart",
+          "type": "event",
+          "description": "The pointer is in contact with the screen and has pressed with sufficient force to initiate a force press. The amount of force is at least [ForcePressGestureRecognizer.startPressure].",
+          "callbackTypeId": "(package:flutter/src/gestures/force_press.dart#ForcePressDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1012",
+          "name": "onForcePressPeak",
+          "type": "event",
+          "description": "The pointer is in contact with the screen and has pressed with the maximum force. The amount of force is at least [ForcePressGestureRecognizer.peakPressure].",
+          "callbackTypeId": "(package:flutter/src/gestures/force_press.dart#ForcePressDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1013",
+          "name": "onForcePressUpdate",
+          "type": "event",
+          "description": "A pointer is in contact with the screen, has previously passed the [ForcePressGestureRecognizer.startPressure] and is either moving on the plane of the screen, pressing the screen with varying forces or both simultaneously.",
+          "callbackTypeId": "(package:flutter/src/gestures/force_press.dart#ForcePressDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1014",
+          "name": "onForcePressEnd",
+          "type": "event",
+          "description": "The pointer tracked by [onForcePressStart] is no longer in contact with the screen.",
+          "callbackTypeId": "(package:flutter/src/gestures/force_press.dart#ForcePressDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1015",
+          "name": "onPanDown",
+          "type": "event",
+          "description": "A pointer has contacted the screen with a primary button and might begin to move.",
+          "callbackTypeId": "(package:flutter/src/gestures/drag_details.dart#DragDownDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1016",
+          "name": "onPanStart",
+          "type": "event",
+          "description": "A pointer has contacted the screen with a primary button and has begun to move.",
+          "callbackTypeId": "(package:flutter/src/gestures/drag_details.dart#DragStartDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1017",
+          "name": "onPanUpdate",
+          "type": "event",
+          "description": "A pointer that is in contact with the screen with a primary button and moving has moved again.",
+          "callbackTypeId": "(package:flutter/src/gestures/drag_details.dart#DragUpdateDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1018",
+          "name": "onPanEnd",
+          "type": "event",
+          "description": "A pointer that was previously in contact with the screen with a primary button and moving is no longer in contact with the screen and was moving at a specific velocity when it stopped contacting the screen.",
+          "callbackTypeId": "(package:flutter/src/gestures/drag_details.dart#DragEndDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1019",
+          "name": "onPanCancel",
+          "type": "event",
+          "description": "The pointer that previously triggered [onPanDown] did not complete.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1020",
+          "name": "onScaleStart",
+          "type": "event",
+          "description": "The pointers in contact with the screen have established a focal point and initial scale of 1.0.",
+          "callbackTypeId": "(package:flutter/src/gestures/scale.dart#ScaleStartDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1021",
+          "name": "onScaleUpdate",
+          "type": "event",
+          "description": "The pointers in contact with the screen have indicated a new focal point and/or scale.",
+          "callbackTypeId": "(package:flutter/src/gestures/scale.dart#ScaleUpdateDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1022",
+          "name": "onScaleEnd",
+          "type": "event",
+          "description": "The pointers are no longer in contact with the screen.",
+          "callbackTypeId": "(package:flutter/src/gestures/scale.dart#ScaleEndDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0710",
@@ -8670,6 +9257,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "Fires once when the fade settles. Never fires if the widget is disposed before settling.",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -9541,6 +10129,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "Fires once when the entrance settles. Never fires if the widget is disposed before settling.",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -12101,6 +12690,216 @@
           "sinceVersion": 17
         },
         {
+          "wireId": "p1024",
+          "name": "onTap",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1025",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1026",
+          "name": "onScrollLeft",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1027",
+          "name": "onScrollRight",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1028",
+          "name": "onScrollUp",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1029",
+          "name": "onScrollDown",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1030",
+          "name": "onIncrease",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1031",
+          "name": "onDecrease",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1032",
+          "name": "onCopy",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1033",
+          "name": "onCut",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1034",
+          "name": "onPaste",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1035",
+          "name": "onDismiss",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1036",
+          "name": "onMoveCursorForwardByCharacter",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1037",
+          "name": "onMoveCursorBackwardByCharacter",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1038",
+          "name": "onSetSelection",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(package:flutter/src/services/text_editing.dart#TextSelection)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1039",
+          "name": "onSetText",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#String)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1040",
+          "name": "onDidGainAccessibilityFocus",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1041",
+          "name": "onDidLoseAccessibilityFocus",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1042",
+          "name": "onFocus",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1043",
+          "name": "onExpand",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p1044",
+          "name": "onCollapse",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
           "wireId": "p0648",
           "name": "analyticsId",
           "type": "string",
@@ -14023,6 +14822,12 @@
             "value": "center"
           },
           "constructorNullable": true,
+          "constructorDefault": {
+            "kind": "reference",
+            "libraryUri": "package:flutter/src/painting/alignment.dart",
+            "owner": "Alignment",
+            "member": "center"
+          },
           "category": "layout",
           "valueShape": {
             "kind": "scalar",
@@ -14031,7 +14836,8 @@
               "libraryUri": "package:flutter/src/painting/alignment.dart",
               "symbolName": "AlignmentGeometry"
             }
-          }
+          },
+          "sinceVersion": 25
         },
         {
           "wireId": "p0145",
@@ -15560,10 +16366,6 @@
           "name": "overflow",
           "type": "enumValue",
           "description": "How visual text overflow should be handled.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": "clip"
-          },
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",

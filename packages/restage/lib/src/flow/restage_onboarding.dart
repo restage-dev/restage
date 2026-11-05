@@ -189,6 +189,7 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
         transition: widget.transition,
         systemBack: widget.systemBack,
         liveRefresh: widget.liveRefresh,
+        host: 'RestageOnboarding',
       ),
     );
   }

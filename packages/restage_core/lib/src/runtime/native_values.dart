@@ -1,6 +1,9 @@
+import 'dart:collection';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'builder_binding.dart';
+import 'island_stage.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart';
 
@@ -36,7 +39,11 @@ class RestageNativeValues extends InheritedWidget {
     this.labels = const {},
     required super.child,
   })  : textScalers = Map.unmodifiable(textScalers),
-        bindings = Map.unmodifiable(bindings);
+        // A live view stays live: a builder that runs later adds to it.
+        bindings =
+            bindings is UnmodifiableMapBase<String, NativeBinding<Object?>>
+                ? bindings
+                : Map.unmodifiable(bindings);
 
   /// The source expression of each native value, empty in release builds.
   final Map<String, String> labels;
@@ -67,6 +74,7 @@ class RestageNativeValues extends InheritedWidget {
     }
     final value = entry.value;
     if (value == null && contract.nullable) return null;
+    if (withheldWhileStaged(value, context)) return null;
     if (value is! T) {
       throw FormatException('Native binding "$key" has the wrong Dart type.');
     }
@@ -130,6 +138,13 @@ class RestageNativeValues extends InheritedWidget {
       });
 }
 
+/// Whether [value] waits until the version [context] sits in is shown: a
+/// staged version takes the app's controllers and focus nodes only once it
+/// is shown, as it does islands, so none attaches in two versions at once.
+bool withheldWhileStaged(Object? value, BuildContext context) =>
+    (value is ScrollController || value is FocusNode) &&
+    RestageIslandStage.isCandidate(context);
+
 /// Explains in debug builds why a widget reading native value [key] fails.
 void reportMissingNativeValue(BuildContext? context, String key) {
   assert(() {
@@ -140,11 +155,11 @@ void reportMissingNativeValue(BuildContext? context, String key) {
     final name = context is StatefulElement
         ? RegExp(r'name: \S+?:(\w+)').firstMatch('${context.state}')?.group(1)
         : null;
-    final widget = name == null ? 'the widget' : 'the $name';
+    final widget = name ?? 'widget';
     final message = label == null
-        ? "[restage] '$key' isn't computed by this app build, so $widget "
-            "that uses it isn't shown."
-        : "[restage] '$label' threw while computing in the app, so $widget "
+        ? "[restage] This app build doesn't compute a value this design uses. "
+            "The $widget that uses it isn't shown."
+        : "[restage] '$label' threw while the app computed it. The $widget "
             "that uses it isn't shown.";
     if (_reportedMissing.add(message)) debugPrint(message);
     return true;

@@ -360,6 +360,9 @@ void _writePropertyEntry(
       '$indent  callbackSignature: ${_escapeDart(p.callbackSignature!)},',
     );
   }
+  if (p.callbackTypeId != null) {
+    buf.writeln('$indent  callbackTypeId: ${_escapeDart(p.callbackTypeId!)},');
+  }
   if (p.defaultSource != null) {
     buf.writeln(
       '$indent  defaultSource: ${_defaultSourceLiteral(p.defaultSource!)},',

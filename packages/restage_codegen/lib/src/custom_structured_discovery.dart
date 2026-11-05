@@ -774,9 +774,9 @@ String? _normalizedCtorName(ConstructorElement constructor) {
         name.isNotEmpty &&
         materializedFieldNames.contains(name)) {
       // An optional NON-NULLABLE param needs its ctor default on the absent
-      // branch (the decode `source.v<T>` returns `T?`); a REQUIRED param
-      // fail-closes on absence; an optional NULLABLE param assigns the nullable
-      // decode directly. Only the first needs a reproduced default — a
+      // branch (the decode `source.v<T>` returns `T?`); a REQUIRED
+      // NON-NULLABLE param fail-closes on absence; a NULLABLE param assigns the
+      // nullable decode directly. Only the first needs a reproduced default — a
       // primitive literal, or a custom-enum constant the emitter qualifies
       // through the field's import alias.
       String? defaultCode;
@@ -805,7 +805,7 @@ String? _normalizedCtorName(ConstructorElement constructor) {
       final placed = (
         fieldName: name,
         isNamed: parameter.isNamed,
-        isRequired: parameter.isRequired,
+        isRequired: parameter.isRequired && !_isNullable(parameter.type),
         defaultCode: defaultCode,
         defaultEnumValue: defaultEnumValue,
       );

@@ -165,6 +165,10 @@ Iterable<CatalogChange> _propertyPair(
     if (before.widgetType != after.widgetType) 'widgetType',
     if (before.callbackSignature != after.callbackSignature)
       'callbackSignature',
+    // Recording a type id an older catalog lacked is not a change.
+    if (before.callbackTypeId != null &&
+        before.callbackTypeId != after.callbackTypeId)
+      'callbackTypeId',
     if (before.builderContract != after.builderContract) 'builderContract',
     if (before.scalarContract != after.scalarContract) 'scalarContract',
     if (before.structuredRef != after.structuredRef) 'structuredRef',
@@ -216,6 +220,7 @@ final class _PropertyView {
         enumType = property.enumType,
         widgetType = property.widgetType,
         callbackSignature = property.callbackSignature,
+        callbackTypeId = property.callbackTypeId,
         builderContract = property.builderContract,
         scalarContract = property.scalarContract,
         structuredRef = property.structuredRef,
@@ -235,6 +240,7 @@ final class _PropertyView {
         enumType = null,
         widgetType = null,
         callbackSignature = null,
+        callbackTypeId = null,
         builderContract = field.builderContract,
         scalarContract = field.scalarContract,
         structuredRef = field.structuredRef,
@@ -253,6 +259,7 @@ final class _PropertyView {
   final String? enumType;
   final String? widgetType;
   final String? callbackSignature;
+  final String? callbackTypeId;
   final WidgetBuilderContract? builderContract;
   final ScalarCallbackContract? scalarContract;
   final WireIdRef? structuredRef;

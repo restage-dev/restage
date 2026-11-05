@@ -152,6 +152,7 @@ List<Object> mounts(rs.SurfaceFlowRef<void> flow, rs.SurfaceScreenRef<void> scre
             hasLength(2),
           );
           expect(warnings, everyElement(contains('bundled_runtime is false')));
+          expect(warnings, everyElement(isNot(contains('/apps_examples/'))));
           expect(warnings, contains(contains("RestagePaywall(id: 'offer')")));
           expect(warnings, contains(contains("RestagePaywall(id: 'null_ui')")));
           expect(warnings, contains(contains('RestageScreen(screen: screen)')));
@@ -170,6 +171,81 @@ List<Object> mounts(rs.SurfaceFlowRef<void> flow, rs.SurfaceScreenRef<void> scre
         }
       },
     );
+  }
+
+  for (final bundled in [false, true]) {
+    for (final (name, declared, expected) in [
+      (
+        'names the widget generated for the flow, read through any name',
+        "  surfaceWidget: 'WelcomeTourSurface',",
+        "`lib/main.dart:23:19`: `RestageFlowGraph(flow: f)` shows steps that "
+            "need the app's code: `Start`. No screen builder is bound for "
+            'them. Try using the generated `WelcomeTourSurface` widget '
+            'instead.',
+      ),
+      (
+        'leaves out a widget the reference does not name',
+        '',
+        "`lib/main.dart:23:19`: `RestageFlowGraph(flow: f)` shows steps that "
+            "need the app's code: `Start`. No screen builder is bound for "
+            'them.',
+      ),
+    ]) {
+      test('a step that needs the app without a bound builder warns and '
+          '$name: $bundled', () async {
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        final records = <LogRecord>[];
+        final json = jsonEncode(
+          utf8.decode(alpha.files['assets/general/flows/alpha.flow.json']!),
+        );
+        final result = await _run(
+          BuilderOptions({'bundled_runtime': bundled}),
+          [alpha],
+          readerWriter,
+          records: records,
+          dartSources: {
+            'lib/features/alpha.dart': '// authored\n',
+            'lib/main.dart':
+                '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart' as rs;
+
+void decode(Map<String, Object?> result) {}
+@rs.Screen(id: 'start')
+class Start extends StatelessWidget {
+  const Start({super.key});
+  static const next = rs.SurfaceEvent<void>('next');
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+Widget stepMount(BuildContext context, Widget child, Widget original) => child;
+Widget fallback(BuildContext context, rs.FlowUnavailableError error) =>
+    const SizedBox.shrink();
+const startFlowRef = rs.SurfaceFlowRef<void>(
+  id: 'alpha', version: 1, minClient: 1,
+  surface: rs.Surface.onboarding, decodeResult: decode,
+  vocabulary: rs.SurfaceVocabulary(stepMounts: {'start': stepMount}),
+  compiled: rs.CompiledFlow(documentJson: $json, screens: {}),
+$declared
+);
+const f = startFlowRef;
+Widget mount() => const rs.RestageFlowGraph(
+    flow: f, unavailable: rs.FlowUnavailablePolicy.fallback(builder: fallback));
+''',
+          },
+        );
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        expect(
+          [
+            for (final record in records)
+              if (record.level >= Level.WARNING) record.message,
+          ],
+          [endsWith('\n$expected')],
+        );
+      });
+    }
   }
 
   test('warns in an authored part without a compiler handoff', () async {
@@ -197,7 +273,8 @@ const mounted = rs.RestagePaywall(id: 'part_offer');
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
     final warnings = records.where((record) => record.level >= Level.WARNING);
     expect(warnings, hasLength(1));
-    expect(warnings.single.message, contains('mounts.dart:2:17:'));
+    // A path relative to the package, never the analyzer's absolute one.
+    expect(warnings.single.message, contains('\nlib/mounts.dart:2:17: '));
     expect(warnings.single.message, contains("id: 'part_offer'"));
   });
 

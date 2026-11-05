@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The buttons, `InkWell`, `TabBar`, `TextField`, `Slider`, `Scrollbar`, `Tooltip`, `ListTile`, chips, `Scaffold` and `MaterialApp` take their remaining callbacks, including hover, focus and value-returning ones, at capability 26. The app's own closure is passed through unchanged.
+- Builders give an omitted argument Flutter's own default. Buttons, `Card`, `Divider`, `CircularProgressIndicator` and `IconButton` no longer substitute catalog values (such as 24/12 button padding) for their themed defaults, and `Icon` resolves its own `IconTheme`.
+
 ## 2.0.0
 
 - `Scaffold` admits `appBar`, so a screen composes its bar in the

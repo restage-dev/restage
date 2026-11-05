@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+part 'restage.generated/pulse_badge.restage.g.dart';
+
 /// Custom-defined badge whose scale pulses, driven by an [AnimationController].
 ///
 /// An animation controller is code, so this widget can't be inlined into a

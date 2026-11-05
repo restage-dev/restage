@@ -133,9 +133,14 @@ void main() {
 
         expect(result.issues, hasLength(1));
         expect(result.issues.single.code, IssueCode.unknownWidget);
-        // The normalised wording points the author at @RestageWidget rather
-        // than claiming custom widgets are unsupported.
-        expect(result.issues.single.message, contains('@RestageWidget'));
+        // It renders from the app, and the message says why.
+        expect(
+          result.issues.single.message,
+          startsWith(
+            "`AcmeWidget` renders from your app's code because it isn't in "
+            "Restage's widget catalog.",
+          ),
+        );
       },
     );
   });

@@ -110,6 +110,7 @@ abstract final class InstalledIconTable {
 
   static RestageIconTable _installed = RestageIconTable.none;
   static bool _hasSelection = false;
+  static bool _snapshotted = false;
 
   /// Whether an installation or an explicit app vocabulary chose this store.
   ///
@@ -132,6 +133,7 @@ abstract final class InstalledIconTable {
   static void install(RestageIconTable table) {
     _hasSelection = true;
     _installed = table;
+    _snapshotted = false;
   }
 
   /// Adds [table] to what is already installed, one union per font family in
@@ -149,10 +151,18 @@ abstract final class InstalledIconTable {
   static void add(RestageIconTable table, {bool? explicitSelection}) {
     _hasSelection = _hasSelection || (explicitSelection ?? !table.isEmpty);
     if (table.isEmpty) return;
+    // A mount adds its icons on every build; once the table holds its own
+    // copies, nothing new keeps it.
+    if (_snapshotted &&
+        _covers(_installed.families, table.families) &&
+        _covers(_installed.mirrored, table.mirrored)) {
+      return;
+    }
     _installed = RestageIconTable.fromFamilies(
       families: _union(_installed.families, table.families),
       mirrored: _union(_installed.mirrored, table.mirrored),
     );
+    _snapshotted = true;
   }
 
   /// Drops the installation and restores the [RestageIconTable.none] default,
@@ -160,8 +170,19 @@ abstract final class InstalledIconTable {
   static void reset() {
     _hasSelection = false;
     _installed = RestageIconTable.none;
+    _snapshotted = false;
   }
 }
+
+/// Whether [installed] already carries every code point of [added].
+bool _covers(
+  Map<String, Map<int, IconData>> installed,
+  Map<String, Map<int, IconData>> added,
+) =>
+    added.entries.every((entry) {
+      final family = installed[entry.key];
+      return family != null && entry.value.keys.every(family.containsKey);
+    });
 
 /// Unions [added] into [installed] per font family, with the already-installed
 /// entry winning wherever both carry the same code point.

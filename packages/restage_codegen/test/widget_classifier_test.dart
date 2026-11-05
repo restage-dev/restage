@@ -117,7 +117,7 @@ class DynamicLabels extends StatelessWidget {
     expect(classification, isA<UnclassifiableWidget>());
     expect(
       (classification! as UnclassifiableWidget).reason,
-      contains('known only at run time'),
+      contains('only known when the app runs'),
     );
     expect(result.blueprints, isNot(contains(key)));
   });

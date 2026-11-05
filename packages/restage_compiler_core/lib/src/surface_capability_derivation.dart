@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:meta/meta.dart';
+import 'package:restage_compiler_core/src/builder_scope_values.dart';
 import 'package:restage_compiler_core/src/rfw_program_envelope.dart';
 import 'package:restage_compiler_core/src/rfw_scalar_callback_contract.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
@@ -26,6 +29,7 @@ import 'package:restage_shared/restage_shared.dart'
         kIconThemeDataLerpKey,
         kIntlValueOperations,
         kJoinedStringClientFloor,
+        kNativeVoidCallbackType,
         kStructuredCopyWithKey,
         kTextSpanRecognizerDetailCallbacks,
         kTextSpanRecognizerVoidCallbacks,
@@ -169,7 +173,10 @@ SurfaceCapabilityDerivation deriveSurfaceCapability(
 }) {
   final programScope = RfwProgramScope([
     for (final widget in library.widgets) ...[widget.initialState, widget.root]
-  ], operations: operations, validateNativeBindingReferences: false);
+  ],
+      operations: operations,
+      validateNativeBindingReferences: false,
+      scopedNativeValues: rfwBuilderScopeValues(library, catalog));
   final referenced = <WidgetEntry>[];
   final ambiguous = <String>{};
   final expressionLibraries = <String>{};
@@ -219,7 +226,7 @@ SurfaceCapabilityDerivation deriveSurfaceCapability(
   for (final entry in referenced) {
     if (WidgetLibrary.builtInByNamespace(entry.library.namespace) != null) {
       if (entry.sinceVersion > builtInFloor) builtInFloor = entry.sinceVersion;
-    } else {
+    } else if (!(catalog.libraries[entry.library]?.islands ?? false)) {
       customLibraries.add(entry.library);
     }
   }
@@ -288,6 +295,114 @@ bool nativeBindingsNeedInstalledHost(
         RemoteWidgetLibrary library, Catalog catalog,
         {Map<String, Object?> context = const {}}) =>
     _inspectNativeBindings(library, catalog, previewContext: context).used;
+
+/// Why a screen can only be validated against the app's compiled screen
+/// contract.
+sealed class CompiledScreenContractNeed {
+  const CompiledScreenContractNeed();
+}
+
+/// `widget.property` calls an installed app function.
+final class AppFunctionCallNeed extends CompiledScreenContractNeed {
+  /// The widget and property the call feeds.
+  const AppFunctionCallNeed(this.widget, this.property);
+
+  /// The widget the call feeds.
+  final String widget;
+
+  /// The property of [widget] the call feeds.
+  final String property;
+}
+
+/// [widget] is a split widget whose wrapper the catalog does not hold.
+final class SplitWidgetNeed extends CompiledScreenContractNeed {
+  /// The split widget, named as the app declares it.
+  const SplitWidgetNeed(this.widget);
+
+  /// The split widget's name.
+  final String widget;
+}
+
+/// The first reason, in source order, that [library] can only be validated
+/// against the app's compiled screen contract: it calls an installed app
+/// function, or places a split widget's wrapper that [catalog] does not hold.
+/// Null when it needs neither.
+CompiledScreenContractNeed? compiledScreenContractNeed(
+  RemoteWidgetLibrary library,
+  Catalog catalog,
+) {
+  final local = {for (final widget in library.widgets) widget.name};
+  // A program is JSON text; a callback's nested program is text inside it.
+  bool callsApp(Object? json) => switch (json) {
+        {'op': 'native.call'} => true,
+        Map() => json.values.any(callsApp) ||
+            (json['program'] is String &&
+                callsApp(_programJson(json['program']))),
+        List() => json.any(callsApp),
+        _ => false,
+      };
+  // [widget] and [property] name the nearest constructor argument [node] is in.
+  CompiledScreenContractNeed? visit(
+    Object? node,
+    String widget,
+    String property,
+  ) {
+    CompiledScreenContractNeed? all(Iterable<Object?> nodes) {
+      for (final child in nodes) {
+        if (visit(child, widget, property) case final need?) return need;
+      }
+      return null;
+    }
+
+    switch (node) {
+      case ConstructorCall(:final name, :final arguments):
+        if (name.endsWith(kSplitWrapperSuffix) &&
+            !local.contains(name) &&
+            catalog.widgets.every((entry) => entry.name != name)) {
+          return SplitWidgetNeed(
+            name.substring(0, name.length - kSplitWrapperSuffix.length),
+          );
+        }
+        for (final MapEntry(:key, :value) in arguments.entries) {
+          if (visit(value, name, key) case final need?) return need;
+        }
+        return null;
+      case Map():
+        if (callsApp({'program': node['program']})) {
+          return AppFunctionCallNeed(widget, property);
+        }
+        return all(node.values);
+      case List():
+        return all(node);
+      case Loop(:final input, :final output):
+        return all([input, output]);
+      case Switch(:final input, :final outputs):
+        return all([input, ...outputs.values]);
+      case WidgetBuilderDeclaration(:final widget):
+        return all([widget]);
+      case EventHandler(:final eventArguments):
+        return all([eventArguments]);
+      case SetStateHandler(:final value):
+        return all([value]);
+    }
+    return null;
+  }
+
+  for (final declaration in library.widgets) {
+    final need = visit(declaration.initialState, declaration.name, 'state') ??
+        visit(declaration.root, declaration.name, 'build');
+    if (need != null) return need;
+  }
+  return null;
+}
+
+Object? _programJson(Object? program) {
+  try {
+    return jsonDecode(program! as String);
+  } on FormatException {
+    return null;
+  }
+}
 
 /// Validates every native reference at its catalog-linked destination.
 void validateRfwNativeReferences(RemoteWidgetLibrary library, Catalog catalog,
@@ -1099,6 +1214,10 @@ final class _NativeValueUse {
       shape: property.valueShape,
       ref: property.structuredRef,
       factory: factory,
+      // An event with no derivable type accepts no native callback.
+      event: property.type == PropertyType.event
+          ? eventNativeType(property) ?? 'unsupported'
+          : null,
     );
   }
 
@@ -1108,14 +1227,15 @@ final class _NativeValueUse {
     CatalogValueShape? shape,
     WireIdRef? ref,
     bool factory = false,
+    String? event,
   }) {
     return node
         .withNativeProjection(
             _requiresNativeProjection(type, shape: shape, ref: ref),
             inherit: false)
         .any(
-          (resolved) =>
-              _visit(resolved, type, shape: shape, ref: ref, factory: factory),
+          (resolved) => _visit(resolved, type,
+              shape: shape, ref: ref, factory: factory, event: event),
         );
   }
 
@@ -1130,10 +1250,11 @@ final class _NativeValueUse {
     CatalogValueShape? shape,
     WireIdRef? ref,
     bool factory = false,
+    String? event,
   }) {
     final value = node.value;
     if (bindings) {
-      return _bindingValue(node, type, shape: shape, ref: ref);
+      return _bindingValue(node, type, shape: shape, ref: ref, event: event);
     }
     if (geometry) {
       if (value is Reference) {
@@ -1298,7 +1419,7 @@ final class _NativeValueUse {
   }
 
   bool _bindingValue(_NativeValue node, PropertyType type,
-      {CatalogValueShape? shape, WireIdRef? ref}) {
+      {CatalogValueShape? shape, WireIdRef? ref, String? event}) {
     final value = node.value;
     if (previewContext != null && identical(value, missing))
       return _bindingPotential(type, shape: shape, ref: ref);
@@ -1328,7 +1449,9 @@ final class _NativeValueUse {
     if (type == PropertyType.event &&
         value is Map &&
         value.containsKey('nativeEvent')) {
-      return _bindingReference(node.child(value['nativeEvent']), '()->void',
+      // A typed event takes the app's callback of exactly its type.
+      return _bindingReference(
+          node.child(value['nativeEvent']), event ?? kNativeVoidCallbackType,
           strict: true);
     }
     if (type == PropertyType.color &&

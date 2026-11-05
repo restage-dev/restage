@@ -6,9 +6,9 @@ import 'package:flutter_test/flutter_test.dart' hide allOf;
 import 'package:restage/restage.dart';
 
 void main() {
-  group('state()', () {
+  group('flowState()', () {
     test('returns a StateFlowValueSource usable as a plain value source', () {
-      final source = state('goal');
+      final source = flowState('goal');
       expect(source, isA<StateFlowValueSource>());
       expect(source.key, 'goal');
       expect(source.path, isEmpty);
@@ -21,7 +21,7 @@ void main() {
     }
 
     test('equals auto-wraps a String literal', () {
-      final predicate = state('goal').equals('sleep');
+      final predicate = flowState('goal').equals('sleep');
       expect(predicate.fields.keys, ['goal']);
       final value = equalsOf(predicate, 'goal').value as LiteralFlowValueSource;
       expect(value.type, FlowDataType.string);
@@ -29,7 +29,7 @@ void main() {
     });
 
     test('equals auto-wraps a bool literal', () {
-      final predicate = state('isPro').equals(true);
+      final predicate = flowState('isPro').equals(true);
       final value =
           equalsOf(predicate, 'isPro').value as LiteralFlowValueSource;
       expect(value.type, FlowDataType.bool);
@@ -37,14 +37,14 @@ void main() {
     });
 
     test('equals passes a value source through (no wrapping)', () {
-      final other = state('preferred');
-      final predicate = state('goal').equals(other);
+      final other = flowState('preferred');
+      final predicate = flowState('goal').equals(other);
       final value = equalsOf(predicate, 'goal').value;
       expect(value, same(other));
     });
 
     test('notEquals desugars to NotEqualsFlowPredicateCondition', () {
-      final predicate = state('goal').notEquals('sleep');
+      final predicate = flowState('goal').notEquals('sleep');
       expect(
         predicate.fields['goal'],
         isA<NotEqualsFlowPredicateCondition>(),
@@ -53,25 +53,25 @@ void main() {
 
     test('the four numeric operators map to their wire conditions', () {
       expect(
-        state('age').greaterThan(18).fields['age'],
+        flowState('age').greaterThan(18).fields['age'],
         isA<GreaterThanFlowPredicateCondition>(),
       );
       expect(
-        state('age').atLeast(18).fields['age'],
+        flowState('age').atLeast(18).fields['age'],
         isA<GreaterThanOrEqualsFlowPredicateCondition>(),
       );
       expect(
-        state('age').lessThan(65).fields['age'],
+        flowState('age').lessThan(65).fields['age'],
         isA<LessThanFlowPredicateCondition>(),
       );
       expect(
-        state('age').atMost(65).fields['age'],
+        flowState('age').atMost(65).fields['age'],
         isA<LessThanOrEqualsFlowPredicateCondition>(),
       );
     });
 
     test('numeric operators wrap an int literal as FlowDataType.int', () {
-      final condition = state('age').atLeast(18).fields['age']!
+      final condition = flowState('age').atLeast(18).fields['age']!
           as GreaterThanOrEqualsFlowPredicateCondition;
       final value = condition.value as LiteralFlowValueSource;
       expect(value.type, FlowDataType.int);
@@ -79,7 +79,7 @@ void main() {
     });
 
     test('numeric operators accept a negative int literal', () {
-      final condition = state('age').greaterThan(-5).fields['age']!
+      final condition = flowState('age').greaterThan(-5).fields['age']!
           as GreaterThanFlowPredicateCondition;
       final value = condition.value as LiteralFlowValueSource;
       expect(value.type, FlowDataType.int);
@@ -87,14 +87,14 @@ void main() {
     });
 
     test('numeric operators pass a state-ref RHS through', () {
-      final threshold = state('threshold');
-      final condition = state('age').greaterThan(threshold).fields['age']!
+      final threshold = flowState('threshold');
+      final condition = flowState('age').greaterThan(threshold).fields['age']!
           as GreaterThanFlowPredicateCondition;
       expect(condition.value, same(threshold));
     });
 
     test('oneOf desugars to InFlowPredicateCondition with wrapped values', () {
-      final predicate = state('goal').oneOf(['sleep', 'focus']);
+      final predicate = flowState('goal').oneOf(['sleep', 'focus']);
       final condition = predicate.fields['goal']! as InFlowPredicateCondition;
       expect(condition.values, hasLength(2));
       expect(
@@ -110,12 +110,13 @@ void main() {
     test('isSet/isUnset desugar to ExistsFlowPredicateCondition(true|false)',
         () {
       expect(
-        (state('goal').isSet().fields['goal']! as ExistsFlowPredicateCondition)
+        (flowState('goal').isSet().fields['goal']!
+                as ExistsFlowPredicateCondition)
             .exists,
         isTrue,
       );
       expect(
-        (state('goal').isUnset().fields['goal']!
+        (flowState('goal').isUnset().fields['goal']!
                 as ExistsFlowPredicateCondition)
             .exists,
         isFalse,
@@ -125,20 +126,20 @@ void main() {
 
   group('loud failures (deliverability discipline)', () {
     test('a non-scalar literal RHS throws ArgumentError', () {
-      expect(() => state('goal').equals(1.5), throwsArgumentError);
-      expect(() => state('goal').equals(<int>[1]), throwsArgumentError);
+      expect(() => flowState('goal').equals(1.5), throwsArgumentError);
+      expect(() => flowState('goal').equals(<int>[1]), throwsArgumentError);
     });
 
     test('a non-int literal to a comparison operator throws ArgumentError', () {
-      expect(() => state('age').greaterThan('old'), throwsArgumentError);
-      expect(() => state('age').atLeast(true), throwsArgumentError);
-      expect(() => state('age').lessThan(1.5), throwsArgumentError);
+      expect(() => flowState('age').greaterThan('old'), throwsArgumentError);
+      expect(() => flowState('age').atLeast(true), throwsArgumentError);
+      expect(() => flowState('age').lessThan(1.5), throwsArgumentError);
     });
 
     test('a pre-wrapped non-int value source cannot bypass the int-only guard',
         () {
       expect(
-        () => state('age').greaterThan(
+        () => flowState('age').greaterThan(
           const LiteralFlowValueSource(
             type: FlowDataType.string,
             value: 'old',
@@ -149,20 +150,20 @@ void main() {
       // An internally-mismatched source is rejected in BOTH directions — the
       // guard requires int in the declared type AND the value.
       expect(
-        () => state('age').atMost(
+        () => flowState('age').atMost(
           const LiteralFlowValueSource(type: FlowDataType.int, value: 'old'),
         ),
         throwsArgumentError,
       );
       expect(
-        () => state('age').greaterThan(
+        () => flowState('age').greaterThan(
           const LiteralFlowValueSource(type: FlowDataType.string, value: 18),
         ),
         throwsArgumentError,
       );
       // An int-typed literal source is fine.
       expect(
-        state('age').atLeast(
+        flowState('age').atLeast(
           const LiteralFlowValueSource(type: FlowDataType.int, value: 18),
         ),
         isA<FlowBranchPredicate>(),
@@ -174,23 +175,23 @@ void main() {
     test('merges distinct single-field predicates into one AND-ed predicate',
         () {
       final predicate = allOf([
-        state('goal').equals('sleep'),
-        state('isPro').equals(true),
+        flowState('goal').equals('sleep'),
+        flowState('isPro').equals(true),
       ]);
       expect(predicate.fields.keys, containsAll(<String>['goal', 'isPro']));
       expect(predicate.fields, hasLength(2));
     });
 
     test('a single-element allOf returns that predicate', () {
-      final predicate = allOf([state('goal').equals('sleep')]);
+      final predicate = allOf([flowState('goal').equals('sleep')]);
       expect(predicate.fields.keys, ['goal']);
     });
 
     test('two conditions on the same field throw ArgumentError (loud)', () {
       expect(
         () => allOf([
-          state('age').atLeast(18),
-          state('age').atMost(65),
+          flowState('age').atLeast(18),
+          flowState('age').atMost(65),
         ]),
         throwsArgumentError,
       );

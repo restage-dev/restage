@@ -133,6 +133,9 @@ Map<String, Object?> _textStyleData(TextStyle? style) {
   };
 }
 
+/// [color] as the value language's color record.
+Map<String, Object?> builderColorData(Color color) => _colorData(color)!;
+
 Map<String, Object?>? _colorData(Color? color) => color == null
     ? null
     : {

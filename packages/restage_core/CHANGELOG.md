@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Add `RestageBuilderBinding.data`, the shape the app supplies for each app value
+  a delivered builder body reads.
+- Add `RestageBuilderBinding.color`, which projects an app color as a delivered
+  body reads it.
+- Fix: a `w100`–`w900` font weight decodes in release builds, which strip `FontWeight.toString`.
+- `GestureDetector` takes every gesture callback and `Semantics` its action callbacks, typed as Flutter declares them, at capability 26. Add `RestageDecoders.nativeCallback`, which reads a callback only the app's own closure can fill.
+- Remove `resolveThemeBinding`. Generated builders now pass null for a theme-resolved default, and the Flutter widget resolves its theme itself.
+- Builders give an omitted argument Flutter's own default; they no longer substitute catalog values such as button padding. `TransformRotate.alignment` (capability 25) separates an explicit null from an omitted argument. `DefaultTextStyle` and `AnimatedDefaultTextStyle` keep the widget's `overflow` apart from the style's new `styleOverflow` (capability 25).
+- Add `RestageIslandStage`, which marks a version of a published surface as shown or staged. While a version is staged, `RestageDecoders.nativeKey` returns null for a global key. A global key is never built in two versions at once.
+- Add `RestageIslandStage.host`, which identifies the widget that shows a version.
+
 - Add native Directionality, explicit textDirection, direction-preserving geometry,
   exact scoped TextScaler values, and native responsive/grid factories.
 - Add native ClipPath and ShapeBorderClipper factories, including ClipPath.shape.

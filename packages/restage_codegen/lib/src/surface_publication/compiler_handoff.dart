@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
+import 'package:restage_codegen/src/surface_publication/delivered_components.dart';
+import 'package:restage_codegen/src/surface_publication/split_widgets.dart'
+    show SplitRegistration;
 import 'package:restage_shared/restage_shared.dart';
 
 /// The package-local, fixed compiler-to-builder handoff asset.
@@ -92,7 +95,15 @@ final class RestageSurfacePublicationBundle {
     required Map<String, List<int>> ownedOutputs,
     required Map<String, String> artifactLibraryPaths,
     required Iterable<String> surfaceWidgetNames,
+    required Iterable<SplitSite> splitSites,
+    required Map<String, List<String>> surfaceIslands,
+    Map<String, List<DeliveredComponent>> surfaceComponents = const {},
+    List<SplitRegistration> splitRegistrations = const [],
   }) : errors = List.unmodifiable(errors),
+       surfaceComponents = Map.unmodifiable(surfaceComponents),
+       splitRegistrations = List.unmodifiable(splitRegistrations),
+       surfaceIslands = Map.unmodifiable(surfaceIslands),
+       splitSites = List.unmodifiable(splitSites),
        surfaceWidgetNames = List.unmodifiable(
          surfaceWidgetNames.toSet().toList()..sort(),
        ),
@@ -120,6 +131,10 @@ final class RestageSurfacePublicationBundle {
     Map<String, List<int>> ownedOutputs = const {},
     Map<String, String> artifactLibraryPaths = const {},
     Iterable<String> surfaceWidgetNames = const [],
+    Iterable<SplitSite> splitSites = const [],
+    Map<String, List<String>> surfaceIslands = const {},
+    Map<String, List<DeliveredComponent>> surfaceComponents = const {},
+    List<SplitRegistration> splitRegistrations = const [],
   }) {
     final canonicalManifest = _canonicalizeManifest(manifest);
     final frozenArtifacts = <String, List<int>>{
@@ -173,6 +188,10 @@ final class RestageSurfacePublicationBundle {
       ownedOutputs: frozenOwnedOutputs,
       artifactLibraryPaths: artifactLibraryPaths,
       surfaceWidgetNames: surfaceWidgetNames,
+      splitSites: splitSites,
+      surfaceIslands: surfaceIslands,
+      surfaceComponents: surfaceComponents,
+      splitRegistrations: splitRegistrations,
     );
   }
 
@@ -197,6 +216,8 @@ final class RestageSurfacePublicationBundle {
       ownedOutputs: const {},
       artifactLibraryPaths: const {},
       surfaceWidgetNames: const [],
+      splitSites: const [],
+      surfaceIslands: const {},
     );
   }
 
@@ -218,7 +239,13 @@ final class RestageSurfacePublicationBundle {
       r'$',
       // Additive: a handoff written before the surface vocabularies were
       // recorded still decodes, naming no widget.
-      optional: const {'surfaceWidgetNames'},
+      optional: const {
+        'surfaceWidgetNames',
+        'splitSites',
+        'surfaceIslands',
+        'surfaceComponents',
+        'splitRegistrations',
+      },
     );
     final schemaVersion = _requiredInt(json, 'schemaVersion', r'$');
     if (schemaVersion != 2) {
@@ -297,6 +324,38 @@ final class RestageSurfacePublicationBundle {
         'surfaceWidgetNames',
         r'$',
       ),
+      splitSites: [
+        for (final site in (json['splitSites'] as List<Object?>?) ?? const [])
+          SplitSite.fromJson(_requireObject(site, r'$.splitSites')),
+      ],
+      surfaceIslands: {
+        for (final MapEntry(:key, :value)
+            in ((json['surfaceIslands'] as Map<String, Object?>?) ?? const {})
+                .entries)
+          key: (value! as List<Object?>).cast<String>(),
+      },
+      surfaceComponents: {
+        for (final MapEntry(:key, :value)
+            in ((json['surfaceComponents'] as Map<String, Object?>?) ??
+                    const {})
+                .entries)
+          key: [
+            for (final component in value! as List<Object?>)
+              DeliveredComponent.fromJson(
+                _requireObject(component, r'$.surfaceComponents'),
+              ),
+          ],
+      },
+      splitRegistrations: [
+        for (final raw
+            in (json['splitRegistrations'] as List<Object?>?) ?? const [])
+          if (_requireObject(raw, r'$.splitRegistrations') case final item)
+            (
+              namespace: item['namespace']! as String,
+              library: item['library']! as String,
+              name: item['name']! as String,
+            ),
+      ],
     );
   }
 
@@ -336,6 +395,20 @@ final class RestageSurfacePublicationBundle {
   /// Flutter type its source wrote.
   final List<String> surfaceWidgetNames;
 
+  /// The islands and actions of every compiled surface, with their source
+  /// locations. Build output reads them; no contract hashes them.
+  final List<SplitSite> splitSites;
+
+  /// The islands each publication's host provides, by `<surface>/<slug>`.
+  final Map<String, List<String>> surfaceIslands;
+
+  /// The shared components each publication's design delivers, by
+  /// `<surface>/<slug>`. A push publishes them; nothing ships them.
+  final Map<String, List<DeliveredComponent>> surfaceComponents;
+
+  /// The registration each split widget's wrapper adds to its library.
+  final List<SplitRegistration> splitRegistrations;
+
   /// Encodes the fixed aggregate handoff deterministically.
   String encodeCanonicalJson() {
     final value = <String, Object?>{
@@ -356,9 +429,160 @@ final class RestageSurfacePublicationBundle {
           },
       ],
       'surfaceWidgetNames': surfaceWidgetNames,
+      'splitSites': [for (final site in splitSites) site.toJson()],
+      'surfaceIslands': {
+        for (final key in surfaceIslands.keys.toList()..sort())
+          key: surfaceIslands[key],
+      },
+      'surfaceComponents': {
+        for (final key in surfaceComponents.keys.toList()..sort())
+          key: [
+            for (final component in surfaceComponents[key]!) component.toJson(),
+          ],
+      },
+      'splitRegistrations': [
+        for (final registration in splitRegistrations)
+          {
+            'namespace': registration.namespace,
+            'library': registration.library,
+            'name': registration.name,
+          },
+      ],
     };
     return const JsonEncoder.withIndent('  ').convert(value);
   }
+}
+
+/// What a split site is.
+enum SplitSiteKind {
+  /// An island.
+  island,
+
+  /// An action.
+  action,
+
+  /// A value the mount computes.
+  value,
+
+  /// A wrapper, builder or `State` the mount keeps.
+  mount,
+
+  /// The mount's delivered design.
+  design,
+}
+
+/// A part of a compiled surface and where it is in source.
+@immutable
+final class SplitSite {
+  /// Creates a site.
+  const SplitSite({
+    required this.surface,
+    required this.mount,
+    required this.name,
+    required this.widget,
+    required this.location,
+    required this.kind,
+    this.reason,
+    this.token,
+    this.interface,
+    this.widgets,
+    this.promotion,
+  });
+
+  /// Decodes one site.
+  factory SplitSite.fromJson(Map<String, Object?> json) {
+    const path = r'$.splitSites';
+    _exactKeys(
+      json,
+      const {'surface', 'mount', 'name', 'widget', 'location', 'kind'},
+      path,
+      optional: const {'reason', 'token', 'interface', 'widgets', 'promotion'},
+    );
+    final kind = _requiredString(json, 'kind', path);
+    String? optional(String key) => switch (json[key]) {
+      null => null,
+      final String value => value,
+      _ => throw FormatException('Expected "$path.$key" to be a string.'),
+    };
+    return SplitSite(
+      surface: _requiredString(json, 'surface', path),
+      mount: _requiredString(json, 'mount', path),
+      name: _requiredString(json, 'name', path),
+      widget: _requiredString(json, 'widget', path),
+      location: _requiredString(json, 'location', path),
+      kind:
+          SplitSiteKind.values.asNameMap()[kind] ??
+          (throw FormatException('Unknown split site kind "$kind".')),
+      reason: optional('reason'),
+      token: optional('token'),
+      interface: optional('interface'),
+      widgets: switch (json['widgets']) {
+        null => null,
+        final int value => value,
+        _ => throw const FormatException(
+          r'Expected "$.splitSites.widgets" to be an integer.',
+        ),
+      },
+      promotion: switch (json['promotion']) {
+        null => null,
+        final Map<String, Object?> value => value,
+        _ => throw const FormatException(
+          r'Expected "$.splitSites.promotion" to be an object.',
+        ),
+      },
+    );
+  }
+
+  /// The surface's declaration identity.
+  final String surface;
+
+  /// The generated mount's class name.
+  final String mount;
+
+  /// The qualified island name, the value or action key, or the kept
+  /// wrapper or `State` class.
+  final String name;
+
+  /// The island's or wrapper's widget type, or the value's or action's
+  /// source as written.
+  final String widget;
+
+  /// `path:line:column` in the app's source; the source path for a design.
+  final String location;
+
+  /// What the site is.
+  final SplitSiteKind kind;
+
+  /// Why an island renders from the app, or why the mount keeps a wrapper.
+  final String? reason;
+
+  /// An island's fit token.
+  final String? token;
+
+  /// An island's inputs and slots, one per line.
+  final String? interface;
+
+  /// How many widgets an island renders from the app, or a design delivers.
+  final int? widgets;
+
+  /// How to move an island into a widget class of the app's own, or
+  /// `{'refusal': …}` when it can't be.
+  final Map<String, Object?>? promotion;
+
+  /// The JSON form.
+  Map<String, Object?> toJson() => {
+    'surface': surface,
+    'mount': mount,
+    'name': name,
+    'widget': widget,
+    'location': location,
+    'kind': kind.name,
+    if (reason != null) 'reason': reason,
+    if (token != null) 'token': token,
+    if (interface != null) 'interface': interface,
+    if (widgets != null) 'widgets': widgets,
+    if (promotion != null) 'promotion': promotion,
+  };
 }
 
 /// The canonical wire form of one output collection: path-sorted records

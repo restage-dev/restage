@@ -16,11 +16,15 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:pub_semver/pub_semver.dart';
+import 'package:restage_codegen/src/hoisting.dart' show mountAliasDeclarations;
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
 import 'package:restage_codegen/src/icon_font_subsetter.dart';
+import 'package:restage_codegen/src/islands/islands.dart';
+import 'package:restage_codegen/src/islands/island_registration.dart'
+    show islandRegistrationName;
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_publication_planner.dart';
@@ -33,13 +37,21 @@ import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart'
     show onboardingScreenRootWidgetName, paywallRootWidgetName;
+import 'package:restage_codegen/src/surface_publication/delivered_components.dart';
+import 'package:restage_codegen/src/surface_publication/split_widgets.dart';
+import 'package:restage_codegen/src/widget_classifier.dart'
+    show customWidgetKey;
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
+import 'package:restage_codegen/src/surface_publication/build_report_sites.dart';
 import 'package:restage_codegen/src/surface_publication/compiled_flow_emitter.dart';
+import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart'
+    show SplitSite;
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/manifest_assembler.dart';
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
+import 'package:restage_codegen/src/surface_publication/recorded_layouts.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_compiler_core/restage_compiler_core.dart';
@@ -77,7 +89,9 @@ final class CompiledSurfaceArtifact {
     List<int>? navigationPlan,
     Map<String, Object> localSeeds = const {},
     Map<String, Object> standaloneLocalSeeds = const {},
+    Iterable<SplitWidgetInput> splitWidgets = const [],
   }) : _blob = Uint8List.fromList(blob),
+       splitWidgets = List.unmodifiable(splitWidgets),
        localSeeds = Map.unmodifiable(localSeeds),
        standaloneLocalSeeds = Map.unmodifiable(standaloneLocalSeeds),
        _capabilitySidecar = Uint8List.fromList(capabilitySidecar),
@@ -110,6 +124,7 @@ final class CompiledSurfaceArtifact {
         const {},
     Map<String, Object> localSeeds = const {},
     Map<String, Object> standaloneLocalSeeds = const {},
+    Iterable<SplitWidgetInput> splitWidgets = const [],
   }) => CompiledSurfaceArtifact(
     declaration: declaration,
     blob: facts.adapter.blob.bytes,
@@ -126,6 +141,7 @@ final class CompiledSurfaceArtifact {
     rfwCatalogOccurrenceSetsByOutputRole: rfwCatalogOccurrenceSetsByOutputRole,
     localSeeds: localSeeds,
     standaloneLocalSeeds: standaloneLocalSeeds,
+    splitWidgets: splitWidgets,
   );
 
   /// The resolved authored `@Screen` or `@Paywall` class.
@@ -136,6 +152,9 @@ final class CompiledSurfaceArtifact {
 
   /// Initial screen-local values of a paywall's standalone form.
   final Map<String, Object> standaloneLocalSeeds;
+
+  /// The custom widgets this source's library splits.
+  final List<SplitWidgetInput> splitWidgets;
 
   final Uint8List _blob;
   final Uint8List _capabilitySidecar;
@@ -207,6 +226,7 @@ final class PackageSurfaceCompilationInput {
     required Iterable<CompiledSurfaceArtifact> renderedSources,
     required Iterable<ResolvedStandaloneScreenContract> standaloneScreens,
     this.catalog,
+    this.splitWidgets = const [],
     Iterable<LegacyStandaloneScreenContract> legacyStandaloneScreens = const [],
     Iterable<CompiledFlowArtifact> precompiledFlows = const [],
     Map<String, MeasurementPublicationRoutePlanV1>
@@ -247,6 +267,10 @@ final class PackageSurfaceCompilationInput {
 
   /// The same validated catalog used by source translation and blob admission.
   final Catalog? catalog;
+
+  /// The package's own custom widgets split whether or not a surface uses
+  /// them, so a design-system package ships their wrappers.
+  final List<SplitWidgetInput> splitWidgets;
 
   /// The package's app widget factories, installed by generated mounts.
   final AppWidgetMountFactories appWidgets;
@@ -332,6 +356,11 @@ final class PackageSurfaceCompilationBundle {
     required Set<String> aggregateOwnedOutputPaths,
     required Map<String, String> artifactLibraryPaths,
     Iterable<String> surfaceWidgetNames = const [],
+    Iterable<SplitSite> splitSites = const [],
+    Map<String, List<String>> surfaceIslands = const {},
+    Map<String, List<DeliveredComponent>> surfaceComponents = const {},
+    Iterable<SplitWidgetInput> splitWidgets = const [],
+    Iterable<SplitRegistration> splitRegistrations = const [],
     Iterable<MeasurementCompilerPublication> measurementPublications = const [],
     Iterable<MeasurementRfwPresentationArtifactMaterialization>
         measurementPresentationMaterializations =
@@ -347,6 +376,11 @@ final class PackageSurfaceCompilationBundle {
        surfaceWidgetNames = List.unmodifiable(
          surfaceWidgetNames.toSet().toList()..sort(),
        ),
+       splitSites = List.unmodifiable(splitSites),
+       surfaceIslands = Map.unmodifiable(surfaceIslands),
+       surfaceComponents = Map.unmodifiable(surfaceComponents),
+       splitWidgets = List.unmodifiable(splitWidgets),
+       splitRegistrations = List.unmodifiable(splitRegistrations),
        measurementPublications = List.unmodifiable(measurementPublications),
        measurementPresentationMaterializations = List.unmodifiable(
          measurementPresentationMaterializations,
@@ -362,6 +396,23 @@ final class PackageSurfaceCompilationBundle {
   /// ascending. These are the entries the compiler selected, so they name a
   /// widget a translation lowered to a catalog entry the source never wrote.
   final List<String> surfaceWidgetNames;
+
+  /// The islands and actions of every compiled surface, with locations.
+  final List<SplitSite> splitSites;
+
+  /// The islands each publication's host provides, by `<surface>/<slug>`.
+  final Map<String, List<String>> surfaceIslands;
+
+  /// The shared components each publication's design delivers, by
+  /// `<surface>/<slug>`.
+  final Map<String, List<DeliveredComponent>> surfaceComponents;
+
+  /// Every custom widget the package splits, once per class: what each one's
+  /// generated wrapper records and hosts.
+  final List<SplitWidgetInput> splitWidgets;
+
+  /// The registration each split widget's wrapper adds to its library.
+  final List<SplitRegistration> splitRegistrations;
 
   /// Canonical manifest bytes as UTF-8 text.
   final String manifestJson;
@@ -991,6 +1042,29 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   final artifactsByIdentity = <String, List<_ResolvedArtifact>>{};
   final paywallsByIdentity = <String, PaywallArtifactFacts>{};
   final paywallMountNamesByIdentity = <String, String>{};
+  // The islands each publication's host provides, by `<surface>/<slug>`.
+  final surfaceIslands = <String, List<String>>{};
+  final surfaceComponents = <String, List<DeliveredComponent>>{};
+  // The package's own split widgets, then each one a surface splits.
+  final splitWidgets = <String, SplitWidgetInput>{
+    for (final split in input.splitWidgets)
+      customWidgetKey(split.mount.screen): split,
+  };
+  final screenSites = <SplitSite>[];
+  // Each flow step's mount input, emitted with the first flow that shows it.
+  final pendingStepMounts =
+      <
+        String,
+        ({
+          ResolvedWidgetMountInput input,
+          String id,
+          String partPath,
+          RestageSourceDeclaration source,
+          bool ownSurface,
+        })
+      >{};
+  // Each flow step's generated mount, or null when it has none.
+  final stepMountsByIdentity = <String, ({String id, String name})?>{};
   final paywallHostDataByIdentity = <String, SurfaceScreenHostDataSchema>{};
   final partFragments = <String, _PartAccumulator>{};
   // Each class-authored flow's part, and the document it embeds, so the part
@@ -1002,6 +1076,27 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   final pendingFlowParts = <_PendingFlowPart>[];
   final claimedSymbols = <String, String>{};
 
+  // How each split widget's wrapper registers, by its catalog name.
+  Map<String, AppWidgetSplit> splitInstalls() => {
+    for (final split in splitWidgets.values)
+      WidgetVocabulary.qualifiedName(split.namespace, split.factoryName): (
+        library: split.mount.screen.library.identifier,
+        className: split.mount.screen.name!,
+        widget: split.entry.name,
+        registration: splitRegistrationName(split.entry.name),
+        app: splitAppName(split.entry.name),
+        islands: split.mount.islands.isEmpty
+            ? null
+            : islandRegistrationName([
+                for (final island in split.mount.islands) island.name,
+              ]),
+        islandNames: {
+          for (final island in split.mount.islands)
+            WidgetVocabulary.qualifiedName(island.library, island.name),
+        },
+      ),
+  };
+
   // The registrations a mount's vocabulary carries, with their factories
   // added to the part.
   String? appWidgetLibraries(
@@ -1010,15 +1105,29 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     required String sdkPrefix,
     required String partPath,
     required RestageSourceDeclaration source,
+    Set<String> placedSplits = const {},
   }) {
     final install = input.appWidgets.plan(
       vocabulary.widgetNames,
       library,
       sdkPrefix: sdkPrefix,
       takenNames: _topLevelNames(library, source: source),
+      surface: _surfaceNameOf(source),
+      placedSplits: placedSplits,
+      splits: splitInstalls(),
     );
     if (install.problem case final problem?) {
-      warnings.add('${source.declarationIdentity}: $problem');
+      if (install.fatal) {
+        issues.add(
+          Issue(
+            code: IssueCode.generatedNameHidden,
+            message: problem,
+            location: source.span.location,
+          ),
+        );
+      } else {
+        warnings.add(problem);
+      }
     }
     for (final fragment in install.fragments) {
       _addPartFragment(
@@ -1061,6 +1170,12 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         flowLibrary,
         sdkPrefix: flowPrefix,
         takenNames: _topLevelNames(flowLibrary, source: flowSource),
+        surface: _surfaceNameOf(flowSource),
+        splits: splitInstalls(),
+        placedSplits: {
+          for (final step in steps)
+            ...?step.rendered.nativeMountInput?.split?.recordedBuild?.splits,
+        },
       );
       if (direct.libraries case final libraries?) {
         for (final fragment in direct.fragments) {
@@ -1133,6 +1248,9 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         sdkPrefix: sdkPrefix!,
         partPath: partPaths.single,
         source: artifact.source,
+        placedSplits:
+            artifact.rendered.nativeMountInput?.split?.recordedBuild?.splits ??
+            const {},
       );
       // Installing only some steps' widgets would pass the capability gate
       // for a step that cannot render.
@@ -1152,6 +1270,128 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     return '[${spreads.join(', ')}]';
   }
 
+  // The mounts of a flow's steps, named from the flow's library.
+  // The mounts of a flow's steps and their island registrations, which the
+  // flow installs before any step runs.
+  ({String? mounts, List<String> islands}) flowStepMounts(
+    List<String> stepIdentities,
+    LibraryElement flowLibrary,
+    RestageSourceDeclaration flowSource,
+  ) {
+    final namespace = OwningLibraryNamespace(flowLibrary);
+    final flow = generatedSurfaceName(
+      flowSource.declarationIdentity.split('#').last,
+      fallback: 'SurfaceFlow',
+    );
+    final entries = <String>[];
+    final islands = <String>[];
+    for (final identity in stepIdentities.toSet().toList()..sort()) {
+      if (!stepMountsByIdentity.containsKey(identity)) {
+        stepMountsByIdentity[identity] = null;
+        var pending = pendingStepMounts[identity];
+        if (pending == null) {
+          // A step with its own surface gets a step mount from its own
+          // compiled build.
+          final input = artifactsByIdentity[identity]
+              ?.firstOrNull
+              ?.rendered
+              .compiledScreenInput;
+          if (input == null || input.islands.isEmpty && input.hoisted.isEmpty) {
+            continue;
+          }
+          // The step's own build records it, in its own part.
+          final source = sourcesByIdentity[identity];
+          final partPath = source == null
+              ? null
+              : _requiredOutputPathAny(
+                  source,
+                  roles: kGeneratedPartRoles,
+                  issues: issues,
+                );
+          if (source == null || partPath == null) continue;
+          pending = (
+            input: input,
+            id: source.effectiveId,
+            partPath: partPath,
+            source: source,
+            ownSurface: true,
+          );
+          pendingStepMounts[identity] = pending;
+        }
+        final mount = emitStepMount(
+          pending.input,
+          id: pending.id,
+          flow: flow,
+          ownSurface: pending.ownSurface,
+        );
+        if (mount.source case final fragment?) {
+          stepMountsByIdentity[identity] = (
+            id: pending.id,
+            name: stepMountName(pending.id),
+          );
+          _addPartFragment(
+            partFragments,
+            path: pending.partPath,
+            source: pending.source,
+            library: pending.input.screen.library,
+            fragment: fragment,
+          );
+        } else if (mount.omissionReason case final reason?) {
+          warnings.add(mount.omissionMessage!);
+          final step = pending.input.screen.name!;
+          issues.addAll(
+            hoistedWithoutMountIssues(
+              pending.input,
+              reason,
+              mount: flow,
+              fix: mount.omissionFix,
+              value: mount.unstored == null
+                  ? null
+                  : (source) =>
+                        stepUnstoredValue(source, mount.unstored!, step, flow),
+            ),
+          );
+        }
+      }
+      final mount = stepMountsByIdentity[identity];
+      if (mount == null) continue;
+      final screen = artifactsByIdentity[identity]!.first.rendered.declaration;
+      final screenName = namespace.elementName(screen);
+      final dot = screenName?.lastIndexOf('.') ?? -1;
+      final prefix = dot < 0 ? null : screenName!.substring(0, dot);
+      if (screenName == null ||
+          !_seesGeneratedName(
+            flowLibrary,
+            screen.library,
+            prefix: prefix,
+            name: mount.name,
+          )) {
+        _addIssue(
+          issues,
+          code: IssueCode.unknownWidget,
+          message:
+              "`$flow` can't refer to the generated code for step "
+              '`${screen.name}`. Try importing the library that declares '
+              '`${screen.name}` in the library that declares the flow.',
+          location: flowSource.span.location,
+        );
+        continue;
+      }
+      final spelled = prefix == null ? '' : '$prefix.';
+      entries.add('${dartStringLiteral(mount.id)}: $spelled${mount.name},');
+      final stepIslands = pendingStepMounts[identity]!.input.islands;
+      if (stepIslands.isNotEmpty) {
+        islands.add(
+          '$spelled${islandRegistrationName([for (final island in stepIslands) island.name])}',
+        );
+      }
+    }
+    return (
+      mounts: entries.isEmpty ? null : '{${entries.join()}}',
+      islands: islands,
+    );
+  }
+
   // The constant a canonical flow reference installs: everything its steps
   // draw, with the app widgets they use, so no step has to build first.
   String flowStepVocabularyFragment({
@@ -1162,17 +1402,37 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     required String partPath,
     required RestageSourceDeclaration flowSource,
     required String sdkPrefix,
-  }) =>
-      'const ${flowStepVocabularyName(refName)} = ${emitSurfaceVocabulary(
-        vocabulary,
-        sdkPrefix: sdkPrefix,
-        libraries: flowAppWidgetLibraries(
-          stepIdentities: stepIdentities,
-          flowLibrary: flowLibrary,
-          partPath: partPath,
-          flowSource: flowSource,
-        ),
-      )};\n';
+  }) {
+    final steps = flowStepMounts(stepIdentities, flowLibrary, flowSource);
+    // Only the generated flow widget binds the builders its steps need.
+    if (steps.mounts != null && !emitsCompiledFlowMount(flowLibrary)) {
+      _addIssue(
+        issues,
+        code: IssueCode.unsupportedFlowRuntimeFeature,
+        message:
+            "Restage can't generate the widget for flow "
+            "`${flowSource.declarationIdentity.split('#').last}`. Try "
+            'importing `package:restage/restage.dart` without `show` or '
+            '`hide` in ${flowSource.libraryPath}.',
+        location: flowSource.span.location,
+      );
+    }
+    final apps = flowAppWidgetLibraries(
+      stepIdentities: stepIdentities,
+      flowLibrary: flowLibrary,
+      partPath: partPath,
+      flowSource: flowSource,
+    );
+    final libraries = steps.islands.isEmpty
+        ? apps
+        : '[${[if (apps != null) '...$apps', ...steps.islands].join(', ')}]';
+    return 'const ${flowStepVocabularyName(refName)} = ${emitSurfaceVocabulary(
+      vocabulary,
+      sdkPrefix: sdkPrefix,
+      libraries: libraries,
+      stepMounts: steps.mounts,
+    )};\n';
+  }
 
   for (final suppliedRendered in input.renderedSources) {
     final identity = suppliedRendered.declarationIdentity;
@@ -1398,6 +1658,30 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     )) {
       paywallHostDataByIdentity[identity] = screenInput.hostDataContract;
     }
+    for (final split in rendered.splitWidgets) {
+      splitWidgets.putIfAbsent(
+        customWidgetKey(split.mount.screen),
+        () => split,
+      );
+    }
+    if ((rendered.paywallFacts, input.catalog) case (
+      final facts?,
+      final catalog?,
+    )) {
+      final components = deliveredComponents(
+        (facts.standalone ?? facts.adapter).blob.bytes,
+        withSplits(
+          catalog,
+          rendered.compiledScreenInput?.islands ?? const [],
+          rendered.splitWidgets,
+        ),
+        issues,
+      );
+      if (components.isNotEmpty) {
+        surfaceComponents['${Surface.paywall.wireName}/${source.effectiveId}'] =
+            components;
+      }
+    }
     if (rendered.nativeMountInput case final mountInput?) {
       final mount = emitPaywallMount(
         mountInput,
@@ -1410,9 +1694,12 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           sdkPrefix: sdkPrefix,
           partPath: mountInput.generatedPartPath,
           source: source,
+          placedSplits: mountInput.split?.recordedBuild?.splits ?? const {},
         ),
       );
       if (mount.source case final fragment?) {
+        surfaceIslands['${Surface.paywall.wireName}/${source.effectiveId}'] =
+            islandHostFacet(mountInput.islands).keys.toList();
         paywallMountNamesByIdentity[identity] = generatedSurfaceName(
           rendered.declaration.name!,
           fallback: 'SurfaceScreen',
@@ -1442,7 +1729,13 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       } else if (mount.omissionMessage case final message?) {
         warnings.add(message);
         if (mount.omissionReason case final reason?) {
-          issues.addAll(hoistedWithoutMountIssues(mountInput, reason));
+          issues.addAll(
+            hoistedWithoutMountIssues(
+              mountInput,
+              reason,
+              fix: mount.omissionFix,
+            ),
+          );
         }
       }
     }
@@ -1507,6 +1800,15 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           issues: issues,
         ),
       );
+      if (rendered.compiledScreenInput case final stepInput?) {
+        pendingStepMounts[identity] = (
+          input: stepInput,
+          id: source.effectiveId,
+          partPath: partPath,
+          source: source,
+          ownSurface: false,
+        );
+      }
     }
   }
 
@@ -1623,6 +1925,18 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       issues: issues,
     );
     if (publication != null) manifestInputs.add(publication);
+    if (contract.mountName case final mount?) {
+      surfaceIslands['${contract.surface.wireName}/${contract.slug}'] =
+          islandHostFacet(contract.input.islands).keys.toList();
+      screenSites.addAll(
+        mountReportSites(
+          identity,
+          mount,
+          contract.input,
+          artifact.rendered.blob,
+        ),
+      );
+    }
 
     final partPath = _requiredOutputPathAny(
       source,
@@ -2283,6 +2597,35 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       sourceKind: SurfaceSourceKind.screen,
       contractVersion: contract.contractVersion,
     );
+    final digest = carrierDraftDigestsByPublicationKey[selector.key];
+    String? libraries(String sdkPrefix) => appWidgetLibraries(
+      contract.input.vocabulary,
+      library: contract.input.screen.library,
+      sdkPrefix: sdkPrefix,
+      partPath: pending.partPath,
+      source: pending.source,
+      placedSplits: contract.input.split?.recordedBuild?.splits ?? const {},
+    );
+    // The part can only name what the library's SDK import shows.
+    final hidden = contract.hiddenSdkNames(
+      measurementPublicationDraftDigest: digest,
+      appWidgetLibraries: libraries,
+    );
+    if (hidden.isNotEmpty) {
+      final path = contract.input.assetId.path;
+      _addIssue(
+        issues,
+        code: IssueCode.analyzerResolutionFailed,
+        message:
+            '$path imports `package:restage/restage.dart` with a `show` or '
+            '`hide` list that leaves out '
+            '${hidden.map((name) => '`$name`').join(', ')}, which the '
+            'generated code uses. Try importing `package:restage/restage.dart` '
+            'without `show` or `hide`.',
+        location: '$path#${contract.screen.name}',
+      );
+      continue;
+    }
     _addPartFragment(
       partFragments,
       path: pending.partPath,
@@ -2291,14 +2634,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       fragment:
           '${_withoutPartHeader(
             contract.emitReferenceDart(
-              measurementPublicationDraftDigest: carrierDraftDigestsByPublicationKey[selector.key],
-              appWidgetLibraries: (sdkPrefix) => appWidgetLibraries(
-                contract.input.vocabulary,
-                library: contract.input.screen.library,
-                sdkPrefix: sdkPrefix,
-                partPath: pending.partPath,
-                source: pending.source,
-              ),
+              measurementPublicationDraftDigest: digest,
+              appWidgetLibraries: libraries,
             ),
           )}\n\n',
     );
@@ -2390,6 +2727,43 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         sdkPrefix: pending.sdkPrefix,
       ),
     );
+    // The flow hosts its step mounts' islands.
+    final flowIslands = islandHostFacet([
+      for (final identity in _graphStepIdentities(pending.graph))
+        if (stepMountsByIdentity[identity] != null)
+          ...?artifactsByIdentity[identity]
+              ?.first
+              .rendered
+              .compiledScreenInput
+              ?.islands,
+    ]);
+    surfaceIslands['${pending.flow.surface.wireName}/${pending.flow.id}'] =
+        flowIslands.keys.toList();
+    // Each step's build produces its own values, by flow and step, for the
+    // flow and every subflow it reaches.
+    final screenLayouts = <String, SurfaceLayoutsV1>{};
+    final reached = {pending.document.flow};
+    for (final queue = [pending]; queue.isNotEmpty;) {
+      final part = queue.removeLast();
+      for (final identity in _graphStepIdentities(part.graph)) {
+        final step = pendingStepMounts[identity];
+        if (step == null) continue;
+        screenLayouts['${part.document.flow}/${step.id}'] = recordedLayoutsOf(
+          step.input.split?.recordedBuild,
+        );
+      }
+      for (final state
+          in part.document.states.values.whereType<SubFlowState>()) {
+        if (!reached.add(state.flow)) continue;
+        queue.addAll(
+          pendingFlowParts.where(
+            (child) =>
+                child.document.flow == state.flow &&
+                child.flow.surface == pending.flow.surface,
+          ),
+        );
+      }
+    }
     final reference = _emitFlowReference(
       refName: pending.refName,
       resultName: pending.resultName,
@@ -2410,6 +2784,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       measurementPublicationDraftDigest:
           carrierDraftDigestsByPublicationKey[pending
               .measurementPublicationKey],
+      islands: flowIslands,
+      screenLayouts: screenLayouts,
       issues: issues,
     );
     if (reference == null) continue;
@@ -2420,6 +2796,62 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       library: pending.library,
       fragment: reference,
     );
+  }
+  if (issues.isNotEmpty) return _invalidResult(issues);
+
+  // Each split widget's wrapper goes in its own library's part.
+  final splitRegistrations = <SplitRegistration>[];
+  for (final key in splitWidgets.keys.toList()..sort()) {
+    final split = splitWidgets[key]!;
+    final library = split.mount.screen.library;
+    final emitted = emitSplitWidget(split);
+    // Its islands register app-wide with its wrapper, in their own library.
+    screenSites.addAll(
+      mountReportSites(key, split.factoryName, split.mount, null),
+    );
+    // Another package's build generated this wrapper; it's registered only.
+    if (split.foreign) {
+      if (emitted.registration case final name?) {
+        splitRegistrations.add((
+          namespace: split.namespace,
+          library: library.identifier,
+          name: name,
+        ));
+      }
+      continue;
+    }
+    final partPath = _libraryPartPath(input.roster, library.identifier);
+    if (emitted.source == null ||
+        emitted.registration == null ||
+        partPath == null) {
+      issues.add(
+        Issue(
+          code: IssueCode.missingScreenDescriptor,
+          message:
+              emitted.omissionMessage ??
+              "`${split.factoryName}` wasn't generated because "
+                  "${split.mount.assetId.path} has no generated part.",
+          location: split.mount.location,
+        ),
+      );
+      continue;
+    }
+    _addLibraryPartFragment(
+      partFragments,
+      path: partPath,
+      libraryPath: split.mount.assetId.path,
+      library: library,
+      fragment:
+          '${emitted.source}\n'
+          '/// The hash of the delivered definition this wrapper renders.\n'
+          'const ${splitDefinitionHashName(emitted.registration!)} = '
+          "'${splitDefinitionHash(split)}';\n",
+    );
+    splitRegistrations.add((
+      namespace: split.namespace,
+      library: library.identifier,
+      name: emitted.registration!,
+    ));
   }
   if (issues.isNotEmpty) return _invalidResult(issues);
 
@@ -2440,6 +2872,20 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       aggregateOwnedOutputPaths: aggregateOwnedOutputPaths,
       artifactLibraryPaths: artifactLibraryPaths,
       surfaceWidgetNames: _packageSurfaceWidgetNames(input),
+      splitSites: [
+        ..._packageSplitSites(input, {
+          for (final entry in stepMountsByIdentity.entries)
+            if (entry.value case final mount?) entry.key: mount,
+        }),
+        ...screenSites,
+      ],
+      surfaceIslands: surfaceIslands,
+      surfaceComponents: surfaceComponents,
+      splitWidgets: [
+        for (final key in splitWidgets.keys.toList()..sort())
+          splitWidgets[key]!,
+      ],
+      splitRegistrations: splitRegistrations,
       measurementPublications: measurementPublications,
       measurementPresentationMaterializations:
           measurementPresentationMaterializations,
@@ -2474,8 +2920,8 @@ bool _isReferencedByAnotherPaywallFlow(
   List<SurfacePublicationAssemblyInput> assemblies,
   PackageSurfaceCompilationInput input,
 ) {
-  final catalog = input.catalog;
-  if (catalog == null) return (issues: const [], warnings: const []);
+  final baseCatalog = input.catalog;
+  if (baseCatalog == null) return (issues: const [], warnings: const []);
   // Why a screen output has no compiled contract, by output path.
   final missing = <String, String>{};
   final sourceByIdentity = {
@@ -2503,6 +2949,11 @@ bool _isReferencedByAnotherPaywallFlow(
       }
       continue;
     }
+    final catalog = withSplits(
+      baseCatalog,
+      screenInput.islands,
+      artifact.splitWidgets,
+    );
     final inspected = inspectScreenEventContract(screenInput);
     final events = inspected.schema;
     if (events == null) {
@@ -3910,6 +4361,30 @@ $carrierArgument  );
 ''';
 }
 
+/// The parts of each surface with a generated mount, which is the only place
+/// islands render from.
+List<SplitSite> _packageSplitSites(
+  PackageSurfaceCompilationInput input,
+  Map<String, ({String id, String name})> stepMounts,
+) => [
+  for (final artifact in input.renderedSources)
+    if (artifact.nativeMountInput ??
+            (stepMounts.containsKey(artifact.declarationIdentity)
+                ? artifact.compiledScreenInput
+                : null)
+        case final mount?)
+      ...mountReportSites(
+        artifact.declarationIdentity,
+        stepMounts[artifact.declarationIdentity]?.name ??
+            generatedSurfaceName(
+              artifact.declaration.name!,
+              fallback: 'SurfaceScreen',
+            ),
+        mount,
+        artifact.blob,
+      ),
+];
+
 /// Every catalog widget the package's compiled surfaces render.
 ///
 /// Read off the compiled artifacts rather than their Dart sources, so a
@@ -3987,8 +4462,12 @@ String? _emitFlowReference({
   Map<String, FlowDocument> descendants = const {},
   Map<String, ClassElement> nativeScreens = const {},
   String? measurementPublicationDraftDigest,
+  Map<String, String> islands = const {},
+  Map<String, SurfaceLayoutsV1> screenLayouts = const {},
 }) {
   final compiled = emitCompiledFlow(
+    islands: islands,
+    screenLayouts: screenLayouts,
     document: document,
     surface: flow.surface,
     descendants: descendants,
@@ -5258,17 +5737,46 @@ void _addPartFragment(
   required RestageSourceDeclaration source,
   required LibraryElement library,
   required String? fragment,
+}) => _addLibraryPartFragment(
+  fragments,
+  path: path,
+  libraryPath: source.libraryPath,
+  library: library,
+  fragment: fragment,
+);
+
+// The roster's generated part of the library [identifier], if it owns one.
+// A part several of the library's surfaces share is owned by the library.
+String? _libraryPartPath(RestageSourceRoster roster, String identifier) =>
+    roster.outputs
+        .where(
+          (output) =>
+              output.path.endsWith(kNeutralGeneratedPartSuffix) &&
+              (output.declarationIdentity == identifier ||
+                  output.declarationIdentity ==
+                      'canonical-library:$identifier' ||
+                  output.declarationIdentity.startsWith('$identifier#')),
+        )
+        .map((output) => output.path)
+        .firstOrNull;
+
+void _addLibraryPartFragment(
+  Map<String, _PartAccumulator> fragments, {
+  required String path,
+  required String libraryPath,
+  required LibraryElement library,
+  required String? fragment,
 }) {
   if (fragment == null || fragment.trim().isEmpty) return;
   final header = _partOfHeader(
     partPath: path,
-    libraryPath: source.libraryPath,
+    libraryPath: libraryPath,
     library: library,
   );
   final accumulator = fragments[path];
   if (accumulator == null) {
     fragments[path] = _PartAccumulator(
-      libraryPath: source.libraryPath,
+      libraryPath: libraryPath,
       header: header,
       languageVersion: libraryLanguageVersion(library),
       fragments: {fragment},
@@ -5291,9 +5799,10 @@ String? _formatPart(
   required List<Issue> issues,
 }) {
   final fragments = List<String>.of(accumulator.fragments)..sort();
+  final body = fragments.join('\n\n');
   try {
     return formatGeneratedDart(
-      '${accumulator.header}\n\n${fragments.join('\n\n')}\n',
+      '${accumulator.header}\n\n$body\n\n${mountAliasDeclarations(body)}\n',
       languageVersion: accumulator.languageVersion,
     );
   } on Object catch (error) {
@@ -5558,7 +6067,8 @@ String _partOfHeader({
 }
 
 // Generated parts follow the generator's names, not the app's lint rules.
-const String _kGeneratedPartLintOptOut = '// ignore_for_file: type=lint';
+const String _kGeneratedPartLintOptOut =
+    '// ignore_for_file: type=lint, unnecessary_cast';
 
 // Both name derivations live in generated_handle_names.dart so the screen and
 // flow frontends spell one rule. These aliases keep the call sites unchanged.
@@ -5943,3 +6453,9 @@ String legacyAnnotationWarning(
       '${legacy == null ? 'a deprecated annotation' : '@$legacy, which is deprecated,'} '
       'and cannot be delivered over the air. Use $replacement.';
 }
+
+/// The generated surface class of [source], as a message names it.
+String _surfaceNameOf(RestageSourceDeclaration source) => generatedSurfaceName(
+  source.declarationIdentity.split('#').last,
+  fallback: 'SurfaceScreen',
+);

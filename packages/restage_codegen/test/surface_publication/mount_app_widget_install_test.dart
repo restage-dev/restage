@@ -8,6 +8,23 @@ import '../helpers.dart';
 
 const _package = 'apps_examples';
 
+// Each named widget's library declares no generated part, so the build says
+// exactly once that designs can't change what's inside it.
+Matcher _notSplit(List<String> widgets) => equals([
+  for (final widget in widgets)
+    allOf(
+      contains("Designs can't change what's inside `$widget`"),
+      contains(
+        "has no `part 'restage.generated/${_snake(widget)}.restage.g.dart';` "
+        'line',
+      ),
+    ),
+]);
+
+String _snake(String name) => name
+    .replaceAllMapped(RegExp('[A-Z]'), (m) => '_${m[0]!.toLowerCase()}')
+    .substring(1);
+
 const _widgetSource = r'''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
@@ -174,7 +191,7 @@ void main() {
       );
       expect(part, contains(r'Widget _restage$app$widgets$$StreakBadge('));
       expect(part, contains('return StreakBadge('));
-      expect(build.warnings, isEmpty);
+      expect(build.warnings, _notSplit(['StreakBadge']));
       expect(await _errors(sources, build.parts), isEmpty);
     });
 
@@ -270,7 +287,7 @@ final class Offer extends StatelessWidget {
           ),
         ),
       );
-      expect(build.warnings, isEmpty);
+      expect(build.warnings, _notSplit(['StreakBadge']));
       expect(await _errors(sources, build.parts), isEmpty);
     });
 
@@ -333,7 +350,7 @@ const firstRun = FlowDefinition(
           build.parts['$generated/first_run.restage.g.dart'],
           contains('libraries: [...welcomeStepAppWidgets]'),
         );
-        expect(build.warnings, isEmpty);
+        expect(build.warnings, _notSplit(['StreakBadge']));
         expect(await _errors(sources, build.parts), isEmpty);
       },
     );
@@ -366,7 +383,7 @@ const firstRun = FlowDefinition(
             ),
           ),
         );
-        expect(build.warnings, isEmpty);
+        expect(build.warnings, _notSplit(['StreakBadge']));
         expect(await _errors(sources, build.parts), isEmpty);
       },
     );
@@ -387,7 +404,13 @@ const firstRun = FlowDefinition(
       expect(part, isNot(contains('libraries:')));
       expect(
         build.warnings,
-        contains(allOf(contains('StreakChip'), contains('streak_chip.dart'))),
+        contains(
+          endsWith(
+            "`RecapSurface` can't register `StreakChip`. "
+            "lib/messages/recap.dart doesn't import `StreakChip`. Try "
+            'importing the library that declares it.',
+          ),
+        ),
       );
       expect(await _errors(sources, build.parts), isEmpty);
     });
@@ -417,7 +440,7 @@ const firstRun = FlowDefinition(
         );
         expect(flow, contains(r'Widget_restage$app$widgets$$StreakBadge('));
         expect(flow, isNot(contains('welcomeStepAppWidgets')));
-        expect(build.warnings, isEmpty);
+        expect(build.warnings, _notSplit(['StreakBadge']));
         expect(await _errors(sources, build.parts), isEmpty);
       },
     );
@@ -493,6 +516,80 @@ const firstRun = FlowDefinition(
     });
 
     test(
+      'a name its library takes from the factory installs nothing',
+      () async {
+        final sources = {
+          'lib/widgets/streak_badge.dart': _widgetSource,
+          'lib/app_widgets.dart': _barrelSource,
+          'lib/messages/recap.dart':
+              '''
+${_messageSource("import '../app_widgets.dart';", 'StreakBadge')}
+
+void _restage\$app\$widgets\$\$StreakBadge() {}
+''',
+        };
+        final build = await _build(sources);
+        final part = build.parts[_recapPart]!;
+
+        expect(part, isNot(contains('libraries:')));
+        expect(
+          build.warnings,
+          contains(
+            endsWith(
+              "`RecapSurface` can't register `StreakBadge` because "
+              'lib/messages/recap.dart already declares a top-level name that '
+              'starts with `_restage`. Try renaming the declarations in '
+              'lib/messages/recap.dart whose names start with `_restage`.',
+            ),
+          ),
+        );
+      },
+    );
+
+    test('two widgets whose generated names match install nothing', () async {
+      final sources = {
+        'lib/widgets/streak_badge.dart':
+            '''
+$_widgetSource
+/// A streak count under another name.
+@RestageWidget()
+class Streak\$badge extends StatelessWidget {
+  /// Creates the badge.
+  const Streak\$badge({super.key, required this.days});
+
+  /// Consecutive active days.
+  final int days;
+
+  @override
+  Widget build(BuildContext context) => Text('\$days');
+}
+'''
+                .replaceFirst(
+                  '@RestageWidget()',
+                  "@RestageWidget(name: 'Streak.badge')",
+                ),
+        'lib/widgets/streak_chip.dart': _chipSource,
+        'lib/app_widgets.dart': _twoWidgetBarrelSource,
+        'lib/messages/recap.dart': _messageSource(
+          "import '../app_widgets.dart';",
+          'StreakChip',
+        ),
+      };
+      final build = await _build(sources);
+
+      expect(
+        build.warnings,
+        contains(
+          endsWith(
+            "`RecapSurface` can't register `Streak.badge` because its "
+            r'generated name matches the one for `Streak$badge`. Try renaming '
+            '`Streak.badge`.',
+          ),
+        ),
+      );
+    });
+
+    test(
       'a name its library shadows installs nothing, with a warning',
       () async {
         final sources = {
@@ -512,7 +609,13 @@ final class DataSource {}
         expect(part, isNot(contains(r'_restage$app')));
         expect(
           build.warnings,
-          contains(contains('cannot name DataSource')),
+          contains(
+            endsWith(
+              "`RecapSurface` can't register `StreakBadge`. "
+              'lib/messages/recap.dart declares its own `DataSource`, which '
+              'hides the one `StreakBadge` uses. Try renaming it.',
+            ),
+          ),
         );
         expect(await _errors(sources, build.parts), isEmpty);
       },

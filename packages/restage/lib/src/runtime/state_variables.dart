@@ -99,10 +99,26 @@ void populateThemeData(
   required IconThemeData iconTheme,
   required TextStyle defaultTextStyle,
   required TextTheme textTheme,
+}) =>
+    target.update(
+        'theme',
+        themeDataOf(
+          colorScheme: colorScheme,
+          iconTheme: iconTheme,
+          defaultTextStyle: defaultTextStyle,
+          textTheme: textTheme,
+        ));
+
+/// The `data.theme` namespace [populateThemeData] writes, as a map.
+Map<String, Object?> themeDataOf({
+  required ColorScheme colorScheme,
+  required IconThemeData iconTheme,
+  required TextStyle defaultTextStyle,
+  required TextTheme textTheme,
 }) {
   final iconColor = iconTheme.color;
   final iconSize = iconTheme.size;
-  target.update('theme', <String, Object?>{
+  return <String, Object?>{
     // `ThemeData.brightness` is defined as its colour scheme's brightness.
     'brightness': colorScheme.brightness.name,
     'colorScheme': _colorSchemeData(colorScheme),
@@ -112,7 +128,7 @@ void populateThemeData(
     },
     'defaultTextStyle': _textStyleData(defaultTextStyle),
     'textTheme': _textThemeData(textTheme),
-  });
+  };
 }
 
 /// Each published [TextTheme] style as its own sub-map of the fields the

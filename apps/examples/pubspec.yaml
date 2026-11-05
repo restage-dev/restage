@@ -20,6 +20,7 @@ dependencies:
   restage_core:
     path: ../../packages/restage_core
   permission_handler: ^13.0.2
+  intl: ^0.20.2
   # Used directly by the generated `lib/user_catalog.g.dart`.
   rfw_catalog_schema:
     path: ../../packages/rfw_catalog_schema

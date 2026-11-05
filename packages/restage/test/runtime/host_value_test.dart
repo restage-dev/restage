@@ -4,27 +4,35 @@ import 'package:restage/restage.dart';
 import 'package:rfw/rfw.dart';
 
 void main() {
-  test('native text scalers retain exact objects and nullable results', () {
+  test('a recording keeps exact text scalers and native objects', () {
     const scaler = TextScaler.linear(1.8);
-    final values = restageNativeObjects<TextScaler?>({
-      'exact': ('scaler', () => scaler),
-      'nullable': ('optionalScaler', () => null),
-    });
-    expect(values['exact'], same(scaler));
-    expect(values.containsKey('nullable'), isTrue);
-    expect(values['nullable'], isNull);
+    const color = CupertinoDynamicColor.withBrightness(
+        color: Color(0xff000000), darkColor: Color(0xffffffff));
+    final recording = RestageRecording();
+    expect(recording.scaler('exact', scaler), same(scaler));
+    recording.scaler<TextScaler?>('nullable', null);
+    expect(recording.native('c', color, type: 'flutter.Color', nullable: false),
+        same(color));
+    expect(recording.scalers['exact'], same(scaler));
+    expect(recording.scalers.containsKey('nullable'), isTrue);
+    expect(recording.natives['c'], same(color));
     expect(() => restageHostValue(scaler), throwsArgumentError);
   });
 
-  test('native objects keep exact values and leave out throwing ones', () {
-    const color = CupertinoDynamicColor.withBrightness(
-        color: Color(0xff000000), darkColor: Color(0xffffffff));
-    final values = restageNativeObjects<Color>({
-      'exact': ('color', () => color),
-      'throws': ('Palette.of(context).ink', () => throw StateError('none')),
+  test('a recording writes each item a loop walks, as the loop walks it', () {
+    final recording = RestageRecording();
+    final names = [
+      for (final plan
+          in recording.items('plans', const ['a', 'b'], null, ['i']))
+        recording.value('name', plan.toUpperCase(), 'plans'),
+    ];
+    expect(names, ['A', 'B']);
+    expect(recording.values, {
+      'plans': [
+        {'i': 0, 'name': 'A'},
+        {'i': 1, 'name': 'B'},
+      ],
     });
-    expect(values['exact'], same(color));
-    expect(values.containsKey('throws'), isFalse);
   });
 
   test('nested dates retain epoch microseconds and UTC identity', () {
@@ -123,35 +131,6 @@ void main() {
     expect(decoded.foreground!.blendMode, paint.blendMode);
     expect(decoded.foreground!.filterQuality, paint.filterQuality);
     expect(decoded.foreground!.isAntiAlias, isFalse);
-  });
-
-  test('a value whose computation throws is left out and logged', () {
-    final logged = <String?>[];
-    final previous = debugPrint;
-    debugPrint = (message, {wrapWidth}) => logged.add(message);
-    addTearDown(() => debugPrint = previous);
-    String? title;
-    expect(
-      restageHostValues({
-        'offer': ('Store.instance.offer!.title', () => title!),
-        'tone': ('Tones.ink', () => const Color(0xFF000000)),
-      }),
-      {'tone': 0xFF000000},
-    );
-    restageHostValues({
-      'offer': ('Store.instance.offer!.title', () => title!),
-    });
-    expect(logged, [
-      "[restage] 'Store.instance.offer!.title' threw while computing in the "
-          'app: Null check operator used on a null value',
-    ]);
-    title = 'Pro';
-    expect(
-      restageHostValues({
-        'offer': ('Store.instance.offer!.title', () => title!),
-      }),
-      {'offer': 'Pro'},
-    );
   });
 
   test('refuses a value a surface cannot receive', () {

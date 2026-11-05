@@ -5,6 +5,8 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:glob/glob.dart';
+import 'package:restage_codegen/src/surface_publication/split_widgets.dart'
+    show SplitRegistration;
 import 'package:restage_codegen/src/app_size_disclosure.dart';
 import 'package:restage_codegen/src/app_widget_vocabulary.dart';
 import 'package:restage_codegen/src/authored_library_predicate.dart';
@@ -17,6 +19,7 @@ import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/installed_catalog_scope.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:restage_codegen/src/project_backend.dart';
+import 'package:restage_codegen/src/islands/island_registration.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
@@ -73,15 +76,32 @@ final class UserFactoryBuilder implements Builder {
       buildStep,
       includeRoot: false,
     );
-    final dependencyFactories = dependencies.isEmpty
-        ? null
-        : dependencies.registrationSource();
+    final handoff = await readRestageCompilerHandoff(buildStep);
     // The same condition under which `restage_surfaces.g.dart` is written.
     final declaresSurfaces =
-        (await readRestageCompilerHandoff(
-          buildStep,
-        ))?.manifest?.publications.isNotEmpty ??
-        false;
+        handoff?.manifest?.publications.isNotEmpty ?? false;
+    final islands = islandRegistration(
+      buildStep.inputId.package,
+      handoff?.splitSites ?? const [],
+      surfaceIslands: handoff?.surfaceIslands ?? const {},
+    );
+    // A split widget's wrapper joins its own library's registration: this
+    // package's below, a dependency's here.
+    final ownNamespaces = {
+      for (final widget in collection?.widgets ?? const <WidgetEntry>[])
+        widget.library.namespace,
+    };
+    final splits = handoff?.splitRegistrations ?? const <SplitRegistration>[];
+    final dependencyFactories = _combined([
+      if (!dependencies.isEmpty)
+        dependencies.registrationSource(
+          splits: [
+            for (final split in splits)
+              if (!ownNamespaces.contains(split.namespace)) split,
+          ],
+        ),
+      if (islands != null) islands,
+    ]);
 
     // The admitted structured graph is threaded to the inline reconstructor:
     // a widget carrying a renderable structured
@@ -107,6 +127,10 @@ final class UserFactoryBuilder implements Builder {
             compatibleSinceVersions: collection.compatibleSinceVersions,
             appVocabulary: appVocabulary,
             installWholeCatalog: installWholeCatalog,
+            splitRegistrations: [
+              for (final split in splits)
+                if (ownNamespaces.contains(split.namespace)) split,
+            ],
             builtInIndex: collection.builtInIndex,
             dependencyFactories: dependencyFactories,
             declaresSurfaces: declaresSurfaces,
@@ -199,6 +223,17 @@ Future<SurfaceVocabularyReferences> deriveCompiledSurfaceVocabulary(
   );
 }
 
+// [sources] in order as one, or null when there are none.
+AppWidgetRegistrationSource? _combined(
+  List<AppWidgetRegistrationSource> sources,
+) => sources.isEmpty
+    ? null
+    : (
+        imports: [for (final source in sources) ...source.imports],
+        declarations: sources.map((source) => source.declarations).join(),
+        registrations: sources.map((source) => source.registrations).join(),
+      );
+
 /// Whether the consuming package's own pubspec depends on the Restage SDK.
 ///
 /// An unreadable pubspec emits: that is a harness, not a catalog package.
@@ -255,6 +290,7 @@ String emitAdmittedUserFactoriesDart(
   bool installWholeCatalog = false,
   AppWidgetRegistrationSource? dependencyFactories,
   NativeCatalogIndex? builtInIndex,
+  List<SplitRegistration> splitRegistrations = const [],
   bool declaresSurfaces = false,
 }) {
   final source = emitUserFactoriesDart(
@@ -271,6 +307,7 @@ String emitAdmittedUserFactoriesDart(
     installWholeCatalog: installWholeCatalog,
     dependencyFactories: dependencyFactories,
     builtInIndex: builtInIndex,
+    splitRegistrations: splitRegistrations,
     declaresSurfaces: declaresSurfaces,
     onSkip: _throwAdmittedFactoryCoherenceFailure,
   );

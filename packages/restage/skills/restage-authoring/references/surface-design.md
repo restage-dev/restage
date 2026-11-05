@@ -73,11 +73,50 @@ The default built-in catalog gives later updates more widgets to compose.
 also limits future updates. Choose that option only when the app-size tradeoff is
 intentional. New native components and capability changes still need an app build.
 
+## Read the build report
+
+After a build, `restage build report` (MCP: `restage_build_report`) lists, for
+each generated widget, the share of its widgets the design delivers and every
+part the app supplies: values the app computes, actions it runs, wrappers the
+generated widget keeps for every design, and widgets that render from the app,
+each with its source location and reason. `--accept` records the result in
+`restage_build_report.json`; later reports list what changed since then, and
+`--check` exits 1 when a widget starts or stops rendering from the app or
+changes, or when the generated widget keeps a different wrapper, so CI can catch
+it.
+
+For each part that renders from the app, choose one of three answers:
+
+- **Keep it.** This is the default. Keep behavior rather than design: listeners,
+  controllers, scroll physics and purchase logic. Keep a small part whose
+  content is already delivered through its child slots, and any part where a
+  rewrite would change behavior or touch code other screens use.
+- **Rewrite the smallest part** when it covers content you want to change or
+  test over the air, such as cards inside a carousel with its own controller,
+  or when a supported equivalent behaves identically. Rewrite only that part,
+  then build and read the report again.
+- **Move it into a widget class** when the same code renders from the app in
+  several screens, or when it takes several values from the design. `restage
+  widget promote <file>:<line>` (MCP: `restage_widget_promote`) moves it into
+  an `@RestageWidget` class in the same file, with its inputs as constructor
+  parameters, and exports it from the package's widget library. The report
+  suggests it where it pays off. It is never required.
+
+Agents never rewrite code only to make a part render from the design. Rewrite a
+part only when the developer wants that part changeable over the air.
+
+To keep a widget as the app builds it, even when the design could deliver it,
+annotate it with `@RenderInApp()`: on a widget class, on a `library`
+directive (every widget that library declares or exports, so a design-system
+package's barrel covers the package), or on a local variable in `build` that
+holds the widget. The report gives the annotation as the reason. A widget the
+generated widget can't keep that way is refused, with what it can't reach.
+
 ## Verify what is actually updateable
 
-1. Generate from the authored source and read any
+1. Generate from the authored source, run `restage build report`, and read any
    `customWidgetAppFactoryUsed` diagnostics. Identify which parts intentionally
-   remain native.
+   render from the app.
 2. Inspect the generated readable RFW inside the `.rsbundle` under
    `.restage/build/bundles/`. A bundle is a ZIP container: `unzip -l <bundle>`
    lists its entries; `unzip -p <bundle> '*.rfwtxt'` prints the readable output.

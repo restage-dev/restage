@@ -7,6 +7,7 @@
 // catalog, and this file).
 
 import 'package:flutter/cupertino.dart';
+import 'dart:async' show FutureOr;
 import 'package:restage_core/restage_core.dart';
 import 'package:rfw/rfw.dart' hide Switch;
 
@@ -62,6 +63,9 @@ Widget buildCupertinoButton(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
       color: RestageDecoders.color(source, <Object>['color']),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(source,
+          const <Object>['onFocusChange'], 'CupertinoButton.onFocusChange'),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
       onPressed:
           disabled ? null : source.voidHandler(const <Object>['onPressed']),
       child: source.child(const <Object>['child']),
@@ -80,6 +84,11 @@ Widget buildCupertinoButtonFilled(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
       color: RestageDecoders.color(source, <Object>['color']),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(
+          source,
+          const <Object>['onFocusChange'],
+          'CupertinoButtonFilled.onFocusChange'),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
       onPressed:
           disabled ? null : source.voidHandler(const <Object>['onPressed']),
       child: source.child(const <Object>['child']),
@@ -207,6 +216,8 @@ Widget buildCupertinoSwitch(BuildContext context, DataSource source) {
           source, const <Object>['onChanged']),
       activeTrackColor:
           RestageDecoders.color(source, <Object>['activeTrackColor']),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(source,
+          const <Object>['onFocusChange'], 'CupertinoSwitch.onFocusChange'),
     );
   });
 }
@@ -234,8 +245,21 @@ Widget buildCupertinoTextField(BuildContext context, DataSource source) {
           source, const <Object>['maxLength'], context),
       onChanged: RestageDecoders.valueChanged<String>(
           source, const <Object>['onChanged']),
+      onEditingComplete:
+          source.voidHandler(const <Object>['onEditingComplete']),
       onSubmitted: RestageDecoders.valueChanged<String>(
           source, const <Object>['onSubmitted']),
+      onTapOutside:
+          RestageDecoders.nativeCallback<void Function(PointerDownEvent)>(
+              source,
+              const <Object>['onTapOutside'],
+              'CupertinoTextField.onTapOutside'),
+      onTapUpOutside:
+          RestageDecoders.nativeCallback<void Function(PointerDownEvent)>(
+              source,
+              const <Object>['onTapUpOutside'],
+              'CupertinoTextField.onTapUpOutside'),
+      onTap: source.voidHandler(const <Object>['onTap']),
       clipBehavior: RestageDecoders.enumByName<Clip>(
               Clip.values, source, <Object>['clipBehavior']) ??
           Clip.hardEdge,
@@ -257,6 +281,12 @@ Widget buildCupertinoSlider(BuildContext context, DataSource source) {
           (throw ArgumentError('CupertinoSlider.value is required.')),
       onChanged: RestageDecoders.valueChanged<double>(
           source, const <Object>['onChanged']),
+      onChangeStart: RestageDecoders.nativeCallback<void Function(double)>(
+          source,
+          const <Object>['onChangeStart'],
+          'CupertinoSlider.onChangeStart'),
+      onChangeEnd: RestageDecoders.nativeCallback<void Function(double)>(
+          source, const <Object>['onChangeEnd'], 'CupertinoSlider.onChangeEnd'),
       min: RestageValueBinding.read<double>(
               source, const <Object>['min'], context) ??
           0.0,
@@ -282,7 +312,8 @@ Widget buildCupertinoDatePicker(BuildContext context, DataSource source) {
           CupertinoDatePickerMode.dateAndTime,
       onDateTimeChanged: RestageDecoders.valueChanged<DateTime>(
               source, const <Object>['onDateTimeChanged']) ??
-          (DateTime _) {},
+          (throw ArgumentError(
+              'CupertinoDatePicker.onDateTimeChanged is required.')),
       minimumYear: RestageValueBinding.read<int>(
               source, const <Object>['minimumYear'], context) ??
           1,
@@ -307,6 +338,11 @@ Widget buildCupertinoDatePicker(BuildContext context, DataSource source) {
       itemExtent: RestageDecoders.positiveLayoutScalar(
               source, <Object>['itemExtent']) ??
           32.0,
+      selectableDayPredicate:
+          RestageDecoders.nativeCallback<bool Function(DateTime)>(
+              source,
+              const <Object>['selectableDayPredicate'],
+              'CupertinoDatePicker.selectableDayPredicate'),
       changeReportingBehavior:
           RestageDecoders.enumByName<ChangeReportingBehavior>(
                   ChangeReportingBehavior.values,
@@ -334,7 +370,7 @@ Widget buildCupertinoTimerPicker(BuildContext context, DataSource source) {
               source, const <Object>['secondInterval'], context) ??
           1,
       alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-          AlignmentDirectional.center,
+          Alignment.center,
       backgroundColor:
           RestageDecoders.color(source, <Object>['backgroundColor']),
       itemExtent: RestageDecoders.positiveLayoutScalar(
@@ -342,7 +378,8 @@ Widget buildCupertinoTimerPicker(BuildContext context, DataSource source) {
           32.0,
       onTimerDurationChanged: RestageDecoders.valueChanged<Duration>(
               source, const <Object>['onTimerDurationChanged']) ??
-          (Duration _) {},
+          (throw ArgumentError(
+              'CupertinoTimerPicker.onTimerDurationChanged is required.')),
       changeReportingBehavior:
           RestageDecoders.enumByName<ChangeReportingBehavior>(
                   ChangeReportingBehavior.values,
@@ -414,6 +451,8 @@ Widget buildCupertinoSearchTextField(BuildContext context, DataSource source) {
           RestageDecoders.color(source, <Object>['backgroundColor']),
       itemSize:
           RestageDecoders.layoutFactor(source, <Object>['itemSize']) ?? 20.0,
+      onSuffixTap: source.voidHandler(const <Object>['onSuffixTap']),
+      onTap: source.voidHandler(const <Object>['onTap']),
     );
   });
 }

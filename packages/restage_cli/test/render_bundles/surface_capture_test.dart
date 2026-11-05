@@ -446,8 +446,9 @@ Widget wrapPreview(Widget child) => child;
     expect(result.failure, surfaceCapturePlanMissing);
     expect(
       'Pushing without surface images: $surfaceCapturePlanMissing.',
-      'Pushing without surface images: the build output is out of date. Run '
-          '`dart run build_runner build` and push again.',
+      'Pushing without surface images: restage.capture.json is missing or '
+          "doesn't match the last build. Try running "
+          '`dart run build_runner build`, then pushing again.',
     );
     expect(started, isEmpty);
   });

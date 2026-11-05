@@ -1,6 +1,6 @@
 part of '../lumen_trial_ending_flow.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _lumenTrialOfferRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -48,6 +48,7 @@ const lumenTrialOfferRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'LumenTrialOfferSurface',
   measurementPublicationDraftDigest:
       '412f51b23383bf60cfb11305d11d1ee2d0934de21afecc2e6aade06f11643417',
   vocabulary: _lumenTrialOfferRefVocabulary,
@@ -80,8 +81,8 @@ final _lumenTrialOfferPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

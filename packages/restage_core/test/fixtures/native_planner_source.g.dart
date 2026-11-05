@@ -1,6 +1,6 @@
 part of 'native_planner_source.dart';
 
-const nativePlannerClosureBinding = "_h4024f41c38";
+const nativePlannerClosureBinding = "_h45a0e22657";
 r.NativeCallAdapter nativePlannerClosureAdapter() => r.NativeCallAdapter(
         s.NativeBindingContract.fromJson(<String, Object?>{
           "type": "installed.call",
@@ -24,7 +24,7 @@ r.NativeCallAdapter nativePlannerClosureAdapter() => r.NativeCallAdapter(
               "nativeType": "callback"
             },
             "implementation":
-                "4024f41c38b8c384160a33f84d8c6003c5c6090f2af3963160224f328ff549ef"
+                "45a0e22657448ed9cbc5ccb352144fe21f721a328a435b556c8144540172a81f"
           }
         }), (_restageInputs, _restageCells) {
       T _restageAs<T>(Object? value) => value as T;
@@ -47,10 +47,10 @@ s.ValueProgram nativePlannerClosureProgram(
         Map<String, s.ValueOperation> operations,
         {s.ValueOperationContext? context}) =>
     s.ValueProgram.decode(
-        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.seen\"},\"name\":\"seen\"},{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"dart.List<Object>\"},\"name\":\"items\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback\"},\"inputs\":[0,1],\"value\":{\"binding\":\"_h4024f41c38\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"native\",\"nativeType\":\"callback.seen\"},{\"kind\":\"native\",\"nativeType\":\"dart.List<Object>\"}],\"captures\":{\"_restageCapture0\":{\"kind\":\"int\"}},\"result\":{\"kind\":\"native\",\"nativeType\":\"callback\"},\"implementation\":\"4024f41c38b8c384160a33f84d8c6003c5c6090f2af3963160224f328ff549ef\"}},\"captures\":{\"_restageCapture0\":\"counter\"}}}],\"root\":2,\"captures\":{},\"parameters\":{\"seen\":{\"kind\":\"native\",\"nativeType\":\"callback.seen\"},\"items\":{\"kind\":\"native\",\"nativeType\":\"dart.List<Object>\"}},\"outerLocals\":{\"counter\":{\"kind\":\"int\"}}}",
+        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.seen\"},\"name\":\"seen\"},{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"dart.List<Object>\"},\"name\":\"items\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback\"},\"inputs\":[0,1],\"value\":{\"binding\":\"_h45a0e22657\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"native\",\"nativeType\":\"callback.seen\"},{\"kind\":\"native\",\"nativeType\":\"dart.List<Object>\"}],\"captures\":{\"_restageCapture0\":{\"kind\":\"int\"}},\"result\":{\"kind\":\"native\",\"nativeType\":\"callback\"},\"implementation\":\"45a0e22657448ed9cbc5ccb352144fe21f721a328a435b556c8144540172a81f\"}},\"captures\":{\"_restageCapture0\":\"counter\"}}}],\"root\":2,\"captures\":{},\"parameters\":{\"seen\":{\"kind\":\"native\",\"nativeType\":\"callback.seen\"},\"items\":{\"kind\":\"native\",\"nativeType\":\"dart.List<Object>\"}},\"outerLocals\":{\"counter\":{\"kind\":\"int\"}}}",
         operations: operations,
         context: context);
-const nativePlannerKeyBinding = "_h5805774cb8";
+const nativePlannerKeyBinding = "_ha40d8fb8ce";
 r.NativeCallAdapter nativePlannerKeyAdapter() => r.NativeCallAdapter(
         s.NativeBindingContract.fromJson(<String, Object?>{
           "type": "installed.call",
@@ -69,7 +69,7 @@ r.NativeCallAdapter nativePlannerKeyAdapter() => r.NativeCallAdapter(
               "nativeType": "flutter.Key"
             },
             "implementation":
-                "5805774cb8f85d1e9b6d6a1798251cba5e4f6e24265103acb2d753faaad3169a"
+                "a40d8fb8ce1107bbd01589a0c60cbfd8ba8af36c41158da2b780fad5b1246b83"
           }
         }), (_restageInputs, _restageCells) {
       T _restageAs<T>(Object? value) => value as T;
@@ -86,10 +86,10 @@ r.NativeCallAdapter nativePlannerKeyAdapter() => r.NativeCallAdapter(
 s.ValueProgram nativePlannerKeyProgram(Map<String, s.ValueOperation> operations,
         {s.ValueOperationContext? context}) =>
     s.ValueProgram.decode(
-        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"dart.List<Object>\"},\"name\":\"items\"},{\"op\":\"parameter\",\"type\":{\"kind\":\"int\"},\"name\":\"index\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"},\"inputs\":[0,1],\"value\":{\"binding\":\"_h5805774cb8\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"native\",\"nativeType\":\"dart.List<Object>\"},{\"kind\":\"int\"}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"},\"implementation\":\"5805774cb8f85d1e9b6d6a1798251cba5e4f6e24265103acb2d753faaad3169a\"}},\"captures\":{}}}],\"root\":2,\"captures\":{},\"parameters\":{\"items\":{\"kind\":\"native\",\"nativeType\":\"dart.List<Object>\"},\"index\":{\"kind\":\"int\"}}}",
+        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"dart.List<Object>\"},\"name\":\"items\"},{\"op\":\"parameter\",\"type\":{\"kind\":\"int\"},\"name\":\"index\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"},\"inputs\":[0,1],\"value\":{\"binding\":\"_ha40d8fb8ce\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"native\",\"nativeType\":\"dart.List<Object>\"},{\"kind\":\"int\"}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"},\"implementation\":\"a40d8fb8ce1107bbd01589a0c60cbfd8ba8af36c41158da2b780fad5b1246b83\"}},\"captures\":{}}}],\"root\":2,\"captures\":{},\"parameters\":{\"items\":{\"kind\":\"native\",\"nativeType\":\"dart.List<Object>\"},\"index\":{\"kind\":\"int\"}}}",
         operations: operations,
         context: context);
-const nativePlannerColorBinding = "_hc2cc8cad87";
+const nativePlannerColorBinding = "_h07101b052f";
 r.NativeCallAdapter nativePlannerColorAdapter() => r.NativeCallAdapter(
         s.NativeBindingContract.fromJson(<String, Object?>{
           "type": "installed.call",
@@ -107,7 +107,7 @@ r.NativeCallAdapter nativePlannerColorAdapter() => r.NativeCallAdapter(
               "nativeType": "flutter.Color"
             },
             "implementation":
-                "c2cc8cad87cbc2a8f9cf5cb2ebfde27cf8e8e3e6aea26d4de0295b337a1bdf6f"
+                "07101b052fcb4d400bb481ddc2d2b00340c3b527c1c8bf94bad5ee7c425a1277"
           }
         }), (_restageInputs, _restageCells) {
       T _restageAs<T>(Object? value) => value as T;
@@ -124,10 +124,10 @@ s.ValueProgram nativePlannerColorProgram(
         Map<String, s.ValueOperation> operations,
         {s.ValueOperationContext? context}) =>
     s.ValueProgram.decode(
-        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"dart.Map<int,Color>\"},\"name\":\"swatch\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"inputs\":[0],\"value\":{\"binding\":\"_hc2cc8cad87\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"native\",\"nativeType\":\"dart.Map<int,Color>\"}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"implementation\":\"c2cc8cad87cbc2a8f9cf5cb2ebfde27cf8e8e3e6aea26d4de0295b337a1bdf6f\"}},\"captures\":{}}}],\"root\":1,\"captures\":{},\"parameters\":{\"swatch\":{\"kind\":\"native\",\"nativeType\":\"dart.Map<int,Color>\"}}}",
+        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"dart.Map<int,Color>\"},\"name\":\"swatch\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"inputs\":[0],\"value\":{\"binding\":\"_h07101b052f\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"native\",\"nativeType\":\"dart.Map<int,Color>\"}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"implementation\":\"07101b052fcb4d400bb481ddc2d2b00340c3b527c1c8bf94bad5ee7c425a1277\"}},\"captures\":{}}}],\"root\":1,\"captures\":{},\"parameters\":{\"swatch\":{\"kind\":\"native\",\"nativeType\":\"dart.Map<int,Color>\"}}}",
         operations: operations,
         context: context);
-const nativePlannerReassignBinding = "_h32db8e656c";
+const nativePlannerReassignBinding = "_h807922dffd";
 r.NativeCallAdapter nativePlannerReassignAdapter() => r.NativeCallAdapter(
         s.NativeBindingContract.fromJson(<String, Object?>{
           "type": "installed.call",
@@ -147,7 +147,7 @@ r.NativeCallAdapter nativePlannerReassignAdapter() => r.NativeCallAdapter(
               "nativeType": "callback.reassign"
             },
             "implementation":
-                "32db8e656c0ec8df1fec027fe92a2970ad1755959e4969e149e633a5f403eeaf"
+                "807922dffd6779502a70250a59ffcb65456d331a51fb6bc5e0b636d579d3ba90"
           }
         }), (_restageInputs, _restageCells) {
       T _restageAs<T>(Object? value) => value as T;
@@ -169,10 +169,10 @@ s.ValueProgram nativePlannerReassignProgram(
         Map<String, s.ValueOperation> operations,
         {s.ValueOperationContext? context}) =>
     s.ValueProgram.decode(
-        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"dart.Object\"},\"name\":\"replacement\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.reassign\"},\"inputs\":[0],\"value\":{\"binding\":\"_h32db8e656c\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"native\",\"nativeType\":\"dart.Object\"}],\"captures\":{\"_restageCapture0\":{\"kind\":\"native\",\"nativeType\":\"dart.Object\"}},\"result\":{\"kind\":\"native\",\"nativeType\":\"callback.reassign\"},\"implementation\":\"32db8e656c0ec8df1fec027fe92a2970ad1755959e4969e149e633a5f403eeaf\"}},\"captures\":{\"_restageCapture0\":\"object\"}}}],\"root\":1,\"captures\":{},\"parameters\":{\"replacement\":{\"kind\":\"native\",\"nativeType\":\"dart.Object\"}},\"outerLocals\":{\"object\":{\"kind\":\"native\",\"nativeType\":\"dart.Object\"}}}",
+        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"dart.Object\"},\"name\":\"replacement\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.reassign\"},\"inputs\":[0],\"value\":{\"binding\":\"_h807922dffd\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"native\",\"nativeType\":\"dart.Object\"}],\"captures\":{\"_restageCapture0\":{\"kind\":\"native\",\"nativeType\":\"dart.Object\"}},\"result\":{\"kind\":\"native\",\"nativeType\":\"callback.reassign\"},\"implementation\":\"807922dffd6779502a70250a59ffcb65456d331a51fb6bc5e0b636d579d3ba90\"}},\"captures\":{\"_restageCapture0\":\"object\"}}}],\"root\":1,\"captures\":{},\"parameters\":{\"replacement\":{\"kind\":\"native\",\"nativeType\":\"dart.Object\"}},\"outerLocals\":{\"object\":{\"kind\":\"native\",\"nativeType\":\"dart.Object\"}}}",
         operations: operations,
         context: context);
-const nativePlannerNullableBinding = "_h0e57b63812";
+const nativePlannerNullableBinding = "_h6fdf4a753b";
 r.NativeCallAdapter nativePlannerNullableAdapter() => r.NativeCallAdapter(
         s.NativeBindingContract.fromJson(<String, Object?>{
           "type": "installed.call",
@@ -192,7 +192,7 @@ r.NativeCallAdapter nativePlannerNullableAdapter() => r.NativeCallAdapter(
               "nullable": true
             },
             "implementation":
-                "0e57b63812c230d528d088b0b4f9022bc19c2b86ead4980e549bee0476bb94d8"
+                "6fdf4a753b09cc148d004a90dc4923a4379491162f4f90b95eb5634fb1c50bf9"
           }
         }), (_restageInputs, _restageCells) {
       T _restageAs<T>(Object? value) => value as T;
@@ -213,10 +213,10 @@ s.ValueProgram nativePlannerNullableProgram(
         Map<String, s.ValueOperation> operations,
         {s.ValueOperationContext? context}) =>
     s.ValueProgram.decode(
-        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"dart.Object\",\"nullable\":true},\"name\":\"model\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\",\"nullable\":true},\"inputs\":[0],\"value\":{\"binding\":\"_h0e57b63812\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"native\",\"nativeType\":\"dart.Object\",\"nullable\":true}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\",\"nullable\":true},\"implementation\":\"0e57b63812c230d528d088b0b4f9022bc19c2b86ead4980e549bee0476bb94d8\"}},\"captures\":{}}}],\"root\":1,\"captures\":{},\"parameters\":{\"model\":{\"kind\":\"native\",\"nativeType\":\"dart.Object\",\"nullable\":true}}}",
+        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"dart.Object\",\"nullable\":true},\"name\":\"model\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\",\"nullable\":true},\"inputs\":[0],\"value\":{\"binding\":\"_h6fdf4a753b\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"native\",\"nativeType\":\"dart.Object\",\"nullable\":true}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\",\"nullable\":true},\"implementation\":\"6fdf4a753b09cc148d004a90dc4923a4379491162f4f90b95eb5634fb1c50bf9\"}},\"captures\":{}}}],\"root\":1,\"captures\":{},\"parameters\":{\"model\":{\"kind\":\"native\",\"nativeType\":\"dart.Object\",\"nullable\":true}}}",
         operations: operations,
         context: context);
-const nativePlannerStaticBinding = "_h27c6590844";
+const nativePlannerStaticBinding = "_hce4e3b04ec";
 r.NativeCallAdapter nativePlannerStaticAdapter() => r.NativeCallAdapter(
         s.NativeBindingContract.fromJson(<String, Object?>{
           "type": "installed.call",
@@ -229,7 +229,7 @@ r.NativeCallAdapter nativePlannerStaticAdapter() => r.NativeCallAdapter(
               "nativeType": "callback.static"
             },
             "implementation":
-                "27c65908442015174857b78cb09e34c169bc73c720d7dc4a60e06ffd3b80edec"
+                "ce4e3b04ec953e57fec8d6752e7f76d2d1201d588d85e4bfcd1a3a7f22217399"
           }
         }), (_restageInputs, _restageCells) {
       final int Function() _restageResult = () {
@@ -249,10 +249,10 @@ s.ValueProgram nativePlannerStaticProgram(
         Map<String, s.ValueOperation> operations,
         {s.ValueOperationContext? context}) =>
     s.ValueProgram.decode(
-        "{\"version\":1,\"nodes\":[{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.static\"},\"value\":{\"binding\":\"_h27c6590844\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"callback.static\"},\"implementation\":\"27c65908442015174857b78cb09e34c169bc73c720d7dc4a60e06ffd3b80edec\"}},\"captures\":{}}}],\"root\":0,\"captures\":{},\"parameters\":{}}",
+        "{\"version\":1,\"nodes\":[{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.static\"},\"value\":{\"binding\":\"_hce4e3b04ec\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"callback.static\"},\"implementation\":\"ce4e3b04ec953e57fec8d6752e7f76d2d1201d588d85e4bfcd1a3a7f22217399\"}},\"captures\":{}}}],\"root\":0,\"captures\":{},\"parameters\":{}}",
         operations: operations,
         context: context);
-const nativePlannerInterpolationBinding = "_h6c80981d39";
+const nativePlannerInterpolationBinding = "_h9ba9b04f82";
 r.NativeCallAdapter nativePlannerInterpolationAdapter() => r.NativeCallAdapter(
         s.NativeBindingContract.fromJson(<String, Object?>{
           "type": "installed.call",
@@ -267,7 +267,7 @@ r.NativeCallAdapter nativePlannerInterpolationAdapter() => r.NativeCallAdapter(
               "nativeType": "callback.interpolation"
             },
             "implementation":
-                "6c80981d39d05cfe7f1f6c4ef814b606f04ebabfe160f8b97b55bc86c0f06c36"
+                "9ba9b04f828b4df7f4647b97f249448b50e40c7aeaa03656c7667d1fe8cc74d9"
           }
         }), (_restageInputs, _restageCells) {
       final _restageCapture0 = _restageCells["_restageCapture0"]!.cast<int>();
@@ -282,10 +282,10 @@ s.ValueProgram nativePlannerInterpolationProgram(
         Map<String, s.ValueOperation> operations,
         {s.ValueOperationContext? context}) =>
     s.ValueProgram.decode(
-        "{\"version\":1,\"nodes\":[{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.interpolation\"},\"value\":{\"binding\":\"_h6c80981d39\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[],\"captures\":{\"_restageCapture0\":{\"kind\":\"int\"}},\"result\":{\"kind\":\"native\",\"nativeType\":\"callback.interpolation\"},\"implementation\":\"6c80981d39d05cfe7f1f6c4ef814b606f04ebabfe160f8b97b55bc86c0f06c36\"}},\"captures\":{\"_restageCapture0\":\"counter\"}}}],\"root\":0,\"captures\":{},\"parameters\":{},\"outerLocals\":{\"counter\":{\"kind\":\"int\"}}}",
+        "{\"version\":1,\"nodes\":[{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.interpolation\"},\"value\":{\"binding\":\"_h9ba9b04f82\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[],\"captures\":{\"_restageCapture0\":{\"kind\":\"int\"}},\"result\":{\"kind\":\"native\",\"nativeType\":\"callback.interpolation\"},\"implementation\":\"9ba9b04f828b4df7f4647b97f249448b50e40c7aeaa03656c7667d1fe8cc74d9\"}},\"captures\":{\"_restageCapture0\":\"counter\"}}}],\"root\":0,\"captures\":{},\"parameters\":{},\"outerLocals\":{\"counter\":{\"kind\":\"int\"}}}",
         operations: operations,
         context: context);
-const nativePlannerSelectColorBinding = "_h160ecdb70c";
+const nativePlannerSelectColorBinding = "_ha16476779d";
 r.NativeCallAdapter nativePlannerSelectColorAdapter() => r.NativeCallAdapter(
         s.NativeBindingContract.fromJson(<String, Object?>{
           "type": "installed.call",
@@ -301,7 +301,7 @@ r.NativeCallAdapter nativePlannerSelectColorAdapter() => r.NativeCallAdapter(
               "nativeType": "flutter.Color"
             },
             "implementation":
-                "160ecdb70c764854ac5ec3c440128162534a419ea210a9365f7d7ea1165163f2"
+                "a16476779d7029adbc240c63dbf99fce8196af69de613beaa8055b2f6ba3bee0"
           }
         }), (_restageInputs, _restageCells) {
       T _restageAs<T>(Object? value) => value as T;
@@ -319,10 +319,10 @@ s.ValueProgram nativePlannerSelectColorProgram(
         Map<String, s.ValueOperation> operations,
         {s.ValueOperationContext? context}) =>
     s.ValueProgram.decode(
-        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"bool\"},\"name\":\"flag\"},{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"name\":\"color\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"inputs\":[0,1],\"value\":{\"binding\":\"_h160ecdb70c\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"bool\"},{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"implementation\":\"160ecdb70c764854ac5ec3c440128162534a419ea210a9365f7d7ea1165163f2\"}},\"captures\":{}}}],\"root\":2,\"captures\":{},\"parameters\":{\"flag\":{\"kind\":\"bool\"},\"color\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"}}}",
+        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"bool\"},\"name\":\"flag\"},{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"name\":\"color\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"inputs\":[0,1],\"value\":{\"binding\":\"_ha16476779d\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"bool\"},{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"implementation\":\"a16476779d7029adbc240c63dbf99fce8196af69de613beaa8055b2f6ba3bee0\"}},\"captures\":{}}}],\"root\":2,\"captures\":{},\"parameters\":{\"flag\":{\"kind\":\"bool\"},\"color\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"}}}",
         operations: operations,
         context: context);
-const nativePlannerCoalesceColorBinding = "_he2dbbe815c";
+const nativePlannerCoalesceColorBinding = "_hfb0a89e676";
 r.NativeCallAdapter nativePlannerCoalesceColorAdapter() => r.NativeCallAdapter(
         s.NativeBindingContract.fromJson(<String, Object?>{
           "type": "installed.call",
@@ -341,7 +341,7 @@ r.NativeCallAdapter nativePlannerCoalesceColorAdapter() => r.NativeCallAdapter(
               "nativeType": "flutter.Color"
             },
             "implementation":
-                "e2dbbe815c5200c7fe685dd8e5fbbe7ec39f3e2e1195a0a2b384e107d4404e70"
+                "fb0a89e676d2e3069882f2aef57f09ddaea2d538bdbf9bdbe9abd6beff527b3e"
           }
         }), (_restageInputs, _restageCells) {
       T _restageAs<T>(Object? value) => value as T;
@@ -359,10 +359,10 @@ s.ValueProgram nativePlannerCoalesceColorProgram(
         Map<String, s.ValueOperation> operations,
         {s.ValueOperationContext? context}) =>
     s.ValueProgram.decode(
-        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\",\"nullable\":true},\"name\":\"optional\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"inputs\":[0],\"value\":{\"binding\":\"_he2dbbe815c\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"native\",\"nativeType\":\"flutter.Color\",\"nullable\":true}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"implementation\":\"e2dbbe815c5200c7fe685dd8e5fbbe7ec39f3e2e1195a0a2b384e107d4404e70\"}},\"captures\":{}}}],\"root\":1,\"captures\":{},\"parameters\":{\"optional\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\",\"nullable\":true}}}",
+        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\",\"nullable\":true},\"name\":\"optional\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"inputs\":[0],\"value\":{\"binding\":\"_hfb0a89e676\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"native\",\"nativeType\":\"flutter.Color\",\"nullable\":true}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\"},\"implementation\":\"fb0a89e676d2e3069882f2aef57f09ddaea2d538bdbf9bdbe9abd6beff527b3e\"}},\"captures\":{}}}],\"root\":1,\"captures\":{},\"parameters\":{\"optional\":{\"kind\":\"native\",\"nativeType\":\"flutter.Color\",\"nullable\":true}}}",
         operations: operations,
         context: context);
-const nativePlannerSelectKeyBinding = "_hc847829082";
+const nativePlannerSelectKeyBinding = "_h6acbe2342c";
 r.NativeCallAdapter nativePlannerSelectKeyAdapter() => r.NativeCallAdapter(
         s.NativeBindingContract.fromJson(<String, Object?>{
           "type": "installed.call",
@@ -378,7 +378,7 @@ r.NativeCallAdapter nativePlannerSelectKeyAdapter() => r.NativeCallAdapter(
               "nativeType": "flutter.Key"
             },
             "implementation":
-                "c8478290820dab791bd0eea2c1ca2708df7bef25f4d332b1b481d596d33c2bd6"
+                "6acbe2342c42ed88ed1ddea8166bb70880e6fe7b61819a07813d4b23cac48810"
           }
         }), (_restageInputs, _restageCells) {
       T _restageAs<T>(Object? value) => value as T;
@@ -397,10 +397,10 @@ s.ValueProgram nativePlannerSelectKeyProgram(
         Map<String, s.ValueOperation> operations,
         {s.ValueOperationContext? context}) =>
     s.ValueProgram.decode(
-        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"bool\"},\"name\":\"flag\"},{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"},\"name\":\"key\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"},\"inputs\":[0,1],\"value\":{\"binding\":\"_hc847829082\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"bool\"},{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"},\"implementation\":\"c8478290820dab791bd0eea2c1ca2708df7bef25f4d332b1b481d596d33c2bd6\"}},\"captures\":{}}}],\"root\":2,\"captures\":{},\"parameters\":{\"flag\":{\"kind\":\"bool\"},\"key\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"}}}",
+        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"bool\"},\"name\":\"flag\"},{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"},\"name\":\"key\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"},\"inputs\":[0,1],\"value\":{\"binding\":\"_h6acbe2342c\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"bool\"},{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"},\"implementation\":\"6acbe2342c42ed88ed1ddea8166bb70880e6fe7b61819a07813d4b23cac48810\"}},\"captures\":{}}}],\"root\":2,\"captures\":{},\"parameters\":{\"flag\":{\"kind\":\"bool\"},\"key\":{\"kind\":\"native\",\"nativeType\":\"flutter.Key\"}}}",
         operations: operations,
         context: context);
-const nativePlannerSelectCallbackBinding = "_h10a3790ee5";
+const nativePlannerSelectCallbackBinding = "_h6fa713c6f3";
 r.NativeCallAdapter nativePlannerSelectCallbackAdapter() => r.NativeCallAdapter(
         s.NativeBindingContract.fromJson(<String, Object?>{
           "type": "installed.call",
@@ -423,7 +423,7 @@ r.NativeCallAdapter nativePlannerSelectCallbackAdapter() => r.NativeCallAdapter(
               "nativeType": "callback.selected"
             },
             "implementation":
-                "10a3790ee5d4011f51baff58a0daa9e6d601a4bbea9e17ae54c827f865ebd7a9"
+                "6fa713c6f3351cb81a11e3d573a91b706de80c1481ad57d63c407b35be68f4d0"
           }
         }), (_restageInputs, _restageCells) {
       T _restageAs<T>(Object? value) => value as T;
@@ -443,7 +443,7 @@ s.ValueProgram nativePlannerSelectCallbackProgram(
         Map<String, s.ValueOperation> operations,
         {s.ValueOperationContext? context}) =>
     s.ValueProgram.decode(
-        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"bool\"},\"name\":\"flag\"},{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.selected\"},\"name\":\"first\"},{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.selected\"},\"name\":\"second\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.selected\"},\"inputs\":[0,1,2],\"value\":{\"binding\":\"_h10a3790ee5\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"bool\"},{\"kind\":\"native\",\"nativeType\":\"callback.selected\"},{\"kind\":\"native\",\"nativeType\":\"callback.selected\"}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"callback.selected\"},\"implementation\":\"10a3790ee5d4011f51baff58a0daa9e6d601a4bbea9e17ae54c827f865ebd7a9\"}},\"captures\":{}}}],\"root\":3,\"captures\":{},\"parameters\":{\"flag\":{\"kind\":\"bool\"},\"first\":{\"kind\":\"native\",\"nativeType\":\"callback.selected\"},\"second\":{\"kind\":\"native\",\"nativeType\":\"callback.selected\"}}}",
+        "{\"version\":1,\"nodes\":[{\"op\":\"parameter\",\"type\":{\"kind\":\"bool\"},\"name\":\"flag\"},{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.selected\"},\"name\":\"first\"},{\"op\":\"parameter\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.selected\"},\"name\":\"second\"},{\"op\":\"native.call\",\"type\":{\"kind\":\"native\",\"nativeType\":\"callback.selected\"},\"inputs\":[0,1,2],\"value\":{\"binding\":\"_h6fa713c6f3\",\"contract\":{\"type\":\"installed.call\",\"nullable\":false,\"call\":{\"inputs\":[{\"kind\":\"bool\"},{\"kind\":\"native\",\"nativeType\":\"callback.selected\"},{\"kind\":\"native\",\"nativeType\":\"callback.selected\"}],\"captures\":{},\"result\":{\"kind\":\"native\",\"nativeType\":\"callback.selected\"},\"implementation\":\"6fa713c6f3351cb81a11e3d573a91b706de80c1481ad57d63c407b35be68f4d0\"}},\"captures\":{}}}],\"root\":3,\"captures\":{},\"parameters\":{\"flag\":{\"kind\":\"bool\"},\"first\":{\"kind\":\"native\",\"nativeType\":\"callback.selected\"},\"second\":{\"kind\":\"native\",\"nativeType\":\"callback.selected\"}}}",
         operations: operations,
         context: context);
 f.MaterialColor nativePlannerConstant() =>

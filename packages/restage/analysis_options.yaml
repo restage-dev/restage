@@ -17,6 +17,7 @@ analyzer:
     invalid_dependency: ignore
   exclude:
     - build/**
+    - test_fixes/**
     - android/**
     - ios/**
     - web/**

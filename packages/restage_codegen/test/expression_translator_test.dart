@@ -862,14 +862,26 @@ Object x() => Curves.$member;
       expect(r.dsl, contains('pageSnapping: false'));
     });
 
-    test('a key argument is ignored, not a defer trigger', () async {
-      final r = await alias(
-        "PageView(key: const ValueKey('p'), children: const [SizedBox()])",
-      );
-      expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
-      expect(r.dsl, 'RestagePager(children: [SizedBox()])');
-      expect(r.dsl, isNot(contains('key')));
-    });
+    test(
+      'a key argument without a generated widget is refused, not dropped',
+      () async {
+        final r = await alias(
+          "PageView(key: const ValueKey('p'), children: const [SizedBox()])",
+        );
+        expect(
+          r.issues.map((i) => i.message),
+          contains(
+            allOf(
+              contains("`const ValueKey('p')`"),
+              contains(
+                "Restage keeps a widget's key only through the screen's generated widget, and this build doesn't use one. Try showing the screen through ",
+              ),
+            ),
+          ),
+        );
+        expect(r.dsl, isNot(contains('RestagePager')));
+      },
+    );
 
     test(
       'PageController(initialPage:, viewportFraction:) flattens onto props',
@@ -1976,7 +1988,7 @@ SegmentedButton<String>(
         expect(
           r.issues.map((i) => i.message).join('\n'),
           allOf(
-            contains('FunctionExpression'),
+            contains("Restage can't translate `(Set<String> s) =>"),
             contains('Navigator.push'),
           ),
         );
@@ -3394,7 +3406,10 @@ Object x(List<double> values, bool enabled) => LinearGradient(
           expect(r.dsl, isEmpty);
           expect(r.issues, hasLength(1));
           expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
-          expect(r.issues.single.message, contains('known only at run time'));
+          expect(
+            r.issues.single.message,
+            contains('only known when the app runs'),
+          );
           expect(
             r.issues.single.location,
             startsWith('lib/dynamic_stops.dart:3:'),
@@ -3594,7 +3609,10 @@ const gradientTheme = GradientTheme(
         expect(result.issues.single.code, IssueCode.unrecognizedMethodCall);
         expect(
           result.issues.single.message,
-          startsWith('Unsupported expression:'),
+          "Restage can't translate `(selectConstant ? const "
+          'StopSet(<double>[0.25, 1]) : StopSe…` (lib/_expr_probe.dart:11:10). '
+          "Try computing the value in the screen's build method and passing it "
+          'in.',
         );
       },
     );
@@ -4201,7 +4219,7 @@ Object x() => Column(
       );
     });
 
-    test('drops a resolved Flutter widget key', () async {
+    test('refuses a resolved Flutter widget key it cannot carry', () async {
       final expression = await parseExpressionFromSourceForTest(
         '''
         import 'package:flutter/material.dart';
@@ -4214,9 +4232,14 @@ Object x() => Column(
       );
       final r = t.translate(expression);
 
-      expect(r.issues.where((issue) => !issue.code.isInformational), isEmpty);
-      expect(r.dsl, contains('Text(text: "hi"'));
-      expect(r.dsl, isNot(contains('key:')));
+      // A key is carried or refused, never dropped.
+      expect(
+        [
+          for (final issue in r.issues)
+            if (!issue.code.isInformational) issue.message,
+        ],
+        [contains("Restage keeps a widget's key only through")],
+      );
     });
 
     test('diagnoses a key argument with an unresolved formal', () async {
@@ -6147,7 +6170,7 @@ Object x() => Column(
         expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
         expect(
           result.issues.single.message,
-          contains('known only at run time'),
+          contains('only known when the app runs'),
         );
       }
     });
@@ -6858,7 +6881,11 @@ Object x(BuildContext context) => $body;
         r.issues.map((i) => i.code),
         [IssueCode.unrecognizedMethodCall],
       );
-      expect(r.issues.single.message, contains('FunctionExpression'));
+      expect(r.issues.single.message, startsWith("Restage can't translate `"));
+      expect(
+        r.issues.single.capabilityGapSubject,
+        'expression:FunctionExpression',
+      );
     }
 
     void expectClosureNotice(TranslationResult r, String helper) {
@@ -7665,24 +7692,32 @@ GestureDetector(
       );
     });
 
-    test('Text.rich drops a resolved Flutter widget key', () async {
-      final expr = await parseExpressionFromSourceForTest(
-        '''
+    test(
+      'Text.rich refuses a resolved Flutter widget key it cannot carry',
+      () async {
+        final expr = await parseExpressionFromSourceForTest(
+          '''
         import 'package:flutter/material.dart';
         Object x() => Text.rich(
           const TextSpan(text: 'Ready'),
           key: const ValueKey<String>('rich-text'),
         );
         ''',
-        rootPackage: 'apps_examples',
-      );
+          rootPackage: 'apps_examples',
+        );
 
-      final r = textRichTranslator.translate(expr);
+        final r = textRichTranslator.translate(expr);
 
-      expect(r.issues.where((issue) => !issue.code.isInformational), isEmpty);
-      expect(r.dsl, 'TextRich(textSpan: { text: "Ready" })');
-      expect(r.dsl, isNot(contains('key:')));
-    });
+        // A key is carried or refused, never dropped.
+        expect(
+          [
+            for (final issue in r.issues)
+              if (!issue.code.isInformational) issue.message,
+          ],
+          [contains("Restage keeps a widget's key only through")],
+        );
+      },
+    );
 
     test('validates host data used by TextSpan text', () async {
       final probe = await parseMethodExpressionFromSourceForTest(
@@ -8113,16 +8148,11 @@ Object x() => Text.rich(
       },
     );
 
-    test('issue location falls back to offset when lineInfo is null', () async {
+    test('without lineInfo the location reads its own unit', () async {
       final expr = await parseExpressionForTest('someVar.toUpper()');
       final r = translator.translate(expr, sourcePath: 'lib/paywalls/foo.dart');
       expect(r.issues, isNotEmpty);
-      // Without lineInfo the fallback is `path (offset N)`.
-      expect(
-        r.issues.first.location,
-        contains('lib/paywalls/foo.dart'),
-      );
-      expect(r.issues.first.location, isNot(contains(':')));
+      expect(r.issues.first.location, 'lib/paywalls/foo.dart:1:15');
     });
   });
 

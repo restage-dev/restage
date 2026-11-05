@@ -4,7 +4,11 @@ import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/surface_routing_api.dart';
+import 'package:restage_cli/src/delivery/fit_report.dart'
+    show outsideLayoutSentence;
 import 'package:restage_cli/src/api/typed_error_models.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show SurfaceFitFailureCodeV1;
 
 /// The exit code and stderr message for a backend refusal.
 class TypedErrorOutcome {
@@ -276,8 +280,122 @@ String fitConfirmationSentence(SurfaceFitNeedsConfirmation needs) => [
   if (!needs.noneFit && needs.share != null)
     '${fitSharePercent(needs.share!)} of users are on versions that can.',
   for (final build in needs.builds)
-    if (!build.fits) '  ${fitBuildRow(build)}',
+    if (!build.fits) ...[
+      '  ${fitBuildRow(build)}',
+      for (final reason in build.reasons) '    ${fitReasonSentence(reason)}',
+    ],
 ].join('\n');
+
+/// Why one build can't show the version; [build] names that build, as in
+/// "an installed build" where a report can't say which one.
+String fitReasonSentence(FitReason reason, {String build = 'this build'}) {
+  final theBuild = '${build[0].toUpperCase()}${build.substring(1)}';
+  final label = reason.label;
+  final named = label == null ? '' : ' `$label`';
+  return switch (SurfaceFitFailureCodeV1.values.asNameMap()[reason.code]) {
+    SurfaceFitFailureCodeV1.unproducedHostField ||
+    SurfaceFitFailureCodeV1.unproducedIsland => outsideLayoutSentence(
+      island: reason.code == 'unproducedIsland',
+      label: label,
+      build: reason.build,
+      condition: reason.condition,
+      location: reason.location,
+    ),
+    SurfaceFitFailureCodeV1.hostingMismatch => switch (label) {
+      'flow' || 'single' =>
+        'This version is ${label == 'flow' ? 'a flow' : 'one screen'}, '
+            "and this placement doesn't show "
+            "${label == 'flow' ? 'flows' : 'single screens'}. Try publishing "
+            'it to a placement that does.',
+      final String mode =>
+        'This version can be shown only ${switch (mode) {
+              'inline' => 'inside a screen of the app',
+              'presented' => 'on a route of its own',
+              _ => mode,
+            }}, and this placement doesn\'t show it that way. Try publishing it '
+            'to a placement that does.',
+      null =>
+        "This placement shows content in a way this version doesn't allow. "
+            'Try publishing it to a placement that shows it the same way.',
+    },
+    SurfaceFitFailureCodeV1.missingHostField
+        when _appValueToken.hasMatch(reason.token ?? '') =>
+      "This version reads$named, which $build doesn't compute. Try "
+          'removing${named.isEmpty ? ' it' : named} from the version, or '
+          'releasing an app build that computes it.',
+    SurfaceFitFailureCodeV1.missingHostField =>
+      "$theBuild doesn't pass$named to this placement. Try removing"
+          "${named.isEmpty ? ' it' : named} from the version, or passing it "
+          "in the placement's `context` in a new app build.",
+    SurfaceFitFailureCodeV1.incompatibleHostField =>
+      '$theBuild passes$named to this placement as a different type. Try '
+          'reading it as the type $build passes.',
+    SurfaceFitFailureCodeV1.unhandledEvent =>
+      "This version sends the event$named, which $build doesn't handle "
+          'here. Try removing it from the version, or handling it where a new '
+          'app build shows this placement.',
+    SurfaceFitFailureCodeV1.incompatibleEventShape =>
+      "This version sends the event$named with values $build's handler "
+          "doesn't take. Try sending the values the handler takes.",
+    SurfaceFitFailureCodeV1.missingInstalledVocabulary =>
+      "$theBuild doesn't report which widgets it includes. Try releasing an "
+          'app build made with a current Restage SDK.',
+    SurfaceFitFailureCodeV1.missingWidget =>
+      "$theBuild doesn't include the widget$named. Try removing it from the "
+          'version, or releasing an app build that includes it.',
+    SurfaceFitFailureCodeV1.missingIcon =>
+      "$theBuild doesn't include an icon the version uses. Try using an "
+          'icon the app includes.',
+    SurfaceFitFailureCodeV1.builtInFloor =>
+      "$theBuild's built-in widgets are older than the version needs. Try "
+          'releasing an app build made with a newer Restage SDK.',
+    SurfaceFitFailureCodeV1.missingLibrary =>
+      "$theBuild doesn't include the widget library$named. Try removing its "
+          'widgets from the version, or releasing an app build that includes '
+          'it.',
+    SurfaceFitFailureCodeV1.oldLibrary =>
+      '$theBuild has an older version of the widget library$named. Try '
+          'releasing an app build with the newer library.',
+    SurfaceFitFailureCodeV1.brokenLibrary =>
+      'The widget library$named changed in $build in a way the version '
+          "can't use. Try republishing the version with $build's library.",
+    SurfaceFitFailureCodeV1.deliveryModeMismatch =>
+      '$theBuild hosts a different kind of flow here. Try publishing a flow '
+          'of the kind this placement hosts.',
+    SurfaceFitFailureCodeV1.actionMismatch =>
+      "$theBuild doesn't provide the action$named here, or provides it with "
+          'different values. Try using the action as $build declares it.',
+    SurfaceFitFailureCodeV1.seedMismatch =>
+      "$theBuild can start the flow with$named, which the version doesn't "
+          'accept. Try accepting${named.isEmpty ? ' it' : named} in the flow.',
+    SurfaceFitFailureCodeV1.signalMismatch =>
+      'The version fires the signal$named, which $build has no handler '
+          'for. Try removing it from the version, or handling it in a new app '
+          'build.',
+    SurfaceFitFailureCodeV1.resultMismatch =>
+      '$theBuild expects a different result from the flow. Try returning '
+          'the result the app expects.',
+    SurfaceFitFailureCodeV1.outboundMismatch =>
+      "$theBuild doesn't accept$named from the version. Try sending only "
+          'the values the app accepts.',
+    SurfaceFitFailureCodeV1.missingIsland =>
+      "$theBuild doesn't include the app code of$named. Try removing it "
+          'from the version, or releasing an app build that includes it.',
+    SurfaceFitFailureCodeV1.changedIsland =>
+      '$theBuild changed the app code of$named. Try republishing the '
+          'version to show it on $build.',
+    SurfaceFitFailureCodeV1.missingRequirement =>
+      "The version didn't record what it needs. Try republishing it.",
+    SurfaceFitFailureCodeV1.malformedRequirement =>
+      "What the version needs couldn't be read. Try republishing it.",
+    null =>
+      "$theBuild can't show the version for a reason this `restage` CLI "
+          "doesn't know. Try updating the `restage` CLI.",
+  };
+}
+
+// A value the app's generated widget computes, named at the end of a token.
+final _appValueToken = RegExp(r'^missingHostField:(.*\.)?_h[0-9a-f]{10}$');
 
 /// One build as a row: "ios 2.3.0", or "Uploaded build" for an uploaded one.
 String fitBuildRow(FitBuild build) {

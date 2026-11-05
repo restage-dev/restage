@@ -536,7 +536,31 @@ void main() {
         local.measurementBytes,
         orderedEquals(literal.measurementBytes),
       );
-      expect(local.publicationBundle, literal.publicationBundle);
+      // The mount copies each build as written, so only the generated Dart
+      // differs.
+      Map<String, Object?> delivered(String bundle) {
+        final json = jsonDecode(bundle) as Map<String, Object?>;
+        final owned = json['ownedOutputs']! as List<Object?>;
+        expect(
+          owned.where(
+            (output) => (output! as Map)['path'].toString().endsWith('.g.dart'),
+          ),
+          hasLength(1),
+        );
+        return {
+          ...json,
+          'ownedOutputs': [
+            for (final output in owned)
+              if (!(output! as Map)['path'].toString().endsWith('.g.dart'))
+                output,
+          ],
+        };
+      }
+
+      expect(
+        delivered(local.publicationBundle),
+        delivered(literal.publicationBundle),
+      );
       expect(
         _authoredRoutes(local.output.publications.single.routePlan.routes),
         hasLength(1),

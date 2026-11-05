@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/user_factories.g.dart';
-import 'package:restage_example/widgets/streak_badge.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
 import 'restage_render_expectations.dart';
@@ -109,7 +108,9 @@ void main() {
       final failures = await _mountCustomBadgePaywall(tester);
       expectations.check(() {
         expect(failures, isEmpty);
-        expect(find.byType(StreakBadge), findsNWidgets(2));
+        // The delivered design renders both badges' bodies.
+        expect(find.text('Streak: 9'), findsOneWidget);
+        expect(find.text('Saved: 3'), findsOneWidget);
       });
     },
   );
@@ -123,7 +124,7 @@ void main() {
       Object? caught;
       try {
         expectations.check(() {
-          expect(find.byType(StreakBadge), findsNWidgets(99));
+          expect(find.text('Streak: 9'), findsNWidgets(99));
         });
       } catch (error) {
         caught = error;

@@ -1,6 +1,6 @@
 part of '../native_flow.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _nativeClassFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -39,6 +39,7 @@ const nativeClassFlowRef = SurfaceFlowRef<
     screens: {'native_preferences': NativePreferences.new},
     children: {},
   ),
+  surfaceWidget: 'NativeClassFlowSurface',
   measurementPublicationDraftDigest:
       'd440e9839fb0719d1de60c51b4e7013f18b4dfbe098e712b38da31514a293d1f',
   vocabulary: _nativeClassFlowRefVocabulary,
@@ -177,6 +178,7 @@ const nativeNamedFlowRef = SurfaceFlowRef<
     screens: {},
     children: {},
   ),
+  surfaceWidget: 'NativeNamedFlowSurface',
   measurementPublicationDraftDigest:
       '04779677bd1bcd600127ed8ffc4ec4aee4ed8faa2aad71b5aff0c0ff6450938b',
   vocabulary: _nativeNamedFlowRefVocabulary,
@@ -329,6 +331,7 @@ const nativeOfferFlowRef = SurfaceFlowRef<
     screens: {'paywall_native_offer': NativeOffer.new},
     children: {},
   ),
+  surfaceWidget: 'NativeOfferFlowSurface',
   measurementPublicationDraftDigest:
       '5c082f28f1d0ca21058c7fd3adc6aa5359d2b474d1a3fed4ea19cf1c1f2e8448',
   vocabulary: _nativeOfferFlowRefVocabulary,
@@ -483,6 +486,7 @@ const nativeWelcomeFlowRef = SurfaceFlowRef<
       ),
     },
   ),
+  surfaceWidget: 'NativeWelcomeFlowSurface',
   measurementPublicationDraftDigest:
       '0f849cb843db9a42ef74435276c9459c3f4bd2eaa2a13b72e2aa292db055124c',
   vocabulary: _nativeWelcomeFlowRefVocabulary,
@@ -725,6 +729,7 @@ final _nativeNoticePlacementDefinitionValue =
     'flowBoundary': null,
   },
   vocabulary: nativeNoticeRef.provenance.vocabulary,
+  surfaceWidget: 'NativeNoticeSurface',
 );
 
 final nativeNoticePlacementDefinition =
@@ -745,8 +750,8 @@ final class NativeNoticeSurface extends StatelessWidget {
     this.onUnavailable,
     this.loadingBuilder,
     this.unavailable,
-  ])  : _restageArgument0 = title,
-        _restageArgument1 = count,
+  ])  : _restageStored0 = title,
+        _restageStored1 = count,
         _restagePlacementName = null,
         super(key: key);
 
@@ -763,14 +768,16 @@ final class NativeNoticeSurface extends StatelessWidget {
     this.onUnavailable,
     this.loadingBuilder,
     this.unavailable,
-  ])  : _restageArgument0 = title,
-        _restageArgument1 = count,
+  ])  : _restageStored0 = title,
+        _restageStored1 = count,
         _restagePlacementName = restagePlacementId,
         super(key: key);
 
-  final String _restageArgument0;
+  final String _restageStored0;
+  String get _restageArgument0 => _restageStored0;
 
-  final int _restageArgument1;
+  final int _restageStored1;
+  int get _restageArgument1 => _restageStored1;
   final String? _restagePlacementName;
 
   final ValueChanged<Never>? onEvent;
@@ -785,26 +792,33 @@ final class NativeNoticeSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<Never>(
-      screen: nativeNoticeRef,
-      placementBinding: RestageScreen.generatedPlacementBinding(
-        definition: nativeNoticePlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      context: <String, Object?>{
-        'title': _restageArgument0,
-        'count': _restageArgument1,
-      },
-      unavailable: unavailable ??
-          SurfaceScreenUnavailablePolicy.fallback(
-            builder: (context, error) =>
-                NativeNotice(_restageArgument0, _restageArgument1),
-          ),
-      onEvent: onEvent,
-      resolver: resolver,
-      onUnavailable: onUnavailable,
-      loadingBuilder: loadingBuilder,
-    );
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      return RestageScreen<Never>(
+        screen: nativeNoticeRef,
+        placementBinding: RestageScreen.generatedPlacementBinding(
+          definition: nativeNoticePlacementDefinition,
+          name: _restagePlacementName,
+        ),
+        context: <String, Object?>{
+          ..._restageRecording.values,
+          'title': _restageArgument0,
+          'count': _restageArgument1,
+        },
+        unavailable: unavailable ??
+            SurfaceScreenUnavailablePolicy.fallback(
+              builder: (_, error) => _restageBuilt,
+            ),
+        onEvent: onEvent,
+        resolver: resolver,
+        onUnavailable: onUnavailable,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return (() =>
+        _restageDesign(NativeNotice(_restageArgument0, _restageArgument1)))();
   }
 }
 
@@ -838,6 +852,7 @@ final _nativeOfferPlacementDefinitionValue =
       material: {'TextButton': buildTextButton},
     ),
   ),
+  surfaceWidget: 'NativeOfferSurface',
 );
 
 final nativeOfferPlacementDefinition =
@@ -880,23 +895,29 @@ final class NativeOfferSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const SurfaceVocabulary(
-      widgets: RestageWidgetLibraries.fromVocabulary(
-        core: {'Text': buildText},
-        material: {'TextButton': buildTextButton},
-      ),
-    ).addToInstalled();
-    return RestagePaywall(
-      id: 'native_offer',
-      placementBinding: RestagePaywall.generatedPlacementBinding(
-        definition: nativeOfferPlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      fallbackBuilder: (context) => NativeOffer(),
-      onEvent: onEvent,
-      resolver: resolver,
-      errorBuilder: errorBuilder,
-      loadingBuilder: loadingBuilder,
-    );
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      const SurfaceVocabulary(
+        widgets: RestageWidgetLibraries.fromVocabulary(
+          core: {'Text': buildText},
+          material: {'TextButton': buildTextButton},
+        ),
+      ).addToInstalled();
+      return RestagePaywall(
+        id: 'native_offer',
+        placementBinding: RestagePaywall.generatedPlacementBinding(
+          definition: nativeOfferPlacementDefinition,
+          name: _restagePlacementName,
+        ),
+        fallbackBuilder: (_) => _restageBuilt,
+        onEvent: onEvent,
+        resolver: resolver,
+        errorBuilder: errorBuilder,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return (() => _restageDesign(NativeOffer()))();
   }
 }

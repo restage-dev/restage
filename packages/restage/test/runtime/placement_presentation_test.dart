@@ -44,6 +44,33 @@ void main() {
     expect(placementHostIsCurrent(declarations['nested']!.host), isFalse);
   });
 
+  testWidgets('a declared host keeps its islands and layouts', (tester) async {
+    Restage.debugReset();
+    addTearDown(Restage.debugReset);
+    final declarations = <String, PlacementDeclaration>{};
+    final host = SurfaceHostContractV1(
+      hosting: const SurfaceHostingV1(
+          contentKind: SurfaceContentKindV1.single,
+          presentation: SurfacePresentationV1.inline),
+      providedContext: const SurfaceScreenHostDataSchema.empty(),
+      handledEvents: SurfaceScreenEventSchema(events: const []),
+      islands: const {'app.islands:Badge': 'token'},
+      layouts: SurfaceLayoutsV1(domains: {
+        '_hB': {0, 1}
+      }, islands: {
+        'app.islands:Badge': {
+          '_hB': {1}
+        }
+      }),
+    );
+    await tester.pumpWidget(MaterialApp(
+        home: _ProbeMount(id: 'kept', declarations: declarations, host: host)));
+    final kept = declarations['kept']!.host;
+    expect(kept.islands, host.islands);
+    expect(kept.layouts.toJson(), host.layouts.toJson());
+    expect(kept.contentHash, host.contentHash);
+  });
+
   testWidgets(
       'a returned widget wrapper grants one root lease without nested ownership',
       (tester) async {
@@ -184,12 +211,16 @@ final class _DiscoveryProbeMountState extends State<_DiscoveryProbeMount> {
 
 final class _ProbeMount extends StatelessWidget
     implements RestagePlacementMount {
-  _ProbeMount({required this.id, required this.declarations, this.child})
+  _ProbeMount(
+      {required this.id,
+      required this.declarations,
+      this.child,
+      SurfaceHostContractV1? host})
       : placementBinding = PlacementMountBinding.request(
             mount: PlacementMountRequestV1(
                 key: PlacementKeyV1.named(slug: id),
-                hostContractHash: _host.contentHash),
-            hostContract: _host);
+                hostContractHash: (host ?? _host).contentHash),
+            hostContract: host ?? _host);
   static SurfaceHostContractV1 get _host => readPlacementDeliveryFixture()
       .request
       .buildContract

@@ -18,7 +18,7 @@ final _catalog = decodeCatalog(
   ).readAsStringSync(),
 );
 
-Future<TranslationResult> _translate(String body) async {
+Future<TranslationResult> _translate(String body, {bool mount = false}) async {
   final expression = await parseExpressionFromSourceForTest('''
 import 'package:flutter/widgets.dart';
 Widget x() => $body;
@@ -26,11 +26,11 @@ Widget x() => $body;
   return ExpressionTranslator(
     catalog: _catalog,
     helpers: HelperRegistry(),
-  ).translate(expression);
+  ).translate(expression, hoistInMount: mount);
 }
 
 Future<String> _lower(String body) async {
-  final result = await _translate(body);
+  final result = await _translate(body, mount: true);
   expect(
     result.issues,
     isEmpty,
@@ -40,15 +40,18 @@ Future<String> _lower(String body) async {
 }
 
 void main() {
-  test('ordinary child lists retain legacy scalar key exclusion', () async {
-    final baseline = await _lower("Column(children:[Text('item')])");
+  test('ordinary child lists carry scalar keys through the mount', () async {
     for (final key in [
       'const ValueKey<int>(1)',
       "const ValueKey<String>('item')",
     ]) {
-      final actual = await _lower("Column(children:[Text('item',key:$key)])");
-      expect(actual, baseline);
+      final body = "Column(children:[Text('item',key:$key)])";
+      final actual = await _lower(body);
+      expect(actual, contains('Text(text: "item", key: data.context.'));
       expect(actual, isNot(contains('__RestageBuilderContinuation')));
+      // Without a mount the key is refused, never dropped.
+      final bare = await _translate(body);
+      expect(bare.issues.single.code, IssueCode.propertyValueTypeMismatch);
     }
   });
 
@@ -58,14 +61,16 @@ void main() {
       final nested = await _lower(
         "Column(children:[Padding(padding:EdgeInsets.zero,child:Text('item',key:const ValueKey<String>('nested')))])",
       );
+      expect(nested, contains('key: data.context.'));
       expect(nested, isNot(contains('__RestageBuilderContinuation')));
-      final baseline = await _lower(
-        "Column(children:[for(final label in ['a','b']) Text(label),Text('sibling')])",
-      );
       final keyed = await _lower(
         "Column(children:[for(final label in ['a','b']) Text(label,key:ValueKey<String>(label)),Text('sibling')])",
       );
-      expect(keyed, baseline);
+      expect(
+        RegExp(r'Text\(text: "(a|b)", key: data\.context\.').allMatches(keyed),
+        hasLength(2),
+      );
+      expect(keyed, contains('Text(text: "sibling")'));
       expect(keyed, isNot(contains('__RestageBuilderContinuation')));
     },
   );

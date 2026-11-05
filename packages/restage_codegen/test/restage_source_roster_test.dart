@@ -594,6 +594,36 @@ void main() {
       },
     );
 
+    test('ignores a generated story under restage.generated/', () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await _runBuilder(
+        {
+          'lib/widgets/card.dart': '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+@RestageWidget()
+class Card extends StatelessWidget {
+  const Card({super.key});
+  @override
+  Widget build(BuildContext context) => const Text('card');
+}
+''',
+          'lib/widgets/restage.generated/card.stories.dart': '''
+// Mentions @RestageWidget, as a generated story does.
+import 'package:apps_examples/widgets/card.dart' show Card;
+
+const story = Card.new;
+''',
+        },
+        readerWriter,
+      );
+
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    });
+
     test(
       'writes an invalid fixed bundle before failing ownership admission',
       () async {

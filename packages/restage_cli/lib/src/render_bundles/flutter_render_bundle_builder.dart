@@ -241,6 +241,7 @@ final class FlutterRenderBundleBuilder implements RenderBundleArtifactBuilder {
         fontBytes: fontBytes,
         licenseBytes: licenseBytes,
         previewWrapper: previewWrapper,
+        islands: _hasIslands(catalogJson),
       );
       projectPath = p.relative(project.path, from: projectRoot.path);
       if (!isRenderBundleProjectResolved(project, flutterRoot: flutterRoot)) {
@@ -729,3 +730,12 @@ String? _outputTail(ProcessResult result, {int lines = 20}) {
   final all = text.split('\n');
   return all.sublist(all.length > lines ? all.length - lines : 0).join('\n');
 }
+
+// Whether the catalog the bundle builds against has a compiler-minted island
+// library.
+bool _hasIslands(String catalogJson) => switch (jsonDecode(catalogJson)) {
+  {'libraries': final Map<String, Object?> libraries} => libraries.values.any(
+    (library) => library is Map && library['islands'] == true,
+  ),
+  _ => false,
+};

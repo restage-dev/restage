@@ -32,6 +32,8 @@ CompiledFlowEmission emitCompiledFlow({
   required String refName,
   required String mountName,
   required String resultType,
+  Map<String, String> islands = const {},
+  Map<String, SurfaceLayoutsV1> screenLayouts = const {},
 }) {
   final namespace = OwningLibraryNamespace(library);
   final sdk = _sdkPrefix(namespace);
@@ -116,6 +118,8 @@ ${sdk}CompiledFlow(
         root: document,
         descendants: compiledDocuments.where((child) => child != document),
       ),
+      islands: islands,
+      screenLayouts: screenLayouts,
     ),
     vocabulary: '$refName.vocabulary',
     sdkHost: '${sdk}RestageFlowGraph',
@@ -145,7 +149,9 @@ ${sdk}CompiledFlow(
        super(flow: $refName$bindings);
 ''';
   return (
-    argument: '  compiled: $compiled,\n',
+    argument:
+        '  compiled: $compiled,\n'
+        '  surfaceWidget: ${dartStringLiteral(mountName)},\n',
     mount:
         '''
 $definition

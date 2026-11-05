@@ -166,8 +166,8 @@ void main() {
       runtime.update(const LibraryName(['test']),
           rfw.parseLibraryFile(fixture['source'] as String));
       Map<String, Object> context(bool reverse) => {
-            slots['first'] as String: _keyContract.reference('first'),
-            slots['second'] as String: _keyContract.reference('second'),
+            slots['this.first'] as String: _keyContract.reference('first'),
+            slots['this.second'] as String: _keyContract.reference('second'),
             'reverse': reverse,
           };
       final data = DynamicContent({'context': context(false)});

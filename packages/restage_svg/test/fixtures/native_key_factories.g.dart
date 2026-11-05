@@ -52,7 +52,7 @@ Widget buildAnimatedAlign(BuildContext context, DataSource source) {
       ),
       alignment:
           RestageDecoders.alignment(source, <Object>['alignment']) ??
-          AlignmentDirectional.center,
+          (throw ArgumentError('AnimatedAlign.alignment is required.')),
       heightFactor: RestageDecoders.layoutFactor(source, <Object>[
         'heightFactor',
       ]),
@@ -144,14 +144,10 @@ Widget buildText(BuildContext context, DataSource source) {
           backgroundColor: RestageDecoders.color(source, <Object>[
             'backgroundColor',
           ]),
-          fontSize:
-              RestageDecoders.textMetric(source, <Object>['fontSize']) ??
-              resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
-                  as double?,
-          fontWeight:
-              RestageDecoders.fontWeight(source, <Object>['fontWeight']) ??
-              resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
-                  as FontWeight?,
+          fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
+          fontWeight: RestageDecoders.fontWeight(source, <Object>[
+            'fontWeight',
+          ]),
           fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values,
             source,
@@ -271,12 +267,8 @@ Widget buildIcon(BuildContext context, DataSource source) {
       key: RestageDecoders.nativeBinding<Key>(context, source, <Object>[
         'key',
       ], type: 'flutter.Key'),
-      size:
-          RestageDecoders.constraintScalar(source, <Object>['size']) ??
-          resolveThemeBinding(context, path: 'iconTheme.size') as double?,
-      color:
-          RestageDecoders.color(source, <Object>['color']) ??
-          resolveThemeBinding(context, path: 'iconTheme.color') as Color?,
+      size: RestageDecoders.constraintScalar(source, <Object>['size']),
+      color: RestageDecoders.color(source, <Object>['color']),
       textDirection: RestageDecoders.enumByName<TextDirection>(
         TextDirection.values,
         source,

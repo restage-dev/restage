@@ -42,20 +42,25 @@ void main() {
                 ],
               );
 
-              final source = emitFactoryFunction(entry);
-              expect(source, isNotNull);
-              final fallback = signature == null ? '?? () {}' : '?? (int _) {}';
+              final source = emitFactoryFunction(entry)!;
+              const missing =
+                  "?? (throw ArgumentError('CallbackNullabilityProbe.onChanged "
+                  "is required.'))";
+              // A required non-nullable callback the design doesn't bind is
+              // refused, never replaced by a no-op Flutter wouldn't run.
               expect(
                 source,
                 constructorNullable || !required
-                    ? isNot(contains(fallback))
-                    : contains(fallback),
+                    ? isNot(contains(missing))
+                    : contains(missing),
                 reason:
                     'an optional callback without a recorded default is '
                     'necessarily nullable in Dart; legacy built-in catalog '
                     'entries must preserve that omission even before they '
                     'carry constructorNullable.',
               );
+              expect(source, isNot(contains('?? () {}')));
+              expect(source, isNot(contains('?? (int _) {}')));
             },
           );
         }
@@ -262,10 +267,12 @@ void main() {
               r'Dart-only $ names without changing their identity',
         );
         expect(
-          generated,
+          generated.replaceAll(RegExp(r'\s+'), ' '),
           contains(
             'onRetry: '
-            "source.voidHandler(const <Object>['onRetry']) ?? () {}",
+            "source.voidHandler(const <Object>['onRetry']) ?? "
+            "(throw ArgumentError( 'CallbackNullabilityProbe.onRetry is "
+            "required.'))",
           ),
           reason:
               '$widgetPath#CallbackNullabilityProbe.onRetry targets a '

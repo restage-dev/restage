@@ -1,6 +1,6 @@
 part of '../minimal_notice.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _minimalNoticeFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -44,6 +44,7 @@ const minimalNoticeFlowRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'MinimalNoticeFlowSurface',
   measurementPublicationDraftDigest:
       '4dcad975a54a39b792783de23419b441c9fd099f3bb852dc58e3406bc07fbc2b',
   vocabulary: _minimalNoticeFlowRefVocabulary,
@@ -87,8 +88,8 @@ final _minimalNoticeFlowPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

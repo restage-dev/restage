@@ -173,7 +173,11 @@ class IdiomColorConst extends StatelessWidget {
 )
 class IdiomAdjacentStrings extends StatelessWidget {
   const IdiomAdjacentStrings({super.key});
-  Widget build(BuildContext context) => Slot(label: 'Save ' 'big');
+  Widget build(BuildContext context) => Slot(
+    label:
+        'Save '
+        'big',
+  );
 }
 
 // ─── deferred: inline closure handler ─────────────────────────────────
@@ -301,9 +305,8 @@ class IdiomCustomPaint extends StatelessWidget {
 class IdiomLayoutBuilder extends StatelessWidget {
   const IdiomLayoutBuilder({super.key});
   Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) =>
-            Slot(width: constraints.maxWidth / 2),
-      );
+    builder: (context, constraints) => Slot(width: constraints.maxWidth / 2),
+  );
 }
 
 // ─── structural: FutureBuilder ────────────────────────────────────────
@@ -316,9 +319,9 @@ class IdiomLayoutBuilder extends StatelessWidget {
 class IdiomFutureBuilder extends StatelessWidget {
   const IdiomFutureBuilder({super.key});
   Widget build(BuildContext context) => FutureBuilder<int>(
-        future: Future.value(1),
-        builder: (context, snapshot) => Slot(label: '${snapshot.data}'),
-      );
+    future: Future.value(1),
+    builder: (context, snapshot) => Slot(label: '${snapshot.data}'),
+  );
 }
 
 // ─── structural: AnimationController + lifecycle ──────────────────────

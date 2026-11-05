@@ -14,6 +14,15 @@ const _libraryDeclaration = '''
 const restageLibrary = 0;
 ''';
 
+// [code] in the source, however the formatter lays it out.
+Matcher _containsCode(String code) {
+  String packed(String text) => text.replaceAll(RegExp(r'\s+'), '');
+  return predicate<String>(
+    (source) => packed(source).contains(packed(code)),
+    'contains code `$code`',
+  );
+}
+
 void main() {
   test('nullable named exact custom list preserves null and authored list '
       'values and analyze clean', () async {
@@ -93,11 +102,10 @@ void main() {
       dart,
       'NonNullableDefaultChildrenProbe',
     );
-    final nullableFlat = nullable.replaceAll(RegExp(r'\s+'), ' ');
 
     expect(
-      nullableFlat,
-      contains(
+      nullable,
+      _containsCode(
         "regions: RestageDecoders.isWidgetList(source, const <Object>['regions']) ? "
         "RestageDecoders.widgetList(source, const <Object>['regions'], context: context, bindings: builderBindings) : null,",
       ),
@@ -108,7 +116,7 @@ void main() {
     expect(
       nullable,
       isNot(
-        contains(
+        _containsCode(
           'regions: RestageDecoders.widgetList(source, '
           "const <Object>['regions'], context: context, bindings: builderBindings)",
         ),

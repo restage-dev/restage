@@ -117,7 +117,7 @@ Widget x() => $body;
         'ColorFiltered(colorFilter: const ColorFilter.srgbToLinearGamma(), child: const SizedBox())',
   };
   for (final example in unsupported.entries) {
-    test('${example.key} directs the author to custom widgets', () async {
+    test('${example.key} renders from the app and says why', () async {
       final result = await translate(example.value);
       expect(result.dsl, isEmpty);
       expect(
@@ -129,7 +129,16 @@ Widget x() => $body;
                 'code',
                 IssueCode.shaderMaskFormUnsupported,
               )
-              .having((i) => i.message, 'message', contains('@RestageWidget')),
+              .having(
+                (i) => i.message,
+                'message',
+                matches(
+                  RegExp(
+                    r"^`(ShaderMask|ColorFiltered)` renders from your app's "
+                    r'code because its \w+',
+                  ),
+                ),
+              ),
         ),
       );
     });
@@ -179,7 +188,16 @@ class MissingWidget extends StatelessWidget {
     final issue = nested.issues.singleWhere((i) => !i.code.isInformational);
     expect(issue.code, original.code);
     expect(issue.capabilityGapSubject, 'widget:MissingWidget');
-    expect(issue.message, original.message);
+    // The same message, pointing at the nested construction itself.
+    expect(issue.location, isNot(original.location));
+    expect(
+      issue.message,
+      original.message.replaceAll(original.location, issue.location),
+    );
+    expect(
+      issue.message,
+      contains('`restage widget promote ${issue.location}`'),
+    );
   });
 
   test(
@@ -206,7 +224,9 @@ class Masked extends StatelessWidget {
 @RestageWidget(name: 'GradientLabel', library: WidgetLibrary.custom('sample.widgets'), category: WidgetCategory.decoration, description: 'A gradient label.')
 class GradientLabel extends StatelessWidget {
   const GradientLabel({required this.gradient, required this.title});
+  /// The gradient.
   final Gradient gradient;
+  /// The label.
   final String title;
   @override
   Widget build(BuildContext context) => ShaderMask(
@@ -262,11 +282,10 @@ class GradientLabel extends StatelessWidget {
       final generated = utf8.decode(
         bundle.ownedOutputs['lib/restage.generated/masked.restage.g.dart']!,
       );
-      expect(generated, contains('builder: (context, error) => Masked('));
-      expect(
-        generated,
-        isNot(contains('builder: (context, error) => RestageShaderMask(')),
-      );
+      // The fallback is the widget the app built: the authored screen.
+      expect(generated, contains('builder: (_, error) => _restageBuilt'));
+      expect(generated, contains('_restageDesign(Masked(title: '));
+      expect(generated, isNot(contains('_restageDesign(RestageShaderMask(')));
     },
   );
 

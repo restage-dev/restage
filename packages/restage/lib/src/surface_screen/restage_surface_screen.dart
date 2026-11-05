@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart' show Theme;
 import 'package:flutter/widgets.dart';
 import 'package:restage_material/restage_material_runtime.dart';
+import 'package:restage_core/restage_core.dart' show RestageIslandStage;
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart'
     show DynamicContent, RemoteWidget, Runtime, WidgetLibrary;
@@ -39,6 +40,7 @@ import '../resolver/surface_delivery_observations.dart'
         requestingViewShortestLogicalSide,
         withSurfaceDeliveryObservations;
 import '../runtime/context_data.dart';
+import '../runtime/user_interaction.dart';
 import '../runtime/error_boundary.dart';
 import '../runtime/first_paint_lease_guard.dart';
 import '../runtime/event_demux.dart' show isReservedCommerceEventName;
@@ -85,13 +87,18 @@ final class RestageScreen<E> extends StatefulWidget
     required Map<String, Object?> defaultSurfaceLocatorJson,
     required Map<String, Object?> hostContractJson,
     required SurfaceVocabulary vocabulary,
-  }) =>
-      GeneratedPlacementDefinition.generated(
-        defaultSurface: defaultSurface,
-        defaultSurfaceLocatorJson: defaultSurfaceLocatorJson,
-        hostContractJson: hostContractJson,
-        vocabulary: vocabulary,
-      );
+    String? surfaceWidget,
+  }) {
+    if (defaultSurface is SurfaceScreenRef<Object?> && surfaceWidget != null) {
+      nameSurfaceScreenWidget(defaultSurface, surfaceWidget);
+    }
+    return GeneratedPlacementDefinition.generated(
+      defaultSurface: defaultSurface,
+      defaultSurfaceLocatorJson: defaultSurfaceLocatorJson,
+      hostContractJson: hostContractJson,
+      vocabulary: vocabulary,
+    );
+  }
 
   /// Creates the inert binding forwarded by a generated mount.
   static PlacementMountBinding generatedPlacementBinding({
@@ -289,6 +296,11 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   SurfaceScreenResolver _resolver() {
     final original = widget.resolver ?? Restage.defaultSurfaceScreenResolver;
     final binding = widget.placementBinding;
+    if (widget.resolver == null) {
+      if (binding?.isGenerated ?? false) binding!.definition();
+      Restage.reportUnconfiguredMount(
+          widget.screen.surfaceWidget ?? widget.screen.provenance.slug);
+    }
     final declaration = _placementDiscovery.capture(binding, widget, context);
     final registry = Restage.placementRegistry;
     if (widget.resolver != null ||
@@ -1074,7 +1086,12 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UserInteractionWatch(
+        onInteraction: () => _placementInteracted = true,
+        child: _buildContent(context),
+      );
+
+  Widget _buildContent(BuildContext context) {
     final error = _unavailableError ??
         (_showDeadlineFallback && _stage == null
             ? _deadlineFallbackError
@@ -1122,9 +1139,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
               () => late == null
                   ? sourceBadgeLabel(null, null)
                   : lateSourceBadgeLabel(late.version),
-              Listener(
-                  onPointerDown: (_) => _placementInteracted = true,
-                  child: fallback),
+              fallback,
               description: () => late == null
                   ? null
                   : lateSourceBadgeDescription(late.version)));
@@ -1157,26 +1172,28 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
             _handleRenderFailure(stage, error);
           },
           errorReplacement: (_, __, ___) => const SizedBox.shrink(),
-          child: stage.wrapMeasuredRoot(
-            RestagePagerEventScope(
-              sink: _pagerSinkForStage(stage),
-              child: SurfaceDeliveryPaintBoundary(
-                resolved: stage.resolved,
-                child: _completeOnPaint(
-                    stage,
-                    DeliveredIconFontLoader.scope(
-                      stage.sections.iconFonts,
-                      child: Listener(
-                          onPointerDown: (_) => _placementInteracted = true,
-                          child: RemoteWidget(
-                            runtime: stage.runtime,
-                            data: stage.data,
-                            widget: placementWidgetNameFor(
-                                stage.resolved, kFlowScreenWidget),
-                            onEvent: (name, value) =>
-                                _handleEvent(stage, name, value),
-                          )),
-                    )),
+          // Each version is its own stage, so islands key per version.
+          child: RestageIslandStage(
+            candidate: false,
+            child: stage.wrapMeasuredRoot(
+              RestagePagerEventScope(
+                sink: _pagerSinkForStage(stage),
+                child: SurfaceDeliveryPaintBoundary(
+                  resolved: stage.resolved,
+                  child: _completeOnPaint(
+                      stage,
+                      DeliveredIconFontLoader.scope(
+                        stage.sections.iconFonts,
+                        child: RemoteWidget(
+                          runtime: stage.runtime,
+                          data: stage.data,
+                          widget: placementWidgetNameFor(
+                              stage.resolved, kFlowScreenWidget),
+                          onEvent: (name, value) =>
+                              _handleEvent(stage, name, value),
+                        ),
+                      )),
+                ),
               ),
             ),
           ),

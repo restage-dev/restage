@@ -1,6 +1,6 @@
 part of '../starter_done_guided.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const starterDoneGuidedScreenRef = NeutralFlowScreenRef(
   id: 'starter_done_guided',

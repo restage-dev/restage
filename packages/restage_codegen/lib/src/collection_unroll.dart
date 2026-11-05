@@ -5,6 +5,9 @@ import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:restage_codegen/src/const_folding.dart';
+import 'package:restage_codegen/src/islands/islands.dart' show readableSource;
+import 'package:restage_codegen/src/hoisting.dart'
+    show HoistIsWidget, classifyHoistType;
 
 /// The largest number of elements one list with collection flow may emit.
 const int kCollectionUnrollCeiling = 1000;
@@ -28,6 +31,9 @@ enum CollectionUnrollRefusal {
 
   /// A callback-bearing semantic source reached two structural occurrences.
   callbackSourceReused,
+
+  /// The element renders from the app's own code, so it is not expanded.
+  appRendered,
 }
 
 /// The result of searching a semantically reachable expression graph.
@@ -649,6 +655,15 @@ final class CollectionSemanticTraversalSession {
   final Set<Expression> _convergentCallbackSources =
       HashSet<Expression>.identity();
 
+  /// A copy that later admissions on this session do not change.
+  CollectionSemanticTraversalSession copy() =>
+      CollectionSemanticTraversalSession()
+        .._firstOccurrenceByCallbackSource.addAll(
+          _firstOccurrenceByCallbackSource,
+        )
+        .._repeatingLoopByCallbackSource.addAll(_repeatingLoopByCallbackSource)
+        .._convergentCallbackSources.addAll(_convergentCallbackSources);
+
   /// Admits callbacks reachable from one ordinary semantic leaf.
   CollectionUnrollRefused? admitOrdinaryLeaf(
     Expression expression,
@@ -875,6 +890,7 @@ final class CollectionSemanticOccurrence {
     required this.bindings,
     required this.sourceProvenance,
     required this.structuralPath,
+    this.spreadProvenance = const [],
   });
 
   /// The expression authored at this leaf.
@@ -888,6 +904,10 @@ final class CollectionSemanticOccurrence {
 
   /// Transparent source edges crossed to reach [terminalExpression].
   final List<CollectionSemanticSourceStep> sourceProvenance;
+
+  /// The source edges of each spread this occurrence was reached through,
+  /// outermost first; not part of its identity.
+  final List<CollectionSemanticSourceStep> spreadProvenance;
 
   /// Source entrances that distinguish this persistent occurrence.
   Iterable<CollectionSemanticSourceStep> get identitySourceProvenance =>
@@ -933,7 +953,39 @@ final class CollectionRuntimeLoopCandidate {
     required this.identifier,
     required this.template,
     this.bindings = const {},
+    this.pattern,
+    this.patternVariables = const [],
+    this.spreadProvenance = const [],
+    this.loop,
   });
+
+  /// The helper calls and locals a spread reached this loop through,
+  /// outermost first.
+  final List<CollectionSemanticSourceStep> spreadProvenance;
+
+  /// The loop as the source writes it.
+  final ForElement? loop;
+
+  /// This loop reached through [steps] first.
+  CollectionRuntimeLoopCandidate through(
+    List<CollectionSemanticSourceStep> steps,
+  ) => CollectionRuntimeLoopCandidate(
+    iterable: iterable,
+    binding: binding,
+    identifier: identifier,
+    template: template,
+    bindings: bindings,
+    pattern: pattern,
+    patternVariables: patternVariables,
+    spreadProvenance: [...steps, ...spreadProvenance],
+    loop: loop,
+  );
+
+  /// The pattern each item is destructured with, when there is one.
+  final DartPattern? pattern;
+
+  /// The variables [pattern] declares.
+  final List<Element> patternVariables;
 
   /// Bindings active while resolving the iterable and its template.
   final Map<Element, Expression> bindings;
@@ -1139,9 +1191,22 @@ CollectionListTraversal traverseCollectionList(
   CollectionUnrollBudget? budget,
   CollectionSemanticTraversalSession? session,
   Map<Element, Expression> bindings = const {},
+  bool Function(CollectionElement element)? rendersFromApp,
 }) {
   final sharedSemantics = semantics ?? CollectionSemanticProbe();
   final sharedSession = session ?? CollectionSemanticTraversalSession();
+  // A spread, `if` or `for` the app renders itself takes its place
+  // unexpanded; a widget expression is walked where it is.
+  CollectionListRefusal? fromApp(CollectionElement element) =>
+      element is! Expression && (rendersFromApp?.call(element) ?? false)
+      ? CollectionListRefusal(
+          CollectionUnrollRefused(
+            reason: CollectionUnrollRefusal.appRendered,
+            detail: 'The element renders from the app.',
+            location: element,
+          ),
+        )
+      : null;
   if (list.elements.every((element) => element is Expression)) {
     final entries = <CollectionListTraversalEntry>[];
     for (final (index, element) in list.elements.cast<Expression>().indexed) {
@@ -1176,6 +1241,10 @@ CollectionListTraversal traverseCollectionList(
   final sharedBudget = budget ?? CollectionUnrollBudget();
   final entries = <CollectionListTraversalEntry>[];
   for (final (index, element) in list.elements.indexed) {
+    if (fromApp(element) case final entry?) {
+      entries.add(entry);
+      continue;
+    }
     final result = _CollectionUnroller(
       element,
       sharedSemantics,
@@ -1263,22 +1332,29 @@ CollectionResolvedHelper? _noHelper(MethodInvocation invocation) => null;
 Expression? _noSource(Expression expression) => null;
 
 const String _kRuntimeForDetail =
-    'A collection-for over a value known only at run time is unsupported. '
-    'Iterate a list literal, or '
-    'supply the list through the host-data channel.';
+    "Restage can't loop over a list that is only known when the app runs. "
+    'Try looping over a list literal or computing the list in the '
+    "screen's build method and passing it in.";
 const String _kRuntimeSpreadDetail =
-    'A spread of a value known only at run time is unsupported. Spread a list '
-    'literal, or supply the list through the host-data channel.';
+    "Restage can't spread a list that is only known when the app runs. "
+    'Try spreading a list literal or computing the list in the screen\'s '
+    'build method and passing it in.';
 const String _kRuntimeIfDetail =
-    'A collection-if whose condition is known only at run time must test a '
-    'bool, an equality against a literal, or a combination of those with '
-    '`!`, `&&`, and `||`. Use a condition that folds to a constant, or '
-    'supply the choice through the host-data channel.';
+    "Restage can't evaluate this condition because it is only known when the "
+    "app runs. Try computing it in the screen's build method and passing it "
+    'in as a `bool`.';
 const String _kRuntimeIfBodyDetail =
-    'A collection-if whose condition is known only at run time must hold an '
-    'element, a spread of a list literal, or another such collection-if in '
-    'each branch. Use a condition that folds to a constant for any other '
-    'element.';
+    "Restage can't show this element under a condition that is only known "
+    'when the app runs. Try using a widget, a spread of a list literal or '
+    'another `if` in each branch.';
+
+/// [refusal]'s message, naming what it refuses and where, at [location].
+String collectionRefusalMessage(
+  CollectionUnrollRefused refusal,
+  String location,
+) =>
+    '`${readableSource(refusal.location.toSource())}` ($location): '
+    '${refusal.detail}';
 const String _kStaticForDetail =
     'A collection-for requires a list literal, but this iterable is a '
     'statically known non-list value.';
@@ -1337,6 +1413,9 @@ final class _CollectionUnroller {
   var _entries = <CollectionListTraversalEntry>[];
   ForElement? _activeRepeatedBy;
 
+  // The sources the spreads around the element being expanded crossed.
+  List<CollectionSemanticSourceStep> _activeSpread = const [];
+
   CollectionUnrollResult expand() {
     final occurrences = <CollectionSemanticOccurrence>[];
     final refusal = _expandElement(
@@ -1383,7 +1462,19 @@ final class _CollectionUnroller {
       if (ledgerCallbacks &&
           refusal != null &&
           (refusal.runtimeIf != null || refusal.runtimeLoop != null)) {
-        _entries.add(CollectionListRefusal(refusal));
+        _entries.add(
+          CollectionListRefusal(
+            refusal.runtimeLoop == null || _activeSpread.isEmpty
+                ? refusal
+                : CollectionUnrollRefused(
+                    reason: refusal.reason,
+                    detail: refusal.detail,
+                    location: refusal.location,
+                    runtimeLoop: refusal.runtimeLoop!.through(_activeSpread),
+                    runtimeIf: refusal.runtimeIf,
+                  ),
+          ),
+        );
         return null;
       }
       return refusal;
@@ -1490,6 +1581,15 @@ final class _CollectionUnroller {
       );
     }
     final parts = element.forLoopParts;
+    if (parts is ForEachPartsWithPattern) {
+      return _runtimePatternLoop(
+        element,
+        parts,
+        bindings,
+        structuralPath,
+        ledgerCallbacks,
+      );
+    }
     if (parts is! ForEachPartsWithDeclaration) {
       return _refuse(
         CollectionUnrollRefusal.unsupportedShape,
@@ -1508,22 +1608,25 @@ final class _CollectionUnroller {
     final resolution = _semantics.resolve(parts.iterable, bindings, _budget);
     if (resolution.workLimitExceeded) return _budget.workRefusal(element);
     final iterable = resolution.expression;
-    if (iterable is MethodInvocation ||
-        iterable is FunctionExpressionInvocation) {
-      return _refuse(
-        CollectionUnrollRefusal.unsupportedShape,
-        _kMethodCallIterableDetail,
-        element,
-      );
-    }
     if (iterable is! ListLiteral) {
-      final refusal = _nonListRefusal(
-        iterable,
-        element,
-        staticDetail: _kStaticForDetail,
-        runtimeDetail: _kRuntimeForDetail,
-      );
-      if (refusal.reason != CollectionUnrollRefusal.runtimeValue) {
+      // A computed iterable stays refused here; a generated mount may walk
+      // it at run time.
+      final computed =
+          iterable is MethodInvocation ||
+          iterable is FunctionExpressionInvocation;
+      final refusal = computed
+          ? _refuse(
+              CollectionUnrollRefusal.unsupportedShape,
+              _kMethodCallIterableDetail,
+              element,
+            )
+          : _nonListRefusal(
+              iterable,
+              element,
+              staticDetail: _kStaticForDetail,
+              runtimeDetail: _kRuntimeForDetail,
+            );
+      if (!computed && refusal.reason != CollectionUnrollRefusal.runtimeValue) {
         return refusal;
       }
       final template = _runtimeBranchAt(
@@ -1551,11 +1654,13 @@ final class _CollectionUnroller {
           identifier: parts.loopVariable.name.lexeme,
           template: template.branch!,
           bindings: resolution.bindings,
+          loop: element,
         ),
       );
     }
     var iterationOrdinal = 0;
-    return _expandList(
+    CollectionUnrollRefused? fromBody;
+    final refused = _expandList(
       iterable,
       resolution.bindings,
       structuralPath,
@@ -1565,7 +1670,7 @@ final class _CollectionUnroller {
           ...iteration.bindings,
           loopVariable: iteration.terminalExpression,
         };
-        return _expandElement(
+        return fromBody = _expandElement(
           element.body,
           bodyBindings,
           [
@@ -1586,6 +1691,18 @@ final class _CollectionUnroller {
       repeatedBy: null,
       ledgerCallbacks: false,
     );
+    // A run-time part of the list this loop walks can't stand for the loop:
+    // its body would be lost.
+    if (refused != null &&
+        !identical(refused, fromBody) &&
+        (refused.runtimeLoop != null || refused.runtimeIf != null)) {
+      return _refuse(
+        CollectionUnrollRefusal.unsupportedShape,
+        _kMethodCallIterableDetail,
+        element,
+      );
+    }
+    return refused;
   }
 
   CollectionUnrollRefused? _expandIfElement(
@@ -2090,14 +2207,45 @@ final class _CollectionUnroller {
         runtimeDetail: _kRuntimeSpreadDetail,
       );
     }
-    return _expandList(
-      iterable,
-      resolution.bindings,
-      structuralPath,
-      (occurrence, _) => emit(occurrence),
-      repeatedBy: repeatedBy,
-      ledgerCallbacks: ledgerCallbacks,
-    );
+    final outerSpread = _activeSpread;
+    _activeSpread = [...outerSpread, ...resolution.sourceProvenance];
+    final CollectionUnrollRefused? refused;
+    try {
+      refused = _expandList(
+        iterable,
+        resolution.bindings,
+        structuralPath,
+        // Each element is read through the spread's own sources too.
+        (occurrence, _) => emit(
+          CollectionSemanticOccurrence(
+            authoredExpression: occurrence.authoredExpression,
+            terminalExpression: occurrence.terminalExpression,
+            bindings: occurrence.bindings,
+            sourceProvenance: occurrence.sourceProvenance,
+            structuralPath: occurrence.structuralPath,
+            spreadProvenance: [
+              ...resolution.sourceProvenance,
+              ...occurrence.spreadProvenance,
+            ],
+          ),
+        ),
+        repeatedBy: repeatedBy,
+        ledgerCallbacks: ledgerCallbacks,
+      );
+    } finally {
+      _activeSpread = outerSpread;
+    }
+    // A run-time loop is read through the spread's sources as well.
+    if (refused?.runtimeLoop case final loop?) {
+      return CollectionUnrollRefused(
+        reason: refused!.reason,
+        detail: refused.detail,
+        location: refused.location,
+        runtimeLoop: loop.through(resolution.sourceProvenance),
+        runtimeIf: refused.runtimeIf,
+      );
+    }
+    return refused;
   }
 
   CollectionUnrollRefused? _expandList(
@@ -2142,6 +2290,60 @@ final class _CollectionUnroller {
     detail: detail,
     location: location,
   );
+
+  /// A loop that destructures each item is admitted only at run time.
+  CollectionUnrollRefused _runtimePatternLoop(
+    ForElement element,
+    ForEachPartsWithPattern parts,
+    Map<Element, Expression> bindings,
+    List<CollectionStructuralOccurrenceStep> structuralPath,
+    bool ledgerCallbacks,
+  ) {
+    final variables = <Element>[];
+    parts.pattern.accept(_PatternVariables(variables));
+    final resolution = _semantics.resolve(parts.iterable, bindings, _budget);
+    if (resolution.workLimitExceeded) return _budget.workRefusal(element);
+    final iterable = resolution.expression;
+    if (variables.isEmpty ||
+        iterable is ListLiteral ||
+        _isStaticallyKnownNonList(iterable)) {
+      return _refuse(
+        CollectionUnrollRefusal.unsupportedShape,
+        _kUndeclaredForDetail,
+        element,
+      );
+    }
+    final template = _runtimeBranchAt(
+      element,
+      element.body,
+      bindings,
+      [
+        ...structuralPath,
+        CollectionStructuralOccurrenceStep(
+          kind: CollectionStructuralOccurrenceKind.loopTemplate,
+          node: element,
+          ordinal: 0,
+        ),
+      ],
+      ledgerCallbacks,
+    );
+    if (template.refusal != null) return template.refusal!;
+    return CollectionUnrollRefused(
+      reason: CollectionUnrollRefusal.runtimeValue,
+      detail: _kRuntimeForDetail,
+      location: element,
+      runtimeLoop: CollectionRuntimeLoopCandidate(
+        iterable: iterable,
+        binding: variables.first,
+        identifier: 'item',
+        template: template.branch!,
+        bindings: resolution.bindings,
+        pattern: parts.pattern,
+        patternVariables: variables,
+        loop: element,
+      ),
+    );
+  }
 
   CollectionUnrollRefused _nonListRefusal(
     Expression expression,
@@ -2275,6 +2477,11 @@ final class _SemanticCallbackVisitor extends UnifyingAstVisitor<void> {
           state.record(node, callbackOccurrence ?? node);
           return;
         }
+        // A call computing a plain value consumes its callbacks itself.
+        if (node is MethodInvocation && _computesPlainValue(node.staticType)) {
+          node.target?.accept(this);
+          return;
+        }
       }
       super.visitNode(node);
     } finally {
@@ -2307,3 +2514,23 @@ final class _CollectionCallbackOccurrence {
   final Expression source;
   final Expression authoredExpression;
 }
+
+final class _PatternVariables extends RecursiveAstVisitor<void> {
+  _PatternVariables(this.variables);
+
+  final List<Element> variables;
+
+  @override
+  void visitDeclaredVariablePattern(DeclaredVariablePattern node) {
+    if (node.declaredFragment?.element case final element?) {
+      variables.add(element);
+    }
+  }
+}
+
+bool _computesPlainValue(DartType? type) =>
+    type is InterfaceType &&
+    classifyHoistType(type) is! HoistIsWidget &&
+    ![type, ...type.allSupertypes].any(
+      (candidate) => candidate.isDartCoreIterable || candidate.isDartCoreMap,
+    );

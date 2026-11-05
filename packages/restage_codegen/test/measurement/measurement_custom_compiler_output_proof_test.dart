@@ -271,34 +271,27 @@ void main() {
       final changedKey = await _compileFixture(
         screenSourceOverride: changedKeySource,
       );
-      expect(
-        changedKey.compilerOutput.canonicalBytes,
-        orderedEquals(compilerOutput.canonicalBytes),
-        reason: 'Flutter keys must not contribute to Measurement identity.',
-      );
-      expect(
-        changedKey.compilerOutputBytes,
-        orderedEquals(compiled.compilerOutputBytes),
-      );
-      expect(
-        changedKey.measurementIndexBytes,
-        orderedEquals(compiled.measurementIndexBytes),
-      );
-      expect(
-        changedKey.outputIndexBytes,
-        orderedEquals(compiled.outputIndexBytes),
-      );
-      for (final path in [
-        kRestageSurfacePublicationCompilerBundlePath,
-        '.restage/build/metadata/restage.publication.json',
-        _screenBundlePath,
-        _paywallBundlePath,
-      ]) {
+      // The key reaches the design through the mount, so the delivered
+      // artifacts change; Measurement identity, planned before artifact
+      // hashes, does not.
+      final before = compilerOutput.publications;
+      final after = changedKey.compilerOutput.publications;
+      expect(after, hasLength(before.length));
+      for (var index = 0; index < before.length; index++) {
         expect(
-          changedKey.readBytes(path),
-          orderedEquals(compiled.readBytes(path)),
+          after[index].routePlan.canonicalBytes,
+          orderedEquals(before[index].routePlan.canonicalBytes),
+          reason: 'Flutter keys must not contribute to Measurement identity.',
+        );
+        expect(
+          after[index].draft.routeDraftClosureDigest,
+          before[index].draft.routeDraftClosureDigest,
         );
       }
+      expect(
+        changedKey.readBytes(_screenBundlePath),
+        isNot(orderedEquals(compiled.readBytes(_screenBundlePath))),
+      );
     },
   );
 }

@@ -2,6 +2,7 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/commands/build_list_command.dart';
 import 'package:restage_cli/src/commands/build_push_command.dart';
+import 'package:restage_cli/src/commands/build_report_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/render_bundles/bundle_source.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
@@ -40,6 +41,7 @@ final class BuildCommand extends Command<int> {
         flutterToolchain: flutterToolchain,
       ),
     );
+    addSubcommand(BuildReportCommand(stdout: stdout, stderr: stderr));
     addSubcommand(
       BuildListCommand(
         stdout: stdout,
@@ -55,5 +57,6 @@ final class BuildCommand extends Command<int> {
 
   @override
   String get description =>
-      "Build and upload the app's render bundle, or list its builds.";
+      "Build and upload the app's render bundle, list its builds, or report "
+      'on the last local build.';
 }

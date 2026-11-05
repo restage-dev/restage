@@ -275,13 +275,13 @@ void main() {
       for (final (labels, message) in [
         (
           const <String, String>{},
-          "[restage] 'ink' isn't computed by this app build, so the ColoredBox "
-              "that uses it isn't shown.",
+          "[restage] This app build doesn't compute a value this design uses. "
+              "The ColoredBox that uses it isn't shown.",
         ),
         (
           const {'ink': 'Palette.of(context).ink'},
-          "[restage] 'Palette.of(context).ink' threw while computing in the "
-              "app, so the ColoredBox that uses it isn't shown.",
+          "[restage] 'Palette.of(context).ink' threw while the app computed "
+              "it. The ColoredBox that uses it isn't shown.",
         ),
       ]) {
         await tester.pumpWidget(const SizedBox());

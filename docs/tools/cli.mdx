@@ -444,6 +444,30 @@ dashboard, where the secret is shown once. `keys resolve` names the
 organization, project, app, environment, and side a key belongs to. It matches the key
 against key prefixes on your machine and never sends it.
 
+## Read the build report
+
+After `dart run build_runner build`, the build report shows, for each generated
+widget, the share of its widgets the design delivers and each part the app
+supplies: values it computes, actions it runs, wrappers kept for every design,
+and widgets that render from the app, with their source locations and reasons.
+
+```sh
+restage build report             # the report, compared with restage_build_report.json
+restage build report --accept    # record this build in restage_build_report.json
+restage build report --check     # exit 1 when the build differs, for CI
+restage build report --json      # the same report as JSON
+restage widget promote lib/paywall.dart:42   # move that widget into a widget class of your own
+```
+
+Commit `restage_build_report.json` so a later report, or a CI run with
+`--check`, shows when a widget starts or stops rendering from the app, changes,
+or when the generated widget keeps a different wrapper. `widget promote` moves the
+widget at that line into an `@RestageWidget` class in the same file and exports
+it from the package's widget library; pass `--name` for the class name and
+`--library` when the package has several widget libraries. Build again
+afterwards. The report suggests it where the same code renders from the app in
+several screens.
+
 ## Other commands
 
 ```sh

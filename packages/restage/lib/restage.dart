@@ -28,7 +28,7 @@ export 'src/events/restage_event.dart' hide snapshotRestageEventForEmission;
 export 'src/events/surface_assignment.dart';
 export 'src/flow/compiled_flow.dart';
 export 'src/flow/flow_controller.dart' show RestageFlowController;
-export 'src/flow/flow_descriptors.dart';
+export 'src/flow/flow_descriptors.dart' hide nameSurfaceScreenWidget;
 export 'src/flow/flow_experiment_artifact_metadata.dart'
     show FlowExperimentArtifactMetadata;
 export 'src/flow/flow_predicates.dart';
@@ -43,6 +43,7 @@ export 'src/flow/restage_surface_flow.dart';
 export 'src/flow/restage_screen_view.dart';
 export 'src/flow/server_flow_resolver.dart';
 export 'src/flow/system_back_policy.dart';
+export 'src/render_in_app.dart';
 export 'src/surface_screen/surface_screen.dart';
 export 'package:restage_shared/restage_shared.dart'
     show
@@ -111,8 +112,9 @@ export 'src/resolver/variant_resolver.dart';
 export 'src/resolver/surface_resolution_report.dart'
     show SurfaceResolutionSource, SurfaceResolutionReport;
 export 'src/runtime/error_boundary.dart' show RuntimeErrorBoundary;
-export 'src/runtime/host_value.dart'
-    show restageHostValue, restageHostValues, restageNativeObjects;
+export 'src/runtime/island_scope.dart';
+export 'src/runtime/host_recording.dart';
+export 'src/runtime/host_value.dart' show restageHostValue;
 export 'src/commerce/restage_commerce.dart' show RestageCommerce;
 export 'src/runtime/restage.dart' hide emitRestageEvent;
 export 'src/runtime/restage_widget_factory.dart';

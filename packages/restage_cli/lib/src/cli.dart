@@ -4,6 +4,7 @@ import 'dart:io' as io;
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/commands/promote_command.dart';
 import 'package:restage_cli/src/commands/build_command.dart';
 import 'package:restage_cli/src/commands/build_push_command.dart';
 import 'package:restage_cli/src/commands/authed.dart';
@@ -272,6 +273,7 @@ class RestageCli {
         ),
       )
       ..addCommand(LibraryCommand(stdout: _stdout, stderr: _stderr))
+      ..addCommand(WidgetCommand(stdout: _stdout, stderr: _stderr))
       ..addCommand(
         CatalogCommand(
           stdout: _stdout,

@@ -70,8 +70,10 @@ final class RestageFlowEventDispatchRegistry {
           Object,
           Map<Object,
               Map<Object, _RestageFlowEventDispatchRegistration>>>.identity();
-  static final Map<Object, _RestageFlowContentState> _contentStates =
-      HashMap<Object, _RestageFlowContentState>.identity();
+  // A revision per controller and content token, kept while that content
+  // is registered, so returning to a history entry keeps its callbacks.
+  static final Map<Object, Map<Object, Object>> _contentRevisions =
+      HashMap<Object, Map<Object, Object>>.identity();
   static final Map<Object, Map<Object, _RestageFlowEventHandlerAssociation>>
       _handlerAssociations = HashMap<Object,
           Map<Object, _RestageFlowEventHandlerAssociation>>.identity();
@@ -102,6 +104,7 @@ final class RestageFlowEventDispatchRegistry {
       isCurrent: isCurrent,
       associatedHandler: associatedHandler,
     );
+    _forgetUnregisteredContent(controller);
     _refreshCurrentContent(controller);
   }
 
@@ -119,6 +122,7 @@ final class RestageFlowEventDispatchRegistry {
       controllers.remove(controller);
       if (controllers.isEmpty) _owners.remove(owner);
     }
+    _forgetUnregisteredContent(controller);
     _refreshCurrentContent(controller);
   }
 
@@ -500,31 +504,34 @@ final class RestageFlowEventDispatchRegistry {
           continue;
         }
         if (contentToken != null && contentToken != registration.contentToken) {
-          _contentStates.remove(controller);
           return null;
         }
         contentToken = registration.contentToken;
         registrations.add(entry.key);
       }
     }
-    if (contentToken == null || registrations.isEmpty) {
-      _contentStates.remove(controller);
-      return null;
-    }
-    final previous = _contentStates[controller];
-    final state = previous != null && previous.contentToken == contentToken
-        ? previous
-        : _RestageFlowContentState(
-            contentToken: contentToken,
-            contentRevision: Object(),
-          );
-    _contentStates[controller] = state;
+    if (contentToken == null || registrations.isEmpty) return null;
+    final revision = (_contentRevisions[controller] ??=
+        <Object, Object>{})[contentToken] ??= Object();
     return _RestageFlowCurrentContent(
       contentToken: contentToken,
-      contentRevision: state.contentRevision,
+      contentRevision: revision,
       registrations: registrations,
       callbacks: callbacks,
     );
+  }
+
+  static void _forgetUnregisteredContent(Object controller) {
+    final revisions = _contentRevisions[controller];
+    if (revisions == null) return;
+    final registered = <Object>{
+      for (final controllers in _owners.values)
+        for (final registration in controllers[controller]?.values ??
+            const <_RestageFlowEventDispatchRegistration>[])
+          if (registration.contentToken case final Object token) token,
+    };
+    revisions.removeWhere((token, _) => !registered.contains(token));
+    if (revisions.isEmpty) _contentRevisions.remove(controller);
   }
 
   static void _refreshCurrentContent(Object controller) {
@@ -717,14 +724,4 @@ final class _RestageFlowExactRegistration {
 
   final Object owner;
   final _RestageFlowEventDispatchRegistration registration;
-}
-
-final class _RestageFlowContentState {
-  const _RestageFlowContentState({
-    required this.contentToken,
-    required this.contentRevision,
-  });
-
-  final Object contentToken;
-  final Object contentRevision;
 }

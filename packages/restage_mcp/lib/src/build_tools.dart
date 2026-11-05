@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dart_mcp/server.dart';
 import 'package:restage_cli/api.dart';
 
@@ -9,7 +11,85 @@ List<(Tool, ToolHandler)> buildTools(ToolContext ctx) => [
   (_listBuildsTool, (request) => _listBuilds(ctx, request)),
   (_pushBuildTool, (request) => _pushBuild(ctx, request)),
   (_pushCatalogTool, (request) => _pushCatalog(ctx, request)),
+  (_buildReportTool, _buildReport),
+  (_promoteTool, (request) => _promote(ctx, request)),
 ];
+
+final _promoteTool = Tool(
+  name: 'restage_widget_promote',
+  description:
+      'Move a widget that renders from the app into a widget class of the '
+      "app's own, exported from the package's widget library, the same as "
+      '`restage $promoteCommandName <file>:<line>`. Name the place as '
+      'restage_build_report lists it. Use it only when the developer wants '
+      'the code named and reusable; nothing requires it. Rebuild afterwards.',
+  inputSchema: Schema.object(
+    properties: {
+      'projectDirectory': projectDirectoryProperty,
+      'at': Schema.string(
+        description: 'The place, as <file>:<line> or <file>:<line>:<column>.',
+      ),
+      'name': Schema.string(description: 'The new widget class name.'),
+      'library': Schema.string(
+        description:
+            'The widget library to export it from, when the package has '
+            'several.',
+      ),
+    },
+    required: ['projectDirectory', 'at'],
+  ),
+);
+
+Future<CallToolResult> _promote(
+  ToolContext ctx,
+  CallToolRequest request,
+) => cliResult(ctx, [
+  ...promoteCommandName.split(' '),
+  '-C',
+  request.str('projectDirectory'),
+  if (request.optStr('name') case final name?) ...['--name', name],
+  if (request.optStr('library') case final library?) ...['--library', library],
+  request.str('at'),
+]);
+
+final _buildReportTool = Tool(
+  name: 'restage_build_report',
+  description:
+      'Report what the last local build compiled, the same as `restage build '
+      'report --json`: for each generated widget, how many widgets it '
+      'delivers and how many render from the app, and each value, action and '
+      'app-rendered widget with its reason and source location. `changes` '
+      'lists what renders from the app or what the generated widget keeps '
+      'differently from restage_build_report.json, and is absent when there '
+      'is no baseline. Keep app-rendered parts unless the developer wants to '
+      'change or test what they cover; never rewrite code only to make one '
+      'go away. Needs a build_runner build; reads no server.',
+  inputSchema: Schema.object(
+    properties: {
+      'projectDirectory': projectDirectoryProperty,
+      'accept': Schema.bool(
+        description:
+            'Record this build as the baseline in restage_build_report.json.',
+      ),
+    },
+    required: ['projectDirectory'],
+  ),
+);
+
+Future<CallToolResult> _buildReport(CallToolRequest request) async {
+  try {
+    return jsonResult(
+      buildReportJson(
+        await readBuildReport(
+          Directory(request.str('projectDirectory')),
+          accept: request.optBool('accept') ?? false,
+        ),
+      ),
+    );
+  } on BuildReportException catch (error) {
+    return mcpError(error.message);
+  }
+}
 
 final _listBuildsTool = Tool(
   name: 'restage_list_builds',

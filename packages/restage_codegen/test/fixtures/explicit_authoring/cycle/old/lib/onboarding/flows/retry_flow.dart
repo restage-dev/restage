@@ -30,7 +30,7 @@ final class RetryFlow extends RestageFlow {
           retry,
           branches: [
             flowBranch(
-              when: state('attempts').lessThan(3),
+              when: flowState('attempts').lessThan(3),
               target: retryScreenRef,
             ),
           ],

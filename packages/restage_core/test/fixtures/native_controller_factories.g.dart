@@ -163,6 +163,10 @@ Widget buildTabBar(BuildContext context, DataSource source) {
       unselectedLabelColor:
           RestageDecoders.color(source, <Object>['unselectedLabelColor']),
       onTap: RestageDecoders.valueChanged<int>(source, const <Object>['onTap']),
+      onHover: RestageDecoders.nativeCallback<void Function(bool, int)>(
+          source, const <Object>['onHover'], 'TabBar.onHover'),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool, int)>(
+          source, const <Object>['onFocusChange'], 'TabBar.onFocusChange'),
       controller: RestageDecoders.nativeBinding<TabController>(
           context, source, <Object>['controller'],
           type: 'flutter.TabController'),

@@ -42,12 +42,18 @@ String emitPlacementDefinition({
   );
   PlacementKeyV1.generatedDefault(surfaceType: surfaceType, slug: slug);
   final provider = placementDefinitionProviderName(declarationName);
+  // A paywall or screen names its generated widget, so messages can name it.
+  final surfaceWidget =
+      sdkHost.endsWith('RestagePaywall') || sdkHost.endsWith('RestageScreen')
+      ? generatedSurfaceName(declarationName, fallback: 'SurfaceScreen')
+      : null;
   return '''
 final _${provider}Value = $sdkHost.generatedPlacementDefinition(
   $defaultSurfaceArgument,
   defaultSurfaceLocatorJson: ${_contractLiteral(locator.toJson())},
   hostContractJson: ${_contractLiteral(hostContract.toJson())},
   ${vocabulary == null ? '' : 'vocabulary: $vocabulary,'}
+  ${surfaceWidget == null ? '' : 'surfaceWidget: ${dartStringLiteral(surfaceWidget)},'}
 );
 
 final $provider = () => _${provider}Value;
@@ -77,37 +83,59 @@ String _contractLiteral(Object? value) => switch (value) {
 SurfaceScreenHostDataSchema hostDataContractOf(
   Iterable<RootContextParam> rootParams, {
   Iterable<HoistedValue> hoisted = const [],
-}) => SurfaceScreenHostDataSchema(<String, SurfaceScreenHostDataShape>{
-  for (final param in rootParams)
-    if (!param.forwardsFlutterKey && param.hostDataShape != null)
-      param.name: _withItemValues(
-        hostDataContractShapeOf(param.hostDataShape!),
-        [
-          for (final value in hoisted)
-            if (value.item == param.name) value,
-        ],
-      ),
-  for (final value in hoisted)
-    if (value.item == null) value.key: value.shape,
-  // Derivation passes no root params; per-item values still need their list.
-  for (final item in {
+}) {
+  // A list nested in another is a value of each outer item.
+  final nested = {
     for (final value in hoisted)
-      if (value.item case final item?
-          when !rootParams.any((param) => param.name == item))
-        item,
-  })
-    item: SurfaceScreenHostDataListShapeV1(
-      SurfaceScreenHostDataObjectShapeV1({
-        for (final value in hoisted)
-          if (value.item == item) value.key: value.shape,
-      }),
-    ),
-});
+      if (value.kind == HoistValueKind.items && value.item != null) value.key,
+  };
+  SurfaceScreenHostDataShape itemList(String item) =>
+      SurfaceScreenHostDataListShapeV1(
+        hoisted.any((value) => value.item == item)
+            ? SurfaceScreenHostDataObjectShapeV1({
+                for (final value in hoisted)
+                  if (value.item == item)
+                    value.key: value.kind == HoistValueKind.items
+                        ? itemList(value.key)
+                        : value.shape,
+              })
+            : const SurfaceScreenHostDataScalarShapeV1(
+                SurfaceScreenHostDataScalarKind.jsonValue,
+              ),
+      );
+  return SurfaceScreenHostDataSchema(<String, SurfaceScreenHostDataShape>{
+    for (final param in rootParams)
+      if (!param.forwardsFlutterKey && param.hostDataShape != null)
+        param.name: _withItemValues(
+          hostDataContractShapeOf(param.hostDataShape!),
+          {
+            for (final value in hoisted)
+              if (value.item == param.name)
+                value.key: value.kind == HoistValueKind.items
+                    ? itemList(value.key)
+                    : value.shape,
+          },
+        ),
+    for (final value in hoisted)
+      if (value.item == null && value.kind != HoistValueKind.items)
+        value.key: value.shape,
+    // Derivation passes no root params; per-item values still need their list.
+    for (final item in {
+      for (final value in hoisted)
+        if (value.kind == HoistValueKind.items) value.key,
+      for (final value in hoisted)
+        if (value.item case final item?
+            when !rootParams.any((param) => param.name == item))
+          item,
+    })
+      if (!nested.contains(item)) item: itemList(item),
+  });
+}
 
 /// [shape] with [values] added to each item of the list it describes.
 SurfaceScreenHostDataShape _withItemValues(
   SurfaceScreenHostDataShape shape,
-  List<HoistedValue> values,
+  Map<String, SurfaceScreenHostDataShape> values,
 ) {
   if (values.isEmpty) return shape;
   return switch (shape) {
@@ -118,7 +146,7 @@ SurfaceScreenHostDataShape _withItemValues(
     SurfaceScreenHostDataObjectShapeV1(:final fields) =>
       SurfaceScreenHostDataObjectShapeV1(<String, SurfaceScreenHostDataShape>{
         ...fields,
-        for (final value in values) value.key: value.shape,
+        ...values,
       }),
     // Per-item values are admitted only over lists of objects.
     _ => shape,

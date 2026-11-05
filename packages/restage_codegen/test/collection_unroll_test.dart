@@ -838,8 +838,9 @@ class Probe extends Widget {
     expect(refusal.reason, CollectionUnrollRefusal.runtimeValue);
     expect(
       refusal.detail,
-      'A spread of a value known only at run time is unsupported. Spread a '
-      'list literal, or supply the list through the host-data channel.',
+      "Restage can't spread a list that is only known when the app runs. "
+      'Try spreading a list literal or computing the list in the screen\'s '
+      'build method and passing it in.',
     );
   });
 
@@ -1802,7 +1803,10 @@ Object x() => [if (kDebugMode) 1, 2];
 
     expect(result.issues, hasLength(1));
     expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
-    expect(result.issues.single.message, contains('known only at run time'));
+    expect(
+      result.issues.single.message,
+      contains('only known when the app runs'),
+    );
     expect(result.dsl, '[2]');
     expect(result.dsl, isNot(contains('1')));
   });
@@ -2006,7 +2010,10 @@ Object x() => [if (showExtras) 1, 2];
 
     expect(result.issues, hasLength(1));
     expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
-    expect(result.issues.single.message, contains('known only at run time'));
+    expect(
+      result.issues.single.message,
+      contains('only known when the app runs'),
+    );
     expect(result.dsl, '[]');
     expect(result.dsl, isNot(contains('item')));
     expect(result.dsl, isNot(contains('source')));
@@ -2058,7 +2065,7 @@ Object x() => [if (showExtras) 1, 2];
       );
       expect(
         result.issues.single.message,
-        isNot(contains('known only at run time')),
+        isNot(contains('only known when the app runs')),
       );
       expect(result.dsl, '[]');
     },
@@ -2083,7 +2090,7 @@ Object x() => [if (showExtras) 1, 2];
     expect(result.issues.single.message, contains('statically known non-list'));
     expect(
       result.issues.single.message,
-      isNot(contains('known only at run time')),
+      isNot(contains('only known when the app runs')),
     );
     expect(result.dsl, '[]');
   });
@@ -2104,7 +2111,7 @@ Object x() => [
     expect(result.issues.single.message, contains('statically known non-list'));
     expect(
       result.issues.single.message,
-      isNot(contains('known only at run time')),
+      isNot(contains('only known when the app runs')),
     );
     expect(
       result.issues.single.location,
@@ -2128,7 +2135,7 @@ Object x() => [
     expect(result.issues.single.message, contains('statically known non-list'));
     expect(
       result.issues.single.message,
-      isNot(contains('known only at run time')),
+      isNot(contains('only known when the app runs')),
     );
     expect(
       result.issues.single.location,
@@ -2160,8 +2167,9 @@ Object x() => [
       expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
       expect(
         result.issues.single.message,
-        'A collection-for requires a list literal, but this iterable is a '
-        'statically known non-list value.',
+        '`for (final item in const Items()) item` '
+        '(lib/static_iterable_collection.dart:9:3): A collection-for requires a '
+        'list literal, but this iterable is a statically known non-list value.',
       );
       expect(
         result.issues.single.location,
@@ -2194,8 +2202,10 @@ Object x() => [
       expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
       expect(
         result.issues.single.message,
-        'A spread requires a list literal, but this value is a statically known '
-        'non-list value.',
+        endsWith(
+          ': A spread requires a list literal, but this value is a '
+          'statically known non-list value.',
+        ),
       );
       expect(
         result.issues.single.location,
@@ -2203,6 +2213,55 @@ Object x() => [
       );
     },
   );
+
+  for (final (name, body, message) in [
+    (
+      'a loop over a list known only when the app runs',
+      'Object x(Iterable<int> items) => [for (final item in items) item];',
+      '`for (final item in items) item` (lib/probe.dart:1:35): '
+          "Restage can't loop over a list that is only known when the app "
+          'runs. Try looping over a list literal or computing the list in the '
+          "screen's build method and passing it in.",
+    ),
+    (
+      'a spread of a list known only when the app runs',
+      'Object x(Iterable<int> items) => [...items];',
+      '`...items` (lib/probe.dart:1:35): '
+          "Restage can't spread a list that is only known when the app runs. "
+          'Try spreading a list literal or computing the list in the '
+          "screen's build method and passing it in.",
+    ),
+    (
+      'a condition known only when the app runs',
+      'Object x(Map<String, int> m) => [if (m.isEmpty) 1, 2];',
+      '`if (m.isEmpty) 1` (lib/probe.dart:1:34): '
+          "Restage can't evaluate this condition because it is only known "
+          "when the app runs. Try computing it in the screen's build method "
+          'and passing it in as a `bool`.',
+    ),
+    (
+      'an element under a condition known only when the app runs',
+      "import 'package:flutter/foundation.dart';\n"
+          'Object x(Object o) => [if (defaultTargetPlatform == '
+          'TargetPlatform.iOS) if (o case final int y) y];',
+      '`if (o case final int y) y` (lib/probe.dart:2:73): '
+          "Restage can't show this element under a condition that is only "
+          'known when the app runs. Try using a widget, a spread of a list '
+          'literal or another `if` in each branch.',
+    ),
+  ]) {
+    test('$name names it and where it is', () async {
+      final expression = await parseExpressionFromSourceForTest(
+        body,
+        rootPackage: 'apps_examples',
+      );
+      final result = _scalarTranslator().translate(
+        expression,
+        sourcePath: 'lib/probe.dart',
+      );
+      expect([for (final issue in result.issues) issue.message], [message]);
+    });
+  }
 
   test('an uncertain Iterable value retains the run-time diagnostic', () async {
     final expression = await parseExpressionFromSourceForTest('''
@@ -2216,7 +2275,7 @@ Object x() => [
     expect(result.issues, hasLength(2));
     expect(
       result.issues.map((issue) => issue.message),
-      everyElement(contains('known only at run time')),
+      everyElement(contains('only known when the app runs')),
     );
     expect(
       result.issues.map((issue) => issue.message),

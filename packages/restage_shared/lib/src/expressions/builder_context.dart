@@ -90,10 +90,18 @@ const builderConstraintsValueType = ValueType('record', fields: {
       fields: {'width': ValueType.real, 'height': ValueType.real}),
 });
 
-/// Checks the program against the native callback before it can execute.
+/// Prefixes a delivered body's parameter that reads a value the app's builder
+/// records where it computes it.
+const kRecordedBuilderParameterPrefix = 'recorded:';
+
+/// Checks the program against the native callback before it can execute;
+/// [data] is the shape the app supplies for each app value parameter, which
+/// is checked by structure only when null.
 void validateBuilderProgramContract(
-    BuilderProgram program, WidgetBuilderContract contract) {
-  if (!contract.isSupported ||
+    BuilderProgram program, WidgetBuilderContract contract,
+    {Map<String, ValueType>? data}) {
+  final appValues = contract.isAppValueSignature;
+  if (!(contract.isSupported || appValues) ||
       program.collection ||
       program.nullableResult != contract.nullableResult)
     throw const FormatException('Builder program differs from its callback');
@@ -107,14 +115,31 @@ void validateBuilderProgramContract(
     }
     final contextType = builderContextValueType(parameter.key);
     if (contextType != null && parameter.value.accepts(contextType)) continue;
-    if (parameter.key != callbackParameterName(1) ||
-        contract.parameters.length != 2)
+    if (parameter.key.startsWith(kRecordedBuilderParameterPrefix)) {
+      if (!appValues ||
+          !const {'bool', 'int', 'double', 'num', 'String', 'Null'}
+              .contains(parameter.value.kind))
+        throw const FormatException('Unknown native builder parameter');
+      continue;
+    }
+    final position = parameter.key.startsWith('arg')
+        ? int.tryParse(parameter.key.substring(3))
+        : null;
+    if (position == null ||
+        position < 1 ||
+        position >= contract.parameters.length ||
+        parameter.key != callbackParameterName(position) ||
+        !appValues && contract.parameters.length != 2)
       throw const FormatException('Unknown native builder parameter');
-    final expected = switch (contract.parameters.last) {
+    final expected = switch (contract.parameters[position]) {
       WidgetBuilderParameter.boxConstraints => builderConstraintsValueType,
       WidgetBuilderParameter.orientation => ValueType.string,
       WidgetBuilderParameter.itemIndex => ValueType.integer,
-      WidgetBuilderParameter.buildContext => null,
+      WidgetBuilderParameter.data =>
+        data == null ? parameter.value : data[parameter.key],
+      WidgetBuilderParameter.buildContext ||
+      WidgetBuilderParameter.child =>
+        null,
     };
     if (expected == null || !_builderProjectionFits(parameter.value, expected))
       throw const FormatException('Native builder parameter shape differs');

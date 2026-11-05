@@ -1,6 +1,6 @@
 part of '../tally_onboarding.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _tallyOnboardingFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -72,6 +72,7 @@ const tallyOnboardingFlowRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'TallyOnboardingFlowSurface',
   measurementPublicationDraftDigest:
       '0ee4786a4271d506035ecfa17facdfb7e53f8944e40d7f55e2c8a850f347066f',
   vocabulary: _tallyOnboardingFlowRefVocabulary,
@@ -116,8 +117,8 @@ final _tallyOnboardingFlowPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

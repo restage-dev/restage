@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, internal;
 import 'package:flutter/material.dart' show MaterialApp, MaterialPage, Theme;
 import 'package:flutter/scheduler.dart' show SchedulerBinding, SchedulerPhase;
 import 'package:flutter/widgets.dart';
+import 'package:restage_core/restage_core.dart'
+    show RestageIslandStage, RestageNativeValues;
 import 'package:restage_shared/restage_shared.dart' show DeliveredIconFont;
 import 'package:rfw/rfw.dart';
 
@@ -20,13 +22,18 @@ import '../measurement/measurement_event_sanitizer.dart'
     show isMeasurementTapEventName;
 import '../runtime/context_data.dart';
 import '../runtime/error_boundary.dart';
+import '../runtime/island_scope.dart';
+import '../runtime/island_visit.dart';
 import '../runtime/event_demux.dart' show isReservedCommerceEventName;
 import '../runtime/local_values.dart';
 import '../runtime/restage.dart';
+import '../runtime/surface_vocabulary.dart'
+    show RestageStepMount, RestageStepValues;
 import 'compiled_flow.dart';
 import 'flow_controller.dart';
 import 'flow_resolver.dart' show ResolvedFlow;
 import 'flow_runtime_support.dart';
+import 'flow_screen_builders.dart';
 import 'flow_transitions.dart';
 import 'system_back_policy.dart';
 
@@ -207,6 +214,11 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
   /// its route is still on the nested navigator.
   final Map<int, _MountedScreen> _screens = <int, _MountedScreen>{};
 
+  /// Visits this view has mounted. A version swapped in for an untouched flow
+  /// numbers its first visit as the shown version did, so its islands and
+  /// step State carry over.
+  int _visits = 0;
+
   /// Entry ids currently published as pages, oldest first.
   List<int> _entryIds = <int>[];
 
@@ -240,6 +252,12 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
       _clearScreens();
       _syncFromController();
       return;
+    }
+    // Without a host supplying the app's builders, the app rebuilt this view.
+    if (!FlowScreenBuilders.suppliedAbove(context)) {
+      for (final screen in _screens.values) {
+        screen.content = null;
+      }
     }
     _publishAllContext();
   }
@@ -298,8 +316,11 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
       final data = DynamicContent();
       final screen = _MountedScreen(
         entryId: entryId,
+        visit: ++_visits,
+        artifactId: controller.currentScreenArtifactId,
         runtime: library == null ? null : flowScreenRuntime(library),
         nativeScreen: nativeScreen,
+        step: controller.currentStepMount,
         onEvent: (name, args) =>
             _handleScreenEvent(controller, entryId, name, args),
         data: data,
@@ -348,14 +369,24 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
       screen.data,
       includeInheritedData: _dependenciesReady,
       contextPublisher: screen.contextPublisher,
-      hostContext: _context,
+      hostContext: _contextOf(screen),
     );
   }
 
   void _publishAllContext() {
     for (final screen in _screens.values) {
-      screen.contextPublisher.publishSnapshot(_context);
+      screen.contextPublisher.publishSnapshot(_contextOf(screen));
     }
+  }
+
+  /// The host context, with what a step's mount computes for it.
+  ContextSnapshot? _contextOf(_MountedScreen screen) {
+    final values = screen.stepValues;
+    if (values == null) return _context;
+    return ContextSnapshot.of(
+      {...?_context?.value, ...values},
+      previous: screen.contextPublisher.lastPublished,
+    );
   }
 
   void _clearScreens() {
@@ -458,7 +489,14 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
       LayoutBuilder(
         builder: (context, constraints) {
           assert(_debugCheckBounded(constraints));
-          return navigator;
+          // A view no host stages keeps its own copy of its steps' islands.
+          return RestageIslandStage.stageOf(context) == null
+              ? RestageIslandStage(
+                  candidate: false,
+                  host: this,
+                  child: navigator,
+                )
+              : navigator;
         },
       ),
     );
@@ -486,7 +524,11 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
 
   Page<Object?> _pageFor(_MountedScreen screen) {
     final key = ValueKey<int>(screen.entryId);
-    final child = _buildScreen(screen);
+    // Each visit is a new screen with its own islands.
+    final child = IslandVisit(
+      visit: screen.visit,
+      child: _buildScreen(screen),
+    );
     final transition = widget.transition;
     if (transition != null) {
       return _FlowScreenPage(key: key, transition: transition, child: child);
@@ -587,6 +629,69 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
     controller.handleEvent(name, normalized);
   }
 
+  /// The screen's content, built when the app builds the step: under the
+  /// app's mount for its step, if any, keyed so its State spans versions.
+  Widget _contentOf(_MountedScreen screen) {
+    final delivered = screen.runtime == null
+        ? null
+        : DeliveredIconFontLoader.scope(
+            screen.iconFonts,
+            child: RemoteWidget(
+                runtime: screen.runtime!,
+                data: screen.data,
+                widget: kFlowScreenWidget,
+                onEvent: screen.onEvent),
+          );
+    return Builder(builder: (context) {
+      final builder = FlowScreenBuilders.of(context)?[screen.artifactId];
+      final step = screen.step;
+      if (step == null) return delivered ?? (builder ?? screen.nativeScreen!)();
+      final host = RestageIslandScope.hostOf(context);
+      final seeds = host == null ? null : _stepSeeds[host] ??= {};
+      final slot = '${screen.artifactId}@${IslandVisit.of(context)}';
+      // A staged version renders its body from what the shown step last
+      // computed, and builds the app's step only once it is shown.
+      if (RestageIslandStage.isCandidate(context)) {
+        final seed = seeds?[slot];
+        if (delivered == null || seed == null) return const SizedBox.shrink();
+        return seed.scope(_StepValuesSink(
+          key: ObjectKey(screen),
+          seed: seed.values,
+          onValues: (values, _) => _publishStepValues(screen, values),
+          child: delivered,
+        ));
+      }
+      final original = (builder ?? step.original)();
+      final mount = step.mount(
+        context,
+        _StepValuesSink(
+          key: ObjectKey(screen),
+          onValues: (values, natives) {
+            _publishStepValues(screen, values);
+            seeds?[slot] = screen.seed = _StepSeed(values, natives);
+          },
+          onDispose: () {
+            if (identical(seeds?[slot], screen.seed)) seeds!.remove(slot);
+          },
+          child: delivered ?? _StepBuilt(original: original),
+        ),
+        original,
+      );
+      return host == null
+          ? mount
+          : RestageIslandScope.keyed(
+              host, 'restage.step/${screen.artifactId}', mount);
+    });
+  }
+
+  void _publishStepValues(_MountedScreen screen, Map<String, Object?>? values) {
+    screen.stepValues = values;
+    screen.contextPublisher.publishSnapshot(_contextOf(screen));
+  }
+
+  // What each shown step last computed, per host, step and visit.
+  static final _stepSeeds = Expando<Map<String, _StepSeed>>();
+
   Widget _buildScreen(_MountedScreen screen) {
     // Capture the controller that owns this screen, so a stale event or render
     // failure routes to its owner (gated to the owner's current entry) and
@@ -618,16 +723,9 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
           load: controller.surfaceLoadToken,
           onPainted: controller.reportLoadPainted,
           requireRenderSuccess: true,
-          child: screen.nativeScreen != null
-              ? Builder(builder: (_) => screen.nativeScreen!())
-              : DeliveredIconFontLoader.scope(
-                  screen.iconFonts,
-                  child: RemoteWidget(
-                      runtime: screen.runtime!,
-                      data: screen.data,
-                      widget: kFlowScreenWidget,
-                      onEvent: screen.onEvent),
-                ),
+          // The same instance until the app rebuilds the step, so the
+          // controller's own updates leave the step alone.
+          child: screen.content ??= _contentOf(screen),
         ),
       ),
     );
@@ -753,11 +851,88 @@ class _FlowAnchorPage extends Page<Object?> {
 
 /// One mounted screen visit: an isolated runtime + data slot keyed by its
 /// controller-minted entry id.
+/// Publishes the values a step mount supplies above it.
+class _StepValuesSink extends StatefulWidget {
+  const _StepValuesSink({
+    required this.onValues,
+    required this.child,
+    this.seed,
+    this.onDispose,
+    super.key,
+  });
+
+  final void Function(
+      Map<String, Object?>? values, RestageNativeValues? natives) onValues;
+  final Widget child;
+
+  /// Values to publish in place of the mount's.
+  final Map<String, Object?>? seed;
+  final VoidCallback? onDispose;
+
+  @override
+  State<_StepValuesSink> createState() => _StepValuesSinkState();
+}
+
+class _StepValuesSinkState extends State<_StepValuesSink> {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    widget.onValues(
+      widget.seed ?? RestageStepValues.maybeOf(context),
+      context.dependOnInheritedWidgetOfExactType<RestageNativeValues>(),
+    );
+  }
+
+  @override
+  void dispose() {
+    widget.onDispose?.call();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// The step as its mount's build produced it, or the app's own step for a
+/// mount that supplies none.
+class _StepBuilt extends StatelessWidget {
+  const _StepBuilt({required this.original});
+
+  final Widget original;
+
+  @override
+  Widget build(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<RestageStepValues>()?.built ??
+      original;
+}
+
+/// What a shown step last computed, for a staged version of it to render.
+final class _StepSeed {
+  _StepSeed(this.values, this.natives);
+
+  final Map<String, Object?>? values;
+  final RestageNativeValues? natives;
+
+  /// [child] under the shown step's native values.
+  Widget scope(Widget child) => switch (natives) {
+        null => child,
+        final natives => RestageNativeValues(
+            bindings: natives.bindings,
+            textScalers: natives.textScalers,
+            labels: natives.labels,
+            child: child,
+          ),
+      };
+}
+
 class _MountedScreen {
   _MountedScreen({
     required this.entryId,
+    required this.visit,
+    required this.artifactId,
     required this.runtime,
     required this.nativeScreen,
+    required this.step,
     required this.onEvent,
     required this.data,
     required this.iconFonts,
@@ -765,10 +940,24 @@ class _MountedScreen {
   });
 
   final int entryId;
+  final int visit;
+  final String? artifactId;
   final List<DeliveredIconFont> iconFonts;
   final LocalValues local;
   final Runtime? runtime;
   final CompiledFlowScreenBuilder? nativeScreen;
+
+  /// The app's mount for this step and the step it reads, if any.
+  final ({RestageStepMount mount, CompiledFlowScreenBuilder original})? step;
+
+  /// What the step's mount last computed.
+  Map<String, Object?>? stepValues;
+
+  /// The content as the app last built it.
+  Widget? content;
+
+  /// What this screen's step last recorded for a staged version.
+  _StepSeed? seed;
   final void Function(String name, Object? args) onEvent;
   final DynamicContent data;
   late final ContextPublisher contextPublisher = ContextPublisher(data);

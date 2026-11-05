@@ -46,7 +46,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
     required this.onEvent,
     required this.onComplete,
     required this.onUnavailable,
-  })  : _onMeasurementLifecycle = null,
+  })  : _host = null,
+        _onMeasurementLifecycle = null,
         _onMeasurementAnswer = null,
         _onLoadPainted = null {
     _installFlowVocabularies();
@@ -66,8 +67,10 @@ final class RestageFlowController<R> extends ChangeNotifier {
     void Function(MeasurementOccurrenceChannelV1 channel, String? screenId)?
         onMeasurementLifecycle,
     void Function(String questionId, Object? value)? onMeasurementAnswer,
+    required String host,
     void Function()? onLoadPainted,
-  })  : _onMeasurementAnswer = onMeasurementAnswer,
+  })  : _host = host,
+        _onMeasurementAnswer = onMeasurementAnswer,
         _onLoadPainted = onLoadPainted,
         _onMeasurementLifecycle = onMeasurementLifecycle,
         _onRootResolved = onRootResolved,
@@ -77,6 +80,10 @@ final class RestageFlowController<R> extends ChangeNotifier {
 
   /// Flow descriptor being executed.
   final OnboardingFlowRef<R> flow;
+
+  // The widget the app wrote to show this flow; null when the app drives the
+  // controller itself.
+  final String? _host;
 
   /// Resolver used to load the pinned flow document and screen blobs.
   final FlowResolver resolver;
@@ -245,6 +252,31 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// Decoded RFW library for the current screen.
   WidgetLibrary? get currentLibrary => _currentFrame?.currentLibrary;
 
+  /// The app's mount for the current screen and the step it reads, if any.
+  @internal
+  ({RestageStepMount mount, CompiledFlowScreenBuilder original})?
+      get currentStepMount {
+    final frame = _currentFrame;
+    final screen = currentScreenArtifactId;
+    if (frame == null || screen == null) return null;
+    final mount = _carriedFlowRef(frame.flowId)?.vocabulary.stepMounts[screen];
+    final original = _boundScreen(frame.flowId, screen);
+    return mount == null || original == null
+        ? null
+        : (mount: mount, original: original);
+  }
+
+  // The app's builder for [screen] of the flow [flowId], whatever version of
+  // that flow was served.
+  CompiledFlowScreenBuilder? _boundScreen(String flowId, String screen) {
+    final root = flow.compiled;
+    if (root == null || flowId == flow.id) return root?.screens[screen];
+    CompiledFlow? find(CompiledFlow parent) =>
+        parent.children[flowId] ??
+        parent.children.values.map(find).nonNulls.firstOrNull;
+    return find(root)?.screens[screen];
+  }
+
   /// Authored constructor for the current visit when native fallback was selected.
   CompiledFlowScreenBuilder? get currentNativeScreen =>
       _currentFrame?.currentNativeScreen;
@@ -307,11 +339,11 @@ final class RestageFlowController<R> extends ChangeNotifier {
   bool _userContributedState = false;
 
   /// Whether the user has invested state into this flow — navigated past the
-  /// first screen, or recorded any answer/selection via a state-writing
-  /// transition. Used as a swap-safety signal: a flow with user-contributed
-  /// state is never live-replaced in place. Once set by a state write it stays
-  /// set for the life of the controller (a back-navigation does not un-invest
-  /// the answer already recorded).
+  /// first screen, recorded any answer/selection via a state-writing
+  /// transition, or acted on a screen. Used as a swap-safety signal: a flow
+  /// with user-contributed state is never live-replaced in place. Once set it
+  /// stays set for the life of the controller (a back-navigation does not
+  /// un-invest the answer already recorded).
   bool get hasUserContributedState =>
       _userContributedState || ((_currentFrame?.screenHistory.length ?? 0) > 1);
 
@@ -1716,6 +1748,25 @@ final class RestageFlowController<R> extends ChangeNotifier {
     final nativeScreen = resolved.compiled?.screens[state.screen];
     final library =
         nativeScreen == null ? _decodeScreenBlob(frame, state.screen) : null;
+    // Delivered content that needs the app's code renders only with it.
+    if (library != null &&
+        (_carriedFlowRef(frame.flowId)
+                ?.vocabulary
+                .stepMounts
+                .containsKey(state.screen) ??
+            false) &&
+        _boundScreen(frame.flowId, state.screen) == null) {
+      throw _errorForFrame(
+        frame,
+        'missing_screen_builder',
+        switch ((_host, flow.surfaceWidget)) {
+          (final host?, final widget?) => "Step `'${state.screen}'` can't "
+              'render. Try replacing `$host(...)` with `$widget(...)`.',
+          _ => "Step `'${state.screen}'` can't render. Try binding its screen "
+              'builder with `withScreenBuilders`.',
+        },
+      );
+    }
     final entryId = ++_screenEntrySequence;
     frame.currentStateId = stateId;
     frame.currentLibrary = library;
@@ -2649,6 +2700,7 @@ RestageFlowController<R> createHostMeasurementFlowController<R>({
   void Function(MeasurementOccurrenceChannelV1 channel, String? screenId)?
       onMeasurementLifecycle,
   void Function(String questionId, Object? value)? onMeasurementAnswer,
+  String host = 'RestageFlowGraph',
   void Function()? onLoadPainted,
 }) {
   return RestageFlowController<R>._forHostMeasurement(
@@ -2664,6 +2716,7 @@ RestageFlowController<R> createHostMeasurementFlowController<R>({
     sanitizeAndRecordEvent: sanitizeAndRecordEvent,
     onMeasurementLifecycle: onMeasurementLifecycle,
     onMeasurementAnswer: onMeasurementAnswer,
+    host: host,
     onLoadPainted: onLoadPainted,
   );
 }

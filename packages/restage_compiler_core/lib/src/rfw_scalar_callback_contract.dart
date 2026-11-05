@@ -3,6 +3,8 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show kMeasurementPublicationTapEventNameV1;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as rfw;
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
+    show designEventFits, parseRfwCallbackValueType;
 
 /// Checks a pure integer callback against its installed native signature.
 void validateRfwScalarContract(
@@ -125,8 +127,9 @@ int validateRfwPropertyCallbacks(
     if (type == PropertyType.event &&
         value is Map &&
         value.containsKey('nativeEvent')) {
+      final expected = eventNativeType(property);
       if (type != PropertyType.event ||
-          property.callbackSignature != null ||
+          expected == null ||
           value.keys.any(
             (key) => key != 'nativeEvent' && key != 'measurement',
           ) ||
@@ -147,21 +150,42 @@ int validateRfwPropertyCallbacks(
               envelope.values.nodes[envelope.values.root].type.kind ==
                   'native' &&
               envelope.values.nodes[envelope.values.root].type.nativeType ==
-                  kNativeVoidCallbackType
+                  expected
           : reference is rfw.DataReference ||
+              // A per-item binding is read through its loop item.
+              reference is rfw.LoopReference ||
+              // A split widget's recorded callback, of exactly this type.
+              reference is rfw.WidgetBuilderArgReference &&
+                  scope?.scopedNativeValue(reference)?.type == expected ||
               reference is Map &&
                   const {
                     'nativeBinding',
                     'nativeLocal',
                   }.contains(reference['kind']) &&
-                  reference['type'] == kNativeVoidCallbackType &&
+                  reference['type'] == expected &&
                   reference['nullable'] is bool;
       if (!valid) {
-        throw const FormatException('Native event requires a void callback.');
+        throw const FormatException(
+            'Native event requires a callback of its slot\'s type.');
+      }
+      if (value.containsKey('measurement') && !expected.endsWith('->void')) {
+        throw FormatException(
+            "Restage can't measure `${property.name}` because it returns a "
+            'value to Flutter. Try removing the measurement from '
+            '`${property.name}`.');
       }
       admitted.add(value);
       floor = 24;
       return;
+    }
+    if (type == PropertyType.event &&
+        value is rfw.EventHandler &&
+        !designEventFits(property)) {
+      throw FormatException(
+          "`${property.name}` needs a function from the app's code. Flutter "
+          "calls it with arguments, which an event from the design can't "
+          "receive. Try passing a function from your app's code to "
+          '`${property.name}`.');
     }
     if (type == PropertyType.scalarCallback) {
       if (scalar == null) {
@@ -385,4 +409,28 @@ int rfwCallbackGeneratedFloor(PropertyEntry property, Catalog catalog) {
 
   visit(property.type, property.valueShape, property.structuredRef, null);
   return floor;
+}
+
+/// The installed type a native callback on the event [property] must
+/// declare, in the native type grammar; null when it has none.
+String? eventNativeType(PropertyEntry property) {
+  final signature = property.callbackSignature;
+  if (property.callbackTypeId case final id?
+      when !designEventFits(property) || signature != null) {
+    return id;
+  }
+  if (signature == null) return kNativeVoidCallbackType;
+  final value = parseRfwCallbackValueType(signature);
+  return value == null ? null : '(${_coreTypeId(value)})->void';
+}
+
+// The native type id of a dart:core payload: `bool?`, `List<String>`.
+String _coreTypeId(String payload) {
+  if (payload.startsWith('List<') && payload.endsWith('>')) {
+    return 'dart:core#List<'
+        '${_coreTypeId(payload.substring(5, payload.length - 1))}>';
+  }
+  final nullable = payload.endsWith('?');
+  final name = nullable ? payload.substring(0, payload.length - 1) : payload;
+  return 'dart:core#$name${nullable ? '?' : ''}';
 }

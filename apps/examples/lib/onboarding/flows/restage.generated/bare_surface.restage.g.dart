@@ -1,6 +1,6 @@
 part of '../bare_surface.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _bareSurfaceFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -41,6 +41,7 @@ const bareSurfaceFlowRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'BareSurfaceFlowSurface',
   measurementPublicationDraftDigest:
       '7c28ddf22a4d83f801ffb704c89dad2fa7f23e89b7bed19a7521c1e5a320d651',
   vocabulary: _bareSurfaceFlowRefVocabulary,
@@ -83,8 +84,8 @@ final _bareSurfaceFlowPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

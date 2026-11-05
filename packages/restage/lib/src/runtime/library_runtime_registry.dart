@@ -60,6 +60,7 @@ abstract final class LibraryRuntimeRegistry {
     required int? compatibleSince,
     required int? generatedVersion,
     required bool additive,
+    bool islands = false,
   }) {
     if (hostInstalledRfwLibrary(library.namespace) != null) {
       assert(
@@ -123,6 +124,7 @@ abstract final class LibraryRuntimeRegistry {
       capabilityVersion: capabilityVersion,
       compatibleSince: compatibleSince,
       generatedVersion: generatedVersion,
+      islands: islands,
     );
     final builders = <String, rfw.LocalWidgetBuilder>{};
     for (final w in registration.widgets) {
@@ -168,6 +170,7 @@ abstract final class LibraryRuntimeRegistry {
         compatibleSince: registration.compatibleSince,
         generatedVersion: registration.generatedVersion,
         additive: true,
+        islands: registration.islands,
       );
       return;
     }
@@ -199,10 +202,12 @@ abstract final class LibraryRuntimeRegistry {
             registration.generatedVersion == null
         ? null
         : math.min(existing.generatedVersion!, registration.generatedVersion!);
+    final islands = existing.islands || registration.islands;
     if (added.isEmpty &&
         version == existingVersion &&
         compatibleSince == existing.compatibleSince &&
-        generatedVersion == existing.generatedVersion) {
+        generatedVersion == existing.generatedVersion &&
+        islands == existing.islands) {
       return;
     }
     _register(
@@ -212,8 +217,13 @@ abstract final class LibraryRuntimeRegistry {
       compatibleSince: compatibleSince,
       generatedVersion: generatedVersion,
       additive: true,
+      islands: islands,
     );
   }
+
+  /// Whether [namespace] was installed as a package's islands.
+  static bool isIslandLibrary(String namespace) =>
+      _entries[namespace]?.registration.islands ?? false;
 
   /// Whether any custom library is registered at all.
   static bool get hasRegistrations => _entries.isNotEmpty;

@@ -2,6 +2,8 @@ import 'dart:collection';
 import 'dart:convert';
 import 'package:restage_core/src/runtime/intl_value_operations.dart';
 
+import 'package:flutter/foundation.dart'
+    show listEquals, mapEquals, visibleForTesting;
 import 'package:flutter/widgets.dart';
 import 'package:restage_core/src/runtime/builder_context.dart';
 import 'package:restage_core/src/runtime/native_values.dart';
@@ -9,6 +11,7 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart';
 
 part 'builder_binding_lifetime.dart';
+part 'builder_program_cache.dart';
 part 'builder_continuation.dart';
 part 'builder_context_scope.dart';
 
@@ -22,6 +25,7 @@ const Map<String, ValueOperation> _defaultValueOperations = {
 final class RestageBuilderBinding {
   RestageBuilderBinding(DataSource source, List<Object> path,
       {this.contract,
+      this.data = const {},
       this.scalarContract,
       BuildContext? context,
       Map<String, ValueOperation> operations = _defaultValueOperations})
@@ -32,9 +36,10 @@ final class RestageBuilderBinding {
                 operations,
                 source: source)
             .frame,
-        _continuation = _BuilderContinuation(source.child(path));
+        _helper = source.child(path),
+        _continuation = _BuilderContinuation.at(source, path);
 
-  RestageBuilderBinding._(Widget helper,
+  RestageBuilderBinding._(Widget helper, DataSource source, List<Object> path,
       {ValueLocalFrame? parentFrame,
       Map<String, NativeBinding<Object?>> nativeBindings = const {},
       this.contract,
@@ -42,12 +47,25 @@ final class RestageBuilderBinding {
       this.operations = _defaultValueOperations})
       : _nativeBindings = nativeBindings,
         _parentFrame = parentFrame,
-        _continuation = _BuilderContinuation(helper);
+        data = const {},
+        _helper = helper,
+        _continuation = _BuilderContinuation.at(source, path);
 
   final WidgetBuilderContract? contract;
+
+  /// The shape the app supplies for each app value parameter of [contract].
+  final Map<String, ValueType> data;
   final ScalarCallbackContract? scalarContract;
   final Map<String, ValueOperation> operations;
+  final Widget _helper;
   final _BuilderContinuation _continuation;
+  bool _disposed = false;
+
+  T _invoke<T>(BuildContext context, T Function(DataSource) evaluate) {
+    if (_disposed) throw StateError('Builder binding is disposed');
+    return _continuation.invoke(context, _helper, evaluate);
+  }
+
   final ValueLocalFrame? _parentFrame;
   final Map<String, NativeBinding<Object?>> _nativeBindings;
   ValueOperationContext get _operationContext => ValueOperationContext(
@@ -74,7 +92,7 @@ final class RestageBuilderBinding {
     }
     return helper == null
         ? null
-        : RestageBuilderBinding._(helper,
+        : RestageBuilderBinding._(helper, source, path,
             nativeBindings: _nativeBindingsOf(source, context),
             parentFrame: _lexicalContext(
                     context ??
@@ -108,20 +126,36 @@ final class RestageBuilderBinding {
     }
   }
 
-  Widget build(BuildContext context, Map<String, Object?> parameters) =>
-      buildNullable(context, parameters) ??
+  /// Builds the delivered body; [recorded] holds the values the app's
+  /// builder recorded for this call, by key.
+  Widget build(BuildContext context, Map<String, Object?> parameters,
+          {Map<String, Object?>? recorded}) =>
+      buildNullable(context, parameters, recorded: recorded) ??
       (throw StateError('Nonnullable widget builder returned null'));
 
-  Widget? buildNullable(
-          BuildContext context, Map<String, Object?> parameters) =>
-      _continuation.invoke(
-          context, (source) => _buildNullable(source, context, parameters));
+  /// Builds the callback's body; [recorded] holds values the app's build
+  /// recorded, passed as recorded parameters and read as its scope's values.
+  Widget? buildNullable(BuildContext context, Map<String, Object?> parameters,
+      {Map<String, Object?>? recorded}) {
+    if (recorded != null) {
+      parameters = {
+        ...parameters,
+        for (final MapEntry(:key, :value) in recorded.entries)
+          '$kRecordedBuilderParameterPrefix$key': value,
+      };
+    }
+    return _invoke(
+        context,
+        (source) =>
+            _buildNullable(source, context, parameters, recorded ?? const {}));
+  }
 
-  Widget? _buildNullable(DataSource source, BuildContext context,
-      Map<String, Object?> parameters) {
+  Widget? _buildNullable(
+      DataSource source, BuildContext context, Map<String, Object?> parameters,
+      [Map<String, Object?> recorded = const {}]) {
     final program = _program(source, context);
     if (contract case final contract?) {
-      validateBuilderProgramContract(program, contract);
+      validateBuilderProgramContract(program, contract, data: data);
     } else if (program.values.parameters
         .containsKey(callbackParameterName(0))) {
       throw const FormatException(
@@ -145,7 +179,7 @@ final class RestageBuilderBinding {
             contextFrame, parameters, program.values.parameters.keys),
         operations: operations,
         context: _operationContext);
-    return _render(source, result, contextFrame);
+    return _render(source, result, contextFrame, recorded);
   }
 
   BuilderProgram _program(DataSource source, BuildContext context) {
@@ -154,7 +188,7 @@ final class RestageBuilderBinding {
     }
     final encoded = source.v<String>(const ['program']);
     if (encoded == null) throw const FormatException('Missing builder program');
-    final program = BuilderProgram.decode(encoded,
+    final program = _builderPrograms.decode(encoded,
         operations: operations, context: _operationContext);
     if (!source.isList(const ['bodies']) ||
         source.length(const ['bodies']) != program.bodyCount) {
@@ -164,20 +198,21 @@ final class RestageBuilderBinding {
   }
 
   Widget? _render(DataSource source, BuilderInvocation result,
-      _BuilderContextFrame contextFrame) {
+      _BuilderContextFrame contextFrame,
+      [Map<String, Object?> recorded = const {}]) {
     if (result.isNull) return null;
+    final values = {...recorded, ...result.values};
     final body = source.builder([
       'bodies',
       result.bodyIndex!
     ], <String, Object>{
       'values': <String, Object>{
-        for (final entry in result.values.entries)
+        for (final entry in values.entries)
           if (entry.value != null && entry.value is! ValueNative)
             entry.key: entry.value!
       },
       'nulls': <String, Object>{
-        for (final entry in result.values.entries)
-          entry.key: entry.value == null
+        for (final entry in values.entries) entry.key: entry.value == null
       }
     });
     final child = _BuilderContextScope(
@@ -246,7 +281,7 @@ final class RestageBuilderBinding {
   /// Builds a finite child collection through the same continuation.
   List<Widget> buildList(
           BuildContext context, Map<String, Object?> parameters) =>
-      _continuation.invoke(context, (source) {
+      _invoke(context, (source) {
         if (contract != null) {
           throw const FormatException('Widget callback cannot return a list');
         }
@@ -266,7 +301,7 @@ final class RestageBuilderBinding {
 
   /// Evaluates a scalar callback using the same subscription lifecycle.
   Object? evaluate(BuildContext context, Map<String, Object?> parameters) =>
-      _continuation.invoke(
+      _invoke(
           context, (source) => _evaluateScalar(source, context, parameters));
 
   /// Recovers the native key before invoking a child-index callback.
@@ -274,7 +309,7 @@ final class RestageBuilderBinding {
 
   /// Applies the callback's native ValueKey cast before projecting its value.
   Object? evaluateKey(BuildContext context, Key key) =>
-      _continuation.invoke(context, (source) {
+      _invoke(context, (source) {
         final program = _scalarProgram(source, context);
         final parameter = program.parameters[callbackParameterName(0)];
         return _evaluateScalar(
@@ -298,7 +333,7 @@ final class RestageBuilderBinding {
     }
     final encoded = source.v<String>(const ['program']);
     if (encoded == null) throw const FormatException('Missing scalar program');
-    final program = ValueProgram.decode(encoded,
+    final program = _valuePrograms.decode(encoded,
         operations: operations, context: _operationContext);
     if (scalarContract case final scalar?) {
       validateScalarCallbackProgramContract(program, scalar);
@@ -316,7 +351,14 @@ final class RestageBuilderBinding {
   }
 
   /// Releases subscriptions held by this callback.
-  void dispose() => _continuation.dispose();
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _continuation.release();
+  }
+
+  /// Projects an app color as a delivered body reads it.
+  static Map<String, Object?> color(Color value) => builderColorData(value);
 
   /// Projects the actual callback constraints, preserving native infinity.
   static Map<String, Object?> constraints(BoxConstraints value) => {
@@ -371,7 +413,7 @@ final class RestageValueBinding {
       throw const FormatException(
           'Computed values require a bound data source');
     }
-    final program = ValueProgram.decode(encoded,
+    final program = _valuePrograms.decode(encoded,
         operations: source.operations,
         context: ValueOperationContext(
             operations: source.operations,
@@ -396,15 +438,26 @@ final class RestageValueBinding {
       {required String type}) {
     final value = _readNativeValue(source, path, context, type: type);
     final native = value?.value;
-    if (native == null) return null;
+    if (native == null || withheldWhileStaged(native, context)) return null;
     if (native is! T)
       throw FormatException('Native value at $path has the wrong Dart type');
     return native;
   }
 
+  /// Reads an installed callback of the type its reference declares, which
+  /// must be a [T].
+  static T? readNativeCallback<T extends Function>(
+      DataSource source, List<Object> path, BuildContext context) {
+    final native = _readNativeValue(source, path, context, type: null)?.value;
+    if (native == null || withheldWhileStaged(native, context)) return null;
+    if (native is! T)
+      throw FormatException('Native callback at $path has the wrong Dart type');
+    return native;
+  }
+
   static ValueNative? _readNativeValue(
       DataSource source, List<Object> path, BuildContext context,
-      {required String type,
+      {required String? type,
       bool nullable = false,
       Map<String, NativeBinding<Object?>>? bindings,
       ValueLocalFrame? lexicalFrame}) {
@@ -434,13 +487,15 @@ final class RestageValueBinding {
           operations: operations,
           frame: lexicalFrame,
           locals: lexicalFrame?.visibleTypes ?? const {});
-      final program = ValueProgram.decode(encoded,
+      final program = _valuePrograms.decode(encoded,
           operations: operations, context: lexicalContext);
       final resultType = program.nodes[program.root].type;
-      if (resultType.kind != 'native' || resultType.nativeType != type) {
+      if (resultType.kind != 'native' ||
+          (type != null && resultType.nativeType != type)) {
         throw const FormatException(
             'Computed native value has the wrong result type');
       }
+      type ??= resultType.nativeType;
       value = source is _ValueDataSource
           ? source._computed(path)
           : RestageValueBinding(raw, path, operations: operations).evaluate(
@@ -450,9 +505,13 @@ final class RestageValueBinding {
     } else {
       final kind = raw.v<String>([...path, 'kind']);
       final nullable = raw.v<bool>([...path, 'nullable']);
-      if (raw.v<String>([...path, 'type']) != type || nullable == null) {
+      final declared = raw.v<String>([...path, 'type']);
+      if (declared == null ||
+          (type != null && declared != type) ||
+          nullable == null) {
         throw FormatException('Invalid native reference at $path');
       }
+      type = declared;
       final contract = NativeBindingContract(type: type, nullable: nullable);
       if (kind == 'nativeBinding') {
         final key = raw.v<String>([...path, 'key']);
@@ -545,7 +604,7 @@ final class RestageValueBinding {
     if (source.v<int>([...path, 'version']) != valueProgramVersion) {
       throw const FormatException('Unsupported value slot version');
     }
-    final program = ValueProgram.decode(encoded,
+    final program = _valuePrograms.decode(encoded,
         operations: operations, context: lexicalContext);
     return _evaluateProgram(
         program, context, parameters, lexicalContext, nativeBindings);
@@ -576,19 +635,42 @@ final class RestageValueBinding {
 final class _ValueDataSource implements DataSource {
   _ValueDataSource(
       DataSource source, this.context, Map<String, ValueOperation> operations)
-      : source = _rawValueSource(source),
+      : _origin = source,
+        source = _rawValueSource(source),
         requestedOperations = operations,
-        operations = _nativeOperations(source, context, operations),
-        nativeBindings = _nativeBindingsOf(source, context),
         frame = source is _ValueDataSource
             ? source.frame
-            : _BuilderContextScope.maybeOf(context)?.locals;
+            : _BuilderContextScope.maybeOf(context)?.locals {
+    // Taken at construction, so a retained source keeps the values it saw.
+    _natives;
+  }
+  final DataSource _origin;
   final Map<String, ValueOperation> requestedOperations;
-  final Map<String, NativeBinding<Object?>> nativeBindings;
+  // The native values in scope now, depended on only once read, so a widget
+  // that reads none does not rebuild when they change.
+  late final _NativeScope _natives = switch (_origin) {
+    final _ValueDataSource origin => origin._natives,
+    _ => _nativeScopeOf(context),
+  };
+  Map<String, NativeBinding<Object?>> get nativeBindings {
+    switch (_origin) {
+      case final _ValueDataSource origin:
+        origin.nativeBindings;
+      case _ when !_depends:
+        _depends = true;
+        _natives.dependOn(context);
+    }
+    return _natives.bindings;
+  }
+
+  bool _depends = false;
+
   final ValueLocalFrame? frame;
   final DataSource source;
   final BuildContext context;
-  final Map<String, ValueOperation> operations;
+  late final Map<String, ValueOperation> operations =
+      RestageNativeValues.operationsOf(context, requestedOperations,
+          bindings: nativeBindings);
   final Map<String, Object?> _values = {};
   bool _isComputed(List<Object> path) =>
       source.isMap(path) && source.v<String>([...path, 'program']) != null;
@@ -663,8 +745,47 @@ final class _ValueDataSource implements DataSource {
       source.optionalBuilder(path, arguments);
   @override
   T? handler<T extends Function>(
-          List<Object> path, HandlerGenerator<T> generator) =>
-      source.handler<T>(path, generator);
+      List<Object> path, HandlerGenerator<T> generator) {
+    if (!source.isMap(path) || !source.isMap([...path, 'nativeEvent'])) {
+      return source.handler<T>(path, generator);
+    }
+    // The app's own closure, called with Flutter's own arguments.
+    final callback = RestageValueBinding.readNativeCallback<T>(
+        this, [...path, 'nativeEvent'], context);
+    if (callback == null) return null;
+    final measure = source.voidHandler([...path, 'measurement']);
+    if (measure == null) return callback;
+    return _measured<T>(callback, measure, path);
+  }
+
+  // [callback] followed by [measure], with every positional argument
+  // forwarded; the result accepts anything [callback] does.
+  static T _measured<T extends Function>(
+      T callback, VoidCallback measure, List<Object> path) {
+    void run(List<Object?> arguments) {
+      Function.apply(callback, arguments);
+      measure();
+    }
+
+    final Function measured = switch (callback) {
+      final void Function() _ => () => run(const []),
+      final void Function(Never) _ => (Object? a) => run([a]),
+      final void Function(Never, Never) _ => (Object? a, Object? b) =>
+          run([a, b]),
+      final void Function(Never, Never, Never) _ =>
+        (Object? a, Object? b, Object? c) => run([a, b, c]),
+      final void Function(Never, Never, Never, Never) _ =>
+        (Object? a, Object? b, Object? c, Object? d) => run([a, b, c, d]),
+      _ => throw FormatException(
+          'A measured native callback at $path takes named or more than '
+          'four arguments'),
+    };
+    if (measured is! T) {
+      throw FormatException('Native callback at $path has the wrong Dart type');
+    }
+    return measured;
+  }
+
   @override
   VoidCallback? voidHandler(List<Object> path, [DynamicMap? arguments]) {
     if (!source.isMap(path) || !source.isMap([...path, 'nativeEvent'])) {
@@ -817,20 +938,37 @@ Map<String, NativeBinding<Object?>> _nativeBindingsOf(
   context ??= source is _ValueDataSource ? source.context : null;
   if (source is _ValueDataSource) return source.nativeBindings;
   if (context == null) return const {};
-  Map<String, NativeBinding<Object?>>? bindings;
+  final scope = _nativeScopeOf(context)..dependOn(context);
+  return scope.bindings;
+}
+
+/// The nearest native values above [context], without depending on them.
+_NativeScope _nativeScopeOf(BuildContext context) {
+  _NativeScope? scope;
   context.visitAncestorElements((element) {
     final widget = element.widget;
     if (widget is _BuilderContextScope && widget.frame.nativeBindings != null) {
-      bindings = widget.frame.nativeBindings;
+      scope = _NativeScope(
+          widget.frame.nativeBindings!, element as InheritedElement);
     } else if (widget is RestageNativeValues) {
-      bindings = widget.bindings;
+      scope = _NativeScope(widget.bindings, element as InheritedElement);
     } else {
       return true;
     }
-    context!.dependOnInheritedElement(element as InheritedElement);
     return false;
   });
-  return bindings ?? const {};
+  return scope ?? const _NativeScope(<String, NativeBinding<Object?>>{});
+}
+
+final class _NativeScope {
+  const _NativeScope(this.bindings, [this.element]);
+
+  final Map<String, NativeBinding<Object?>> bindings;
+  final InheritedElement? element;
+
+  void dependOn(BuildContext context) {
+    if (element case final element?) context.dependOnInheritedElement(element);
+  }
 }
 
 final class _NativeChildKey extends LocalKey {

@@ -13,7 +13,7 @@ import 'helpers.dart';
 
 void main() {
   test(
-    'resolved app TabBarView cannot bind the native catalog entry',
+    'an app TabBarView is inlined, not bound to the native catalog entry',
     () async {
       const source = '''
 import 'package:flutter/widgets.dart';
@@ -50,16 +50,25 @@ class IdentitySurface extends StatelessWidget {
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         onLog: (record) => messages.add(record.message),
-        outputs: const {},
+        flattenOutput: true,
       );
-      expect(result.succeeded, isFalse);
-      expect(
-        messages.join('\n'),
-        allOf(
-          contains('[unknownWidget]'),
-          contains("Widget 'TabBarView' is not a known catalog widget"),
+      expect(result.succeeded, isTrue, reason: messages.join('\n'));
+      final library = fmt.parseLibraryFile(
+        result.readerWriter.testing.readString(
+          AssetId('apps_examples', 'assets/paywalls/foreign_identity.rfwtxt'),
         ),
       );
+      final local = {
+        for (final widget in library.widgets) widget.name: widget.root,
+      };
+      // The app class gets a definition of its own; the catalog name is free.
+      expect(local.keys, isNot(contains('TabBarView')));
+      final appName = local.keys.singleWhere(
+        (name) => name.startsWith('TabBarView_'),
+      );
+      final app = local[appName]! as fmt.ConstructorCall;
+      expect((app.name, app.arguments['text']), ('Text', 'App widget'));
+      expect((local['Paywall']! as fmt.ConstructorCall).name, appName);
     },
   );
 
@@ -190,9 +199,14 @@ class IdentitySurface extends StatelessWidget {
                   .last
                   .split('/// Builds')
                   .first;
-              return source.contains(
-                    "import 'package:flutter/gestures.dart' show DragStartBehavior;",
-                  ) &&
+              final gestures = RegExp(
+                r"import 'package:flutter/gestures.dart'\s+show([^;]*);",
+              ).firstMatch(source);
+              return gestures != null &&
+                  gestures[1]!
+                      .split(',')
+                      .map((name) => name.trim())
+                      .contains('DragStartBehavior') &&
                   source.contains("'TabBarView': buildTabBarView") &&
                   factory.contains('return TabBarView(') &&
                   factory.contains('RestageDecoders.positiveLayoutScalar(') &&

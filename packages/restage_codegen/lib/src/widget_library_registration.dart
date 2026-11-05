@@ -21,6 +21,7 @@ void writeWidgetLibraryRegistration(
   required Map<String, String> builders,
   int? capabilityVersion,
   int? compatibleSince,
+  List<String> spreads = const [],
 }) {
   buffer
     ..writeln('Restage.registerWidgetLibrary(')
@@ -31,12 +32,18 @@ void writeWidgetLibraryRegistration(
   )) {
     buffer.writeln('  $argument');
   }
-  buffer.writeln('  widgets: const <RestageWidgetFactory>[');
+  // A spread of another library's registration isn't constant.
+  buffer.writeln(
+    '  widgets: ${spreads.isEmpty ? 'const ' : ''}<RestageWidgetFactory>[',
+  );
   for (final entry in builders.entries) {
     buffer.writeln(
       '    RestageWidgetFactory(name: ${dartStringLiteral(entry.key)}, '
       'builder: ${entry.value}),',
     );
+  }
+  for (final spread in spreads) {
+    buffer.writeln('    ...$spread,');
   }
   buffer
     ..writeln('  ],')

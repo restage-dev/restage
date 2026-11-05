@@ -1,6 +1,6 @@
 part of '../lumen_goal.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const lumenGoalScreenRef = NeutralFlowScreenRef(
   id: 'lumen_goal',

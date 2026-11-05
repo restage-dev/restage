@@ -64,6 +64,7 @@ _flutter.loader.load({
     required Uint8List fontBytes,
     required Uint8List licenseBytes,
     SurfaceCaptureWrapper? previewWrapper,
+    bool islands = false,
   }) async {
     writes.add((projectRoot: projectRoot, flutterVersion: flutterVersion));
     generated.createSync(recursive: true);

@@ -14,15 +14,54 @@ Widget buildRestageBuilderContinuation(
 }
 
 final class _BuilderContinuation {
-  _BuilderContinuation(this.helper);
-  final Widget helper;
+  _BuilderContinuation._(this._slots, this._slot, this._sourceWidget);
+
+  /// The continuation for the callback at [path] of [source]. A binding
+  /// built again by the same widget at the same place shares the one before
+  /// it, so its invocation tree is updated rather than built anew.
+  factory _BuilderContinuation.at(DataSource source, List<Object> path) {
+    final element = source is _ValueDataSource ? source.context : null;
+    final raw = _rawValueSource(source);
+    final widget = switch (raw) {
+      final State<StatefulWidget> state => state.widget,
+      _ => null,
+    };
+    if (element is! Element || widget == null) {
+      return _BuilderContinuation._(null, null, null).._users += 1;
+    }
+    final slots = _bySlot[element] ??= {};
+    final slot = path.join('/');
+    final shared = slots[slot];
+    if (shared != null &&
+        !shared._disposed &&
+        identical(shared._sourceWidget, widget)) {
+      return shared.._users += 1;
+    }
+    return slots[slot] = _BuilderContinuation._(slots, slot, widget)
+      .._users += 1;
+  }
+
+  static final _bySlot = Expando<Map<String, _BuilderContinuation>>();
+
+  final Map<String, _BuilderContinuation>? _slots;
+  final String? _slot;
+  final Widget? _sourceWidget;
+  int _users = 0;
   final _contexts = <Element>{};
   BuildOwner? _owner;
   RootElement? _root;
   bool _invoking = false;
   bool _disposed = false;
 
-  T invoke<T>(BuildContext context, T Function(DataSource) evaluate) {
+  /// Ends one binding's use; the last one disposes the continuation.
+  void release() {
+    if (--_users > 0) return;
+    if (identical(_slots?[_slot], this)) _slots!.remove(_slot);
+    dispose();
+  }
+
+  T invoke<T>(
+      BuildContext context, Widget helper, T Function(DataSource) evaluate) {
     if (_disposed) throw StateError('Builder binding is disposed');
     if (_invoking) throw StateError('Builder invocation is already running');
     _contexts.removeWhere((element) => !element.mounted);

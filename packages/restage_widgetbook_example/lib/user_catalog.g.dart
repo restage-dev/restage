@@ -130,6 +130,7 @@ final Catalog kUserCatalog = Catalog(
           description: 'Reports changes to [enabled].',
           required: true,
           callbackSignature: 'ValueChanged<bool>',
+          callbackTypeId: '(dart:core#bool)->void',
         ),
         PropertyEntry(
           wireId: WireId('p0054'),
@@ -339,6 +340,7 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.event,
           description: 'Arbitrarily named zero-argument callback.',
           required: true,
+          callbackTypeId: '()->void',
         ),
         PropertyEntry(
           wireId: WireId('p0037'),
@@ -347,6 +349,7 @@ final Catalog kUserCatalog = Catalog(
           description: 'Arbitrarily named one-argument boolean callback.',
           required: true,
           callbackSignature: 'ValueChanged<bool>',
+          callbackTypeId: '(dart:core#bool)->void',
         ),
         PropertyEntry(
           wireId: WireId('p0038'),
@@ -355,6 +358,7 @@ final Catalog kUserCatalog = Catalog(
           description: 'Arbitrarily named one-argument integer callback.',
           required: true,
           callbackSignature: 'ValueChanged<int>',
+          callbackTypeId: '(dart:core#int)->void',
         ),
         PropertyEntry(
           wireId: WireId('p0062'),
@@ -429,6 +433,7 @@ final Catalog kUserCatalog = Catalog(
               'Arbitrarily named one-argument callback paired with [enabled].',
           required: true,
           callbackSignature: 'ValueChanged<bool>',
+          callbackTypeId: '(dart:core#bool)->void',
         ),
         PropertyEntry(
           wireId: WireId('p0063'),

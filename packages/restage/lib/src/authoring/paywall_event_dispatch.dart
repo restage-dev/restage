@@ -44,8 +44,17 @@ final class RestagePaywallEventDispatchRegistration {
 
   RestagePaywallDispatchHandler _handler;
   RestagePaywallEventTargetScope? _target;
+  Object? _mount;
   Object _revision = Object();
   bool _mounted = true;
+
+  /// Associates this registration with the generated mount it renders.
+  void updateMount(Object? mount) {
+    _mount = mount;
+    if (mount != null) {
+      RestagePaywallEventDispatchAuthority._mounts[mount] = true;
+    }
+  }
 
   void updateHandler(RestagePaywallDispatchHandler handler) {
     if (identical(_handler, handler)) return;
@@ -142,6 +151,34 @@ final class RestagePaywallEventDispatchAuthority {
             onRefused,
             AuthoringRefusalKind.ambiguousDispatcher,
           );
+  }
+
+  static final Expando<bool> _mounts = Expando();
+
+  /// Whether a paywall has ever dispatched for [mount].
+  static bool rendersMount(Object mount) => _mounts[mount] ?? false;
+
+  /// The handler of the one current registration rendering [mount], or a
+  /// refusing handler when none or more than one is current.
+  static RestagePaywallDispatchHandler? captureFor(
+    Object mount, {
+    void Function(AuthoringRefusalKind refusal)? onRefused,
+  }) {
+    final current = [
+      for (final registration in _registrations)
+        if (identical(registration._mount, mount) &&
+            registration._target?.flowStep != true &&
+            RestagePaywallEventDispatchRegistration._isTargetCurrent(
+                registration._target))
+          registration,
+    ];
+    return switch (current) {
+      [final registration] => registration.capture(onRefused: onRefused) ??
+          _refusingHandler(onRefused, AuthoringRefusalKind.callbackRefused),
+      [] => null,
+      _ =>
+        _refusingHandler(onRefused, AuthoringRefusalKind.ambiguousDispatcher),
+    };
   }
 
   static void _refused(String _, Map<String, Object?> __) {}

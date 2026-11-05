@@ -206,7 +206,7 @@ class PriceTag extends StatelessWidget {
       notices.single,
       contains(
         "renders from your app's compiled code because build() uses "
-        'CustomPaint',
+        '`CustomPaint(painter: StreakPainter())`',
       ),
     );
     expect(notices.single, contains('still set its arguments'));

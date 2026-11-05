@@ -105,7 +105,7 @@ final class LumenOnboardingFlow extends RestageFlow {
           route,
           branches: [
             flowBranch(
-              when: state('goal').equals('curious'),
+              when: flowState('goal').equals('curious'),
               target: lumenRecapScreenRef,
             ),
           ],

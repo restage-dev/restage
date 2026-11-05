@@ -11,11 +11,14 @@ import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/installed_native_call.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
+import 'package:restage_compiler_core/restage_compiler_core.dart'
+    show kGeneratedVocabularyVersion;
 import 'package:restage_shared/restage_shared.dart';
-import 'package:test/test.dart';
+import 'package:test/test.dart' hide test;
+import 'package:test/test.dart' as t show test;
 
-import '../helpers.dart';
-import '../shared_resolvers.dart';
+import '../../helpers.dart';
+import '../../shared_resolvers.dart';
 
 const _emptyEventHash =
     'sha256:'
@@ -36,7 +39,132 @@ const _multiContractFingerprint =
     'sha256:'
     '18d0b8a332b67fb830a934913e410d0906904347e30a9dfba1036156bc8a5b60';
 
-void main() {
+/// Registers the tests whose order of registration is in [from], [to); each
+/// part runs from its own test file so the suite's shards stay balanced.
+void defineScreenContractReferenceEmitterTests(int from, [int? to]) {
+  _from = from;
+  _to = to;
+  _registered = 0;
+  _defineAll();
+}
+
+var _from = 0;
+int? _to;
+var _registered = 0;
+
+/// Registers [body] as `package:test`'s `test` does, when it is in the part.
+void test(Object? description, dynamic Function() body, {Timeout? timeout}) {
+  final index = _registered++;
+  if (index < _from || (_to != null && index >= _to!)) return;
+  t.test(description, body, timeout: timeout);
+}
+
+void _defineAll() {
+  test(
+    'a split widget wrapper records its build and renders the body',
+    () async {
+      const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/maintenance_notice.restage.g.dart';
+String describe(String title) => title.toUpperCase();
+class Tap extends StatelessWidget {
+  const Tap({super.key, required this.child, required this.onTap});
+  final Widget child;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) =>
+      GestureDetector(onTap: onTap, child: child);
+}
+final taps = <String>[];
+@Screen(id: 'plan_card')
+class PlanCard extends StatelessWidget {
+  const PlanCard({super.key, required this.title});
+  final String title;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Text(describe(title)),
+        Tap(onTap: () => taps.add(title), child: const Text('Pick')),
+      ]);
+}
+''';
+      String? emitted;
+      await testBuilder(
+        _CompiledScreenProbeBuilder((compiled, assetId) {
+          final screen = compiled.input;
+          final emittedWrapper = emitSplitWidgetWrapper(
+            ResolvedWidgetMountInput(
+              assetId: assetId,
+              screen: screen.declaration,
+              rootParams: screen.build.rootParams,
+              constructorParams: screen.build.constructorParams,
+              hoisted: compiled.hoisted,
+              islands: compiled.islands,
+              split: compiled.split,
+            ),
+            entry: WidgetEntry(
+              wireId: WireId('w0001'),
+              name: 'PlanCard',
+              library: WidgetLibrary.custom('apps_examples.widgets'),
+              category: null,
+              description: 'A plan card.',
+              flutterType: 'PlanCard',
+              childrenSlot: ChildrenSlot.none,
+              properties: [
+                PropertyEntry(
+                  wireId: WireId('p0001'),
+                  name: 'title',
+                  type: PropertyType.string,
+                  description: 'title',
+                  required: true,
+                ),
+              ],
+            ),
+          );
+          expect(emittedWrapper.omissionMessage, isNull);
+          emitted = emittedWrapper.source;
+          expect(emittedWrapper.registration, r'restageSplit$PlanCard');
+        }),
+        {'apps_examples|lib/maintenance_notice.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        ),
+        resolvers: sharedResolvers,
+      );
+      final flat = emitted!.replaceAll(RegExp(r'\s+'), '');
+      for (final part in [
+        // The design's placement is staged under its island identity.
+        r'Widget_restageBuild$PlanCard__split(BuildContextcontext,'
+            r'DataSourcesource)=>RestageIslandScope.split(context,source,',
+        r'_restageWidget$PlanCard(source:source)',
+        // The app's own placement builds the same wrapper, so State carries.
+        r'restageSplitApp$PlanCard(PlanCardwidget)=>'
+            r'_restageWidget$PlanCard.app(widget)',
+        r'extendsState<_restageWidget$PlanCard>{',
+        'get_restageWidget=>widget.app??PlanCard(title:',
+        // Without a design it renders its own build; with one, the body.
+        'if(_restageSource==null)return_restageBuilt;',
+        "const<Object>['restageWidget']",
+        'recorded:_restageRecording.values',
+        '_restageRecording.value(',
+        // The wrapper registers with the version of the code generating it.
+        r"constrestageSplit$PlanCard=RestageWidgetLibraryRegistration.constant("
+            "library:WidgetLibrary.custom('apps_examples.widgets'),"
+            'generatedVersion:$kGeneratedVocabularyVersion,widgets:['
+            "RestageWidgetFactory(name:'PlanCard__split',"
+            r'builder:_restageBuild$PlanCard__split)]);',
+      ]) {
+        expect(flat, contains(part));
+      }
+      await _assertGeneratedPartAnalyzes(
+        source,
+        "part of 'maintenance_notice.dart';\n"
+        '// ignore_for_file: type=lint, unnecessary_cast\n$emitted',
+      );
+    },
+  );
+
   group('standalone screen contract/reference emitter', () {
     test(
       'installs prefixed typed native adapters without evaluating their body',
@@ -66,7 +194,10 @@ class MaintenanceNotice extends f.StatelessWidget {
   f.Widget build(f.BuildContext context) => const f.SizedBox();
 }
 ''';
-        final inspection = await _inspect(source, hoisted: [plan.binding]);
+        final inspection = await _inspect(
+          source,
+          hoisted: [plan.bindingAt(null)],
+        );
         expect(inspection.issues, isEmpty);
         expect(inspection.contract!.mountOmissionMessage, isNull);
         final emitted = inspection.contract!.emitReferenceDart();
@@ -79,6 +210,101 @@ class MaintenanceNotice extends f.StatelessWidget {
         await _assertGeneratedPartAnalyzes(source, emitted);
       },
     );
+    test('omits a mount whose library hides the native value scope', () async {
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart' as f;
+f.MaterialColor x() => f.MaterialColor(0xff102030, <int, f.Color>{500: const f.Color(0xff102030)});
+''',
+        rootPackage: 'apps_examples',
+        libraryPath: 'lib/maintenance_notice.dart',
+      );
+      final plan = planInstalledNativeCall(
+        expression,
+        resultType: const ValueType.native('flutter.Color'),
+        captureFor: (_) => null,
+        inputFor: (_) => null,
+      );
+      const source = '''
+import 'package:flutter/material.dart' as f;
+import 'package:restage/restage.dart' as r hide RestageNativeValues;
+part 'restage.generated/maintenance_notice.restage.g.dart';
+@r.Screen(id: 'maintenance_notice', surface: r.Surface.general)
+class MaintenanceNotice extends f.StatelessWidget {
+  const MaintenanceNotice({super.key});
+  @override
+  f.Widget build(f.BuildContext context) => const f.SizedBox();
+}
+''';
+      final inspection = await _inspect(
+        source,
+        hoisted: [plan.bindingAt(null)],
+      );
+      expect(
+        [for (final issue in inspection.issues) issue.message],
+        [
+          '`f.MaterialColor(0xff102030, <int, f.Color>{500: const f.Col…` '
+              '(lib/maintenance_notice.dart#MaintenanceNotice) runs app code, '
+              'which needs the generated `MaintenanceNoticeSurface`, and '
+              "Restage didn't generate it because lib/maintenance_notice.dart "
+              "doesn't import `package:restage_core/restage_core.dart`. Try "
+              'importing it without `show` or `hide`.',
+        ],
+      );
+    });
+
+    test(
+      'omits a mount whose build argument type the library cannot name',
+      () async {
+        const secret = '''
+final class Secret {}
+''';
+        const base = '''
+import 'package:flutter/widgets.dart';
+
+import 'secret.dart';
+
+abstract class ArgumentBase extends StatelessWidget {
+  const ArgumentBase({super.key});
+
+  @override
+  Widget build(BuildContext context, [Secret? secret]);
+}
+''';
+        const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+import 'argument_base.dart';
+
+part 'restage.generated/maintenance_notice.restage.g.dart';
+
+@Screen(id: 'maintenance_notice', surface: Surface.general)
+final class MaintenanceNotice extends ArgumentBase {
+  const MaintenanceNotice({super.key});
+
+  @override
+  Widget build(context, [secret]) => const SizedBox.shrink();
+}
+''';
+        final inspection = await _inspect(
+          source,
+          buildArguments: true,
+          additionalSources: const {
+            'apps_examples|lib/secret.dart': secret,
+            'apps_examples|lib/argument_base.dart': base,
+          },
+        );
+        expect(inspection.issues, isEmpty);
+        expect(
+          inspection.contract!.mountOmissionMessage,
+          "`MaintenanceNoticeSurface` wasn't generated because "
+          "lib/maintenance_notice.dart can't name the type of the build argument "
+          '`secret`. Try importing the library that declares it.',
+        );
+      },
+    );
+
     test('pins the shared event-hash and fingerprint vectors', () {
       final empty = SurfaceScreenEventSchema(events: const []);
       expect(
@@ -231,7 +457,7 @@ class MaintenanceNotice extends f.StatelessWidget {
         expect(emitted, isNot(contains(contract.contractFingerprint)));
         expect(
           sha256.convert(utf8.encode(emitted)).toString(),
-          '846ad69b9aad955915a5d941b942edc75a77cfec94645a8df190e2b7d61069d4',
+          '6a5b9813f875236a63f1de39b23ab3c8de29e481a0169fabd2ec885d8b3a4f5d',
           reason: emitted,
         );
       },
@@ -461,10 +687,10 @@ final class TypedNoticeSurface extends fw.StatelessWidget {
     this.onUnavailable,
     this.loadingBuilder,
     this.unavailable,
-  })  : _restageArgument0 = count,
-        _restageArgument1 = groups,
-        _restageArgument2 = message,
-        _restageArgument3 = controller,
+  })  : _restageStored0 = count,
+        _restageStored1 = groups,
+        _restageStored2 = message,
+        _restageStored3 = controller,
         _restagePlacementName = placement;
 '''),
         );
@@ -477,22 +703,25 @@ final class TypedNoticeSurface extends fw.StatelessWidget {
         );
         expect(
           emitted,
-          contains('final support.Controller _restageArgument3;'),
+          contains('final support.Controller _restageStored3;'),
+        );
+        expect(
+          emitted,
+          contains(
+            'support.Controller get _restageArgument3 => _restageStored3;',
+          ),
         );
         expect(emitted, contains("'count': _restageArgument0,"));
         expect(emitted, contains("'groups': _restageArgument1,"));
         expect(emitted, contains("'message': _restageArgument2,"));
         expect(emitted, isNot(contains("'controller':")));
         expect(
-          emitted,
-          contains('''
-            builder: (context, error) => TypedNotice(
-              _restageArgument0,
-              groups: _restageArgument1,
-              message: _restageArgument2,
-              controller: _restageArgument3,
-            ),
-'''),
+          _emits(
+            emitted,
+            '_restageDesign(TypedNotice(_restageArgument0, groups: _restageArgument1, message: _restageArgument2, controller: _restageArgument3,',
+          ),
+          isTrue,
+          reason: emitted,
         );
         expect(
           emitted,
@@ -623,27 +852,24 @@ final class HabitNotice extends StatelessWidget {
         ),
       );
       expect(
-        compact,
-        contains(
+        _emits(
+          emitted,
           "'selected': switch (_restageArgument3) { final "
           "restagePresent0? => <String, Object?>{ 'id': "
           "restagePresent0.id, 'name': restagePresent0.name, 'address': "
           "<String, Object?>{'city': restagePresent0.address.city} }, "
           'null => null },',
         ),
+        isTrue,
       );
       expect(emitted, isNot(contains("'controller':")));
       expect(
-        emitted,
-        contains('''
-            builder: (context, error) => HabitNotice(
-              habit: _restageArgument0,
-              habits: _restageArgument1,
-              byId: _restageArgument2,
-              selected: _restageArgument3,
-              controller: _restageArgument4,
-            ),
-'''),
+        _emits(
+          emitted,
+          '_restageDesign(HabitNotice(habit: _restageArgument0, habits: _restageArgument1, byId: _restageArgument2, selected: _restageArgument3, controller: _restageArgument4,',
+        ),
+        isTrue,
+        reason: emitted,
       );
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
@@ -682,8 +908,8 @@ final class HabitNotice extends StatelessWidget {
     this.onUnavailable,
     this.loadingBuilder,
     this.unavailable,
-  ])  : _restageArgument0 = title,
-        _restageArgument1 = count,
+  ])  : _restageStored0 = title,
+        _restageStored1 = count,
         _restagePlacementName = null,
         super(key: key);
 '''),
@@ -694,13 +920,12 @@ final class HabitNotice extends StatelessWidget {
         );
         expect(emitted, contains('ValueChanged<Never>? onEvent;'));
         expect(
-          emitted,
-          contains('''
-            builder: (context, error) => PositionalNotice(
-              _restageArgument0,
-              _restageArgument1,
-            ),
-'''),
+          _emits(
+            emitted,
+            '_restageDesign(PositionalNotice(_restageArgument0, _restageArgument1,',
+          ),
+          isTrue,
+          reason: emitted,
         );
         await _assertGeneratedPartAnalyzes(
           '''
@@ -716,14 +941,14 @@ const hiddenPlacement = PositionalNoticeSurface.atPlacement('settings_card',
           emitted,
           constantFields: const {
             'originalCall': {
-              '_restageArgument0': 'original',
-              '_restageArgument1': 3,
+              '_restageStored0': 'original',
+              '_restageStored1': 3,
               '_restagePlacementName': null,
             },
-            'defaultCall': {'_restageArgument1': 2},
+            'defaultCall': {'_restageStored1': 2},
             'namedCall': {
-              '_restageArgument0': 'named',
-              '_restageArgument1': 4,
+              '_restageStored0': 'named',
+              '_restageStored1': 4,
               '_restagePlacementName': 'settings_card',
             },
           },
@@ -779,15 +1004,15 @@ const universalCall = NamedNoticeSurface.atPlacement('profile_card', 'universal'
           constantFields: const {
             'originalCall': {
               '_restagePlacementName': null,
-              '_restageArgument1': 3,
+              '_restageStored1': 3,
             },
             'namedCall': {
               '_restagePlacementName': 'settings_card',
-              '_restageArgument2': 'details',
+              '_restageStored2': 'details',
             },
             'universalCall': {
               '_restagePlacementName': 'profile_card',
-              '_restageArgument2': 'more',
+              '_restageStored2': 'more',
             },
           },
         );
@@ -829,13 +1054,13 @@ const namedCall = CampaignNoticeSurface.atPlacement('settings_card', $arguments)
           emitted,
           constantFields: const {
             'originalCall': {
-              '_restageArgument0': 'authored',
-              '_restageArgument1': 'authored-id',
+              '_restageStored0': 'authored',
+              '_restageStored1': 'authored-id',
               '_restagePlacementName': null,
             },
             'namedCall': {
-              '_restageArgument0': 'authored',
-              '_restageArgument1': 'authored-id',
+              '_restageStored0': 'authored',
+              '_restageStored1': 'authored-id',
               '_restagePlacementName': 'settings_card',
             },
           },
@@ -870,8 +1095,9 @@ final class PrefixNotice extends fw.StatelessWidget {
         expect(inspection.issues, isEmpty);
         expect(
           inspection.contract!.mountOmissionMessage,
-          'Generated screen mount PrefixNoticeSurface was omitted because '
-          "import prefix '$control' conflicts with a generated mount control.",
+          "`PrefixNoticeSurface` wasn't generated because the import prefix "
+          '`$control` clashes with a name the generated '
+          '`PrefixNoticeSurface` uses. Try renaming the prefix.',
         );
         final emitted = inspection.contract!.emitReferenceDart();
         expect(emitted, isNot(contains('class PrefixNoticeSurface')));
@@ -1041,7 +1267,7 @@ abstract class ImportedDefaultNoticeBase extends StatelessWidget {
       );
       expect(
         emitted,
-        contains(RegExp(r'count: _restageArgument\d+,')),
+        contains(RegExp(r'count: _restageArgument\d+[,)]')),
       );
       await _assertGeneratedPartAnalyzes(
         source,
@@ -1782,7 +2008,10 @@ typedef Token = _Token;
         expect(inspection.issues, isEmpty, reason: scenario.name);
         expect(
           inspection.contract!.mountOmissionMessage,
-          contains("default for 'value' has no visible spelling"),
+          contains(
+            "can't name the default value of `value`. Try importing "
+            'the library that declares it.',
+          ),
           reason: scenario.name,
         );
         expect(
@@ -2221,7 +2450,10 @@ typedef Visible<T> = _Pair<T, T>;
         expect(inspection.issues, isEmpty, reason: scenario.name);
         expect(
           inspection.contract!.mountOmissionMessage,
-          contains("'value' has no reusable Dart type spelling"),
+          contains(
+            "can't name the type of `value`. Try giving `value` an "
+            'explicit type that ',
+          ),
           reason: scenario.name,
         );
         expect(
@@ -2305,7 +2537,10 @@ typedef Visible<T> = _Pair<T, T>;
           expect(inspection.issues, isEmpty, reason: scenario.name);
           expect(
             inspection.contract!.mountOmissionMessage,
-            contains("default for 'value' has no visible spelling"),
+            contains(
+              "can't name the default value of `value`. Try importing "
+              'the library that declares it.',
+            ),
             reason: scenario.name,
           );
           expect(
@@ -2560,7 +2795,10 @@ final class WarmBindingNoticeSurface {}
       expect(inspection.issues, isEmpty);
       expect(
         inspection.contract!.mountOmissionMessage,
-        contains('required non-nullable key'),
+        contains(
+          "`PinnedKeyNotice`'s required key isn't nullable. Try "
+          'declaring it as `Key?`.',
+        ),
       );
     });
 
@@ -2648,12 +2886,12 @@ final class WarmBindingNoticeSurface {}
 
       expect(optional.issues, isEmpty);
       expect(
-        optionalOutput,
-        contains('''
-            builder: (context, error) => OptionalKeyNotice(
-              label: _restageArgument0,
-            ),
-'''),
+        _emits(
+          optionalOutput,
+          '_restageDesign(OptionalKeyNotice(label: _restageArgument0,',
+        ),
+        isTrue,
+        reason: optionalOutput,
       );
       await _assertGeneratedPartAnalyzes(optionalSource, optionalOutput);
 
@@ -2709,13 +2947,12 @@ final class PositionalKeyNotice extends StatelessWidget {
 
         expect(inspection.issues, isEmpty);
         expect(
-          emitted,
-          contains('''
-            builder: (context, error) => PositionalKeyNotice(
-              _restageArgument0,
-              null,
-            ),
-'''),
+          _emits(
+            emitted,
+            '_restageDesign(PositionalKeyNotice(_restageArgument0, null,',
+          ),
+          isTrue,
+          reason: emitted,
         );
         await _assertGeneratedPartAnalyzes(source, emitted);
       },
@@ -2747,7 +2984,7 @@ final class ConcreteKeyNotice extends StatelessWidget {
         expect(inspection.issues, isEmpty);
         expect(inspection.contract!.mountOmissionMessage, isNull);
         expect(emitted, contains('required ValueKey<String> key,'));
-        expect(emitted, contains('key: key,'));
+        expect(_emits(emitted, 'key: key,'), isTrue, reason: emitted);
         // The authored key identifies the screen, so the mount does not also
         // take it: one Key on two live elements breaks a GlobalKey.
         expect(emitted, isNot(contains('super(key:')));
@@ -2800,7 +3037,7 @@ final class MemberNameNotice extends StatelessWidget {
         emitted,
         contains(RegExp('runtimeType: _[A-Za-z0-9_]+,')),
       );
-      expect(emitted, contains(RegExp('label: _[A-Za-z0-9_]+,')));
+      expect(emitted, contains(RegExp('label: _[A-Za-z0-9_]+[,)]')));
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
 
@@ -3056,8 +3293,9 @@ final class _FactoryBodyNotice extends StatelessWidget
       );
       final emitted = inspection.contract!.emitReferenceDart();
       const expectedMessage =
-          'Generated screen mount FactoryBodyNoticeSurface was omitted '
-          'because FactoryBodyNotice has a non-redirecting unnamed factory.';
+          "`FactoryBodyNoticeSurface` wasn't generated because "
+          "`FactoryBodyNotice`'s unnamed constructor is a factory. Try making "
+          'it a generative constructor.';
 
       expect(inspection.issues, isEmpty);
       expect(
@@ -3065,12 +3303,52 @@ final class _FactoryBodyNotice extends StatelessWidget
           inspection.contract!.mountOmissionMessage,
           emitted.contains('class FactoryBodyNoticeSurface'),
           emitted.contains('super(key: key)'),
-          RegExp(r'key: _restageArgument\d+,').hasMatch(emitted),
+          RegExp(r'key: _restageArgument\d+[,)]').hasMatch(emitted),
         ],
         [expectedMessage, false, false, false],
       );
       expect(emitted, contains('SurfaceScreenRef<Never>.generated'));
     });
+
+    for (final (name, declaration, expected) in [
+      (
+        'NamedOnlyNotice',
+        'final class NamedOnlyNotice extends StatelessWidget {\n'
+            '  const NamedOnlyNotice.make({super.key});',
+        "`NamedOnlyNotice` has no unnamed constructor. Try adding an unnamed "
+            'constructor to `NamedOnlyNotice`.',
+      ),
+      (
+        'AbstractNotice',
+        'abstract class AbstractNotice extends StatelessWidget {\n'
+            '  const AbstractNotice({super.key});',
+        '`AbstractNotice` is abstract. Try making `AbstractNotice` a '
+            'concrete class.',
+      ),
+    ]) {
+      test('omits $name with the reason and the fix', () async {
+        final source =
+            '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/maintenance_notice.restage.g.dart';
+
+@Screen(id: 'maintenance_notice', surface: Surface.general)
+$declaration
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
+        final inspection = await _inspect(source, className: name);
+        expect(inspection.issues, isEmpty);
+        expect(
+          inspection.contract!.mountOmissionMessage,
+          "`${name}Surface` wasn't generated because $expected",
+        );
+      });
+    }
 
     test('admits only reproducible Flutter key values', () async {
       const source = '''
@@ -3543,8 +3821,9 @@ final class RecordKeyRoute extends StatelessWidget {
         if (inheritedDefaultClasses.contains(item.className)) {
           final expectedMessage = item.admitted
               ? null
-              : 'Generated screen mount ${item.className}Surface was omitted '
-                    'because its constructor key value cannot be preserved.';
+              : "`${item.className}Surface` wasn't generated because "
+                    '`${item.className}` changes its key before passing it on. '
+                    'Try passing `key` straight to `super.key`.';
           final outputMatches = item.admitted
               ? item.includes.every(output.contains) &&
                     item.excludes.every((snippet) => !output.contains(snippet))
@@ -3579,7 +3858,7 @@ final class RecordKeyRoute extends StatelessWidget {
             reason: item.className,
           );
           for (final snippet in item.includes) {
-            expect(output, contains(snippet), reason: item.className);
+            expect(_emits(output, snippet), isTrue, reason: item.className);
           }
           for (final snippet in item.excludes) {
             expect(output, isNot(contains(snippet)), reason: item.className);
@@ -3587,8 +3866,9 @@ final class RecordKeyRoute extends StatelessWidget {
           generatedBodies.add(_generatedPartBody(output));
         } else {
           final expectedMessage =
-              'Generated screen mount ${item.className}Surface was omitted '
-              'because its constructor key value cannot be preserved.';
+              "`${item.className}Surface` wasn't generated because "
+              '`${item.className}` changes its key before passing it on. '
+              'Try passing `key` straight to `super.key`.';
           final omission = inspection.contract!.mountOmissionMessage;
           refusedValues.add(
             [
@@ -3656,19 +3936,18 @@ final class PositionalRedirectNotice extends StatelessWidget {
         expect(
           positionalOutput,
           contains('''
-  })  : _restageArgument0 = first,
+  })  : _restageStored0 = first,
         _restagePlacementName = placement,
         super(key: second);
 '''),
         );
         expect(
-          positionalOutput,
-          contains('''
-            builder: (context, error) => PositionalRedirectNotice(
-              _restageArgument0,
-              null,
-            ),
-'''),
+          _emits(
+            positionalOutput,
+            '_restageDesign(PositionalRedirectNotice(_restageArgument0, null,',
+          ),
+          isTrue,
+          reason: positionalOutput,
         );
         expect(positionalOutput, isNot(contains('super(key: first)')));
         await _assertGeneratedPartAnalyzes(
@@ -3706,7 +3985,7 @@ final class NamedRedirectNotice extends StatelessWidget {
         expect(namedOutput, isNot(contains('super.key,')));
         expect(
           namedOutput,
-          contains(RegExp(r'first: _restageArgument\d+,')),
+          contains(RegExp(r'first: _restageArgument\d+[,)]')),
         );
         expect(namedOutput, isNot(contains('second:')));
         await _assertGeneratedPartAnalyzes(namedSource, namedOutput);
@@ -3748,7 +4027,7 @@ final class MultiHopRedirectNotice extends StatelessWidget {
             RegExp(r'MultiHopRedirectNotice\(\s*_restageArgument0,'),
           ),
         );
-        expect(multiHopOutput, contains('null,'));
+        expect(_emits(multiHopOutput, 'null,'), isTrue);
         expect(multiHopOutput, isNot(contains('_restageArgument1,')));
         await _assertGeneratedPartAnalyzes(multiHopSource, multiHopOutput);
 
@@ -3819,7 +4098,7 @@ final class ConcreteKeyNotice extends StatelessWidget {
       final emitted = inspection.contract!.emitReferenceDart();
       expect(emitted, contains('required ValueKey<String> key,'));
       expect(emitted, isNot(contains('required Key? key,')));
-      expect(emitted, contains('key: key,'));
+      expect(_emits(emitted, 'key: key,'), isTrue, reason: emitted);
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
 
@@ -3849,10 +4128,14 @@ final class TextKeyNotice extends StatelessWidget {
       expect(inspection.contract!.mountOmissionMessage, isNull);
       final emitted = inspection.contract!.emitReferenceDart();
       expect(emitted, contains('required String key,'));
-      expect(emitted, contains(RegExp(r"'key': _restageArgument\d+,")));
+      // The mount reads the stored argument, as a private field promotes.
       expect(
         emitted,
-        contains(RegExp(r'key: _restageArgument\d+,')),
+        contains(RegExp(r"'key': _restage(?:Argument|Stored)\d+,")),
+      );
+      expect(
+        emitted,
+        contains(RegExp(r'key: _restage(?:Argument|Stored)\d+[,)]')),
       );
       expect(emitted, isNot(contains('super.key,')));
       await _assertGeneratedPartAnalyzes(source, emitted);
@@ -3902,7 +4185,7 @@ final class DefaultKeyNotice extends StatelessWidget {
         ),
       );
       expect(emitted, isNot(contains('ValueKey<String> key = defaultKey,')));
-      expect(emitted, contains('key: key,'));
+      expect(_emits(emitted, 'key: key,'), isTrue, reason: emitted);
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
 
@@ -3938,7 +4221,7 @@ final class RenamedNamedKeyNotice extends NamedKeyBase {
       expect(emitted, isNot(contains('super(key:')));
       expect(
         emitted,
-        contains(RegExp(r'widgetKey: _restageArgument\d+,')),
+        contains(RegExp(r'widgetKey: _restageArgument\d+[,)]')),
       );
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
@@ -4012,11 +4295,11 @@ final class FieldKeyNotice extends StatelessWidget {
       expect(emitted, isNot(contains('super.key,')));
       expect(
         emitted,
-        contains(RegExp(r'_restageArgument\d+ = widgetKey')),
+        contains(RegExp(r'_restageStored\d+ = widgetKey')),
       );
       expect(
         emitted,
-        contains(RegExp(r'FieldKeyNotice\(\s*_restageArgument\d+,')),
+        contains(RegExp(r'FieldKeyNotice\(\s*_restageArgument\d+[,)]')),
       );
       expect(emitted, isNot(contains('"widgetKey":')));
       await _assertGeneratedPartAnalyzes(source, emitted);
@@ -4051,9 +4334,9 @@ final class StoredKeyNotice extends StatelessWidget {
       expect(emitted, isNot(contains('super.key,')));
       expect(
         emitted,
-        isNot(contains(RegExp(r'_restageArgument\d+ = widgetKey'))),
+        isNot(contains(RegExp(r'_restageStored\d+ = widgetKey'))),
       );
-      expect(emitted, contains('widgetKey: null,'));
+      expect(_emits(emitted, 'widgetKey: null,'), isTrue, reason: emitted);
       expect(emitted, isNot(contains('"widgetKey":')));
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
@@ -4083,9 +4366,9 @@ final class StoredKeyNotice extends StatelessWidget {
         final emitted = inspection.contract!.emitReferenceDart();
         final errors = await _generatedPartErrors(source, emitted);
         final expectedMessage =
-            'Generated screen mount ReservedKeyNoticeSurface was omitted '
-            'because ReservedKeyNotice declares the reserved constructor '
-            "parameter '$control'.";
+            "`ReservedKeyNoticeSurface` wasn't generated because "
+            "`ReservedKeyNotice`'s constructor parameter `$control` uses a "
+            'name the generated code needs. Try renaming `$control`.';
 
         expect(inspection.issues, isEmpty);
         expect(
@@ -4098,8 +4381,10 @@ final class StoredKeyNotice extends StatelessWidget {
       }
     });
 
-    test('omits generic mounts when a key type depends on the screen', () async {
-      const source = '''
+    test(
+      'omits generic mounts when a key type depends on the screen',
+      () async {
+        const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -4113,21 +4398,26 @@ final class GenericKeyNotice<T extends Key> extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''';
-      final inspection = await _inspect(source, className: 'GenericKeyNotice');
-      final emitted = inspection.contract!.emitReferenceDart();
-      final errors = await _generatedPartErrors(source, emitted);
-      const expectedMessage =
-          'Generated screen mount GenericKeyNoticeSurface was omitted because '
-          "'key' depends on the screen type parameter 'T'.";
+        final inspection = await _inspect(
+          source,
+          className: 'GenericKeyNotice',
+        );
+        final emitted = inspection.contract!.emitReferenceDart();
+        final errors = await _generatedPartErrors(source, emitted);
+        const expectedMessage =
+            "`GenericKeyNoticeSurface` wasn't generated because "
+            '`GenericKeyNotice` declares the type parameter `T`. Try removing '
+            'the type parameter from `GenericKeyNotice`.';
 
-      expect(inspection.issues, isEmpty);
-      expect(
-        [inspection.contract!.mountOmissionMessage, ...errors],
-        [expectedMessage],
-      );
-      expect(emitted, contains('SurfaceScreenRef<Never>.generated'));
-      expect(emitted, isNot(contains('class GenericKeyNoticeSurface')));
-    });
+        expect(inspection.issues, isEmpty);
+        expect(
+          [inspection.contract!.mountOmissionMessage, ...errors],
+          [expectedMessage],
+        );
+        expect(emitted, contains('SurfaceScreenRef<Never>.generated'));
+        expect(emitted, isNot(contains('class GenericKeyNoticeSurface')));
+      },
+    );
 
     test(
       'omits generic screens whose formals do not mention the type',
@@ -4152,8 +4442,9 @@ final class GenericShapeNotice<T> extends StatelessWidget {
         );
         final emitted = inspection.contract!.emitReferenceDart();
         const expectedMessage =
-            'Generated screen mount GenericShapeNoticeSurface was omitted '
-            "because GenericShapeNotice declares the screen type parameter 'T'.";
+            "`GenericShapeNoticeSurface` wasn't generated because "
+            '`GenericShapeNotice` declares the type parameter `T`. Try removing '
+            'the type parameter from `GenericShapeNotice`.';
 
         expect(inspection.issues, isEmpty);
         expect(
@@ -4202,7 +4493,7 @@ final class InheritedLabelNotice extends BaseLabelNotice {
       expect(emitted, contains('String label,'));
       expect(
         emitted,
-        contains(RegExp(r'InheritedLabelNotice\(\s*_restageArgument0,')),
+        contains(RegExp(r'InheritedLabelNotice\(\s*_restageArgument0[,)]')),
       );
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
@@ -4235,7 +4526,7 @@ final class DynamicValueNotice extends StatelessWidget {
       expect(emitted, contains('dynamic value,'));
       expect(
         emitted,
-        contains(RegExp(r'DynamicValueNotice\(\s*_restageArgument0,')),
+        contains(RegExp(r'DynamicValueNotice\(\s*_restageArgument0[,)]')),
       );
       await _assertGeneratedPartAnalyzes(source, emitted);
     });
@@ -4363,8 +4654,9 @@ Object existingSurface() => const ExportedNoticeSurface.named();
         sourceIds: const ['apps_examples|lib/consumer.dart'],
       );
       const expectedMessage =
-          'Generated screen mount ExportedNoticeSurface was omitted because '
-          'ExportedNoticeSurface already exists in '
+          "`ExportedNoticeSurface` wasn't generated because "
+          '`ExportedNoticeSurface` already exists in '
+          'lib/maintenance_notice.dart. Try renaming `ExportedNoticeSurface` in '
           'lib/maintenance_notice.dart.';
 
       expect(inspection.issues, isEmpty);
@@ -4426,8 +4718,9 @@ final class WarmExportNoticeSurface {}
         sourceIds: const ['apps_examples|lib/consumer.dart'],
       );
       const expectedMessage =
-          'Generated screen mount WarmExportNoticeSurface was omitted because '
-          'WarmExportNoticeSurface already exists in '
+          "`WarmExportNoticeSurface` wasn't generated because "
+          '`WarmExportNoticeSurface` already exists in '
+          'lib/maintenance_notice.dart. Try renaming `WarmExportNoticeSurface` in '
           'lib/maintenance_notice.dart.';
 
       expect(inspection.issues, isEmpty);
@@ -4526,7 +4819,8 @@ import 'package:restage/restage.dart' as rs
     show
         SurfaceScreenUnavailablePolicy,
         SurfaceScreenResolver,
-        SurfaceScreenUnavailableError;
+        SurfaceScreenUnavailableError,
+        RestageRecording;
 ''',
         part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
       );
@@ -4576,7 +4870,8 @@ export 'package:restage/restage.dart'
         RestageScreen,
         SurfaceScreenUnavailablePolicy,
         SurfaceScreenResolver,
-        SurfaceScreenUnavailableError;
+        SurfaceScreenUnavailableError,
+        RestageRecording;
 ''',
       };
       final inspection = await _inspect(
@@ -4634,7 +4929,8 @@ export 'package:restage/restage.dart'
         RestageScreen,
         SurfaceScreenUnavailablePolicy,
         SurfaceScreenResolver,
-        SurfaceScreenUnavailableError;
+        SurfaceScreenUnavailableError,
+        RestageRecording;
 ''';
       const wrongOrigin = '''
 final class RestageScreen {}
@@ -4677,7 +4973,7 @@ final class SurfaceScreenUnavailableError {}
 import 'package:restage/restage.dart' as app
     show RestageScreen, SurfaceScreenUnavailablePolicy;
 import 'package:restage/restage.dart' as app
-    show SurfaceScreenResolver, SurfaceScreenUnavailableError;
+    show SurfaceScreenResolver, SurfaceScreenUnavailableError, RestageRecording;
 ''',
               declarations: '',
               additionalSources: const {},
@@ -4727,7 +5023,8 @@ import 'package:restage/restage.dart' as app
     show
         SurfaceScreenUnavailablePolicy,
         SurfaceScreenResolver,
-        SurfaceScreenUnavailableError;
+        SurfaceScreenUnavailableError,
+        RestageRecording;
 ''',
               declarations: '',
               additionalSources: const {},
@@ -4808,7 +5105,11 @@ ${_directMountImport('app')}
         } else {
           expect(
             inspection.contract!.mountOmissionMessage,
-            contains('required Restage widget symbols'),
+            contains(
+              "doesn't import `package:restage/restage.dart` under one "
+              'prefix. Try importing `package:restage/restage.dart` once, '
+              'without `show` or `hide`.',
+            ),
             reason: scenario.name,
           );
           expect(
@@ -4893,7 +5194,11 @@ ${_directMountImport('app')}
       expect(missingSdk.issues, isEmpty);
       expect(
         missingSdk.contract!.mountOmissionMessage,
-        contains('required Restage widget symbols'),
+        contains(
+          "doesn't import `package:restage/restage.dart` under one "
+          'prefix. Try importing `package:restage/restage.dart` once, '
+          'without `show` or `hide`.',
+        ),
       );
       final emitted = missingSdk.contract!.emitReferenceDart();
       expect(emitted, contains('SurfaceScreenRef<Never>.generated'));
@@ -4916,7 +5221,11 @@ ${_directMountImport('app')}
       expect(missingFlutter.issues, isEmpty);
       expect(
         missingFlutter.contract!.mountOmissionMessage,
-        contains('required Flutter widget symbols'),
+        contains(
+          "doesn't import Flutter's widgets under one prefix. Try "
+          'importing `package:flutter/widgets.dart` without `show` or '
+          '`hide`.',
+        ),
       );
       final flutterEmitted = missingFlutter.contract!.emitReferenceDart();
       expect(flutterEmitted, contains('SurfaceScreenRef<Never>.generated'));
@@ -5419,7 +5728,8 @@ import 'package:restage/restage.dart' as $prefix
         RestageScreen,
         SurfaceScreenUnavailablePolicy,
         SurfaceScreenResolver,
-        SurfaceScreenUnavailableError;
+        SurfaceScreenUnavailableError,
+        RestageRecording;
 ''';
 
 String _mountQualifierSource({
@@ -5466,6 +5776,7 @@ Future<StandaloneScreenContractInspection> _inspect(
   CapabilityManifest? capabilities,
   Map<String, String> additionalSources = const {},
   List<HoistedValue> hoisted = const [],
+  bool buildArguments = false,
 }) async {
   final assetId = AssetId('apps_examples', 'lib/maintenance_notice.dart');
   final readerWriter = await readerWriterWithFilesystemSources(
@@ -5499,6 +5810,9 @@ Future<StandaloneScreenContractInspection> _inspect(
           constructorParams: screenInput.build.constructorParams,
           mountConstructorProblem: screenInput.build.mountConstructorProblem,
           hoisted: hoisted,
+          buildArguments: buildArguments
+              ? screenInput.build.buildArguments
+              : const [],
         ),
       );
     }),
@@ -5695,4 +6009,46 @@ Future<List<String>> _generatedPartErrors(
     rootPackage: 'apps_examples',
   );
   return errors;
+}
+
+final class _CompiledScreenProbeBuilder implements Builder {
+  _CompiledScreenProbeBuilder(this.onCompiled);
+
+  final void Function(CompiledResolvedScreen compiled, AssetId assetId)
+  onCompiled;
+
+  @override
+  Map<String, List<String>> get buildExtensions => const {
+    '.dart': ['.compiled_screen_probe'],
+  };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    if (buildStep.inputId.path != 'lib/maintenance_notice.dart') return;
+    final inspection = await inspectCanonicalScreenDeclarations(
+      await buildStep.inputLibrary,
+      buildStep.inputId,
+    );
+    expect(inspection.issues, isEmpty);
+    final result = await compileResolvedScreens(buildStep, inspection.screens);
+    expect(
+      result.issues.where((issue) => !issue.code.isBuildNotice),
+      isEmpty,
+      reason: result.issues.map((issue) => issue.message).join('\n'),
+    );
+    onCompiled(result.screens.single, buildStep.inputId);
+  }
+}
+
+/// Whether [text] contains [snippet], ignoring whitespace; a trailing comma in
+/// the snippet may be the closing parenthesis of the call it ends.
+bool _emits(String text, String snippet) {
+  String compact(String value) => value.replaceAll(RegExp(r'\s+'), '');
+  final comma = snippet.endsWith(',');
+  final body = compact(
+    comma ? snippet.substring(0, snippet.length - 1) : snippet,
+  );
+  return RegExp(
+    RegExp.escape(body) + (comma ? '[,)]' : ''),
+  ).hasMatch(compact(text));
 }

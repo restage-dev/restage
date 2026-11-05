@@ -52,6 +52,8 @@ builders:
       # this builder's package-wide record, so it must be written first.
       - 'restage_codegen:user_factories'
       - 'restage_codegen:restage_surfaces'
+      # The render catalog adds the package's islands from the same record.
+      - 'restage_codegen:render_catalog'
 
   # `restageSurfaces`: every surface the package compiles, for
   # `Restage.configure(surfaces:)`. It reads the generated parts, so every

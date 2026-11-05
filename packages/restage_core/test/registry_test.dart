@@ -412,13 +412,14 @@ void main() {
             owner: 'Alignment',
             member: 'center',
           ));
+      // Transform.rotate also defaults alignment to Alignment.center.
       final rotation =
           kRegistry.findByName('TransformRotate', WidgetLibrary.core)!;
       expect(
           rotation.properties
               .singleWhere((p) => p.name == 'alignment')
               .constructorDefault,
-          isNull);
+          alignment.constructorDefault);
     });
 
     test('TransformRotate surfaces origin as an optional offset slot', () {

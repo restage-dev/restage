@@ -3,6 +3,16 @@
 ## Unreleased
 
 - **Breaking:** exhaustive switches must handle `PropertyType.scalarCallback` and `PropertyType.widgetBuilder`.
+- Add `WidgetBuilderContract.nativeValues` and `WidgetBuilderNativeValue`: the
+  typed native values an app builder supplies its delivered body.
+- **Breaking:** add `WidgetBuilderParameter.data` and `WidgetBuilderParameter.child`,
+  and `WidgetBuilderContract.isAppValueSignature` for an app builder whose body
+  is delivered. A catalog contract never carries them.
+- Add `PropertyEntry.callbackTypeId`, the exact function type of an event property (for example `(dart:core#int,dart:core#int)->void`), and `requireCallbackTypeId`, which refuses an event property that lacks it.
+- Add `WidgetEntry.itemInputs`, the number of delivered loops around an
+  app-rendered widget, written only when it is positive.
+- Add `LibraryInfo.islands`, written as `"islands": true` only for a library
+  the compiler mints for widgets that render from the app's code.
 - Add `PropertyType.integerList` and `PropertyType.realList`.
 - Add `PropertyEntry.sinceVersion` and `PropertyOverride.sinceVersion`: a
   property added to an existing widget carries the content version that

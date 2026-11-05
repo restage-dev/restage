@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
+import 'package:restage_codegen/src/callback_type_id.dart';
 import 'package:restage_codegen/src/custom_map_plan.dart';
 import 'package:restage_codegen/src/custom_record_plan.dart';
 import 'package:restage_codegen/src/custom_structured_admissibility.dart'
@@ -42,6 +43,8 @@ import 'package:restage_shared/restage_shared.dart' show callbackParameterName;
 /// Icon synthetics use `restageIcon` with the declared font family and
 /// mirroring flag. Enum types must be reachable from the library import.
 /// [publicName] gives a built-in factory its exported name and dartdoc.
+/// An [appWidget] factory is placed where the design places it, so the app
+/// widget's State moves between the design and the app's build.
 String? emitFactoryFunction(
   WidgetEntry entry, {
   NativeCatalogIndex? nativeIndex,
@@ -49,6 +52,7 @@ String? emitFactoryFunction(
   Map<String, String> aliases = const {},
   bool customChildProperties = false,
   bool publicName = false,
+  bool appWidget = false,
 }) {
   if (!_isMechanicallyEmittable(
     entry,
@@ -455,15 +459,19 @@ String? emitFactoryFunction(
   final preamble = preambleLines.isEmpty
       ? ''
       : '${preambleLines.join('\n')}\n\n';
-  String emitBody(String invocation) =>
-      '''
+  String emitBody(String invocation) {
+    final construct =
+        '''
+RestageBuilderBinding.construct((builderBindings) {
+$preamble  return ${_withResourceOwner(entry, invocation)};
+  })''';
+    return '''
 ${signatureDoc}Widget $functionName(BuildContext context, DataSource source) {
   source = RestageValueBinding.dataSource(source, context);
-  return RestageBuilderBinding.construct((builderBindings) {
-$preamble  return ${_withResourceOwner(entry, invocation)};
-  });
+  return ${appWidget ? 'RestageIslandScope.split(context, source, () => $construct)' : construct};
 }
 ''';
+  }
 
   if (omissionConditions.isNotEmpty) {
     if (positionalArguments.any(
@@ -1110,16 +1118,9 @@ String _applyParameterDefaultFallback(
     return '($expression)!';
   }
   if (parameter.nullable || parameter.defaultValue == null) return expression;
-  // For an identity transform the decoded property expression already carries
-  // the property's own default fallback. When that property default is a
-  // non-null-guaranteeing constant (any source other than a theme binding,
-  // whose resolved value is nullable at render time), appending the parameter
-  // default here is dead code — `value ?? const ?? const`. Skip it so the
-  // emitted argument is a single `value ?? const`. Theme-binding property
-  // defaults resolve to a nullable value, so the parameter default stays a
-  // reachable fallback and is kept.
+  // An identity transform already carries the property's own constant
+  // fallback; a second one would be dead code.
   if (transform is IdentityTransform &&
-      property.defaultSource is! ThemeBindingDefault &&
       _defaultExpressionFor(property) != null) {
     return expression;
   }
@@ -2446,16 +2447,8 @@ String _decodeExpression(
         (!prop.required && prop.constructorDefault == null)) {
       return decoded;
     }
-    if (!applyDefault) {
-      final message = dartStringLiteral(
-        '$widgetName.${prop.name} is required.',
-      );
-      return '$decoded ?? (throw ArgumentError($message))';
-    }
-    final signature = prop.callbackSignature;
-    if (signature == null) return '$decoded ?? () {}';
-    final argType = RfwCallbackSignature.parse(signature)!.valueType;
-    return '$decoded ?? ($argType _) {}';
+    final message = dartStringLiteral('$widgetName.${prop.name} is required.');
+    return '$decoded ?? (throw ArgumentError($message))';
   }
   if (!prop.required) return decoded;
   final scalarRoute = _scalarDecoderRouteFor(
@@ -2673,6 +2666,63 @@ typedef CustomReconstruction = ({
   Set<String> nullableStructuredSlots,
   Map<String, String> aliases,
 });
+
+/// The reconstruction context for a package's custom widgets: [aliases]
+/// prefix types from other libraries; null when nothing reconstructs.
+CustomReconstruction? customReconstructionFor({
+  required List<StructuredEntry> structuredTypes,
+  required Map<String, ReconstructionPlan> reconstructionPlans,
+  required Map<String, MapPlan> mapPlans,
+  required Map<String, RecordPlan> recordPlans,
+  required Map<String, String> slotTargets,
+  required Set<String> nullableStructuredSlots,
+  Map<String, String> aliases = const {},
+}) => structuredTypes.isEmpty && mapPlans.isEmpty && recordPlans.isEmpty
+    ? null
+    : (
+        structuredBySourceType: {
+          for (final structured in structuredTypes)
+            structured.sourceType: structured,
+        },
+        plansBySourceType: reconstructionPlans,
+        mapPlans: mapPlans,
+        recordPlans: recordPlans,
+        slotTargets: slotTargets,
+        nullableStructuredSlots: nullableStructuredSlots,
+        aliases: aliases,
+      );
+
+/// The expression a user factory decodes [prop] of the custom [entry] with,
+/// reading `source`; null when the built-in decoder applies.
+String? customFactoryValue(
+  WidgetEntry entry,
+  PropertyEntry prop,
+  CustomReconstruction? custom, {
+  NativeCatalogIndex? nativeIndex,
+}) =>
+    _customMapOrRecordPropValue(prop, entry, custom, nativeIndex) ??
+    switch (_customPropSourceType(prop, entry, custom)) {
+      final sourceType? => _customStructuredPropValue(
+        sourceType,
+        prop,
+        entry,
+        custom!,
+        nativeIndex,
+      ),
+      null => null,
+    };
+
+/// Whether [customFactoryValue] for [prop] can evaluate to null.
+bool customFactoryValueIsNullable(
+  WidgetEntry entry,
+  PropertyEntry prop,
+  CustomReconstruction? custom,
+) =>
+    prop.constructorNullable ||
+    (custom?.nullableStructuredSlots.contains(
+          structuredSlotKey(entry.flutterType, prop.name),
+        ) ??
+        false);
 
 /// Qualifies [bareName] with the import alias for [libraryUri] when that
 /// library is an aliased custom library, else returns [bareName] unchanged (a
@@ -3510,7 +3560,10 @@ String _customFieldDecode(
     index: nativeIndex,
     aliases: ctx.aliases,
   );
-  if (isRequired && _decoderReturnsNullable(field.type)) {
+  // A void handler decodes nullable too.
+  if (isRequired &&
+      (field.type == PropertyType.event ||
+          _decoderReturnsNullable(field.type))) {
     final owner = _typeNameForSourceType(ownerSourceType);
     final message = "'$owner.${field.name} is required.'";
     return '$decoded ?? (throw ArgumentError($message))';
@@ -4058,6 +4111,21 @@ const Set<PropertyType> typeLevelRepairedPropertyTypes = <PropertyType>{
   PropertyType.edgeInsets,
 };
 
+/// The decoder call for [prop], reading [source] in [context]; [sdk] prefixes
+/// the Restage symbols.
+String decoderCallFor(
+  PropertyEntry prop, {
+  required String source,
+  required String context,
+  required String sdk,
+}) => _decoderCallFor(
+  prop,
+  "const <Object>['${prop.name}']",
+  source: source,
+  context: context,
+  sdk: sdk,
+);
+
 String _decoderCallFor(
   PropertyEntry prop,
   String path, {
@@ -4072,6 +4140,9 @@ String _decoderCallFor(
   String? preferredSizeHeightPath,
   String? appBarBottomHeightPath,
   String? appBarToolbarHeightPath,
+  String source = 'source',
+  String context = 'context',
+  String sdk = '',
 }) {
   // Only the flat property path is known to be a literal here. Structured
   // paths can contain runtime indices or spreads and must remain mutable.
@@ -4085,13 +4156,13 @@ String _decoderCallFor(
   final preferredSizeHeightHint = preferredSizeHeightPath == null
       ? null
       : isAppBarBottom
-      ? 'RestageDecoders.number(source, $preferredSizeHeightPath)'
-      : 'source.v<double>($preferredSizeHeightPath)';
+      ? '${sdk}RestageDecoders.number($source, $preferredSizeHeightPath)'
+      : '$source.v<double>($preferredSizeHeightPath)';
   switch (prop.type) {
     case PropertyType.boolean:
-      return 'RestageValueBinding.read<bool>(source, $directPath, context)';
+      return '${sdk}RestageValueBinding.read<bool>($source, $directPath, $context)';
     case PropertyType.integer:
-      return 'RestageValueBinding.read<int>(source, $directPath, context)';
+      return '${sdk}RestageValueBinding.read<int>($source, $directPath, $context)';
     case PropertyType.real:
     case PropertyType.length:
       final derivedRoute = widgetName == null
@@ -4109,7 +4180,7 @@ String _decoderCallFor(
             '${derivedRoute.childListSlot} child list to be hoisted.',
           );
         }
-        return '${derivedRoute.call}(source, $path, '
+        return '${sdk}${derivedRoute.call}($source, $path, '
             '${derivedRoute.childListSlot}.length)';
       }
       final route = _scalarDecoderRouteFor(
@@ -4120,11 +4191,11 @@ String _decoderCallFor(
       );
       if (route != null) {
         if (route.returnsNonNull) {
-          return '${route.call}(source, $path, '
+          return '${sdk}${route.call}($source, $path, '
               "slot: '$widgetName.${prop.name}', "
               'mustBePositive: ${route.mustBePositive})';
         }
-        return '${route.call}(source, $path)';
+        return '${sdk}${route.call}($source, $path)';
       }
       // `source.v<double>` is a strict type check: an `int` on the wire reads
       // as null through it, indistinguishable from an absent slot, so the slot
@@ -4132,20 +4203,20 @@ String _decoderCallFor(
       // reassembly read tolerantly instead — the repair runs on the assembled
       // value, far too late to recover a number that was dropped here.
       return tolerantNumbers
-          ? 'RestageDecoders.number(source, $path)'
-          : 'RestageValueBinding.read<double>(source, $directPath, context)';
+          ? '${sdk}RestageDecoders.number($source, $path)'
+          : '${sdk}RestageValueBinding.read<double>($source, $directPath, $context)';
     case PropertyType.string:
       // A list of strings is joined, so a surface can build text from parts.
-      return 'RestageDecoders.string(source, $path, context: context)';
+      return '${sdk}RestageDecoders.string($source, $path, context: $context)';
     case PropertyType.stringList:
       // Fail-safe: a present-but-degenerate list (a non-string element on a
       // corrupt / tamper wire) DROPS the bad element rather than throwing,
       // matching the `booleanList` / `selectionOptionList` present-malformed
       // convention so a malformed wire degrades instead of crashing the render.
       // Absent → null (the required-slot contract still applies upstream).
-      return 'RestageDecoders.stringList(source, $path)';
+      return '${sdk}RestageDecoders.stringList($source, $path)';
     case PropertyType.color:
-      return 'RestageDecoders.color(source, $path)';
+      return '${sdk}RestageDecoders.color($source, $path)';
     case PropertyType.edgeInsets:
       // An inset is layout-bearing: it is subtracted from the space a box or a
       // sliver has to give its child, and the widgets that consume one check it
@@ -4158,83 +4229,83 @@ String _decoderCallFor(
       final ref = shape is ScalarShape ? shape.dartTypeRef : null;
       if (ref?.libraryUri == 'package:flutter/src/painting/edge_insets.dart') {
         if (ref?.symbolName == 'EdgeInsets') {
-          return 'RestageDecoders.physicalEdgeInsets(source, $path)';
+          return '${sdk}RestageDecoders.physicalEdgeInsets($source, $path)';
         }
         if (ref?.symbolName == 'EdgeInsetsDirectional') {
-          return 'RestageDecoders.directionalEdgeInsets(source, $path)';
+          return '${sdk}RestageDecoders.directionalEdgeInsets($source, $path)';
         }
       }
-      return 'RestageDecoders.edgeInsets(source, $path)';
+      return '${sdk}RestageDecoders.edgeInsets($source, $path)';
     case PropertyType.alignment:
       final shape = prop.valueShape;
       final ref = shape is ScalarShape ? shape.dartTypeRef : null;
       if (ref?.libraryUri == 'package:flutter/src/painting/alignment.dart') {
         if (ref?.symbolName == 'Alignment') {
-          return 'RestageDecoders.alignmentXY(source, $path)';
+          return '${sdk}RestageDecoders.alignmentXY($source, $path)';
         }
         if (ref?.symbolName == 'AlignmentDirectional') {
-          return 'RestageDecoders.directionalAlignment(source, $path)';
+          return '${sdk}RestageDecoders.directionalAlignment($source, $path)';
         }
       }
-      return 'RestageDecoders.alignment(source, $path)';
+      return '${sdk}RestageDecoders.alignment($source, $path)';
     case PropertyType.alignmentXY:
-      return 'RestageDecoders.alignmentXY(source, $path)';
+      return '${sdk}RestageDecoders.alignmentXY($source, $path)';
     case PropertyType.offset:
-      return 'RestageDecoders.offset(source, $path)';
+      return '${sdk}RestageDecoders.offset($source, $path)';
     case PropertyType.fontWeight:
       // FontWeight is a class with static const instances, not an enum, so it
       // cannot use the Enum.name-based decoder's `T extends Enum` bound.
-      return 'RestageDecoders.fontWeight(source, $path)';
+      return '${sdk}RestageDecoders.fontWeight($source, $path)';
     case PropertyType.duration:
-      return 'RestageDecoders.duration(source, $path)';
+      return '${sdk}RestageDecoders.duration($source, $path)';
     case PropertyType.curve:
-      return 'RestageDecoders.curve(source, $path)';
+      return '${sdk}RestageDecoders.curve($source, $path)';
     case PropertyType.gradient:
-      return 'RestageDecoders.gradient(source, $path)';
+      return '${sdk}RestageDecoders.gradient($source, $path)';
     case PropertyType.border:
-      return 'RestageDecoders.border(source, $path)';
+      return '${sdk}RestageDecoders.border($source, $path)';
     case PropertyType.boxShadowList:
       // rfw's `boxShadow` is a single-value decoder; pair with `list`
       // to read the list-of-maps wire shape. The result is
       // `List<BoxShadow>?`. Empty list ≡ no shadows (Flutter's own
       // BoxDecoration default treats the missing slot as no shadows).
-      return 'ArgumentDecoders.list<BoxShadow>(source, $path, '
-          'RestageDecoders.boxShadow)';
+      return '${sdk}ArgumentDecoders.list<BoxShadow>($source, $path, '
+          '${sdk}RestageDecoders.boxShadow)';
     case PropertyType.locale:
-      return 'ArgumentDecoders.locale(source, $path)';
+      return '${sdk}ArgumentDecoders.locale($source, $path)';
     case PropertyType.paint:
-      return 'RestageDecoders.paint(source, $path)';
+      return '${sdk}RestageDecoders.paint($source, $path)';
     case PropertyType.shadowList:
-      return 'RestageDecoders.shadows(source, $path)';
+      return '${sdk}RestageDecoders.shadows($source, $path)';
     case PropertyType.fontFeatureList:
-      return 'RestageDecoders.fontFeatures(source, $path)';
+      return '${sdk}RestageDecoders.fontFeatures($source, $path)';
     case PropertyType.fontVariationList:
-      return 'RestageDecoders.fontVariations(source, $path)';
+      return '${sdk}RestageDecoders.fontVariations($source, $path)';
     case PropertyType.textDecoration:
-      return 'RestageDecoders.textDecoration(source, $path)';
+      return '${sdk}RestageDecoders.textDecoration($source, $path)';
     case PropertyType.shapeBorder:
-      return 'RestageDecoders.shapeBorder(source, $path)';
+      return '${sdk}RestageDecoders.shapeBorder($source, $path)';
     case PropertyType.inlineSpan:
       // A recursive span map (Text.rich / TextSpan), decoded into a real
       // `InlineSpan?` by the bespoke depth-bounded decoder.
-      return 'RestageDecoders.inlineSpan(source, $path, context: context, resources: resources)';
+      return '${sdk}RestageDecoders.inlineSpan($source, $path, context: $context, resources: resources)';
     case PropertyType.decorationImage:
       // A self-describing image map (DecorationImage), decoded into a real
       // `DecorationImage?` by the bespoke image decoder.
-      return 'RestageDecoders.decorationImage(source, $path)';
+      return '${sdk}RestageDecoders.decorationImage($source, $path)';
     case PropertyType.selectionOptionList:
       // A list of `{value, label}` option maps (a single-select widget's
       // items), decoded into a real `List<RestageSelectionOption>?` by the
       // bespoke option-list decoder.
-      return 'RestageDecoders.selectionOptionList(source, $path)';
+      return '${sdk}RestageDecoders.selectionOptionList($source, $path)';
     case PropertyType.booleanList:
       // A list of booleans (a multi-toggle widget's per-child selection
       // flags), decoded into a real `List<bool>?` by the bespoke decoder.
-      return 'RestageDecoders.booleanList(source, $path)';
+      return '${sdk}RestageDecoders.booleanList($source, $path)';
     case PropertyType.integerList:
-      return 'RestageDecoders.integerList(source, $path)';
+      return '${sdk}RestageDecoders.integerList($source, $path)';
     case PropertyType.realList:
-      return 'RestageDecoders.realList(source, $path)';
+      return '${sdk}RestageDecoders.realList($source, $path)';
     case PropertyType.widget:
       // Custom factories select the decoder and cast from constructor
       // nullability: a required nullable argument is still emitted
@@ -4245,18 +4316,18 @@ String _decoderCallFor(
           ? prop.constructorNullable
           : !prop.required;
       final base = nullableDecoder
-          ? 'source.optionalChild($directPath)'
-          : 'source.child($directPath)';
+          ? '$source.optionalChild($directPath)'
+          : '$source.child($directPath)';
       if (prop.widgetType == null) return base;
       if (prop.widgetType == kPreferredSizeWidgetType) {
         if (appBarBottomHeightPath != null) {
           final toolbar = appBarToolbarHeightPath == null
               ? 'null'
-              : '${_layoutFactorRoute.call}(source, $appBarToolbarHeightPath)';
-          return 'RestageDecoders.appBarPreferredSize($base, '
+              : '${sdk}${_layoutFactorRoute.call}($source, $appBarToolbarHeightPath)';
+          return '${sdk}RestageDecoders.appBarPreferredSize($base, '
               '${preferredSizeHeightHint ?? 'null'}, '
               '$toolbar, '
-              'RestageDecoders.appBarBottomHeight('
+              '${sdk}RestageDecoders.appBarBottomHeight('
               'source, $appBarBottomHeightPath))';
         }
         // A built slot value never implements the interface, so the
@@ -4265,15 +4336,15 @@ String _decoderCallFor(
             ? ''
             : ', $preferredSizeHeightHint';
         return nullableDecoder
-            ? 'RestageDecoders.optionalPreferredSize($base$height)'
-            : 'RestageDecoders.preferredSize($base$height)';
+            ? '${sdk}RestageDecoders.optionalPreferredSize($base$height)'
+            : '${sdk}RestageDecoders.preferredSize($base$height)';
       }
       return nullableDecoder
           ? '$base as ${prop.widgetType}?'
           : '$base as ${prop.widgetType}';
     case PropertyType.widgetList:
-      return 'RestageDecoders.widgetList(source, $directPath, '
-          'context: context, bindings: builderBindings)';
+      return '${sdk}RestageDecoders.widgetList($source, $directPath, '
+          'context: $context, bindings: builderBindings)';
     case PropertyType.enumValue:
       final t = _enumDartTypeName(prop);
       if (t == null) {
@@ -4290,7 +4361,7 @@ String _decoderCallFor(
       // resolves through the uniform-prefix import; a built-in (Flutter) enum
       // stays bare (it comes through the `widgets.dart` re-exports).
       final e = _qualifyName(t, _enumLibraryUri(prop), aliases);
-      return 'RestageDecoders.enumByName<$e>($e.values, source, $path)';
+      return '${sdk}RestageDecoders.enumByName<$e>($e.values, $source, $path)';
     case PropertyType.scalarCallback:
       final contract = prop.scalarContract!;
       if (contract.parameters.singleOrNull ==
@@ -4317,8 +4388,8 @@ String _decoderCallFor(
       final binding = _builderBindingName(prop);
       final invocation =
           contract.parameters.singleOrNull == ScalarCallbackParameter.valueKey
-          ? '$binding.evaluateKey(context, ${callbackParameterName(0)})'
-          : '$binding.evaluate(context, {${values.join(', ')}})';
+          ? '$binding.evaluateKey($context, ${callbackParameterName(0)})'
+          : '$binding.evaluate($context, {${values.join(', ')}})';
       final callback =
           '(${arguments.join(', ')}) => $invocation as $resultType';
       return _nullableBuilderBinding(prop)
@@ -4336,14 +4407,18 @@ String _decoderCallFor(
           WidgetBuilderParameter.boxConstraints => 'BoxConstraints',
           WidgetBuilderParameter.orientation => 'Orientation',
           WidgetBuilderParameter.itemIndex => 'int',
+          WidgetBuilderParameter.data || WidgetBuilderParameter.child =>
+            throw StateError('A catalog builder has no app values'),
         };
         arguments.add('$type $name');
         final projected = switch (kind) {
           WidgetBuilderParameter.buildContext => null,
           WidgetBuilderParameter.boxConstraints =>
-            'RestageBuilderBinding.constraints($name)',
+            '${sdk}RestageBuilderBinding.constraints($name)',
           WidgetBuilderParameter.orientation => '$name.name',
           WidgetBuilderParameter.itemIndex => name,
+          WidgetBuilderParameter.data || WidgetBuilderParameter.child =>
+            throw StateError('A catalog builder has no app values'),
         };
         if (projected != null) projections.add("'$name': $projected");
       }
@@ -4357,15 +4432,21 @@ String _decoderCallFor(
           : callback;
     case PropertyType.event:
       final signature = prop.callbackSignature;
+      final typeId = prop.callbackTypeId;
+      if (typeId != null && !designEventFits(prop)) {
+        final slot = dartStringLiteral('${widgetName ?? ''}.${prop.name}');
+        return '${sdk}RestageDecoders.nativeCallback<'
+            '${dartTypeOfCallbackTypeId(typeId)}>($source, $directPath, $slot)';
+      }
       if (signature == null) {
         // Void-callback events (`VoidCallback?`): the rfw shortcut
         // wraps the trigger directly.
-        return 'source.voidHandler($directPath)';
+        return '$source.voidHandler($directPath)';
       }
       // The eligibility gate already proved this serialized signature against
       // the same shared contract used by analyzer-side callback admission.
       final argType = RfwCallbackSignature.parse(signature)!.valueType;
-      return 'RestageDecoders.valueChanged<$argType>(source, $directPath)';
+      return '${sdk}RestageDecoders.valueChanged<$argType>($source, $directPath)';
     case PropertyType.structured:
       // A structured value slot with a registered runtime decoder (a
       // `structuredRef` resolving to a structured type named in
@@ -4379,10 +4460,10 @@ String _decoderCallFor(
           decoder.startsWith('RestageDecoders.nativeBinding<')) {
         final structured = index!.structuredByRef(_structuredRefOf(prop)!)!;
         final native = nativeBindingRoute(structured.sourceType)!;
-        return "$decoder(context, source, $path, type: '${native.contractType}')";
+        return "$decoder($context, $source, $path, type: '${native.contractType}')";
       }
       if (decoder == 'RestageGridChildren.delegate') {
-        return '$decoder(source, $path, context: context, bindings: builderBindings)';
+        return '$decoder($source, $path, context: $context, bindings: builderBindings)';
       }
       if (decoder != null) {
         final arguments =
@@ -4390,8 +4471,8 @@ String _decoderCallFor(
                 optionalContextualNativeDecoders.any(
                   (method) => decoder.endsWith('SvgNativeValues.$method'),
                 ))
-            ? 'context, source, $path'
-            : 'source, $path';
+            ? '$context, $source, $path'
+            : '$source, $path';
         return '$decoder($arguments)';
       }
       throw StateError(
@@ -4455,29 +4536,9 @@ String? _defaultExpressionFor(
     return renderDartConstValueFromPrefixes(constructorDefault, aliases);
   }
 
-  // Theme-binding defaults resolve at render time against the active
-  // Flutter theme — codegen emits a call to the runtime resolver
-  // (`resolveThemeBinding`, exported from the core runtime package).
-  // `FlutterCtorDefault` / `TokenRefDefault` / `null` sources fall through
-  // to the legacy `defaultValue` path below; they usually end up returning
-  // `null` here (no `??` fallback), so the underlying Flutter ctor default
-  // applies.
+  // A theme-bound default is editor metadata only: the Flutter widget
+  // resolves its own theme from a null argument.
   final source = prop.defaultSource;
-  if (source is ThemeBindingDefault) {
-    final path = source.path.path;
-    if (path != null) {
-      // `resolveThemeBinding` returns `Object?`; cast to the property's
-      // nullable Flutter type so the emitted `??` fallback type-checks.
-      // The cast is nullable on purpose — a theme property may itself be
-      // null (e.g. `iconTheme.color`), and a non-null cast would throw.
-      return 'resolveThemeBinding(context, path: ${dartStringLiteral(path)}) '
-          'as ${_nullableFlutterType(prop.type)}';
-    }
-    // resolverName-only bindings are not currently supported — fall
-    // through to no `??` fallback.
-    return null;
-  }
-
   final value = source is LiteralDefault ? source.value : null;
   if (value == null) return null;
   if (value is bool) return value.toString();
@@ -4496,12 +4557,13 @@ String? _defaultExpressionFor(
       return '$e.$value';
     }
     // String defaults on `alignment` properties name a member on
-    // `AlignmentDirectional` (e.g. `'topStart'`, `'center'`). The
-    // fallback renders as `AlignmentDirectional.<value>` so the
-    // emitted code matches the legacy hand-written closures and
-    // satisfies non-nullable `AlignmentGeometry` Flutter ctor params.
+    // `AlignmentDirectional` (e.g. `'topStart'`). The direction-free members
+    // render as Flutter's own `Alignment` defaults.
     if (prop.type == PropertyType.alignment) {
-      return 'AlignmentDirectional.$value';
+      const directionFree = {'center', 'topCenter', 'bottomCenter'};
+      return directionFree.contains(value)
+          ? 'Alignment.$value'
+          : 'AlignmentDirectional.$value';
     }
     // String defaults on `alignmentXY` properties name a member on the
     // concrete `Alignment` (e.g. `'center'`). The fallback renders as
@@ -4595,32 +4657,6 @@ String? _enumDartTypeName(PropertyEntry prop) {
 
 String _sourcePath(String propertyName) =>
     '<Object>[${dartStringLiteral(propertyName)}]';
-
-/// Returns the nullable Flutter type a [type] property's value occupies
-/// at a ctor-arg call site. Used as the cast target for a theme-binding
-/// `??` fallback — `resolveThemeBinding` returns `Object?`, and the
-/// theme property it forwards may itself be `null`, so the cast must be
-/// nullable. Covers the theme-binding seed-table property types only.
-String _nullableFlutterType(PropertyType type) {
-  switch (type) {
-    case PropertyType.color:
-      return 'Color?';
-    case PropertyType.length:
-    case PropertyType.real:
-      return 'double?';
-    case PropertyType.fontWeight:
-      return 'FontWeight?';
-    // No other PropertyType is reachable via a theme-binding seed; if
-    // one ever is, surface it loudly rather than emit an unresolvable
-    // cast.
-    // ignore: no_default_cases
-    default:
-      throw StateError(
-        'No theme-binding cast type for $type. '
-        'Theme-binding seeds cover color / length / real / fontWeight.',
-      );
-  }
-}
 
 // Direct RFW reads never mutate their path. A flat, literal property path can
 // therefore be canonicalized without changing custom decoder inputs or paths

@@ -5,6 +5,8 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
 
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/widgets.dart';
+import 'package:meta/meta.dart' show internal;
+import '../runtime/offstage_candidates.dart';
 import 'package:restage_material/restage_material_runtime.dart';
 
 import '../authoring/event_dispatch_admission.dart';
@@ -54,7 +56,9 @@ import 'flow_resolver.dart';
 import '../resolver/placement_mount_resolver.dart';
 import '../runtime/placement_presentation.dart';
 import '../runtime/source_badge.dart';
+import '../runtime/user_interaction.dart';
 import 'flow_runtime_support.dart' show normalizeEventArgs;
+import 'flow_screen_builders.dart';
 import 'flow_seed.dart';
 import 'flow_transitions.dart';
 import 'restage_flow_view.dart';
@@ -126,7 +130,12 @@ class RestageFlowGraph<R> extends StatefulWidget
     this.systemBack = SystemBackPolicy.popHost,
     this.liveRefresh,
     this.context,
+    @internal this.host = 'RestageFlowGraph',
   });
+
+  /// The widget the app wrote to show this flow, named in its messages.
+  @internal
+  final String host;
 
   /// Creates the generated host facts without requiring new authored imports.
   static GeneratedPlacementDefinition generatedPlacementDefinition({
@@ -393,10 +402,15 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     SurfaceRefreshRegistry.instance.unregister(handle);
   }
 
+  /// Whether the user touched or scrolled what this mount shows, its fallback
+  /// included.
+  bool _userInteracted = false;
+
   /// The swap-safety gate: a flow is safe to re-host only while it is pristine
-  /// (no user-contributed state), idle (no transition/action in flight), and
-  /// not yet complete.
+  /// (no interaction or user-contributed state), idle (no transition/action in
+  /// flight), and not yet complete.
   bool _canSwap() =>
+      !_userInteracted &&
       !(_renderedPlacementAdmission?.isAssigned ?? false) &&
       !(_controller?.hasUserContributedState ?? false) &&
       !(_controller?.isBusy ?? false) &&
@@ -501,7 +515,16 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
           _scheduleDiscardPending(pending);
           return;
         }
+        _offstage.route(pending, pending.currentLibrary,
+            step: pending.currentStepMount != null);
         setState(() => _pendingIsStaged = true);
+        _offstage.showAfterLayout(
+          pending,
+          mayReplace: () =>
+              identical(_pendingController, pending) && _canSwap(),
+          setState: setState,
+          reject: () => _scheduleDiscardPending(pending),
+        );
       }
       if (!pending.hasRenderedContent ||
           !(transaction?.isPaintAcknowledged ?? false) ||
@@ -607,7 +630,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     _pendingPresentation = null;
     _pendingIsStaged = false;
     _pendingPromotionScheduled = false;
-    if (mounted) setState(() {});
+    if (mounted) setState(_offstage.release);
     _disposeOwnedController(pending, pendingTransaction, presentation);
   }
 
@@ -634,7 +657,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     _pendingIsStaged = false;
     _pendingPromotionScheduled = false;
     _unavailableError = null;
-    if (mounted) setState(() {});
+    if (mounted) setState(_offstage.release);
     _disposeOwnedController(
       pending,
       pendingTransaction,
@@ -861,6 +884,10 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   FlowResolver _resolver() {
     final original = widget.resolver ?? Restage.defaultFlowResolver;
     final binding = widget.placementBinding;
+    if (widget.resolver == null) {
+      Restage.reportUnconfiguredMount(
+          widget.flow.surfaceWidget ?? widget.flow.id);
+    }
     final declaration = _placementDiscovery.capture(binding, widget, context);
     final registry = Restage.placementRegistry;
     if (widget.resolver == null &&
@@ -931,6 +958,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     }
     late final RestageFlowController<R> controller;
     controller = createHostMeasurementFlowController<R>(
+      host: widget.host,
       flow: boundFlow,
       resolver: resolver,
       initialState: widget.initialState,
@@ -1347,7 +1375,12 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => UserInteractionWatch(
+        onInteraction: () => _userInteracted = true,
+        child: _buildContent(context),
+      );
+
+  Widget _buildContent(BuildContext context) {
     final error = _unavailableError;
     if (error != null) {
       if (widget.unavailable.isFallback &&
@@ -1411,7 +1444,10 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         child: Stack(
           fit: StackFit.passthrough,
           children: <Widget>[
-            _buildFlowLayer(controller, staged: false),
+            // A shown offstage candidate takes this version's islands, which
+            // Flutter moves only out of a subtree that has left the tree.
+            if (!_offstage.isShown(pending))
+              _buildFlowLayer(controller, staged: false),
             if (pending != null) _buildFlowLayer(pending, staged: true),
           ],
         ),
@@ -1420,6 +1456,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   }
 
   final _rootSources = Expando<SurfaceResolutionSource>();
+  final _offstage = OffstageCandidates();
 
   Widget _buildFlowLayer(
     RestageFlowController<R> controller, {
@@ -1442,19 +1479,22 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         isCurrent: () => _isAuthoredEventHandlerCurrent(controller, handler),
         // A candidate is mounted beside the live layer, so it contests no route
         // state: it registers no back history and never blocks a pop.
-        child: staged
-            ? RestageFlowView.staging<R>(
-                controller: controller,
-                transition: widget.transition,
-                loadingBuilder: widget.loadingBuilder,
-                systemBack: widget.systemBack,
-              )
-            : RestageFlowView<R>(
-                controller: controller,
-                transition: widget.transition,
-                loadingBuilder: widget.loadingBuilder,
-                systemBack: widget.systemBack,
-              ),
+        child: FlowScreenBuilders(
+          builders: widget.screenBuilders,
+          child: staged
+              ? RestageFlowView.staging<R>(
+                  controller: controller,
+                  transition: widget.transition,
+                  loadingBuilder: widget.loadingBuilder,
+                  systemBack: widget.systemBack,
+                )
+              : RestageFlowView<R>(
+                  controller: controller,
+                  transition: widget.transition,
+                  loadingBuilder: widget.loadingBuilder,
+                  systemBack: widget.systemBack,
+                ),
+        ),
       ),
     );
     final session = _measurementSessions[controller];
@@ -1504,14 +1544,13 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         ),
       );
     }
+    // A staged version builds its islands only once it is shown.
     return KeyedSubtree(
       key: ObjectKey(controller),
-      child: ExcludeSemantics(
-        excluding: staged || candidatePending,
-        child: AbsorbPointer(
-          absorbing: staged || candidatePending,
-          child: child,
-        ),
+      child: _offstage.layer(
+        controller,
+        inert: staged || candidatePending,
+        child: child,
       ),
     );
   }

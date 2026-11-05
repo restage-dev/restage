@@ -1,3 +1,4 @@
+import 'package:restage_codegen/src/custom_structured_discovery.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -219,5 +220,35 @@ void main() {
       // reconstruction can't supply the required constructor argument.
       expect(config.required, isTrue);
     });
+  });
+
+  test('only a required non-nullable field fails closed when absent', () async {
+    final probe = await parseMethodExpressionFromSourceForTest(
+      '''
+import 'package:flutter/widgets.dart';
+
+class Link {
+  const Link({required this.label, required this.onTap, this.note});
+  final String label;
+  final VoidCallback? onTap;
+  final String? note;
+}
+
+class Probe extends StatelessWidget {
+  const Probe({super.key});
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+''',
+      className: 'Probe',
+    );
+    final plan = reconstructionPlanFor(
+      probe.classes['Link']!,
+      {'label', 'onTap', 'note'},
+    ).plan!;
+    expect(
+      {for (final arg in plan.args) arg.fieldName: arg.isRequired},
+      {'label': true, 'onTap': false, 'note': false},
+    );
   });
 }

@@ -26,6 +26,7 @@ final class PropertyIR {
     this.enumType,
     this.widgetType,
     this.callbackSignature,
+    this.callbackTypeId,
     this.builderContract,
     this.scalarContract,
     this.constructorNullable = false,
@@ -80,6 +81,9 @@ final class PropertyIR {
 
   /// Event callback signature override.
   final String? callbackSignature;
+
+  /// Exact function type id of an event property.
+  final String? callbackTypeId;
 
   /// Structural native widget callback contract.
   final WidgetBuilderContract? builderContract;

@@ -14,6 +14,7 @@ void main() {
       IssueCode.denylistedWidget,
       IssueCode.denylistedProperty,
       IssueCode.rfwIncompatibleAnnotated,
+      IssueCode.keptByOptOut,
       IssueCode.abstractTypeAwaitingUnion,
       IssueCode.structuredCycle,
       IssueCode.structuredDepthExceeded,
@@ -25,7 +26,10 @@ void main() {
       IssueCode.idiomAutoSubstituted,
       IssueCode.navigationStandaloneArtifactSkipped,
       IssueCode.customWidgetAppFactoryUsed,
+      IssueCode.customWidgetUnexported,
+      IssueCode.customWidgetNotSplit,
       IssueCode.interactionItemUnavailable,
+      IssueCode.islandSpotsIndistinct,
     };
 
     test('classifies exactly the informational set as informational', () {
@@ -87,6 +91,7 @@ void main() {
           IssueCode.navigationStandaloneArtifactSkipped,
           IssueCode.customWidgetAppFactoryUsed,
           IssueCode.interactionItemUnavailable,
+          IssueCode.islandSpotsIndistinct,
         }),
       );
 

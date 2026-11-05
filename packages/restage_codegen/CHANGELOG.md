@@ -4,6 +4,14 @@
 
 - **Breaking:** `A2uiDartCoverageReason` gains `unsupportedScalarCallback`; exhaustive switches must handle it.
 - **Breaking:** `A2uiDartWidgetPlan.usesPropsNamespace` is removed; A2UI 1.0 components carry their properties at the top level.
+- **Breaking:** exhaustive switches over `IssueCode` must handle the new app-rendered widget and opt-out codes.
+- A design that omits a required argument Flutter can't take as null is refused. Generated builders pass Flutter's own default for an omitted argument: no catalog literal, theme lookup or no-op callback stands in.
+- Widgets the compiler cannot deliver render from the app's code. Each mount
+  lists them with a fit token in its host contract, each published version
+  lists the ones it draws, and one registration per package installs every
+  mount's. A paywall that needs app-rendered widgets but has no generated part
+  warns.
+
 - **Breaking:** generated event types are named `<Class>SurfaceEvent`, and
   per-field events `<Class>Surface<Field>Event`. They were `<Class>Event`, which
   could collide with your own classes. Rename references to them in your code.

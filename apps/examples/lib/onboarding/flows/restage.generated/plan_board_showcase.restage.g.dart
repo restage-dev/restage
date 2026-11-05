@@ -1,6 +1,6 @@
 part of '../plan_board_showcase.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _planBoardShowcaseFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -37,14 +37,15 @@ const planBoardShowcaseFlowRef = SurfaceFlowRef<
   decodeResult: _decodePlanBoardShowcaseFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"plan_board_showcase","initial":"plan_board_showcase","minClient":17,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"plan_board_showcase":{"contentHash":"sha256:4b36d593059360f9199edd7ddc4a0dd7d7c9569a6c1861b65f2d33e46abf130f","minClient":17,"path":"plan_board_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"plan_board_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"plan_board_showcase"}},"version":1}',
+        '{"flow":"plan_board_showcase","initial":"plan_board_showcase","minClient":17,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"plan_board_showcase":{"contentHash":"sha256:50937cbdc4872b5db1d7e25cd64ae2d3fb230b55caa01d609a18bcb39e9197c0","minClient":17,"path":"plan_board_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"plan_board_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"plan_board_showcase"}},"version":1}',
     screens: {
       'plan_board_showcase': PlanBoardShowcaseScreen.new,
     },
     children: {},
   ),
+  surfaceWidget: 'PlanBoardShowcaseFlowSurface',
   measurementPublicationDraftDigest:
-      'abece91d2cf288ae1c840cd23982f06da781d57f33a7402ff0569ec9df0ff1c5',
+      'dda0134bf2bd4754cf29da1a2f33f2dd26ff580365d8393f633f06ac7ba52177',
   vocabulary: _planBoardShowcaseFlowRefVocabulary,
 );
 
@@ -87,8 +88,8 @@ final _planBoardShowcaseFlowPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

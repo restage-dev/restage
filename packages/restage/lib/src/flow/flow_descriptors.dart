@@ -144,6 +144,13 @@ final class SurfaceScreenEventContract<E> {
   final GeneratedSurfaceScreenEventDecoder<E> decodeValidated;
 }
 
+final _surfaceScreenWidgets = Expando<String>('surfaceWidget');
+
+/// Records [name] as the widget generated for [ref].
+@internal
+void nameSurfaceScreenWidget(SurfaceScreenRef<Object?> ref, String name) =>
+    _surfaceScreenWidgets[ref] = name;
+
 /// A generated reference for an independently published ordinary screen.
 ///
 /// It is deliberately generic in its generated event type and contains no
@@ -196,6 +203,10 @@ final class SurfaceScreenRef<E> extends FlowScreenRef
 
   /// The compiled-in contract this reference resolves against.
   final SurfaceScreenRuntimeProvenance provenance;
+
+  /// The name of the widget generated for this screen, once its generated
+  /// placement definition is read. Messages use it to name the widget.
+  String? get surfaceWidget => _surfaceScreenWidgets[this];
 
   @override
   final CapabilityManifest capabilities;
@@ -260,6 +271,7 @@ final class SurfaceFlowRef<R> implements RestageSurfaceRef {
     this.vocabulary = SurfaceVocabulary.none,
     this.subFlows = const [],
     this.compiled,
+    this.surfaceWidget,
   }) : _measurementPublicationDraftDigest = null;
 
   /// Creates a compiler-generated flow reference with its exact bundled
@@ -275,10 +287,15 @@ final class SurfaceFlowRef<R> implements RestageSurfaceRef {
     this.vocabulary = SurfaceVocabulary.none,
     this.subFlows = const [],
     this.compiled,
+    this.surfaceWidget,
   }) : _measurementPublicationDraftDigest = measurementPublicationDraftDigest;
 
   /// Original compiler-emitted graph and Flutter constructors.
   final CompiledFlow? compiled;
+
+  /// The generated widget that shows this flow with every step's builder
+  /// bound, if there is one.
+  final String? surfaceWidget;
 
   /// Binds constructors that need arguments supplied by the app.
   SurfaceFlowRef<R> withScreenBuilders(
@@ -295,7 +312,8 @@ final class SurfaceFlowRef<R> implements RestageSurfaceRef {
             deliveryMode: deliveryMode,
             vocabulary: vocabulary,
             subFlows: subFlows,
-            compiled: bound)
+            compiled: bound,
+            surfaceWidget: surfaceWidget)
         : SurfaceFlowRef<R>.generatedWithMeasurementPublicationDraftDigest(
             id: id,
             version: version,
@@ -306,7 +324,8 @@ final class SurfaceFlowRef<R> implements RestageSurfaceRef {
             measurementPublicationDraftDigest: digest,
             vocabulary: vocabulary,
             subFlows: subFlows,
-            compiled: bound);
+            compiled: bound,
+            surfaceWidget: surfaceWidget);
   }
 
   /// Stable flow identifier.

@@ -24,6 +24,15 @@ WidgetEntry _widgetEntry({
   properties: properties,
 );
 
+// [code] in the source, however the formatter lays it out.
+Matcher _containsCode(String code) {
+  String packed(String text) => text.replaceAll(RegExp(r'\s+'), '');
+  return predicate<String?>(
+    (source) => source != null && packed(source).contains(packed(code)),
+    'contains code `$code`',
+  );
+}
+
 void main() {
   group('emitUserFactoriesDart', () {
     for (final since in [null, 1, 2]) {
@@ -65,7 +74,7 @@ void main() {
       expect(source, isNot(contains("['analyticsId']")));
       expect(
         source,
-        contains(
+        _containsCode(
           "RestageDecoders.string(source, <Object>['label'], context: context)",
         ),
       );
@@ -245,9 +254,15 @@ void main() {
           'Widget _buildAcmeBadge(BuildContext context, DataSource source)',
         ),
       );
+      // An app widget is built where the design places it, keyed as the
+      // app's build keys it.
       expect(
         src,
-        contains(
+        _containsCode('return RestageIslandScope.split(context, source, () =>'),
+      );
+      expect(
+        src,
+        _containsCode(
           "RestageDecoders.string(source, <Object>['label'], context: context) ??",
         ),
       );
@@ -471,8 +486,8 @@ void main() {
         ),
       );
       expect(
-        src?.replaceAll(RegExp(r'\s+'), ' '),
-        contains(
+        src,
+        _containsCode(
           'children: RestageDecoders.widgetList(source, '
           "const <Object>['children'], context: context, bindings: builderBindings)",
         ),

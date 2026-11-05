@@ -359,7 +359,8 @@ void main() {
       );
     });
 
-    test("another package's builder widget points at host data", () async {
+    test("another package's builder widget renders from the app because it "
+        'builds from app state', () async {
       final result =
           ExpressionTranslator(
             catalog: kEmptyCatalog,
@@ -387,11 +388,8 @@ void main() {
           );
       expect(
         result.issues.single.message,
-        startsWith(
-          "'SignalBuilder' (package:acme_state) builds from app state. Read "
-          'that state in the host widget and pass the values to this surface '
-          'as constructor inputs.',
-        ),
+        "`SignalBuilder` (package:acme_state) renders from your app's code "
+        "because it builds from your app's state.",
       );
     });
 
@@ -433,7 +431,14 @@ void main() {
           );
       expect(
         result.issues.single.message,
-        isNot(contains('builds from app state')),
+        allOf(
+          startsWith(
+            "`OpenContainer` renders from your app's code because it isn't "
+            "in Restage's widget catalog. Try promoting it with "
+            '`restage widget promote ',
+          ),
+          endsWith('` if designers should place it on other screens.'),
+        ),
       );
     });
 

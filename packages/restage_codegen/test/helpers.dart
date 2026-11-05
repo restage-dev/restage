@@ -21,6 +21,8 @@ import 'package:package_config/package_config.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
+import 'package:restage_codegen/src/source_state.dart'
+    show ContentFreeBuilders, contentFreeBuilders;
 import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:restage_codegen/src/target_config_reader.dart';
 import 'package:restage_codegen/src/target_routing_reader.dart';
@@ -944,10 +946,12 @@ final class ResolvedMethodExpressionForTest {
   const ResolvedMethodExpressionForTest({
     required this.expression,
     required this.classes,
+    this.contentFree = ContentFreeBuilders.none,
   });
 
   final Expression expression;
   final Map<String, ClassElement> classes;
+  final ContentFreeBuilders contentFree;
 }
 
 /// Resolves one class method's returned expression and library classes.
@@ -956,6 +960,7 @@ Future<ResolvedMethodExpressionForTest> parseMethodExpressionFromSourceForTest(
   required String className,
   String methodName = 'build',
   String rootPackage = _kRootPackage,
+  bool contentFree = false,
 }) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: rootPackage,
@@ -991,11 +996,25 @@ Future<ResolvedMethodExpressionForTest> parseMethodExpressionFromSourceForTest(
           if (returns.length == 1) expression = returns.single.expression;
         }
         if (expression == null) return;
+        Future<AstNode?> astNodeFor(Fragment fragment) async {
+          final owner = fragment.libraryFragment?.element;
+          if (owner == null) return null;
+          final resolved = await library.session.getResolvedLibraryByElement(
+            owner,
+          );
+          return resolved is ResolvedLibraryResult
+              ? resolved.getFragmentDeclaration(fragment)?.node
+              : null;
+        }
+
         result = ResolvedMethodExpressionForTest(
           expression: expression,
           classes: Map.unmodifiable({
             for (final element in library.classes) element.name: element,
           }),
+          contentFree: contentFree
+              ? await contentFreeBuilders([expression], astNodeFor: astNodeFor)
+              : ContentFreeBuilders.none,
         );
       },
       allowedAssetIds: {AssetId.parse(assetKey)},

@@ -252,6 +252,7 @@ final class RestageCatalogGenAdapter {
       enumType: property.enumType,
       widgetType: property.widgetType,
       callbackSignature: property.callbackSignature,
+      callbackTypeId: property.callbackTypeId,
       builderContract: property.builderContract,
       scalarContract: property.scalarContract,
       constructorNullable: property.constructorNullable,

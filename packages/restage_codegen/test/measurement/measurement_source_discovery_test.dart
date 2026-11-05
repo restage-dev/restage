@@ -22,6 +22,64 @@ import '../helpers.dart';
 
 void main() {
   group('MeasurementSourceDiscovery', () {
+    for (final (name, body, segment) in [
+      ('a helper list', 'return Column(children: [...taps()]);', '|helper:'),
+      (
+        'a static const list',
+        "return Column(children: [...labels, GestureDetector(onTap: first, child: const Text('x'))]);",
+        '|source:',
+      ),
+    ]) {
+      test('a single spread of $name keeps its elements\' keys', () async {
+        final fixture = await _resolveFixture('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@ScreenSource(id: 'spread_probe')
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+  static void first() {}
+  static void second() {}
+
+  List<Widget> taps() => [
+        GestureDetector(onTap: first, child: const Text('First')),
+        GestureDetector(onTap: second, child: const Text('Second')),
+      ];
+
+  static const labels = <Widget>[Text('a'), Text('b')];
+
+  @override
+  Widget build(BuildContext context) {
+    $body
+  }
+}
+''');
+        final discovery = _discover(
+          fixture,
+          authority: MeasurementSourceAuthority.screen,
+          catalog: decodeCatalog(
+            File(
+              '../restage_core/lib/src/widget_catalog/catalog.json',
+            ).readAsStringSync(),
+          ),
+        );
+        final keys = [
+          ..._eventKeys(discovery),
+          for (final node in discovery.nodes) node.structuralOccurrenceKey,
+        ];
+        expect(keys, isNotEmpty);
+        expect(keys.where((key) => key.contains(segment)), isEmpty);
+        expect(
+          keys.where(
+            (key) => key.contains(
+              '|collection:listElement[0]|collection:listElement[0]|',
+            ),
+          ),
+          isNotEmpty,
+        );
+      });
+    }
+
     test(
       'inert spans preserve owners while nested nonnull callbacks share one owner',
       () async {
@@ -723,7 +781,9 @@ class Welcome extends StatelessWidget {
         expect(discovery.events, isEmpty);
         expect(
           discovery.rejectionReason,
-          contains('A spread of a value known only at run time is unsupported'),
+          contains(
+            "Restage can't spread a list that is only known when the app runs.",
+          ),
         );
         expect(
           discovery.nodes.map((node) => node.resolvedWidgetIdentity),

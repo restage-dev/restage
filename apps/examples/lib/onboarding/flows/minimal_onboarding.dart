@@ -53,7 +53,7 @@ final class MinimalOnboardingFlow extends RestageFlow {
           route,
           branches: [
             flowBranch(
-              when: state('mode').equals('guided'),
+              when: flowState('mode').equals('guided'),
               target: starterDoneGuidedScreenRef,
             ),
           ],

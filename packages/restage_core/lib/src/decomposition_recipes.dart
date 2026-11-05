@@ -23,6 +23,41 @@ import 'package:restage_shared/restage_shared.dart';
 /// Flat properties hoisted out of `style: TextStyle?` for widgets that
 /// surface typography control (`Text`, `DefaultTextStyle`).
 const List<PropertyEntry> kTextStyleSynthetics = [
+  ..._kTextStyleSharedSynthetics,
+  _kTextStyleOverflowSynthetic,
+];
+
+/// [kTextStyleSynthetics] for a widget with its own `overflow` parameter:
+/// `style.overflow` is `styleOverflow`.
+const List<PropertyEntry> kTextStyleSyntheticsBesideOverflow = [
+  ..._kTextStyleSharedSynthetics,
+  PropertyEntry(
+    wireId: WireId.unallocatedProperty,
+    name: 'styleOverflow',
+    type: PropertyType.enumValue,
+    description: 'Text overflow behavior of the style.',
+    sinceVersion: 25,
+    valueShape: _kTextOverflowShape,
+  ),
+];
+
+const _kTextOverflowShape = EnumShape(
+  propertyType: PropertyType.enumValue,
+  enumRef: DartTypeRef(
+    libraryUri: 'package:flutter/src/painting/text_painter.dart',
+    symbolName: 'TextOverflow',
+  ),
+);
+
+const _kTextStyleOverflowSynthetic = PropertyEntry(
+  wireId: WireId.unallocatedProperty,
+  name: 'overflow',
+  type: PropertyType.enumValue,
+  description: 'Text overflow behavior.',
+  valueShape: _kTextOverflowShape,
+);
+
+const List<PropertyEntry> _kTextStyleSharedSynthetics = [
   PropertyEntry(
     wireId: WireId.unallocatedProperty,
     name: 'inherit',
@@ -179,19 +214,6 @@ const List<PropertyEntry> kTextStyleSynthetics = [
       dartTypeRef: DartTypeRef(libraryUri: 'dart:core', symbolName: 'String'),
     ),
   ),
-  PropertyEntry(
-    wireId: WireId.unallocatedProperty,
-    name: 'overflow',
-    type: PropertyType.enumValue,
-    description: 'Text overflow behavior.',
-    valueShape: EnumShape(
-      propertyType: PropertyType.enumValue,
-      enumRef: DartTypeRef(
-        libraryUri: 'package:flutter/src/painting/text_painter.dart',
-        symbolName: 'TextOverflow',
-      ),
-    ),
-  ),
 ];
 
 /// Native v4 curation for `style: TextStyle?` hoisting.
@@ -201,84 +223,100 @@ const NativeDecompositionCuration kTextStyleNativeDecompose =
   targetArg: 'style',
   construction: NativeFactoryCuration.constructor(),
   fieldMappings: [
-    NativeFieldMappingCuration(field: 'inherit', property: 'inherit'),
-    NativeFieldMappingCuration(field: 'color', property: 'color'),
-    NativeFieldMappingCuration(
-      field: 'backgroundColor',
-      property: 'backgroundColor',
-    ),
-    NativeFieldMappingCuration(field: 'fontFamily', property: 'fontFamily'),
-    NativeFieldMappingCuration(field: 'fontSize', property: 'fontSize'),
-    NativeFieldMappingCuration(field: 'fontWeight', property: 'fontWeight'),
-    NativeFieldMappingCuration(field: 'fontStyle', property: 'fontStyle'),
-    NativeFieldMappingCuration(
-      field: 'letterSpacing',
-      property: 'letterSpacing',
-    ),
-    NativeFieldMappingCuration(field: 'wordSpacing', property: 'wordSpacing'),
-    NativeFieldMappingCuration(
-      field: 'textBaseline',
-      property: 'textBaseline',
-    ),
-    NativeFieldMappingCuration(field: 'height', property: 'height'),
-    NativeFieldMappingCuration(
-      field: 'leadingDistribution',
-      property: 'leadingDistribution',
-    ),
-    NativeFieldMappingCuration(field: 'locale', property: 'locale'),
-    NativeFieldMappingCuration(field: 'foreground', property: 'foreground'),
-    NativeFieldMappingCuration(field: 'background', property: 'background'),
-    NativeFieldMappingCuration(
-      field: 'shadows',
-      property: 'shadows',
-      transform: NativeValueTransformCuration.projectList(
-        itemTransform: NativeValueTransformCuration.identity(),
-      ),
-    ),
-    NativeFieldMappingCuration(
-      field: 'fontFeatures',
-      property: 'fontFeatures',
-      transform: NativeValueTransformCuration.projectList(
-        itemTransform: NativeValueTransformCuration.identity(),
-      ),
-    ),
-    NativeFieldMappingCuration(
-      field: 'fontVariations',
-      property: 'fontVariations',
-      transform: NativeValueTransformCuration.projectList(
-        itemTransform: NativeValueTransformCuration.identity(),
-      ),
-    ),
-    NativeFieldMappingCuration(field: 'decoration', property: 'decoration'),
-    NativeFieldMappingCuration(
-      field: 'decorationColor',
-      property: 'decorationColor',
-    ),
-    NativeFieldMappingCuration(
-      field: 'decorationStyle',
-      property: 'decorationStyle',
-    ),
-    NativeFieldMappingCuration(
-      field: 'decorationThickness',
-      property: 'decorationThickness',
-    ),
-    NativeFieldMappingCuration(field: 'debugLabel', property: 'debugLabel'),
-    NativeFieldMappingCuration(
-      field: 'fontFamilyFallback',
-      property: 'fontFamilyFallback',
-      transform: NativeValueTransformCuration.projectList(
-        itemTransform: NativeValueTransformCuration.identity(),
-      ),
-    ),
+    ..._kTextStyleSharedFieldMappings,
     NativeFieldMappingCuration(field: 'overflow', property: 'overflow'),
   ],
-  parameterMappings: [
-    NativeParameterMappingCuration(
-      parameter: 'package',
-      property: 'fontPackage',
-    ),
-  ],
+  parameterMappings: _kTextStyleParameterMappings,
 );
+
+/// [kTextStyleNativeDecompose] paired with [kTextStyleSyntheticsBesideOverflow].
+const NativeDecompositionCuration kTextStyleNativeDecomposeBesideOverflow =
+    NativeDecompositionCuration(
+  structuredType: 'TextStyle',
+  targetArg: 'style',
+  construction: NativeFactoryCuration.constructor(),
+  fieldMappings: [
+    ..._kTextStyleSharedFieldMappings,
+    NativeFieldMappingCuration(field: 'overflow', property: 'styleOverflow'),
+  ],
+  parameterMappings: _kTextStyleParameterMappings,
+);
+
+const _kTextStyleParameterMappings = [
+  NativeParameterMappingCuration(parameter: 'package', property: 'fontPackage'),
+];
+
+const List<NativeFieldMappingCuration> _kTextStyleSharedFieldMappings = [
+  NativeFieldMappingCuration(field: 'inherit', property: 'inherit'),
+  NativeFieldMappingCuration(field: 'color', property: 'color'),
+  NativeFieldMappingCuration(
+    field: 'backgroundColor',
+    property: 'backgroundColor',
+  ),
+  NativeFieldMappingCuration(field: 'fontFamily', property: 'fontFamily'),
+  NativeFieldMappingCuration(field: 'fontSize', property: 'fontSize'),
+  NativeFieldMappingCuration(field: 'fontWeight', property: 'fontWeight'),
+  NativeFieldMappingCuration(field: 'fontStyle', property: 'fontStyle'),
+  NativeFieldMappingCuration(
+    field: 'letterSpacing',
+    property: 'letterSpacing',
+  ),
+  NativeFieldMappingCuration(field: 'wordSpacing', property: 'wordSpacing'),
+  NativeFieldMappingCuration(
+    field: 'textBaseline',
+    property: 'textBaseline',
+  ),
+  NativeFieldMappingCuration(field: 'height', property: 'height'),
+  NativeFieldMappingCuration(
+    field: 'leadingDistribution',
+    property: 'leadingDistribution',
+  ),
+  NativeFieldMappingCuration(field: 'locale', property: 'locale'),
+  NativeFieldMappingCuration(field: 'foreground', property: 'foreground'),
+  NativeFieldMappingCuration(field: 'background', property: 'background'),
+  NativeFieldMappingCuration(
+    field: 'shadows',
+    property: 'shadows',
+    transform: NativeValueTransformCuration.projectList(
+      itemTransform: NativeValueTransformCuration.identity(),
+    ),
+  ),
+  NativeFieldMappingCuration(
+    field: 'fontFeatures',
+    property: 'fontFeatures',
+    transform: NativeValueTransformCuration.projectList(
+      itemTransform: NativeValueTransformCuration.identity(),
+    ),
+  ),
+  NativeFieldMappingCuration(
+    field: 'fontVariations',
+    property: 'fontVariations',
+    transform: NativeValueTransformCuration.projectList(
+      itemTransform: NativeValueTransformCuration.identity(),
+    ),
+  ),
+  NativeFieldMappingCuration(field: 'decoration', property: 'decoration'),
+  NativeFieldMappingCuration(
+    field: 'decorationColor',
+    property: 'decorationColor',
+  ),
+  NativeFieldMappingCuration(
+    field: 'decorationStyle',
+    property: 'decorationStyle',
+  ),
+  NativeFieldMappingCuration(
+    field: 'decorationThickness',
+    property: 'decorationThickness',
+  ),
+  NativeFieldMappingCuration(field: 'debugLabel', property: 'debugLabel'),
+  NativeFieldMappingCuration(
+    field: 'fontFamilyFallback',
+    property: 'fontFamilyFallback',
+    transform: NativeValueTransformCuration.projectList(
+      itemTransform: NativeValueTransformCuration.identity(),
+    ),
+  ),
+];
 
 /// Single-real catalog property surfacing a uniform-corner radius. The
 /// codegen wraps the scalar back as `BorderRadius.circular(<value>)` at
@@ -574,13 +612,7 @@ const NativeDecompositionCuration kBoxConstraintsNativeDecompose =
 // Property overrides
 // ---------------------------------------------------------------------------
 
-/// `AlignmentGeometry alignment = Alignment.center` defaults to a
-/// const identifier the reflector can't decode as a primitive literal.
-/// This override pins the catalog default to the member name; the
-/// codegen renders the fallback as `AlignmentDirectional.center`.
-///
-/// Shared by `Align`, `FittedBox`, and `Transform.rotate` — every
-/// curated widget whose Flutter ctor default is `Alignment.center`.
+/// `AlignmentGeometry alignment = Alignment.center`, recorded by member name.
 const PropertyOverride kAlignmentCenterOverride = PropertyOverride(
   defaultValue: 'center',
 );
@@ -608,12 +640,7 @@ const PropertyOverride kCurveEaseInOutOverride = PropertyOverride(
   defaultValue: 'easeInOut',
 );
 
-/// `AnimatedSlide.offset` is a `required Offset` with no Flutter ctor default.
-/// The catalog records a defensive `Offset.zero` default — codegen renders the
-/// fallback as `Offset.zero`, applied only when the slot is absent on the wire.
-/// The parameter stays required, so Dart's own required-parameter check
-/// enforces authored intent on the source; an absent offset is never a silent
-/// zero slide.
+/// An `Offset` slot whose constructor default is `Offset.zero`.
 const PropertyOverride kOffsetZeroOverride = PropertyOverride(
   type: PropertyType.offset,
   defaultValue: 'zero',

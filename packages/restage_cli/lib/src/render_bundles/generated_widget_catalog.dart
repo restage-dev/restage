@@ -64,6 +64,23 @@ String generatedWidgetCatalogPath(Directory projectRoot, String packageName) =>
 String generatedRenderCatalogPath(Directory projectRoot, String packageName) =>
     _generatedCatalogPath(projectRoot, packageName, 'render_catalog.json');
 
+/// Where the generator leaves [packageName]'s compiler handoff, which lists
+/// each island and action with its source location.
+String generatedCompilerHandoffPath(
+  Directory projectRoot,
+  String packageName,
+) => p.join(
+  projectRoot.path,
+  '.dart_tool',
+  'build',
+  'generated',
+  packageName,
+  'lib',
+  'src',
+  'surface_publication',
+  'surface_publication.compiler.json',
+);
+
 String _generatedCatalogPath(
   Directory projectRoot,
   String packageName,

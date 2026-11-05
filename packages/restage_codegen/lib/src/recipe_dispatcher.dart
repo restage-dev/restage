@@ -356,7 +356,10 @@ DslEmission _emitDoubleList(
       issues.add(
         Issue(
           code: IssueCode.unsupportedCollectionFlow,
-          message: refusal.detail,
+          message: collectionRefusalMessage(
+            refusal,
+            locationOf?.call(refusal.location) ?? location,
+          ),
           location: locationOf?.call(refusal.location) ?? location,
         ),
       );

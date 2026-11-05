@@ -68,7 +68,8 @@ widget Paywall = CupertinoPicker(itemExtent: data.nan,
         '''
 import restage.core;
 import restage.cupertino;
-widget Paywall = CupertinoDatePicker(itemExtent: data.nan);
+widget Paywall = CupertinoDatePicker(itemExtent: data.nan,
+  onDateTimeChanged: event "changed" {});
 ''',
         data: <String, Object?>{'nan': double.nan},
       );
@@ -91,7 +92,8 @@ widget Paywall = CupertinoDatePicker(itemExtent: data.nan);
         '''
 import restage.core;
 import restage.cupertino;
-widget Paywall = CupertinoTimerPicker(itemExtent: data.nan);
+widget Paywall = CupertinoTimerPicker(itemExtent: data.nan,
+  onTimerDurationChanged: event "changed" {});
 ''',
         data: <String, Object?>{'nan': double.nan},
       );
@@ -110,7 +112,8 @@ widget Paywall = CupertinoTimerPicker(itemExtent: data.nan);
         '''
 import restage.core;
 import restage.cupertino;
-widget Paywall = CupertinoDatePicker(itemExtent: 48.0);
+widget Paywall = CupertinoDatePicker(itemExtent: 48.0,
+  onDateTimeChanged: event "changed" {});
 ''',
       );
 

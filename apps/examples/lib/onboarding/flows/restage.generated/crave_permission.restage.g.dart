@@ -1,6 +1,6 @@
 part of '../crave_permission.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _cravePermissionFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -47,6 +47,7 @@ const cravePermissionFlowRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'CravePermissionFlowSurface',
   measurementPublicationDraftDigest:
       '769396322c0d34f9a6192a7b5cea1c912cb76aed01d1827390d31b649d08586f',
   vocabulary: _cravePermissionFlowRefVocabulary,
@@ -131,8 +132,8 @@ final _cravePermissionFlowPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
