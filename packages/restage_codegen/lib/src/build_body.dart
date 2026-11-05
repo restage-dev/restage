@@ -48,6 +48,73 @@ class InlinableBuildBody {
   };
 }
 
+/// A block `build()` with its [statements] before its final return, or all
+/// of them when it ends in a statement that returns on every path, and every
+/// return it makes outside closures, in order; `null` for any other body.
+({List<Statement> statements, List<ReturnStatement> returns})? mountedBuildBody(
+  FunctionBody body,
+) {
+  if (body is! BlockFunctionBody) return null;
+  final statements = body.block.statements;
+  if (statements.isEmpty) return null;
+  final returns = <ReturnStatement>[];
+  body.block.accept(_BodyReturns(returns));
+  if (returns.any((statement) => statement.expression == null)) return null;
+  // A build may end in a statement that returns on every path, such as a
+  // switch whose cases return; the analyzer has checked it does.
+  if (statements.last is! ReturnStatement) {
+    return returns.length < 2
+        ? null
+        : (statements: statements, returns: returns);
+  }
+  return (
+    statements: statements.sublist(0, statements.length - 1),
+    returns: returns,
+  );
+}
+
+/// The statement of a block [body] its build shape stops at: for a [mounted]
+/// build, a last statement that is not a return or a return without a value;
+/// otherwise, the first statement that is not an initialized `final` or
+/// `const` declaration, or a last one that is not a return with a value.
+Statement? refusedBuildStatement(FunctionBody body, {required bool mounted}) {
+  if (body is! BlockFunctionBody) return null;
+  final statements = body.block.statements;
+  if (statements.isEmpty) return null;
+  final last = statements.last;
+  if (mounted) {
+    if (last is! ReturnStatement) return last;
+    final returns = <ReturnStatement>[];
+    body.block.accept(_BodyReturns(returns));
+    return returns
+        .where((statement) => statement.expression == null)
+        .firstOrNull;
+  }
+  for (final statement in statements.take(statements.length - 1)) {
+    if (statement is! VariableDeclarationStatement ||
+        statement.variables.lateKeyword != null ||
+        !const {
+          'final',
+          'const',
+        }.contains(statement.variables.keyword?.lexeme)) {
+      return statement;
+    }
+  }
+  return last is ReturnStatement && last.expression != null ? null : last;
+}
+
+final class _BodyReturns extends RecursiveAstVisitor<void> {
+  _BodyReturns(this.found);
+
+  final List<ReturnStatement> found;
+
+  @override
+  void visitReturnStatement(ReturnStatement node) => found.add(node);
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {}
+}
+
 /// Extracts one returned expression after initialized simple `final` or
 /// `const` declarations; every other body shape returns `null`.
 InlinableBuildBody? extractInlinableBuildBody(FunctionBody body) =>
@@ -133,9 +200,11 @@ const String _kUninitializedDeclaration =
 /// Returns why [body]'s local bindings are unsafe to inline, or `null`.
 ///
 /// [scope] names the body in messages, such as `build()` or a helper.
+/// [keepsKeys] when the output keeps widget keys, as a mount does.
 String? inlinableBuildBodyProblem(
   InlinableBuildBody body, {
   String scope = 'build()',
+  bool keepsKeys = false,
 }) {
   for (final variable in body.declarations) {
     if (variable.initializer == null ||
@@ -183,13 +252,13 @@ String? inlinableBuildBodyProblem(
     _referencedBindings(
       body.expression,
       bindingElements,
-      discardWidgetKeys: true,
+      discardWidgetKeys: !keepsKeys,
       borrowedKeyAliases: borrowedKeyAliases,
     ),
     _bindingDependencies(
       bindings,
       bindingElements,
-      discardWidgetKeys: true,
+      discardWidgetKeys: !keepsKeys,
       borrowedKeyAliases: borrowedKeyAliases,
     ),
   );
@@ -387,4 +456,30 @@ bool _isFlutterWidgetClass(ClassElement element) {
     current = superclass is ClassElement ? superclass : null;
   }
   return false;
+}
+
+/// What a build renders on each path: each of its [returns] when it has
+/// several, else each case of the switch its [root] returns, nested
+/// switches included; one root alone otherwise.
+List<Expression> buildBranches(
+  Expression root,
+  List<ReturnStatement> returns,
+) {
+  List<Expression> cases(Expression expression) {
+    var inner = expression;
+    while (inner is ParenthesizedExpression) {
+      inner = inner.expression;
+    }
+    return switch (inner) {
+      SwitchExpression(cases: final arms) => [
+        for (final arm in arms) ...cases(arm.expression),
+      ],
+      _ => [expression],
+    };
+  }
+
+  if (returns.length > 1) {
+    return [for (final statement in returns) ...cases(statement.expression!)];
+  }
+  return cases(root);
 }

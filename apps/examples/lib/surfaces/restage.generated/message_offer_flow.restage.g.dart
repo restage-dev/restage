@@ -1,6 +1,6 @@
 part of '../message_offer_flow.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _messageOfferRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -30,6 +30,7 @@ const messageOfferRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'MessageOfferSurface',
   measurementPublicationDraftDigest:
       'e8f27960fe028756e11170594f523958b6874e8cd5122ab96f9199a9b8c1ce07',
   vocabulary: _messageOfferRefVocabulary,
@@ -61,8 +62,8 @@ final _messageOfferPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

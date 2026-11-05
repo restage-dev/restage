@@ -87,6 +87,78 @@ void main() {
     expect(property.constructorNullable, isFalse);
   });
 
+  test('app value signatures round trip and malformed ones refuse', () {
+    const contract = WidgetBuilderContract(
+      parameters: [
+        WidgetBuilderParameter.buildContext,
+        WidgetBuilderParameter.data,
+        WidgetBuilderParameter.data,
+        WidgetBuilderParameter.child,
+      ],
+    );
+    expect(contract.isSupported, isFalse);
+    expect(contract.isAppValueSignature, isTrue);
+    final property = decodeCatalog(encodeCatalog(_catalog(contract: contract)))
+        .widgets
+        .single
+        .properties
+        .single;
+    expect(property.builderContract, contract);
+    for (final parameters in [
+      [WidgetBuilderParameter.buildContext, WidgetBuilderParameter.child],
+      [
+        WidgetBuilderParameter.buildContext,
+        WidgetBuilderParameter.child,
+        WidgetBuilderParameter.data,
+      ],
+      [
+        WidgetBuilderParameter.buildContext,
+        WidgetBuilderParameter.data,
+        WidgetBuilderParameter.boxConstraints,
+      ],
+    ]) {
+      expect(
+        () => encodeCatalog(
+          _catalog(contract: WidgetBuilderContract(parameters: parameters)),
+        ),
+        throwsA(isA<CatalogSchemaException>()),
+      );
+    }
+  });
+
+  test('native values round trip on an app value signature only', () {
+    const contract = WidgetBuilderContract(
+      parameters: [
+        WidgetBuilderParameter.buildContext,
+        WidgetBuilderParameter.data,
+      ],
+      nativeValues: {
+        '_h1': WidgetBuilderNativeValue('flutter.Key', nullable: true),
+      },
+    );
+    final property = decodeCatalog(encodeCatalog(_catalog(contract: contract)))
+        .widgets
+        .single
+        .properties
+        .single;
+    expect(property.builderContract, contract);
+    expect(property.builderContract, isNot(_layout));
+    expect(
+      () => encodeCatalog(
+        _catalog(
+          contract: const WidgetBuilderContract(
+            parameters: [
+              WidgetBuilderParameter.buildContext,
+              WidgetBuilderParameter.boxConstraints,
+            ],
+            nativeValues: {'_h1': WidgetBuilderNativeValue('flutter.Key')},
+          ),
+        ),
+      ),
+      throwsA(isA<CatalogSchemaException>()),
+    );
+  });
+
   test('builder/event contract mismatch and missing signature fail closed', () {
     for (final catalog in [
       _catalog(contract: null),

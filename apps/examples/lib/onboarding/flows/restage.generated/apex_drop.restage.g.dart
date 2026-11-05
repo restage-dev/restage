@@ -1,6 +1,6 @@
 part of '../apex_drop.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _apexDropFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -46,6 +46,7 @@ const apexDropFlowRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'ApexDropFlowSurface',
   measurementPublicationDraftDigest:
       '68abcb6a82f3e2b81e83bdc33eb049390255d3e745fa1d47d37dd819609470b7',
   vocabulary: _apexDropFlowRefVocabulary,
@@ -88,8 +89,8 @@ final _apexDropFlowPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

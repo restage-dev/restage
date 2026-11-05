@@ -1,6 +1,6 @@
 part of '../general_flow.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _generalJourneyRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -29,6 +29,7 @@ const generalJourneyRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'GeneralJourneySurface',
   measurementPublicationDraftDigest:
       '4ac9de0c0db6d0be76db838474000d49a39a1e7466f3db25e6411e03490e8cfd',
   vocabulary: _generalJourneyRefVocabulary,
@@ -60,8 +61,8 @@ final _generalJourneyPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

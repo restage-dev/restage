@@ -43,10 +43,33 @@ class RestagePaywallEventDispatcher extends StatefulWidget {
     super.key,
     required this.onEvent,
     required this.child,
+    this.scoped = true,
+    this.mount,
   });
 
   /// Called when an authored helper fires for this dispatcher.
   final PaywallEventHandler onEvent;
+
+  /// Whether every build below runs inside this dispatcher's registration.
+  /// When false, only islands that fire events do, through
+  /// [RestagePaywallEventDispatcher.island].
+  final bool scoped;
+
+  /// The generated mount this dispatcher renders, which its recorded events
+  /// dispatch through.
+  final Object? mount;
+
+  /// Builds [island], an app widget placed in a surface, inside the
+  /// registration of the nearest unscoped dispatcher above [context].
+  static Widget island(BuildContext context, Widget island) {
+    final scope = context
+        .getInheritedWidgetOfExactType<_RestagePaywallEventRegistrationScope>();
+    if (scope == null || scope.scoped) return island;
+    return _RestagePaywallEventBuildScope(
+      registration: scope.registration,
+      child: island,
+    );
+  }
 
   /// The subtree under which paywall event helpers should resolve to
   /// [onEvent].
@@ -72,9 +95,9 @@ class _RestagePaywallEventDispatcherState
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _registration.updateTarget(
-      RestagePaywallEventTargetScope.maybeOf(context),
-    );
+    _registration
+      ..updateTarget(RestagePaywallEventTargetScope.maybeOf(context))
+      ..updateMount(widget.mount);
   }
 
   @override
@@ -83,6 +106,7 @@ class _RestagePaywallEventDispatcherState
     if (!identical(old.onEvent, widget.onEvent)) {
       _registration.updateHandler(_dropReservedEvents(widget.onEvent));
     }
+    _registration.updateMount(widget.mount);
   }
 
   @override
@@ -92,10 +116,33 @@ class _RestagePaywallEventDispatcherState
   }
 
   @override
-  Widget build(BuildContext context) => _RestagePaywallEventBuildScope(
+  Widget build(BuildContext context) => _RestagePaywallEventRegistrationScope(
         registration: _registration,
-        child: widget.child,
+        scoped: widget.scoped,
+        child: widget.scoped
+            ? _RestagePaywallEventBuildScope(
+                registration: _registration,
+                child: widget.child,
+              )
+            : widget.child,
       );
+}
+
+// The registration islands below an unscoped dispatcher build inside.
+final class _RestagePaywallEventRegistrationScope extends InheritedWidget {
+  const _RestagePaywallEventRegistrationScope({
+    required this.registration,
+    required this.scoped,
+    required super.child,
+  });
+
+  final RestagePaywallEventDispatchRegistration registration;
+  final bool scoped;
+
+  @override
+  bool updateShouldNotify(_RestagePaywallEventRegistrationScope oldWidget) =>
+      !identical(registration, oldWidget.registration) ||
+      scoped != oldWidget.scoped;
 }
 
 /// Rebuilds its subtree inside the dispatch registration.

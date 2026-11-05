@@ -1,6 +1,6 @@
 part of '../stride_first_run.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _strideFirstRunFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -51,6 +51,7 @@ const strideFirstRunFlowRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'StrideFirstRunFlowSurface',
   measurementPublicationDraftDigest:
       '8edf2e9f6076e709cd4ebeac45af4cd63f3256ece346cca20aa31d95cc72186f',
   vocabulary: _strideFirstRunFlowRefVocabulary,
@@ -124,8 +125,8 @@ final _strideFirstRunFlowPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

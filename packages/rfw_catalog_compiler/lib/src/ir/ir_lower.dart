@@ -90,6 +90,7 @@ PropertyEntry lowerProperty(PropertyIR ir) {
     enumType: ir.enumType,
     widgetType: ir.widgetType,
     callbackSignature: ir.callbackSignature ?? ir.type.callbackSignature,
+    callbackTypeId: ir.callbackTypeId,
     builderContract: ir.builderContract ?? ir.type.builderContract,
     scalarContract: ir.scalarContract ?? ir.type.scalarContract,
     constructorNullable: ir.constructorNullable,

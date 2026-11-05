@@ -97,9 +97,15 @@ void main() {
           core,
         );
         if (native) {
+          // The original owner keeps its native key by rendering from the app.
           expect(
-            result.issues.map((issue) => issue.message),
-            contains(contains('original $name owner')),
+            result.issues,
+            isEmpty,
+            reason: result.issues.map((issue) => issue.message).join('\n'),
+          );
+          expect(
+            [for (final island in result.islands) island.reason?.message],
+            [contains('original $name owner')],
           );
         } else {
           expect(

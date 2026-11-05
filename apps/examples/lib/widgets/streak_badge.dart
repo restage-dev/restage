@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+part 'restage.generated/streak_badge.restage.g.dart';
+
 /// Custom-defined pill showing a streak count, whose fill deepens with the
 /// count.
 ///

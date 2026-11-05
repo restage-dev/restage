@@ -80,10 +80,7 @@ void main() {
         'LayoutBuilder(builder: (context, constraints) { '
         'final label = $source; return Text(label); })',
       );
-      expect(
-        result.issues.where((issue) => !issue.code.isBuildNotice),
-        isNotEmpty,
-      );
+      _expectCarried(result);
       expect(
         result.hoisted.where((value) => value.nativeCall != null),
         isEmpty,
@@ -141,10 +138,7 @@ void main() {
             'desc: $callee($call)); return Text(label); })',
             extraSource: 'const dispatch = Function.apply;',
           );
-          expect(
-            result.issues.map((issue) => issue.message).join(),
-            contains('Function.apply generic dispatch'),
-          );
+          _expectCarried(result);
           expect(
             result.hoisted.where((value) => value.nativeCall != null),
             isEmpty,
@@ -178,11 +172,7 @@ void main() {
               "var lookupKey = 'secret'; final label = $expression; "
               'return Text(label); })',
             );
-            expect(
-              result.issues.map((issue) => issue.message).join('; '),
-              contains('fixed constant name'),
-              reason: expression,
-            );
+            _expectCarried(result, reason: expression);
             expect(
               result.hoisted.where((value) => value.nativeCall != null),
               isEmpty,
@@ -190,11 +180,7 @@ void main() {
           }
         }
         final rootCall = call.replaceAll('lookupKey', 'locale');
-        final root = await translateFormatting('Text($rootCall))');
-        expect(
-          root.issues.where((issue) => !issue.code.isBuildNotice),
-          isNotEmpty,
-        );
+        _expectCarried(await translateFormatting('Text($rootCall))'));
       }
     },
   );
@@ -321,10 +307,7 @@ void main() {
           'return Text(label); })',
           extraSource: 'const lookupAlias = i.Intl.$family;',
         );
-        expect(
-          dynamicResult.issues.map((issue) => issue.message).join(),
-          contains('fixed constant name'),
-        );
+        _expectCarried(dynamicResult);
         expect(
           dynamicResult.hoisted.where((value) => value.nativeCall != null),
           isEmpty,
@@ -338,10 +321,7 @@ void main() {
           'desc: lookupAlias($text, name: null)); return Text(label); })',
           extraSource: 'const lookupAlias = i.Intl.message;',
         );
-        expect(
-          message.issues.map((issue) => issue.message).join(),
-          contains('fixed constant name'),
-        );
+        _expectCarried(message);
         expect(
           message.hoisted.where((value) => value.nativeCall != null),
           isEmpty,
@@ -356,10 +336,7 @@ void main() {
       "LayoutBuilder(builder: (context, constraints) => Text(i.Intl.message('fallback', name: 'noArgs', args: [])))",
     ]) {
       final result = await translateFormatting(source);
-      expect(
-        result.issues.where((issue) => !issue.code.isBuildNotice),
-        isNotEmpty,
-      );
+      _expectCarried(result);
       expect(
         result.hoisted.where((value) => value.nativeCall != null),
         isEmpty,
@@ -378,10 +355,7 @@ void main() {
           "name: 'status', args: [choice, choice]); return Text(label); })",
           extraSource: 'enum Status { active }',
         );
-        expect(
-          result.issues.where((issue) => !issue.code.isBuildNotice),
-          isNotEmpty,
-        );
+        _expectCarried(result);
         expect(
           result.hoisted.where((value) => value.nativeCall != null),
           isEmpty,
@@ -567,4 +541,19 @@ void main() {
     }
     expect(file.readAsStringSync(), generated);
   });
+}
+
+// A construct the delivered design can't run is carried, never refused: it
+// renders from the app as an island, or the mount records its value.
+void _expectCarried(TranslationResult result, {String? reason}) {
+  expect(
+    result.issues.where((issue) => !issue.code.isBuildNotice),
+    isEmpty,
+    reason: reason,
+  );
+  expect(
+    result.islands.isNotEmpty || result.hoisted.isNotEmpty,
+    isTrue,
+    reason: reason,
+  );
 }

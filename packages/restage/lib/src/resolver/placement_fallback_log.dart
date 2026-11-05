@@ -10,6 +10,7 @@ import 'package:restage_shared/restage_shared.dart'
 import '../measurement/measurement_sdk_runtime_session.dart'
     show measurementReportedSdkVersion;
 import '../runtime/builtin_catalog_capabilities.dart';
+import '../runtime/generated_surface_need.dart';
 import 'delivery_input_budget.dart';
 
 final Set<(String, PlacementBatchRefusalReasonV1, String?)> _logged = {};
@@ -213,6 +214,18 @@ final class PlacementNoAnswerUnrenderable extends PlacementNoAnswerCause {
       : describeFitTokens(tokens, published: published);
 }
 
+/// The answer needs what only the paywall's generated widget provides.
+@internal
+final class PlacementNoAnswerNeedsGeneratedSurface
+    extends PlacementNoAnswerCause {
+  const PlacementNoAnswerNeedsGeneratedSurface(this.paywallId);
+
+  /// The paywall the mount shows.
+  final String paywallId;
+  @override
+  String describe() => generatedSurfaceRequiredMessage(paywallId);
+}
+
 /// The answer could not be read.
 @internal
 final class PlacementNoAnswerUndecodable extends PlacementNoAnswerCause {
@@ -386,6 +399,10 @@ final Set<(String, String)> _loggedNoAnswers = {};
 void debugLogPlacementNoAnswer(PlacementKeyV1 placement, String reason,
     [PlacementNoAnswerCause? cause]) {
   if (!kDebugMode || !_loggedNoAnswers.add((placement.value, reason))) return;
+  if (cause is PlacementNoAnswerNeedsGeneratedSurface) {
+    debugPrint('[restage] ${cause.describe()}');
+    return;
+  }
   final refusal = PlacementBatchRefusalReasonV1.values.asNameMap()[reason];
   final sentence = cause?.describe() ??
       (refusal == null
@@ -851,6 +868,17 @@ _Gap _gap(_FitToken token, PublishedSurfaceLabel published) {
             "build ${have == null ? "doesn't take it" : 'takes it as $have'}.",
         republish,
         _flowModeDocs,
+      );
+    case 'missingIsland' || 'changedIsland':
+      final widget = token.required ?? 'a widget';
+      return (
+        token.code == 'missingIsland'
+            ? "$it doesn't fit this build: $widget: this build doesn't "
+                'include its app code.'
+            : "$it doesn't fit this build: $widget: this build changed its "
+                'app code.',
+        republish,
+        null,
       );
     default:
       return ("$it doesn't fit this build (`${token.raw}`).", republish, null);

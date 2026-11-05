@@ -15,217 +15,232 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:test/test.dart';
 
-import 'helpers.dart';
-import 'shared_resolvers.dart';
+import '../helpers.dart';
+import '../shared_resolvers.dart';
 
 const _fixtureRoot = 'test/fixtures/explicit_authoring';
 
-void main() {
-  group('old/new exact parity', () {
-    for (final scenario in <String>[
-      'linear',
-      'branching',
-      'completion',
-      'cycle',
-      'action',
-      'subflow',
-      'paywall',
-      'compatibility',
-    ]) {
-      test('$scenario preserves canonical artifacts and identities', () async {
-        final oldResult = await _compileScenario('$scenario/old');
-        final newResult = await _compileScenario('$scenario/new');
+/// Defines the parity group named [only]; each runs from its own test file
+/// so the suite's shards stay balanced.
+void defineExplicitAuthoringParity(String only) {
+  if (only == 'old/new exact parity')
+    group('old/new exact parity', () {
+      for (final scenario in <String>[
+        'linear',
+        'branching',
+        'completion',
+        'cycle',
+        'action',
+        'subflow',
+        'paywall',
+        'compatibility',
+      ]) {
+        test('$scenario preserves canonical artifacts and identities', () async {
+          final oldResult = await _compileScenario('$scenario/old');
+          final newResult = await _compileScenario('$scenario/new');
 
-        _expectSuccessful(oldResult, '$scenario old authoring');
-        _expectSuccessful(newResult, '$scenario new authoring');
+          _expectSuccessful(oldResult, '$scenario old authoring');
+          _expectSuccessful(newResult, '$scenario new authoring');
 
-        final oldOutputs = _outputs(oldResult);
-        final newOutputs = _outputs(newResult);
+          final oldOutputs = _outputs(oldResult);
+          final newOutputs = _outputs(newResult);
 
-        final oldCanonical = _canonicalArtifacts(oldOutputs);
-        final newCanonical = _canonicalArtifacts(newOutputs);
-        expect(newCanonical.keys, orderedEquals(oldCanonical.keys));
+          final oldCanonical = _canonicalArtifacts(oldOutputs);
+          final newCanonical = _canonicalArtifacts(newOutputs);
+          expect(newCanonical.keys, orderedEquals(oldCanonical.keys));
 
-        // The deprecated fixtures have no resolved Measurement source, so
-        // their blobs remain unmeasured while all other bytes stay exact.
-        var sawMeasuredBlob = false;
-        final measurementBlobPaths = <String>{};
-        for (final path in oldCanonical.keys) {
-          if (path.endsWith('.rfw')) {
-            expect(
-              _measurementSegments(oldCanonical[path]!),
-              isEmpty,
-              reason:
-                  'unresolved deprecated fixture must carry no Measurement '
-                  'at $path',
-            );
-            if (_measurementSegments(newCanonical[path]!).isNotEmpty) {
-              sawMeasuredBlob = true;
-              if (newCanonical[path] != oldCanonical[path]) {
-                measurementBlobPaths.add(path);
+          // The deprecated fixtures have no resolved Measurement source, so
+          // their blobs remain unmeasured while all other bytes stay exact.
+          var sawMeasuredBlob = false;
+          final measurementBlobPaths = <String>{};
+          for (final path in oldCanonical.keys) {
+            if (path.endsWith('.rfw')) {
+              expect(
+                _measurementSegments(oldCanonical[path]!),
+                isEmpty,
+                reason:
+                    'unresolved deprecated fixture must carry no Measurement '
+                    'at $path',
+              );
+              if (_measurementSegments(newCanonical[path]!).isNotEmpty) {
+                sawMeasuredBlob = true;
+                if (newCanonical[path] != oldCanonical[path]) {
+                  measurementBlobPaths.add(path);
+                }
               }
             }
           }
-        }
-        final normalization = _MeasurementParityNormalization(
-          oldArtifacts: oldCanonical,
-          newArtifacts: newCanonical,
-          measurementBlobPaths: measurementBlobPaths,
-        );
-        for (final path in oldCanonical.keys) {
+          final normalization = _MeasurementParityNormalization(
+            oldArtifacts: oldCanonical,
+            newArtifacts: newCanonical,
+            measurementBlobPaths: measurementBlobPaths,
+          );
+          for (final path in oldCanonical.keys) {
+            expect(
+              normalization.artifact(
+                path,
+                newCanonical[path]!,
+                newAuthoring: true,
+              ),
+              normalization.artifact(
+                path,
+                oldCanonical[path]!,
+                newAuthoring: false,
+              ),
+              reason: 'canonical artifact drift at $path',
+            );
+          }
           expect(
-            normalization.artifact(
-              path,
-              newCanonical[path]!,
-              newAuthoring: true,
-            ),
-            normalization.artifact(
-              path,
-              oldCanonical[path]!,
-              newAuthoring: false,
-            ),
-            reason: 'canonical artifact drift at $path',
+            sawMeasuredBlob,
+            isTrue,
+            reason: 'canonical authoring must carry Measurement somewhere',
           );
-        }
-        expect(
-          sawMeasuredBlob,
-          isTrue,
-          reason: 'canonical authoring must carry Measurement somewhere',
-        );
 
-        final oldDescriptors = _descriptorArtifacts(oldOutputs);
-        final newDescriptors = _descriptorArtifacts(newOutputs);
-        if (scenario == 'paywall') {
-          // Canonical paywalls now also emit a Dart mount. Its addition must
-          // leave every pre-existing descriptor and wire artifact identical.
-          final mount = newDescriptors.remove(
-            'lib/paywalls/restage.generated/premium.restage.g.dart',
-          );
-          expect(mount, contains('class PremiumPaywallSurface'));
-          expect(mount, contains('fallbackBuilder:'));
-        }
-        expect(newDescriptors.keys, orderedEquals(oldDescriptors.keys));
-        for (final path in oldDescriptors.keys) {
-          final oldIdentity = _stableDescriptorIdentity(oldDescriptors[path]!);
-          final newIdentity = _stableDescriptorIdentity(newDescriptors[path]!);
-          expect(
-            newIdentity,
-            containsAll(oldIdentity),
-            reason: 'descriptor identity drift at $path',
-          );
-        }
+          final oldDescriptors = _descriptorArtifacts(oldOutputs);
+          final newDescriptors = _descriptorArtifacts(newOutputs);
+          if (scenario == 'paywall') {
+            // Canonical paywalls now also emit a Dart mount. Its addition must
+            // leave every pre-existing descriptor and wire artifact identical.
+            final mount = newDescriptors.remove(
+              'lib/paywalls/restage.generated/premium.restage.g.dart',
+            );
+            expect(mount, contains('class PremiumPaywallSurface'));
+            expect(mount, contains('fallbackBuilder:'));
+          }
+          expect(newDescriptors.keys, orderedEquals(oldDescriptors.keys));
+          for (final path in oldDescriptors.keys) {
+            final oldIdentity = _stableDescriptorIdentity(
+              oldDescriptors[path]!,
+            );
+            final newIdentity = _stableDescriptorIdentity(
+              newDescriptors[path]!,
+            );
+            expect(
+              newIdentity,
+              containsAll(oldIdentity),
+              reason: 'descriptor identity drift at $path',
+            );
+          }
 
-        _expectFlowDocumentsAgree(oldCanonical, newCanonical);
-      });
-    }
-  });
-
-  group('Dart 3.13 primary constructors', () {
-    test('fixture resolver honors explicit language overrides', () async {
-      const source = 'class Point { final int x; const new(this.x); }';
-      final probes = await _languageProbes({
-        'at313': '// @dart=3.13\n$source',
-        'at35': '// @dart=3.5\n$source',
-      });
-
-      expect(probes['at313']!.overrideLanguage, '3.13.0');
-      expect(probes['at35']!.overrideLanguage, '3.5.0');
-      expect(
-        probes['at35']!.syntacticCodes,
-        anyElement(startsWith('experiment_not_enabled')),
-      );
-      expect(
-        probes['at313']!.syntacticCodes,
-        isEmpty,
-      );
-    });
-
-    test('guarded inputs preserve product artifacts', () async {
-      for (final scenario in _primaryConstructorScenarios) {
-        final pair = await _compilePrimaryConstructorPair(scenario);
-        _expectPrimaryConstructorParity(scenario, pair);
+          _expectFlowDocumentsAgree(oldCanonical, newCanonical);
+        });
       }
     });
 
-    test('configuration controls measurement', () async {
-      final disabled = await _compileScenario(
-        'primary_constructor/configuration/classic',
-        builders: _configurationBuilders,
-      );
-      _expectSuccessful(disabled, 'disabled configuration');
-      final disabledOutputs = _productOutputs(disabled);
-      _expectConcretePrimaryConstructorOutput('configuration', disabledOutputs);
-      expect(_measurementEntries(disabledOutputs), isEmpty);
+  if (only == 'Dart 3.13 primary constructors')
+    group('Dart 3.13 primary constructors', () {
+      test('fixture resolver honors explicit language overrides', () async {
+        const source = 'class Point { final int x; const new(this.x); }';
+        final probes = await _languageProbes({
+          'at313': '// @dart=3.13\n$source',
+          'at35': '// @dart=3.5\n$source',
+        });
 
-      final enabled = await _compileScenario(
-        'primary_constructor/configuration/enabled',
-        builders: _configurationBuilders,
-      );
-      _expectSuccessful(enabled, 'enabled configuration');
-      final enabledOutputs = _productOutputs(enabled);
-      _expectConcretePrimaryConstructorOutput('configuration', enabledOutputs);
-      expect(_measurementEntries(enabledOutputs), hasLength(1));
-      expect(
-        enabledOutputs[_measurementIndexPath],
-        isNot(disabledOutputs[_measurementIndexPath]),
-      );
-    });
-  });
-
-  group('Dart language forms', () {
-    for (final MapEntry(key: scenario, value: syntax)
-        in _languageFormScenarios.entries) {
-      test('$scenario compiles like its long-form twin', () async {
-        final newSyntax = _loadScenario(
-          'language_forms/$scenario/short',
-        ).values.join('\n');
-        for (final pattern in syntax) {
-          expect(
-            newSyntax,
-            contains(pattern),
-            reason: '$scenario no longer uses the syntax it tests',
-          );
-        }
-        final long = await _compileScenario(
-          'language_forms/$scenario/long',
-          builders: _languageFormBuilders(),
-        );
-        final short = await _compileScenario(
-          'language_forms/$scenario/short',
-          builders: _languageFormBuilders(),
-        );
-        _expectSuccessful(long, '$scenario long form');
-        _expectSuccessful(short, '$scenario new syntax');
-        final longOutputs = _languageFormOutputs(long);
-        final shortOutputs = _languageFormOutputs(short);
+        expect(probes['at313']!.overrideLanguage, '3.13.0');
+        expect(probes['at35']!.overrideLanguage, '3.5.0');
         expect(
-          longOutputs.keys.where((path) => path.endsWith('.rfwtxt')),
-          isNotEmpty,
-          reason: '$scenario emitted no surface',
+          probes['at35']!.syntacticCodes,
+          anyElement(startsWith('experiment_not_enabled')),
         );
-        final surfaces = [
-          for (final entry in shortOutputs.entries)
-            if (entry.key.endsWith('.rfwtxt')) _readableProduct(entry.value),
-        ].join('\n');
-        for (final widget in _languageFormInlined[scenario]!) {
-          expect(
-            surfaces,
-            contains(RegExp('^widget $widget\\b', multiLine: true)),
-            reason: '$scenario must inline $widget',
-          );
-        }
-        expect(shortOutputs, contains('lib/user_factories.g.dart'));
-        expect(shortOutputs.keys, orderedEquals(longOutputs.keys));
-        for (final path in longOutputs.keys) {
-          expect(
-            _readableProduct(shortOutputs[path]!),
-            _readableProduct(longOutputs[path]!),
-            reason: '$scenario drifted at $path',
-          );
+        expect(
+          probes['at313']!.syntacticCodes,
+          isEmpty,
+        );
+      });
+
+      test('guarded inputs preserve product artifacts', () async {
+        for (final scenario in _primaryConstructorScenarios) {
+          final pair = await _compilePrimaryConstructorPair(scenario);
+          _expectPrimaryConstructorParity(scenario, pair);
         }
       });
-    }
-  });
+
+      test('configuration controls measurement', () async {
+        final disabled = await _compileScenario(
+          'primary_constructor/configuration/classic',
+          builders: _configurationBuilders,
+        );
+        _expectSuccessful(disabled, 'disabled configuration');
+        final disabledOutputs = _productOutputs(disabled);
+        _expectConcretePrimaryConstructorOutput(
+          'configuration',
+          disabledOutputs,
+        );
+        expect(_measurementEntries(disabledOutputs), isEmpty);
+
+        final enabled = await _compileScenario(
+          'primary_constructor/configuration/enabled',
+          builders: _configurationBuilders,
+        );
+        _expectSuccessful(enabled, 'enabled configuration');
+        final enabledOutputs = _productOutputs(enabled);
+        _expectConcretePrimaryConstructorOutput(
+          'configuration',
+          enabledOutputs,
+        );
+        expect(_measurementEntries(enabledOutputs), hasLength(1));
+        expect(
+          enabledOutputs[_measurementIndexPath],
+          isNot(disabledOutputs[_measurementIndexPath]),
+        );
+      });
+    });
+
+  if (only == 'Dart language forms')
+    group('Dart language forms', () {
+      for (final MapEntry(key: scenario, value: syntax)
+          in _languageFormScenarios.entries) {
+        test('$scenario compiles like its long-form twin', () async {
+          final newSyntax = _loadScenario(
+            'language_forms/$scenario/short',
+          ).values.join('\n');
+          for (final pattern in syntax) {
+            expect(
+              newSyntax,
+              contains(pattern),
+              reason: '$scenario no longer uses the syntax it tests',
+            );
+          }
+          final long = await _compileScenario(
+            'language_forms/$scenario/long',
+            builders: _languageFormBuilders(),
+          );
+          final short = await _compileScenario(
+            'language_forms/$scenario/short',
+            builders: _languageFormBuilders(),
+          );
+          _expectSuccessful(long, '$scenario long form');
+          _expectSuccessful(short, '$scenario new syntax');
+          final longOutputs = _languageFormOutputs(long);
+          final shortOutputs = _languageFormOutputs(short);
+          expect(
+            longOutputs.keys.where((path) => path.endsWith('.rfwtxt')),
+            isNotEmpty,
+            reason: '$scenario emitted no surface',
+          );
+          final surfaces = [
+            for (final entry in shortOutputs.entries)
+              if (entry.key.endsWith('.rfwtxt')) _readableProduct(entry.value),
+          ].join('\n');
+          for (final widget in _languageFormInlined[scenario]!) {
+            expect(
+              surfaces,
+              contains(RegExp('^widget $widget\\b', multiLine: true)),
+              reason: '$scenario must inline $widget',
+            );
+          }
+          expect(shortOutputs, contains('lib/user_factories.g.dart'));
+          expect(shortOutputs.keys, orderedEquals(longOutputs.keys));
+          for (final path in longOutputs.keys) {
+            expect(
+              _withoutLabels(_readableProduct(shortOutputs[path]!)),
+              _withoutLabels(_readableProduct(longOutputs[path]!)),
+              reason: '$scenario drifted at $path',
+            );
+          }
+        });
+      }
+    });
 }
 
 const _catalogPath = 'lib/src/widget_catalog/catalog.json';
@@ -251,6 +266,15 @@ final _languageFormScenarios = <String, List<Pattern>>{
 };
 
 // Text products compare as text so a drift reads as a diff.
+// A recorded value's label is its source as written, so the two forms differ
+// there and nowhere else.
+String _withoutLabels(String product) => product
+    .replaceAll(RegExp(r"'label':\s*'(?:[^'\\]|\\.)*'"), "'label': ...")
+    .replaceAll(
+      RegExp(r'"label":"[^"]*"'),
+      '"label":...',
+    );
+
 String _readableProduct(String encoded) {
   final bytes = base64Decode(encoded);
   try {

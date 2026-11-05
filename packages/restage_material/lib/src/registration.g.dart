@@ -205,8 +205,7 @@ Widget buildCard(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       color: RestageDecoders.color(source, <Object>['color']),
       elevation: RestageValueBinding.read<double>(
-              source, const <Object>['elevation'], context) ??
-          1.0,
+          source, const <Object>['elevation'], context),
       shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
       margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
       clipBehavior: RestageDecoders.enumByName<Clip>(
@@ -225,8 +224,7 @@ Widget buildCardFilled(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       color: RestageDecoders.color(source, <Object>['color']),
       elevation: RestageValueBinding.read<double>(
-              source, const <Object>['elevation'], context) ??
-          0.0,
+          source, const <Object>['elevation'], context),
       shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
       margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
       clipBehavior: RestageDecoders.enumByName<Clip>(
@@ -245,8 +243,7 @@ Widget buildCardOutlined(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       color: RestageDecoders.color(source, <Object>['color']),
       elevation: RestageValueBinding.read<double>(
-              source, const <Object>['elevation'], context) ??
-          0.0,
+          source, const <Object>['elevation'], context),
       shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
       margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
       clipBehavior: RestageDecoders.enumByName<Clip>(
@@ -293,6 +290,8 @@ Widget buildCheckboxListTile(BuildContext context, DataSource source) {
       selected: RestageValueBinding.read<bool>(
               source, const <Object>['selected'], context) ??
           false,
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(source,
+          const <Object>['onFocusChange'], 'CheckboxListTile.onFocusChange'),
     );
   });
 }
@@ -306,6 +305,7 @@ Widget buildChip(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       avatar: source.optionalChild(const <Object>['avatar']),
       label: source.child(const <Object>['label']),
+      onDeleted: source.voidHandler(const <Object>['onDeleted']),
       clipBehavior: RestageDecoders.enumByName<Clip>(
               Clip.values, source, <Object>['clipBehavior']) ??
           Clip.none,
@@ -354,8 +354,7 @@ Widget buildCircularProgressIndicator(BuildContext context, DataSource source) {
           source, const <Object>['value'], context),
       color: RestageDecoders.color(source, <Object>['color']),
       strokeWidth: RestageValueBinding.read<double>(
-              source, const <Object>['strokeWidth'], context) ??
-          4.0,
+          source, const <Object>['strokeWidth'], context),
     );
   });
 }
@@ -367,9 +366,8 @@ Widget buildDivider(BuildContext context, DataSource source) {
     return Divider(
       key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
           type: 'flutter.Key'),
-      height: RestageDecoders.layoutFactor(source, <Object>['height']) ?? 16.0,
-      thickness:
-          RestageDecoders.layoutFactor(source, <Object>['thickness']) ?? 1.0,
+      height: RestageDecoders.layoutFactor(source, <Object>['height']),
+      thickness: RestageDecoders.layoutFactor(source, <Object>['thickness']),
       color: RestageDecoders.color(source, <Object>['color']),
     );
   });
@@ -388,11 +386,9 @@ Widget buildElevatedButton(BuildContext context, DataSource source) {
           backgroundColor:
               RestageDecoders.color(source, <Object>['backgroundColor']),
           elevation: RestageValueBinding.read<double>(
-                  source, const <Object>['elevation'], context) ??
-              1.0,
+              source, const <Object>['elevation'], context),
           textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
           minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
           fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
           side: RestageDecoders.borderSide(source, <Object>['side']),
@@ -402,6 +398,11 @@ Widget buildElevatedButton(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       onPressed:
           disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
+      onHover: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onHover'], 'ElevatedButton.onHover'),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(source,
+          const <Object>['onFocusChange'], 'ElevatedButton.onFocusChange'),
       clipBehavior: RestageDecoders.enumByName<Clip>(
           Clip.values, source, <Object>['clipBehavior']),
       child: source.child(const <Object>['child']),
@@ -449,11 +450,9 @@ Widget buildFilledButton(BuildContext context, DataSource source) {
           backgroundColor:
               RestageDecoders.color(source, <Object>['backgroundColor']),
           elevation: RestageValueBinding.read<double>(
-                  source, const <Object>['elevation'], context) ??
-              0.0,
+              source, const <Object>['elevation'], context),
           textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
           minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
           fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
           side: RestageDecoders.borderSide(source, <Object>['side']),
@@ -463,6 +462,11 @@ Widget buildFilledButton(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       onPressed:
           disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
+      onHover: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onHover'], 'FilledButton.onHover'),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(source,
+          const <Object>['onFocusChange'], 'FilledButton.onFocusChange'),
       clipBehavior: RestageDecoders.enumByName<Clip>(
               Clip.values, source, <Object>['clipBehavior']) ??
           Clip.none,
@@ -484,8 +488,7 @@ Widget buildFilledButtonTonal(BuildContext context, DataSource source) {
           backgroundColor:
               RestageDecoders.color(source, <Object>['backgroundColor']),
           textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
           minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
           fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
           side: RestageDecoders.borderSide(source, <Object>['side']),
@@ -495,6 +498,11 @@ Widget buildFilledButtonTonal(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       onPressed:
           disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
+      onHover: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onHover'], 'FilledButtonTonal.onHover'),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(source,
+          const <Object>['onFocusChange'], 'FilledButtonTonal.onFocusChange'),
       clipBehavior: RestageDecoders.enumByName<Clip>(
               Clip.values, source, <Object>['clipBehavior']) ??
           Clip.none,
@@ -517,6 +525,7 @@ Widget buildFilterChip(BuildContext context, DataSource source) {
           false,
       onSelected: RestageDecoders.valueChanged<bool>(
           source, const <Object>['onSelected']),
+      onDeleted: source.voidHandler(const <Object>['onDeleted']),
       clipBehavior: RestageDecoders.enumByName<Clip>(
               Clip.values, source, <Object>['clipBehavior']) ??
           Clip.none,
@@ -572,10 +581,8 @@ Widget buildIcon(BuildContext context, DataSource source) {
           source.v<bool>(const <Object>['iconMatchTextDirection']) ?? false,
       key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
           type: 'flutter.Key'),
-      size: RestageDecoders.constraintScalar(source, <Object>['size']) ??
-          resolveThemeBinding(context, path: 'iconTheme.size') as double?,
-      color: RestageDecoders.color(source, <Object>['color']) ??
-          resolveThemeBinding(context, path: 'iconTheme.color') as Color?,
+      size: RestageDecoders.constraintScalar(source, <Object>['size']),
+      color: RestageDecoders.color(source, <Object>['color']),
       textDirection: RestageDecoders.enumByName<TextDirection>(
           TextDirection.values, source, <Object>['textDirection']),
     );
@@ -589,11 +596,12 @@ Widget buildIconButton(BuildContext context, DataSource source) {
     return IconButton(
       key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
           type: 'flutter.Key'),
-      iconSize:
-          RestageDecoders.constraintScalar(source, <Object>['iconSize']) ??
-              24.0,
+      iconSize: RestageDecoders.constraintScalar(source, <Object>['iconSize']),
       color: RestageDecoders.color(source, <Object>['color']),
       onPressed: source.voidHandler(const <Object>['onPressed']),
+      onHover: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onHover'], 'IconButton.onHover'),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
       tooltip:
           RestageDecoders.string(source, <Object>['tooltip'], context: context),
       icon: source.child(const <Object>['icon']),
@@ -609,8 +617,35 @@ Widget buildInkWell(BuildContext context, DataSource source) {
       key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
           type: 'flutter.Key'),
       onTap: source.voidHandler(const <Object>['onTap']),
+      onDoubleTap: source.voidHandler(const <Object>['onDoubleTap']),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
+      onLongPressUp: source.voidHandler(const <Object>['onLongPressUp']),
+      onTapDown: RestageDecoders.nativeCallback<void Function(TapDownDetails)>(
+          source, const <Object>['onTapDown'], 'InkWell.onTapDown'),
+      onTapUp: RestageDecoders.nativeCallback<void Function(TapUpDetails)>(
+          source, const <Object>['onTapUp'], 'InkWell.onTapUp'),
+      onTapCancel: source.voidHandler(const <Object>['onTapCancel']),
+      onSecondaryTap: source.voidHandler(const <Object>['onSecondaryTap']),
+      onSecondaryTapUp:
+          RestageDecoders.nativeCallback<void Function(TapUpDetails)>(source,
+              const <Object>['onSecondaryTapUp'], 'InkWell.onSecondaryTapUp'),
+      onSecondaryTapDown:
+          RestageDecoders.nativeCallback<void Function(TapDownDetails)>(
+              source,
+              const <Object>['onSecondaryTapDown'],
+              'InkWell.onSecondaryTapDown'),
+      onSecondaryTapCancel:
+          source.voidHandler(const <Object>['onSecondaryTapCancel']),
+      onHighlightChanged: RestageDecoders.nativeCallback<void Function(bool)>(
+          source,
+          const <Object>['onHighlightChanged'],
+          'InkWell.onHighlightChanged'),
+      onHover: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onHover'], 'InkWell.onHover'),
       customBorder:
           RestageDecoders.shapeBorder(source, <Object>['customBorder']),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onFocusChange'], 'InkWell.onFocusChange'),
       child: source.optionalChild(const <Object>['child']),
     );
   });
@@ -647,6 +682,9 @@ Widget buildListTile(BuildContext context, DataSource source) {
       trailing: source.optionalChild(const <Object>['trailing']),
       shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
       onTap: source.voidHandler(const <Object>['onTap']),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onFocusChange'], 'ListTile.onFocusChange'),
     );
   });
 }
@@ -659,9 +697,24 @@ Widget buildMaterialApp(BuildContext context, DataSource source) {
       key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
           type: 'flutter.Key'),
       home: source.optionalChild(const <Object>['home']),
+      onNavigationNotification:
+          RestageDecoders.nativeCallback<bool Function(NavigationNotification)>(
+              source,
+              const <Object>['onNavigationNotification'],
+              'MaterialApp.onNavigationNotification'),
       title:
           RestageDecoders.string(source, <Object>['title'], context: context) ??
               '',
+      localeListResolutionCallback: RestageDecoders.nativeCallback<
+              Locale? Function(List<Locale>?, Iterable<Locale>)>(
+          source,
+          const <Object>['localeListResolutionCallback'],
+          'MaterialApp.localeListResolutionCallback'),
+      localeResolutionCallback: RestageDecoders.nativeCallback<
+              Locale? Function(Locale?, Iterable<Locale>)>(
+          source,
+          const <Object>['localeResolutionCallback'],
+          'MaterialApp.localeResolutionCallback'),
     );
   });
 }
@@ -874,8 +927,7 @@ Widget buildOutlinedButton(BuildContext context, DataSource source) {
           foregroundColor:
               RestageDecoders.color(source, <Object>['foregroundColor']),
           textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
           minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
           fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
           side: RestageDecoders.borderSide(source, <Object>['side']),
@@ -885,6 +937,11 @@ Widget buildOutlinedButton(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       onPressed:
           disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
+      onHover: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onHover'], 'OutlinedButton.onHover'),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(source,
+          const <Object>['onFocusChange'], 'OutlinedButton.onFocusChange'),
       clipBehavior: RestageDecoders.enumByName<Clip>(
           Clip.values, source, <Object>['clipBehavior']),
       child: source.child(const <Object>['child']),
@@ -903,8 +960,7 @@ Widget buildOutlinedButtonIcon(BuildContext context, DataSource source) {
           foregroundColor:
               RestageDecoders.color(source, <Object>['foregroundColor']),
           textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
           minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
           fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
           side: RestageDecoders.borderSide(source, <Object>['side']),
@@ -914,6 +970,11 @@ Widget buildOutlinedButtonIcon(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       onPressed:
           disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
+      onHover: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onHover'], 'OutlinedButtonIcon.onHover'),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(source,
+          const <Object>['onFocusChange'], 'OutlinedButtonIcon.onFocusChange'),
       clipBehavior: RestageDecoders.enumByName<Clip>(
           Clip.values, source, <Object>['clipBehavior']),
       icon: source.child(const <Object>['icon']),
@@ -937,6 +998,14 @@ Widget buildScaffold(BuildContext context, DataSource source) {
           RestageDecoders.appBarBottomHeight(
               source, const <Object>['appBarBottomHeight'])),
       body: source.optionalChild(const <Object>['body']),
+      onDrawerChanged: RestageDecoders.nativeCallback<void Function(bool)>(
+          source,
+          const <Object>['onDrawerChanged'],
+          'Scaffold.onDrawerChanged'),
+      onEndDrawerChanged: RestageDecoders.nativeCallback<void Function(bool)>(
+          source,
+          const <Object>['onEndDrawerChanged'],
+          'Scaffold.onEndDrawerChanged'),
       backgroundColor:
           RestageDecoders.color(source, <Object>['backgroundColor']),
     );
@@ -956,6 +1025,11 @@ Widget buildScrollbar(BuildContext context, DataSource source) {
           source, const <Object>['trackVisibility'], context),
       thickness: RestageValueBinding.read<double>(
           source, const <Object>['thickness'], context),
+      notificationPredicate:
+          RestageDecoders.nativeCallback<bool Function(ScrollNotification)>(
+              source,
+              const <Object>['notificationPredicate'],
+              'Scrollbar.notificationPredicate'),
       interactive: RestageValueBinding.read<bool>(
           source, const <Object>['interactive'], context),
       child: source.child(const <Object>['child']),
@@ -977,6 +1051,10 @@ Widget buildSlider(BuildContext context, DataSource source) {
           source, const <Object>['secondaryTrackValue'], context),
       onChanged: RestageDecoders.valueChanged<double>(
           source, const <Object>['onChanged']),
+      onChangeStart: RestageDecoders.nativeCallback<void Function(double)>(
+          source, const <Object>['onChangeStart'], 'Slider.onChangeStart'),
+      onChangeEnd: RestageDecoders.nativeCallback<void Function(double)>(
+          source, const <Object>['onChangeEnd'], 'Slider.onChangeEnd'),
       min: RestageValueBinding.read<double>(
               source, const <Object>['min'], context) ??
           0.0,
@@ -987,6 +1065,11 @@ Widget buildSlider(BuildContext context, DataSource source) {
           source, const <Object>['divisions'], context),
       label:
           RestageDecoders.string(source, <Object>['label'], context: context),
+      semanticFormatterCallback:
+          RestageDecoders.nativeCallback<String Function(double)>(
+              source,
+              const <Object>['semanticFormatterCallback'],
+              'Slider.semanticFormatterCallback'),
     );
   });
 }
@@ -1005,6 +1088,8 @@ Widget buildSwitch(BuildContext context, DataSource source) {
           source, const <Object>['onChanged']),
       activeThumbColor:
           RestageDecoders.color(source, <Object>['activeThumbColor']),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onFocusChange'], 'Switch.onFocusChange'),
     );
   });
 }
@@ -1023,6 +1108,8 @@ Widget buildSwitchListTile(BuildContext context, DataSource source) {
           source, const <Object>['onChanged']),
       activeThumbColor:
           RestageDecoders.color(source, <Object>['activeThumbColor']),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(source,
+          const <Object>['onFocusChange'], 'SwitchListTile.onFocusChange'),
       title: source.optionalChild(const <Object>['title']),
       subtitle: source.optionalChild(const <Object>['subtitle']),
       secondary: source.optionalChild(const <Object>['secondary']),
@@ -1042,8 +1129,7 @@ Widget buildTextButton(BuildContext context, DataSource source) {
           foregroundColor:
               RestageDecoders.color(source, <Object>['foregroundColor']),
           textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
           minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
           fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
           side: RestageDecoders.borderSide(source, <Object>['side']),
@@ -1053,6 +1139,11 @@ Widget buildTextButton(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       onPressed:
           disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
+      onHover: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onHover'], 'TextButton.onHover'),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onFocusChange'], 'TextButton.onFocusChange'),
       clipBehavior: RestageDecoders.enumByName<Clip>(
           Clip.values, source, <Object>['clipBehavior']),
       child: source.child(const <Object>['child']),
@@ -1071,8 +1162,7 @@ Widget buildTextButtonIcon(BuildContext context, DataSource source) {
           foregroundColor:
               RestageDecoders.color(source, <Object>['foregroundColor']),
           textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-          padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
-              const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
+          padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
           minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
           fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
           side: RestageDecoders.borderSide(source, <Object>['side']),
@@ -1082,6 +1172,11 @@ Widget buildTextButtonIcon(BuildContext context, DataSource source) {
           type: 'flutter.Key'),
       onPressed:
           disabled ? null : source.voidHandler(const <Object>['onPressed']),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
+      onHover: RestageDecoders.nativeCallback<void Function(bool)>(
+          source, const <Object>['onHover'], 'TextButtonIcon.onHover'),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool)>(source,
+          const <Object>['onFocusChange'], 'TextButtonIcon.onFocusChange'),
       clipBehavior: RestageDecoders.enumByName<Clip>(
               Clip.values, source, <Object>['clipBehavior']) ??
           Clip.none,
@@ -1171,6 +1266,10 @@ Widget buildTabBar(BuildContext context, DataSource source) {
       unselectedLabelColor:
           RestageDecoders.color(source, <Object>['unselectedLabelColor']),
       onTap: RestageDecoders.valueChanged<int>(source, const <Object>['onTap']),
+      onHover: RestageDecoders.nativeCallback<void Function(bool, int)>(
+          source, const <Object>['onHover'], 'TabBar.onHover'),
+      onFocusChange: RestageDecoders.nativeCallback<void Function(bool, int)>(
+          source, const <Object>['onFocusChange'], 'TabBar.onFocusChange'),
     );
   });
 }
@@ -1234,8 +1333,17 @@ Widget buildTextField(BuildContext context, DataSource source) {
           source, const <Object>['maxLength'], context),
       onChanged: RestageDecoders.valueChanged<String>(
           source, const <Object>['onChanged']),
+      onEditingComplete:
+          source.voidHandler(const <Object>['onEditingComplete']),
       onSubmitted: RestageDecoders.valueChanged<String>(
           source, const <Object>['onSubmitted']),
+      onTap: source.voidHandler(const <Object>['onTap']),
+      onTapOutside:
+          RestageDecoders.nativeCallback<void Function(PointerDownEvent)>(
+              source, const <Object>['onTapOutside'], 'TextField.onTapOutside'),
+      onTapUpOutside:
+          RestageDecoders.nativeCallback<void Function(PointerUpEvent)>(source,
+              const <Object>['onTapUpOutside'], 'TextField.onTapUpOutside'),
       clipBehavior: RestageDecoders.enumByName<Clip>(
               Clip.values, source, <Object>['clipBehavior']) ??
           Clip.hardEdge,
@@ -1259,6 +1367,10 @@ Widget buildTooltip(BuildContext context, DataSource source) {
       margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
       preferBelow: RestageValueBinding.read<bool>(
           source, const <Object>['preferBelow'], context),
+      onTriggered: source.voidHandler(const <Object>['onTriggered']),
+      positionDelegate: RestageDecoders.nativeCallback<
+              Offset Function(TooltipPositionContext)>(source,
+          const <Object>['positionDelegate'], 'Tooltip.positionDelegate'),
       child: source.optionalChild(const <Object>['child']),
     );
   });

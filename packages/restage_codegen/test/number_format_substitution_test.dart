@@ -28,6 +28,7 @@ void main() {
     String body, {
     String declarations = '',
     List<CustomWidgetStateField> state = const [],
+    bool mount = false,
   }) async {
     final expr = await parseExpressionFromSourceForTest('''
 import 'package:flutter/material.dart';
@@ -35,7 +36,7 @@ import 'package:intl/intl.dart';
 $declarations
 Object x() => $body;
 ''', rootPackage: 'apps_examples');
-    return translator.translate(expr, rootState: state);
+    return translator.translate(expr, rootState: state, hoistInMount: mount);
   }
 
   void expectNative(TranslationResult result) {
@@ -81,9 +82,15 @@ Object x() => $body;
     () async {
       final result = await run(
         "Text(NumberFormat().format(1234.5), key: const ValueKey<String>('formatted-number'))",
+        mount: true,
       );
-      expectNative(result);
-      expect(result.dsl, isNot(contains('key:')));
+      // This catalog's Text can't carry a key, so the Text renders from the
+      // app with its key rather than becoming a substituted widget.
+      expect(result.issues.where((i) => !i.code.isBuildNotice), isEmpty);
+      expect(result.islands.map((island) => island.widget), ['Text']);
+      expect(result.islands.single.reason?.message, contains('Key binding'));
+      expect(result.dsl, isNot(contains('RestagePrice(')));
+      expect(result.dsl, isNot(contains('RestageFormattedNumber(')));
     },
   );
 

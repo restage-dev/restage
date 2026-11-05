@@ -59,11 +59,11 @@ final class SetupSurveyFlow extends RestageFlow {
           route,
           branches: [
             flowBranch(
-              when: state('answer').equals('guided'),
+              when: flowState('answer').equals('guided'),
               target: guidedScreenRef,
             ),
             flowBranch(
-              when: state('returningUser').equals(true),
+              when: flowState('returningUser').equals(true),
               target: guidedScreenRef,
             ),
           ],

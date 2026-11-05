@@ -31,19 +31,9 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: mount));
       await tester.pumpAndSettle();
 
-      final fallback = tester.widget<GetStartedScreen>(
-        find.byType(GetStartedScreen),
-      );
-      expect(fallback.title, 'Welcome');
-      expect(fallback.enabled, isFalse);
-      expect(fallback.tone, GetStartedScreenTone.urgent);
-      expect(fallback.data, 'Host data');
-      expect(fallback.context, 'Host context');
-      expect(fallback.itemContext, 'Host item context');
-      expect(fallback.restageA2uiStatus, GetStartedScreenTone.urgent);
-      expect(fallback.description, 'Host description');
-      expect(fallback.usage, 'Host usage');
-      expect(fallback.key, isNull);
+      // The fallback is the screen's build as the app wrote it.
+      expect(find.text('Get started'), findsOneWidget);
+      expect(find.byKey(const ValueKey('get-started-action')), findsOneWidget);
       expect(resolver.calls, 1);
       expect(errors, [_missing]);
 
@@ -58,6 +48,13 @@ void main() {
         'itemContext': 'Host item context',
         'description': 'Host description',
         'usage': 'Host usage',
+        // The button's key reaches the design as the app's own instance.
+        '_hb227fda92b': <String, Object?>{
+          'kind': 'nativeBinding',
+          'key': '_hb227fda92b',
+          'type': 'flutter.Key',
+          'nullable': false,
+        },
       });
       expect(host.placementBinding!.name, atPlacement ? 'welcome_card' : null);
       expect(host.resolver, same(resolver));

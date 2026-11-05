@@ -63,6 +63,30 @@ void main() {
     expect(events.whereType<PaywallDismissed>(), hasLength(1));
   });
 
+  testWidgets('authored fallback events survive a rebuild from above',
+      (tester) async {
+    final events = <RestageEvent>[];
+    final generation = ValueNotifier(0);
+    await tester.pumpWidget(MaterialApp(
+      home: ValueListenableBuilder<int>(
+        valueListenable: generation,
+        builder: (_, __, ___) => RestagePaywall(
+          id: 'offline',
+          resolver: _ThrowingResolver(),
+          onEvent: events.add,
+          fallbackBuilder: (_) => const _Offer(),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    generation.value++;
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Offer'));
+    expect(tester.takeException(), isNull);
+    expect(events.whereType<PaywallCustomEvent>().map((e) => e.eventName),
+        ['continue']);
+  });
+
   testWidgets('renders SizedBox.shrink + emits PaywallLoadFailed by default',
       (tester) async {
     final received = <RestageEvent>[];
@@ -118,4 +142,13 @@ void main() {
     expect(failures, hasLength(1));
     expect(failures.first.errorCode, 'decode_failed');
   });
+}
+
+// Built once; a rebuild above does not rebuild it.
+final class _Offer extends StatelessWidget {
+  const _Offer();
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+      onPressed: paywallEvent('continue'), child: const Text('Offer'));
 }

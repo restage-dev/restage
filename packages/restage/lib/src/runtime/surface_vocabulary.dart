@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart' show immutable;
 import 'package:restage_core/restage_core.dart'
     show InstalledIconTable, RestageIconTable;
@@ -5,6 +6,42 @@ import 'package:restage_core/restage_core.dart'
 import 'library_runtime_registry.dart';
 import 'restage_widget_libraries.dart';
 import 'restage_widget_library_registration.dart';
+
+/// Renders a flow step's delivered content [child] with what the app computes
+/// for it, reading the step's inputs from [original], the step widget the app
+/// built for this frame.
+typedef RestageStepMount = Widget Function(
+  BuildContext context,
+  Widget child,
+  Widget original,
+);
+
+/// Values a generated step mount supplies to its step's delivered content.
+final class RestageStepValues extends InheritedWidget {
+  /// Supplies [values] to the step content in [child].
+  const RestageStepValues({
+    required this.values,
+    required super.child,
+    this.built,
+    super.key,
+  });
+
+  /// The step as the mount's build produced it, rendered where no delivered
+  /// content stands in for it.
+  final Widget? built;
+
+  /// Values by name.
+  final Map<String, Object?> values;
+
+  /// The values above [context], if any.
+  static Map<String, Object?>? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<RestageStepValues>()?.values;
+
+  @override
+  bool updateShouldNotify(RestageStepValues oldWidget) =>
+      !identical(values, oldWidget.values) ||
+      !identical(built, oldWidget.built);
+}
 
 /// Widgets and icons installed before a generated surface mounts.
 /// Each surface names its required built-ins, app widgets and icon codepoints;
@@ -18,6 +55,7 @@ final class SurfaceVocabulary {
     this.widgets = RestageWidgetLibraries.none,
     this.icons = RestageIconTable.none,
     this.libraries = const <RestageWidgetLibraryRegistration>[],
+    this.stepMounts = const <String, RestageStepMount>{},
   });
 
   /// A vocabulary naming no widget and no icon.
@@ -31,6 +69,11 @@ final class SurfaceVocabulary {
 
   /// The app widgets the surface draws, per custom library.
   final List<RestageWidgetLibraryRegistration> libraries;
+
+  /// Mounts for flow steps that render with the app's code, by screen.
+  ///
+  /// Nothing is installed for them, so they do not count toward [isEmpty].
+  final Map<String, RestageStepMount> stepMounts;
 
   /// Whether the vocabulary names nothing at all.
   bool get isEmpty => widgets.isEmpty && icons.isEmpty && libraries.isEmpty;

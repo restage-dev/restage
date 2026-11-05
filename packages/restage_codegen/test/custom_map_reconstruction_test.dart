@@ -111,6 +111,15 @@ String _emitEnumKeyedMap() => _emit(
   ),
 );
 
+// [code] in the source, however the formatter lays it out.
+Matcher _containsCode(String code) {
+  String packed(String text) => text.replaceAll(RegExp(r'\s+'), '');
+  return predicate<String>(
+    (source) => packed(source).contains(packed(code)),
+    'contains code `$code`',
+  );
+}
+
 void main() {
   group('the five reconstruction guards are emitted', () {
     test('the slot is list-shaped before it is iterated', () {
@@ -139,7 +148,7 @@ void main() {
 
       expect(
         src,
-        contains("source.v<String>(<Object>['glossary', i0, 'key'])"),
+        _containsCode("source.v<String>(<Object>['glossary', i0, 'key'])"),
       );
       expect(src, contains('FieldNotes.glossary entry key is required.'));
       // Paired absence: a key must never fall back to a value. The record
@@ -205,7 +214,7 @@ void main() {
       // The path fragment rather than the whole call: the emitted source is
       // formatted, so a long read wraps across lines and a single-line match
       // would fail for a reason unrelated to the guard.
-      expect(src, contains("<Object>['nested', i0, 'value', i1, 'key']"));
+      expect(src, _containsCode("<Object>['nested', i0, 'value', i1, 'key']"));
       expect(src, contains('m1.containsKey(k1)'));
     });
 
@@ -253,7 +262,7 @@ void main() {
     expect(flat, contains('restagePresenceGlossary.hasValue ?'));
     expect(
       flat,
-      contains(
+      _containsCode(
         'source.isList('
         '<Object>[...restagePresenceGlossary.valuePath])',
       ),
@@ -264,7 +273,7 @@ void main() {
       contains(
         RegExp(
           r'restagePresenceGlossary\.hasValue \? .*? : '
-          r"\(throw ArgumentError\('FieldNotes\.glossary is required\.'\)\)",
+          r"\(throw ArgumentError\(\s*'FieldNotes\.glossary is required\.'\)\)",
         ),
       ),
     );
@@ -280,7 +289,7 @@ void main() {
     expect(flat, contains('restagePresenceGlossary.hasValue ?'));
     expect(
       flat,
-      contains(
+      _containsCode(
         'source.isList('
         '<Object>[...restagePresenceGlossary.valuePath])',
       ),

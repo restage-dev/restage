@@ -185,10 +185,19 @@ abstract final class InstalledWidgetLibraries {
     _hasSelection = _hasSelection || (explicitSelection ?? !libraries.isEmpty);
     if (libraries.isEmpty) return;
     final installed = _installed;
+    final core = _unionBuilders(installed.core, libraries.core);
+    final material = _unionBuilders(installed.material, libraries.material);
+    final cupertino = _unionBuilders(installed.cupertino, libraries.cupertino);
+    // A mount adds its vocabulary on every build; nothing new keeps the store.
+    if (identical(core, installed.core) &&
+        identical(material, installed.material) &&
+        identical(cupertino, installed.cupertino)) {
+      return;
+    }
     _installed = RestageWidgetLibraries.fromVocabulary(
-      core: _unionBuilders(installed.core, libraries.core),
-      material: _unionBuilders(installed.material, libraries.material),
-      cupertino: _unionBuilders(installed.cupertino, libraries.cupertino),
+      core: core,
+      material: material,
+      cupertino: cupertino,
     );
   }
 
@@ -207,5 +216,6 @@ Map<String, LocalWidgetBuilder> _unionBuilders(
 ) {
   if (added.isEmpty) return installed;
   if (installed.isEmpty) return added;
+  if (added.keys.every(installed.containsKey)) return installed;
   return <String, LocalWidgetBuilder>{...added, ...installed};
 }

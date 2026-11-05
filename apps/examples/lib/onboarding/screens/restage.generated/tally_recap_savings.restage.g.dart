@@ -1,6 +1,6 @@
 part of '../tally_recap_savings.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const tallyRecapSavingsScreenRef = NeutralFlowScreenRef(
   id: 'tally_recap_savings',

@@ -25,8 +25,8 @@ const surfaceCapturePlanFileName = 'restage.capture.json';
 
 /// Why no surface can be drawn when the build left no matching plan.
 const surfaceCapturePlanMissing =
-    'the build output is out of date. Run `dart run build_runner build` and '
-    'push again';
+    "$surfaceCapturePlanFileName is missing or doesn't match the last build. "
+    'Try running `dart run build_runner build`, then pushing again';
 
 /// The capture plans [file] holds, by [surfaceImageName], or null when it is
 /// missing, of another shape, or from a build other than

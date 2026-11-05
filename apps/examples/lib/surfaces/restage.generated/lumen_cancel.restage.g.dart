@@ -1,6 +1,6 @@
 part of '../lumen_cancel.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 sealed class LumenCancelNoteScreenSurfaceEvent {
   const LumenCancelNoteScreenSurfaceEvent();
@@ -120,8 +120,8 @@ final _lumenCancelNoteScreenPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -142,6 +142,7 @@ final _lumenCancelNoteScreenPlacementDefinitionValue =
     'flowBoundary': null
   },
   vocabulary: lumenCancelNoteScreenRef.provenance.vocabulary,
+  surfaceWidget: 'LumenCancelNoteScreenSurface',
 );
 
 final lumenCancelNoteScreenPlacementDefinition =
@@ -188,21 +189,27 @@ final class LumenCancelNoteScreenSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<LumenCancelNoteScreenSurfaceEvent>(
-      screen: lumenCancelNoteScreenRef,
-      placementBinding: RestageScreen.generatedPlacementBinding(
-        definition: lumenCancelNoteScreenPlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      unavailable: unavailable ??
-          SurfaceScreenUnavailablePolicy.fallback(
-            builder: (context, error) => LumenCancelNoteScreen(),
-          ),
-      onEvent: onEvent,
-      resolver: resolver,
-      onUnavailable: onUnavailable,
-      loadingBuilder: loadingBuilder,
-    );
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      return RestageScreen<LumenCancelNoteScreenSurfaceEvent>(
+        screen: lumenCancelNoteScreenRef,
+        placementBinding: RestageScreen.generatedPlacementBinding(
+          definition: lumenCancelNoteScreenPlacementDefinition,
+          name: _restagePlacementName,
+        ),
+        unavailable: unavailable ??
+            SurfaceScreenUnavailablePolicy.fallback(
+              builder: (_, error) => _restageBuilt,
+            ),
+        onEvent: onEvent,
+        resolver: resolver,
+        onUnavailable: onUnavailable,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return (() => _restageDesign(LumenCancelNoteScreen()))();
   }
 }
 
@@ -335,8 +342,8 @@ final _lumenCancelReasonScreenPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -357,6 +364,7 @@ final _lumenCancelReasonScreenPlacementDefinitionValue =
     'flowBoundary': null
   },
   vocabulary: lumenCancelReasonScreenRef.provenance.vocabulary,
+  surfaceWidget: 'LumenCancelReasonScreenSurface',
 );
 
 final lumenCancelReasonScreenPlacementDefinition =
@@ -403,21 +411,27 @@ final class LumenCancelReasonScreenSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<LumenCancelReasonScreenSurfaceEvent>(
-      screen: lumenCancelReasonScreenRef,
-      placementBinding: RestageScreen.generatedPlacementBinding(
-        definition: lumenCancelReasonScreenPlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      unavailable: unavailable ??
-          SurfaceScreenUnavailablePolicy.fallback(
-            builder: (context, error) => LumenCancelReasonScreen(),
-          ),
-      onEvent: onEvent,
-      resolver: resolver,
-      onUnavailable: onUnavailable,
-      loadingBuilder: loadingBuilder,
-    );
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      return RestageScreen<LumenCancelReasonScreenSurfaceEvent>(
+        screen: lumenCancelReasonScreenRef,
+        placementBinding: RestageScreen.generatedPlacementBinding(
+          definition: lumenCancelReasonScreenPlacementDefinition,
+          name: _restagePlacementName,
+        ),
+        unavailable: unavailable ??
+            SurfaceScreenUnavailablePolicy.fallback(
+              builder: (_, error) => _restageBuilt,
+            ),
+        onEvent: onEvent,
+        resolver: resolver,
+        onUnavailable: onUnavailable,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return (() => _restageDesign(LumenCancelReasonScreen()))();
   }
 }
 
@@ -534,8 +548,8 @@ final _lumenCancelThanksScreenPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -549,6 +563,7 @@ final _lumenCancelThanksScreenPlacementDefinitionValue =
     'flowBoundary': null
   },
   vocabulary: lumenCancelThanksScreenRef.provenance.vocabulary,
+  surfaceWidget: 'LumenCancelThanksScreenSurface',
 );
 
 final lumenCancelThanksScreenPlacementDefinition =
@@ -595,20 +610,26 @@ final class LumenCancelThanksScreenSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<LumenCancelThanksScreenSurfaceEvent>(
-      screen: lumenCancelThanksScreenRef,
-      placementBinding: RestageScreen.generatedPlacementBinding(
-        definition: lumenCancelThanksScreenPlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      unavailable: unavailable ??
-          SurfaceScreenUnavailablePolicy.fallback(
-            builder: (context, error) => LumenCancelThanksScreen(),
-          ),
-      onEvent: onEvent,
-      resolver: resolver,
-      onUnavailable: onUnavailable,
-      loadingBuilder: loadingBuilder,
-    );
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      return RestageScreen<LumenCancelThanksScreenSurfaceEvent>(
+        screen: lumenCancelThanksScreenRef,
+        placementBinding: RestageScreen.generatedPlacementBinding(
+          definition: lumenCancelThanksScreenPlacementDefinition,
+          name: _restagePlacementName,
+        ),
+        unavailable: unavailable ??
+            SurfaceScreenUnavailablePolicy.fallback(
+              builder: (_, error) => _restageBuilt,
+            ),
+        onEvent: onEvent,
+        resolver: resolver,
+        onUnavailable: onUnavailable,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return (() => _restageDesign(LumenCancelThanksScreen()))();
   }
 }

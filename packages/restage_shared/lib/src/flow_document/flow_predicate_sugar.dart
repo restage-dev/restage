@@ -23,47 +23,47 @@ enum FlowPredicateValueArity {
 /// `atMost`) compare integers at runtime, so the sugar must reject a non-int
 /// literal to them rather than author a comparison the runtime cannot evaluate.
 enum FlowPredicateOperator {
-  /// `state(k).equals(v)` → [EqualsFlowPredicateCondition].
+  /// `flowState(k).equals(v)` → [EqualsFlowPredicateCondition].
   equals('equals', FlowPredicateValueArity.single),
 
-  /// `state(k).notEquals(v)` → [NotEqualsFlowPredicateCondition].
+  /// `flowState(k).notEquals(v)` → [NotEqualsFlowPredicateCondition].
   notEquals('notEquals', FlowPredicateValueArity.single),
 
-  /// `state(k).greaterThan(v)` → [GreaterThanFlowPredicateCondition].
+  /// `flowState(k).greaterThan(v)` → [GreaterThanFlowPredicateCondition].
   greaterThan(
     'greaterThan',
     FlowPredicateValueArity.single,
     intOnly: true,
   ),
 
-  /// `state(k).atLeast(v)` → [GreaterThanOrEqualsFlowPredicateCondition].
+  /// `flowState(k).atLeast(v)` → [GreaterThanOrEqualsFlowPredicateCondition].
   atLeast(
     'atLeast',
     FlowPredicateValueArity.single,
     intOnly: true,
   ),
 
-  /// `state(k).lessThan(v)` → [LessThanFlowPredicateCondition].
+  /// `flowState(k).lessThan(v)` → [LessThanFlowPredicateCondition].
   lessThan(
     'lessThan',
     FlowPredicateValueArity.single,
     intOnly: true,
   ),
 
-  /// `state(k).atMost(v)` → [LessThanOrEqualsFlowPredicateCondition].
+  /// `flowState(k).atMost(v)` → [LessThanOrEqualsFlowPredicateCondition].
   atMost(
     'atMost',
     FlowPredicateValueArity.single,
     intOnly: true,
   ),
 
-  /// `state(k).oneOf([…])` → [InFlowPredicateCondition].
+  /// `flowState(k).oneOf([…])` → [InFlowPredicateCondition].
   oneOf('oneOf', FlowPredicateValueArity.list),
 
-  /// `state(k).isSet()` → [ExistsFlowPredicateCondition] (`exists: true`).
+  /// `flowState(k).isSet()` → [ExistsFlowPredicateCondition] (`exists: true`).
   isSet('isSet', FlowPredicateValueArity.none),
 
-  /// `state(k).isUnset()` → [ExistsFlowPredicateCondition] (`exists: false`).
+  /// `flowState(k).isUnset()` → [ExistsFlowPredicateCondition] (`exists: false`).
   isUnset('isUnset', FlowPredicateValueArity.none);
 
   const FlowPredicateOperator(

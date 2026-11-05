@@ -115,6 +115,15 @@ _run(String declarations, String valueType) async {
   );
 }
 
+// [code] in the source, however the formatter lays it out.
+Matcher _containsCode(String code) {
+  String packed(String text) => text.replaceAll(RegExp(r'\s+'), '');
+  return predicate<String>(
+    (source) => packed(source).contains(packed(code)),
+    'contains code `$code`',
+  );
+}
+
 void main() {
   group('the renderability walk reaches a map value', () {
     test('a dropped field inside the value type excludes the widget', () async {
@@ -186,8 +195,8 @@ void main() {
     // Each entry's VALUE is reconstructed from the entry's own value path.
     // Asserted as a path fragment: the emitted source is formatted, so the
     // whole read wraps across lines.
-    expect(src, contains("<Object>['glossary', i0, 'value', 'name']"));
-    expect(src, contains("<Object>['glossary', i0, 'value', 'seats']"));
+    expect(src, _containsCode("<Object>['glossary', i0, 'value', 'name']"));
+    expect(src, _containsCode("<Object>['glossary', i0, 'value', 'seats']"));
     expect(src, contains('s0.Plan('));
     // Paired absence: the value must not be read as an opaque scalar, which is
     // what the terminal path emits when no value type is carried.

@@ -450,6 +450,11 @@ Directory _syntheticTree(Map<String, String> files) {
 /// annotation admitted. It is identified by class name rather than through a
 /// lookup, so only the second census sees it.
 ///
+/// `RenderInApp` is read only while lowering a widget expression inside a
+/// surface the surface annotation admitted: on the variable that holds it, on
+/// the class it constructs, or on that class's library, all reached through
+/// the admitted surface's resolved elements.
+///
 /// A file spelling only one of these therefore contributes no declaration and
 /// does not need to be resolved. They are deliberately kept OUT of the filter
 /// — `@ignore` is Dart's own idiom, and matching `Ignore` would select a large
@@ -461,6 +466,7 @@ const Set<String> _qualifierAnnotations = {
   'RestageProperty',
   'Ignore',
   'Config',
+  'RenderInApp',
 };
 
 const Set<String> _nonAnnotationClassNameGuards = {
@@ -477,8 +483,11 @@ const Set<String> _nonAnnotationClassNameGuards = {
   'ValueKey',
 
   'Restage',
-  // A resolved Flutter superclass identity, not an annotation name.
+  // Resolved Flutter framework class identities, not annotation names.
   'StatelessWidget',
+  'State',
+  'ProxyWidget',
+  'Widget',
   // The resolved Flutter widget identity used for native preferred sizing.
   'AppBar',
   // Analyzer's unnamed-constructor name in native Flutter constructor guards.

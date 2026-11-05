@@ -162,10 +162,31 @@
           }
         },
         {
+          "wireId": "p0200",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "Handler called when the focus changes.",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0201",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "If [onPressed] and [onLongPress] callbacks are null, then the button will be disabled.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
           "wireId": "p0007",
           "name": "onPressed",
           "type": "event",
           "description": "The callback that is called when the button is tapped or otherwise activated.",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -259,10 +280,31 @@
           }
         },
         {
+          "wireId": "p0202",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "Handler called when the focus changes.",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0203",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "If [onPressed] and [onLongPress] callbacks are null, then the button will be disabled.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
           "wireId": "p0012",
           "name": "onPressed",
           "type": "event",
           "description": "The callback that is called when the button is tapped or otherwise activated.",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -542,6 +584,7 @@
           "name": "onTap",
           "type": "event",
           "description": "The [onTap] function is called when a user taps on [CupertinoListTile]. If left `null`, the [CupertinoListTile] will not react on taps. If this is a `Future<void> Function()`, then the [CupertinoListTile] remains activated until the returned future is awaited. This is according to iOS behavior. However, if this function is a `void Function()`, then the tile is active only for the duration of invocation.",
+          "callbackTypeId": "()->dart:async#FutureOr<void>",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -867,6 +910,7 @@
           "type": "event",
           "description": "Called when the user toggles the switch on or off.",
           "callbackSignature": "ValueChanged<bool>",
+          "callbackTypeId": "(dart:core#bool)->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -884,6 +928,16 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0204",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "Handler called when the focus changes.",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0165",
@@ -1026,8 +1080,19 @@
           "type": "event",
           "description": "{@macro flutter.widgets.editableText.onChanged}",
           "callbackSignature": "ValueChanged<String>",
+          "callbackTypeId": "(dart:core#String)->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0205",
+          "name": "onEditingComplete",
+          "type": "event",
+          "description": "{@macro flutter.widgets.editableText.onEditingComplete}",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0040",
@@ -1035,8 +1100,39 @@
           "type": "event",
           "description": "{@macro flutter.widgets.editableText.onSubmitted}",
           "callbackSignature": "ValueChanged<String>",
+          "callbackTypeId": "(dart:core#String)->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0206",
+          "name": "onTapOutside",
+          "type": "event",
+          "description": "{@macro flutter.widgets.editableText.onTapOutside}",
+          "callbackTypeId": "(package:flutter/src/gestures/events.dart#PointerDownEvent)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0207",
+          "name": "onTapUpOutside",
+          "type": "event",
+          "description": "{@macro flutter.widgets.editableText.onTapUpOutside}",
+          "callbackTypeId": "(package:flutter/src/gestures/events.dart#PointerDownEvent)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0208",
+          "name": "onTap",
+          "type": "event",
+          "description": "{@macro flutter.material.textfield.onTap}",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0156",
@@ -1132,8 +1228,29 @@
           "type": "event",
           "description": "Called when the user selects a new value for the slider.",
           "callbackSignature": "ValueChanged<double>",
+          "callbackTypeId": "(dart:core#double)->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0212",
+          "name": "onChangeStart",
+          "type": "event",
+          "description": "Called when the user starts selecting a new value for the slider.",
+          "callbackTypeId": "(dart:core#double)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0213",
+          "name": "onChangeEnd",
+          "type": "event",
+          "description": "Called when the user is done selecting a new value for the slider.",
+          "callbackTypeId": "(dart:core#double)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0043",
@@ -1263,6 +1380,7 @@
           "description": "Callback called when the selected date and/or time changes. If the new selected [DateTime] is not valid, or is not in the [minimumDate] through [maximumDate] range, this callback will not be called.",
           "required": true,
           "callbackSignature": "ValueChanged<DateTime>",
+          "callbackTypeId": "(dart:core#DateTime)->void",
           "category": "behavior",
           "priority": "primary"
         },
@@ -1421,6 +1539,15 @@
               "symbolName": "double"
             }
           }
+        },
+        {
+          "wireId": "p0209",
+          "name": "selectableDayPredicate",
+          "type": "event",
+          "description": "Function to provide full control over which [DateTime] can be selected.",
+          "callbackTypeId": "(dart:core#DateTime)->dart:core#bool",
+          "constructorNullable": true,
+          "sinceVersion": 26
         },
         {
           "wireId": "p0058",
@@ -1590,6 +1717,7 @@
           "description": "Callback called when the timer duration changes.",
           "required": true,
           "callbackSignature": "ValueChanged<Duration>",
+          "callbackTypeId": "(dart:core#Duration)->void",
           "category": "behavior",
           "priority": "primary"
         },
@@ -1795,6 +1923,7 @@
           "description": "Called when the selected item changes.",
           "required": true,
           "callbackSignature": "ValueChanged<int>",
+          "callbackTypeId": "(dart:core#int)->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
@@ -1873,6 +2002,7 @@
           "type": "event",
           "description": "Invoked upon user input.",
           "callbackSignature": "ValueChanged<String>",
+          "callbackTypeId": "(dart:core#String)->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -1882,6 +2012,7 @@
           "type": "event",
           "description": "Invoked upon keyboard submission.",
           "callbackSignature": "ValueChanged<String>",
+          "callbackTypeId": "(dart:core#String)->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -1933,6 +2064,26 @@
               "symbolName": "double"
             }
           }
+        },
+        {
+          "wireId": "p0210",
+          "name": "onSuffixTap",
+          "type": "event",
+          "description": "Sets the X-Mark (suffix) action.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0211",
+          "name": "onTap",
+          "type": "event",
+          "description": "{@macro flutter.material.textfield.onTap}",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0171",
@@ -2010,6 +2161,7 @@
           "type": "event",
           "description": "Called when the value of the checkbox should change.",
           "callbackSignature": "ValueChanged<bool?>",
+          "callbackTypeId": "(dart:core#bool?)->void",
           "constructorNullable": true,
           "category": "behavior"
         },

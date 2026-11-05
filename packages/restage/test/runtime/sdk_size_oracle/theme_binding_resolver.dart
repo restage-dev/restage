@@ -1,15 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Resolves a theme-binding default to a concrete value from the active
-/// Flutter theme. [path] is a dot-path naming a known theme location;
-/// [context] supplies the active theme.
-///
-/// Returns `null` for an unrecognized [path] — the caller then falls
-/// through to the widget's own constructor default.
-///
-/// The recognized path set mirrors the catalog's built-in theme-binding
-/// seeds. It is a closed switch by design: the runtime never interprets
-/// an arbitrary path expression.
+/// The resolver the frozen registrations call; removed from restage_core.
 Object? resolveThemeBinding(BuildContext context, {required String path}) {
   final theme = Theme.of(context);
   final textStyle = DefaultTextStyle.of(context).style;

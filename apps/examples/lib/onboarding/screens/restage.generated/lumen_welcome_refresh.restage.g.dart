@@ -1,6 +1,6 @@
 part of '../lumen_welcome_refresh.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const lumenWelcomeScreenRef = NeutralFlowScreenRef(
   id: 'lumen_welcome_refresh',

@@ -643,7 +643,7 @@ Object x() => Column(children: [...rootEntries]);
     );
 
     test(
-      'custom discovery stops at a reused ordinary callback source',
+      'a refused shared callback source emits no custom definitions',
       () async {
         final result = await _transpile(
           '''
@@ -717,19 +717,18 @@ Object x() => Shell(
             ),
           ]),
         );
-        const hiddenKey =
-            'package:restage_codegen/_e2e_probe.dart#HiddenAction';
-
+        // Discovery reaches every app widget the build constructs; a refused
+        // root emits no definition for any of them.
         expect(result.issues, isNotEmpty);
-        expect(
-          result.classification.classifications,
-          isNot(contains(hiddenKey)),
-        );
-        expect(result.classification.blueprints, isNot(contains(hiddenKey)));
+        expect(result.translation.widgetDefinitions, isEmpty);
+        // A value in a top-level initializer is located by that variable.
+        expect(result.issues.map((issue) => issue.location), [
+          'sharedAction',
+        ]);
       },
     );
 
-    test('a mixed receiver creates no partial custom entry points', () async {
+    test('a mixed receiver emits no partial custom definitions', () async {
       final result = await _transpile(
         '''
 $kClassifierStubs
@@ -793,8 +792,6 @@ Object x(bool selectConstant) => Column(
           ),
         ]),
       );
-      expect(result.classification.classifications, isEmpty);
-      expect(result.classification.blueprints, isEmpty);
       expect(result.translation.dsl, 'Column(children: [])');
       expect(result.issues, hasLength(1));
       expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
@@ -4924,7 +4921,7 @@ Object x() => AcmeButton();
           result.issues.any((i) => i.code == IssueCode.unrecognizedMethodCall),
           isFalse,
           reason:
-              'the fallback "Unsupported expression" path indicates the '
+              'the fallback "can\'t translate" path indicates the '
               'widget reached body translation — the gate failed',
         );
       },

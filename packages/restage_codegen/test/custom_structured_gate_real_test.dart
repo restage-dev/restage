@@ -176,9 +176,9 @@ void main() {
         'lib/card.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           class Link {
-            const Link({required this.label, required this.onTap});
+            const Link({required this.label, required this.updates});
             final String label;
-            final void Function() onTap;
+            final Stream<int> updates;
           }
           @RestageWidget(name: 'LinkCard',
             library: WidgetLibrary.custom('acme.design_system'),
@@ -211,9 +211,9 @@ void main() {
           'lib/card.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           class Link {
-            const Link({required this.label, required this.onTap});
+            const Link({required this.label, required this.updates});
             final String label;
-            final void Function() onTap;
+            final Stream<int> updates;
           }
           @RestageWidget(name: 'LinkCard',
             library: WidgetLibrary.custom('acme.design_system'),

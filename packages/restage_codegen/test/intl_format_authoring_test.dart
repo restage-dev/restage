@@ -89,23 +89,25 @@ class Probe extends StatelessWidget {
       });
       final parameter =
           probe.classes['Probe']!.unnamedConstructor!.formalParameters.single;
+      final dates = [
+        RootContextParam(
+          name: 'dates',
+          type: type,
+          typeCode: type.getDisplayString(),
+          kind: RootContextParamKind.named,
+          hostDataShape: fact.shape,
+          field: (parameter as FieldFormalParameterElement).field,
+          isRequired: true,
+          defaultValueCode: null,
+          hasNullDefault: false,
+        ),
+      ];
       final output = emitPaywallMount(
         ResolvedWidgetMountInput(
           assetId: AssetId('restage_codegen', 'lib/_expr_probe.dart'),
           screen: probe.classes['Probe']!,
-          rootParams: [
-            RootContextParam(
-              name: 'dates',
-              type: type,
-              typeCode: type.getDisplayString(),
-              kind: RootContextParamKind.named,
-              hostDataShape: fact.shape,
-              field: (parameter as FieldFormalParameterElement).field,
-              isRequired: true,
-              defaultValueCode: null,
-              hasNullDefault: false,
-            ),
-          ],
+          rootParams: dates,
+          constructorParams: dates,
         ),
         id: 'date_values',
       );

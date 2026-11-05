@@ -238,31 +238,64 @@ flutter:
     },
   );
 
-  test('wraps every surface in the configured preview wrapper', () async {
-    File(p.join(app.path, 'lib', 'preview.dart'))
-      ..createSync(recursive: true)
-      ..writeAsStringSync(
-        'Widget wrapPreview(Widget child) => Theme(child: child);\n',
-      );
-    final project = await writeRenderBundleProject(
-      projectRoot: app,
-      flutterVersion: '3.47.0',
-      fontBytes: font,
-      licenseBytes: license,
-      previewWrapper: SurfaceCaptureWrapper.parse(
-        'lib/preview.dart#wrapPreview',
+  // Each row: whether there is a preview wrapper and islands, and the
+  // entrypoint's wrap argument.
+  for (final (name, wrapper, islands, wrap) in [
+    ('no wrapper and no islands', false, false, null),
+    (
+      'the preview wrapper',
+      true,
+      false,
+      'wrap: (_, child) => wrapper.wrapPreview(child),',
+    ),
+    (
+      'the island scope',
+      false,
+      true,
+      'wrap: (surface, child) => '
+          'restageIslandPreviewScope(surface, child),',
+    ),
+    (
+      'the island scope around the preview wrapper',
+      true,
+      true,
+      'wrap: (surface, child) => '
+          'restageIslandPreviewScope(surface, wrapper.wrapPreview(child)),',
+    ),
+  ]) {
+    test('wraps every surface in $name', () async {
+      File(p.join(app.path, 'lib', 'preview.dart'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          'Widget wrapPreview(Widget child) => Theme(child: child);\n',
+        );
+      final project = await writeRenderBundleProject(
         projectRoot: app,
-      ),
-    );
+        flutterVersion: '3.47.0',
+        fontBytes: font,
+        licenseBytes: license,
+        previewWrapper: wrapper
+            ? SurfaceCaptureWrapper.parse(
+                'lib/preview.dart#wrapPreview',
+                projectRoot: app,
+              )
+            : null,
+        islands: islands,
+      );
 
-    expect(
-      File(p.join(project.path, renderBundleEntrypoint)).readAsStringSync(),
-      allOf(
-        contains("import 'package:habit/preview.dart' as wrapper;"),
-        contains('wrap: wrapper.wrapPreview,'),
-      ),
-    );
-  });
+      final entrypoint = File(
+        p.join(project.path, renderBundleEntrypoint),
+      ).readAsStringSync();
+      expect(
+        entrypoint,
+        wrap == null ? isNot(contains('wrap:')) : contains(wrap),
+      );
+      expect(
+        entrypoint.contains("import 'package:habit/preview.dart' as wrapper;"),
+        wrapper,
+      );
+    });
+  }
 
   test('carries the app assets and fonts its widgets use', () async {
     final project = await writeProject();

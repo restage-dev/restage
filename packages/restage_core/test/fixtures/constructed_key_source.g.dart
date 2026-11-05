@@ -9,13 +9,13 @@ class P {
 }
 
 const constructedLazySource =
-    "import restage.core; widget Root = LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[1],\\\"value\\\":{\\\"binding\\\":\\\"_h4f7ae70159\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"implementation\\\":\\\"4f7ae701592e9a7aba88570375b737073c9ce9ad37d3e2e844a013c0610969a5\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}},\\\"locals\\\":{\\\"n3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":2,\\\"keyType\\\":\\\"nativeKey\\\"}}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":false}\", captures: {c0: data.context._hf2b8a2297d}, bodies: [(builder0) => AnimatedContainer(key: {kind: \"nativeLocal\", slot: \"n3\", type: \"flutter.Key\", nullable: false}, duration: 1, width: builder0.values.v0, height: builder0.values.v1)]));";
+    "import restage.core; widget Root = LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[1],\\\"value\\\":{\\\"binding\\\":\\\"_h623dc8bb87\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"implementation\\\":\\\"623dc8bb8734be0b95344fd662558990b6e82ebea938e19a1d569c119308dbec\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}},\\\"locals\\\":{\\\"n3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":2,\\\"keyType\\\":\\\"nativeKey\\\"}}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":false}\", captures: {c0: data.context._hf2b8a2297d}, bodies: [(builder0) => AnimatedContainer(key: {kind: \"nativeLocal\", slot: \"n3\", type: \"flutter.Key\", nullable: false}, duration: 1, width: builder0.values.v0, height: builder0.values.v1)]));";
 ({Map<String, r.NativeBinding<Object?>> bindings, Map<String, Object?> context})
     constructedLazyMount(List<Object> items,
         [int? Function(Key)? findIndex, int count = 2]) {
   final bindings = <String, r.NativeBinding<Object?>>{};
   final context = <String, Object?>{"count": 2};
-  bindings["_h4f7ae70159"] = r.NativeBinding(
+  bindings["_h623dc8bb87"] = r.NativeBinding(
       contract: s.NativeBindingContract.fromJson(<String, Object?>{
         "type": "installed.call",
         "nullable": false,
@@ -32,7 +32,7 @@ const constructedLazySource =
             "nativeType": "flutter.Key"
           },
           "implementation":
-              "4f7ae701592e9a7aba88570375b737073c9ce9ad37d3e2e844a013c0610969a5"
+              "623dc8bb8734be0b95344fd662558990b6e82ebea938e19a1d569c119308dbec"
         }
       }),
       value: r.NativeCallAdapter(
@@ -52,7 +52,7 @@ const constructedLazySource =
                 "nativeType": "flutter.Key"
               },
               "implementation":
-                  "4f7ae701592e9a7aba88570375b737073c9ce9ad37d3e2e844a013c0610969a5"
+                  "623dc8bb8734be0b95344fd662558990b6e82ebea938e19a1d569c119308dbec"
             }
           }), (_restageInputs, _restageCells) {
         T _restageAs<T>(Object? value) => value as T;
@@ -64,7 +64,7 @@ const constructedLazySource =
                 s.NativeBindingContract(type: "flutter.Key", nullable: false),
             value: _restageResult);
       }));
-  context["_h4f7ae70159"] = s.NativeBindingContract.fromJson(<String, Object?>{
+  context["_h623dc8bb87"] = s.NativeBindingContract.fromJson(<String, Object?>{
     "type": "installed.call",
     "nullable": false,
     "call": <String, Object?>{
@@ -80,9 +80,9 @@ const constructedLazySource =
         "nativeType": "flutter.Key"
       },
       "implementation":
-          "4f7ae701592e9a7aba88570375b737073c9ce9ad37d3e2e844a013c0610969a5"
+          "623dc8bb8734be0b95344fd662558990b6e82ebea938e19a1d569c119308dbec"
     }
-  }).reference("_h4f7ae70159");
+  }).reference("_h623dc8bb87");
   bindings["_hf2b8a2297d"] = r.NativeBinding(
       contract: s.NativeBindingContract(
           type: 'dart:core#List<dart:core#Object>', nullable: false),
@@ -94,13 +94,13 @@ const constructedLazySource =
 }
 
 const constructedNestedSource =
-    "import restage.core; widget Root = LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[1],\\\"value\\\":{\\\"binding\\\":\\\"_h4f7ae70159\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"implementation\\\":\\\"4f7ae701592e9a7aba88570375b737073c9ce9ad37d3e2e844a013c0610969a5\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n3\\\"},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n4\\\"}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}},\\\"locals\\\":{\\\"n3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"n4\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":false}\", captures: {c0: data.context._hf2b8a2297d}, bodies: [(builder0) => LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c1\\\"},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n3_\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c1\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}},\\\"locals\\\":{\\\"n3_\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":1,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":1,\\\"keyType\\\":\\\"nativeKey\\\"}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":false}\", captures: {c0: {kind: \"nativeLocal\", slot: \"n3\", type: \"flutter.Key\", nullable: false}, c1: {kind: \"nativeLocal\", slot: \"n4\", type: \"flutter.Key\", nullable: false}}, bodies: [(builder1) => AnimatedContainer(key: {kind: \"nativeLocal\", slot: \"n3_\", type: \"flutter.Key\", nullable: false}, duration: 1, width: builder1.values.v0, height: builder1.values.v1)]))]));";
+    "import restage.core; widget Root = LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[1],\\\"value\\\":{\\\"binding\\\":\\\"_h623dc8bb87\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"implementation\\\":\\\"623dc8bb8734be0b95344fd662558990b6e82ebea938e19a1d569c119308dbec\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n3\\\"},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n4\\\"}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}},\\\"locals\\\":{\\\"n3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"n4\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":false}\", captures: {c0: data.context._hf2b8a2297d}, bodies: [(builder0) => LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c1\\\"},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n3_\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c1\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}},\\\"locals\\\":{\\\"n3_\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":1,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":1,\\\"keyType\\\":\\\"nativeKey\\\"}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":false}\", captures: {c0: {kind: \"nativeLocal\", slot: \"n3\", type: \"flutter.Key\", nullable: false}, c1: {kind: \"nativeLocal\", slot: \"n4\", type: \"flutter.Key\", nullable: false}}, bodies: [(builder1) => AnimatedContainer(key: {kind: \"nativeLocal\", slot: \"n3_\", type: \"flutter.Key\", nullable: false}, duration: 1, width: builder1.values.v0, height: builder1.values.v1)]))]));";
 ({Map<String, r.NativeBinding<Object?>> bindings, Map<String, Object?> context})
     constructedNestedMount(List<Object> items,
         [int? Function(Key)? findIndex, int count = 2]) {
   final bindings = <String, r.NativeBinding<Object?>>{};
   final context = <String, Object?>{"count": 2};
-  bindings["_h4f7ae70159"] = r.NativeBinding(
+  bindings["_h623dc8bb87"] = r.NativeBinding(
       contract: s.NativeBindingContract.fromJson(<String, Object?>{
         "type": "installed.call",
         "nullable": false,
@@ -117,7 +117,7 @@ const constructedNestedSource =
             "nativeType": "flutter.Key"
           },
           "implementation":
-              "4f7ae701592e9a7aba88570375b737073c9ce9ad37d3e2e844a013c0610969a5"
+              "623dc8bb8734be0b95344fd662558990b6e82ebea938e19a1d569c119308dbec"
         }
       }),
       value: r.NativeCallAdapter(
@@ -137,7 +137,7 @@ const constructedNestedSource =
                 "nativeType": "flutter.Key"
               },
               "implementation":
-                  "4f7ae701592e9a7aba88570375b737073c9ce9ad37d3e2e844a013c0610969a5"
+                  "623dc8bb8734be0b95344fd662558990b6e82ebea938e19a1d569c119308dbec"
             }
           }), (_restageInputs, _restageCells) {
         T _restageAs<T>(Object? value) => value as T;
@@ -149,7 +149,7 @@ const constructedNestedSource =
                 s.NativeBindingContract(type: "flutter.Key", nullable: false),
             value: _restageResult);
       }));
-  context["_h4f7ae70159"] = s.NativeBindingContract.fromJson(<String, Object?>{
+  context["_h623dc8bb87"] = s.NativeBindingContract.fromJson(<String, Object?>{
     "type": "installed.call",
     "nullable": false,
     "call": <String, Object?>{
@@ -165,9 +165,9 @@ const constructedNestedSource =
         "nativeType": "flutter.Key"
       },
       "implementation":
-          "4f7ae701592e9a7aba88570375b737073c9ce9ad37d3e2e844a013c0610969a5"
+          "623dc8bb8734be0b95344fd662558990b6e82ebea938e19a1d569c119308dbec"
     }
-  }).reference("_h4f7ae70159");
+  }).reference("_h623dc8bb87");
   bindings["_hf2b8a2297d"] = r.NativeBinding(
       contract: s.NativeBindingContract(
           type: 'dart:core#List<dart:core#Object>', nullable: false),
@@ -179,86 +179,13 @@ const constructedNestedSource =
 }
 
 const constructedDelegateSource =
-    "import restage.core; widget Root = GridViewCustom(gridDelegate: {_s: \"SliverGridDelegateWithFixedCrossAxisCount\", crossAxisCount: 1}, childrenDelegate: {_s: \"SliverChildBuilderDelegate\", builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[1,0],\\\"value\\\":{\\\"binding\\\":\\\"_h714f894f43\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},{\\\"kind\\\":\\\"int\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"implementation\\\":\\\"714f894f4356586746be0a62d1b01dbb0218cee2525c851c18471674803f9d1e\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"int\\\"}},\\\"locals\\\":{\\\"n3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":2,\\\"keyType\\\":\\\"nativeKey\\\"}}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":true}\", captures: {c0: data.context._hf2b8a2297d}, bodies: [(builder0) => AnimatedContainer(key: {kind: \"nativeLocal\", slot: \"n3\", type: \"flutter.Key\", nullable: false}, duration: 1, width: builder0.values.v0, height: builder0.values.v1)]), childCount: data.context._ha68d8c18cb, findChildIndexCallback: {nativeKeyIndex: { version: 1, program: \"{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"inputs\\\":[0],\\\"value\\\":{\\\"binding\\\":\\\"_h5d3e8d79eb\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"implementation\\\":\\\"5d3e8d79ebf17e7f5284a4a7cd8f1d4bebebf6b519307bc281d0870a4625129a\\\"}},\\\"captures\\\":{}}}],\\\"root\\\":1,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"}},\\\"parameters\\\":{}}\", captures: {c0: data.context._hab8f0bbb17 } }}});";
+    "import restage.core; widget Root = GridViewCustom(gridDelegate: {_s: \"SliverGridDelegateWithFixedCrossAxisCount\", crossAxisCount: 1}, childrenDelegate: {_s: \"SliverChildBuilderDelegate\", builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[1,0],\\\"value\\\":{\\\"binding\\\":\\\"_h8bd8426718\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},{\\\"kind\\\":\\\"int\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"implementation\\\":\\\"8bd8426718198eaafe1f0bc63e02fdbd9e398f1c04c14f88697f8a1929b59539\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"int\\\"}},\\\"locals\\\":{\\\"n3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":2,\\\"keyType\\\":\\\"nativeKey\\\"}}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":true}\", captures: {c0: data.context._hf2b8a2297d}, bodies: [(builder0) => AnimatedContainer(key: {kind: \"nativeLocal\", slot: \"n3\", type: \"flutter.Key\", nullable: false}, duration: 1, width: builder0.values.v0, height: builder0.values.v1)]), childCount: data.context._ha68d8c18cb, findChildIndexCallback: {nativeKeyIndex: { version: 1, program: \"{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"inputs\\\":[0],\\\"value\\\":{\\\"binding\\\":\\\"_hf6870d7acc\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"implementation\\\":\\\"f6870d7acc1f64bd64ff7fdb9a63c521fe1ec2d14fbc673a87c9983e9bd54de2\\\"}},\\\"captures\\\":{}}}],\\\"root\\\":1,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"}},\\\"parameters\\\":{}}\", captures: {c0: data.context._hab8f0bbb17 } }}});";
 ({Map<String, r.NativeBinding<Object?>> bindings, Map<String, Object?> context})
     constructedDelegateMount(List<Object> items,
         [int? Function(Key)? findIndex, int count = 2]) {
   final bindings = <String, r.NativeBinding<Object?>>{};
   final context = <String, Object?>{"count": 2};
-  bindings["_h5d3e8d79eb"] = r.NativeBinding(
-      contract: s.NativeBindingContract.fromJson(<String, Object?>{
-        "type": "installed.call",
-        "nullable": false,
-        "call": <String, Object?>{
-          "inputs": <Object?>[
-            <String, Object?>{
-              "kind": "native",
-              "nativeType":
-                  "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
-            }
-          ],
-          "captures": <String, Object?>{},
-          "result": <String, Object?>{
-            "kind": "native",
-            "nativeType": "flutter.ChildIndexGetter"
-          },
-          "implementation":
-              "5d3e8d79ebf17e7f5284a4a7cd8f1d4bebebf6b519307bc281d0870a4625129a"
-        }
-      }),
-      value: r.NativeCallAdapter(
-          s.NativeBindingContract.fromJson(<String, Object?>{
-            "type": "installed.call",
-            "nullable": false,
-            "call": <String, Object?>{
-              "inputs": <Object?>[
-                <String, Object?>{
-                  "kind": "native",
-                  "nativeType":
-                      "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
-                }
-              ],
-              "captures": <String, Object?>{},
-              "result": <String, Object?>{
-                "kind": "native",
-                "nativeType": "flutter.ChildIndexGetter"
-              },
-              "implementation":
-                  "5d3e8d79ebf17e7f5284a4a7cd8f1d4bebebf6b519307bc281d0870a4625129a"
-            }
-          }), (_restageInputs, _restageCells) {
-        T _restageAs<T>(Object? value) => value as T;
-        final int? Function(Key) _restageInput0 =
-            _restageAs<int? Function(Key)>(
-                (_restageInputs[0] as s.ValueNative).value);
-        final int? Function(Key) _restageResult =
-            (Key key) => _restageInput0(key);
-        return r.NativeBinding<int? Function(Key)>(
-            contract: s.NativeBindingContract(
-                type: "flutter.ChildIndexGetter", nullable: false),
-            value: _restageResult);
-      }));
-  context["_h5d3e8d79eb"] = s.NativeBindingContract.fromJson(<String, Object?>{
-    "type": "installed.call",
-    "nullable": false,
-    "call": <String, Object?>{
-      "inputs": <Object?>[
-        <String, Object?>{
-          "kind": "native",
-          "nativeType":
-              "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
-        }
-      ],
-      "captures": <String, Object?>{},
-      "result": <String, Object?>{
-        "kind": "native",
-        "nativeType": "flutter.ChildIndexGetter"
-      },
-      "implementation":
-          "5d3e8d79ebf17e7f5284a4a7cd8f1d4bebebf6b519307bc281d0870a4625129a"
-    }
-  }).reference("_h5d3e8d79eb");
-  bindings["_h714f894f43"] = r.NativeBinding(
+  bindings["_h8bd8426718"] = r.NativeBinding(
       contract: s.NativeBindingContract.fromJson(<String, Object?>{
         "type": "installed.call",
         "nullable": false,
@@ -276,7 +203,7 @@ const constructedDelegateSource =
             "nativeType": "flutter.Key"
           },
           "implementation":
-              "714f894f4356586746be0a62d1b01dbb0218cee2525c851c18471674803f9d1e"
+              "8bd8426718198eaafe1f0bc63e02fdbd9e398f1c04c14f88697f8a1929b59539"
         }
       }),
       value: r.NativeCallAdapter(
@@ -297,7 +224,7 @@ const constructedDelegateSource =
                 "nativeType": "flutter.Key"
               },
               "implementation":
-                  "714f894f4356586746be0a62d1b01dbb0218cee2525c851c18471674803f9d1e"
+                  "8bd8426718198eaafe1f0bc63e02fdbd9e398f1c04c14f88697f8a1929b59539"
             }
           }), (_restageInputs, _restageCells) {
         T _restageAs<T>(Object? value) => value as T;
@@ -311,7 +238,7 @@ const constructedDelegateSource =
                 s.NativeBindingContract(type: "flutter.Key", nullable: false),
             value: _restageResult);
       }));
-  context["_h714f894f43"] = s.NativeBindingContract.fromJson(<String, Object?>{
+  context["_h8bd8426718"] = s.NativeBindingContract.fromJson(<String, Object?>{
     "type": "installed.call",
     "nullable": false,
     "call": <String, Object?>{
@@ -328,9 +255,9 @@ const constructedDelegateSource =
         "nativeType": "flutter.Key"
       },
       "implementation":
-          "714f894f4356586746be0a62d1b01dbb0218cee2525c851c18471674803f9d1e"
+          "8bd8426718198eaafe1f0bc63e02fdbd9e398f1c04c14f88697f8a1929b59539"
     }
-  }).reference("_h714f894f43");
+  }).reference("_h8bd8426718");
   context["_ha68d8c18cb"] = count;
   bindings["_hab8f0bbb17"] = r.NativeBinding(
       contract: s.NativeBindingContract(
@@ -348,90 +275,90 @@ const constructedDelegateSource =
   context["_hf2b8a2297d"] = s.NativeBindingContract(
           type: 'dart:core#List<dart:core#Object>', nullable: false)
       .reference("_hf2b8a2297d");
+  bindings["_hf6870d7acc"] = r.NativeBinding(
+      contract: s.NativeBindingContract.fromJson(<String, Object?>{
+        "type": "installed.call",
+        "nullable": false,
+        "call": <String, Object?>{
+          "inputs": <Object?>[
+            <String, Object?>{
+              "kind": "native",
+              "nativeType":
+                  "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
+            }
+          ],
+          "captures": <String, Object?>{},
+          "result": <String, Object?>{
+            "kind": "native",
+            "nativeType": "flutter.ChildIndexGetter"
+          },
+          "implementation":
+              "f6870d7acc1f64bd64ff7fdb9a63c521fe1ec2d14fbc673a87c9983e9bd54de2"
+        }
+      }),
+      value: r.NativeCallAdapter(
+          s.NativeBindingContract.fromJson(<String, Object?>{
+            "type": "installed.call",
+            "nullable": false,
+            "call": <String, Object?>{
+              "inputs": <Object?>[
+                <String, Object?>{
+                  "kind": "native",
+                  "nativeType":
+                      "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
+                }
+              ],
+              "captures": <String, Object?>{},
+              "result": <String, Object?>{
+                "kind": "native",
+                "nativeType": "flutter.ChildIndexGetter"
+              },
+              "implementation":
+                  "f6870d7acc1f64bd64ff7fdb9a63c521fe1ec2d14fbc673a87c9983e9bd54de2"
+            }
+          }), (_restageInputs, _restageCells) {
+        T _restageAs<T>(Object? value) => value as T;
+        final int? Function(Key) _restageInput0 =
+            _restageAs<int? Function(Key)>(
+                (_restageInputs[0] as s.ValueNative).value);
+        final int? Function(Key) _restageResult =
+            (Key key) => _restageInput0(key);
+        return r.NativeBinding<int? Function(Key)>(
+            contract: s.NativeBindingContract(
+                type: "flutter.ChildIndexGetter", nullable: false),
+            value: _restageResult);
+      }));
+  context["_hf6870d7acc"] = s.NativeBindingContract.fromJson(<String, Object?>{
+    "type": "installed.call",
+    "nullable": false,
+    "call": <String, Object?>{
+      "inputs": <Object?>[
+        <String, Object?>{
+          "kind": "native",
+          "nativeType":
+              "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
+        }
+      ],
+      "captures": <String, Object?>{},
+      "result": <String, Object?>{
+        "kind": "native",
+        "nativeType": "flutter.ChildIndexGetter"
+      },
+      "implementation":
+          "f6870d7acc1f64bd64ff7fdb9a63c521fe1ec2d14fbc673a87c9983e9bd54de2"
+    }
+  }).reference("_hf6870d7acc");
   return (bindings: bindings, context: context);
 }
 
 const constructedBuilderSource =
-    "import restage.core; widget Root = GridViewBuilder(gridDelegate: {_s: \"SliverGridDelegateWithFixedCrossAxisCount\", crossAxisCount: 1}, itemBuilder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[1,0],\\\"value\\\":{\\\"binding\\\":\\\"_h714f894f43\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},{\\\"kind\\\":\\\"int\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"implementation\\\":\\\"714f894f4356586746be0a62d1b01dbb0218cee2525c851c18471674803f9d1e\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"int\\\"}},\\\"locals\\\":{\\\"n3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":2,\\\"keyType\\\":\\\"nativeKey\\\"}}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":true}\", captures: {c0: data.context._hf2b8a2297d}, bodies: [(builder0) => AnimatedContainer(key: {kind: \"nativeLocal\", slot: \"n3\", type: \"flutter.Key\", nullable: false}, duration: 1, width: builder0.values.v0, height: builder0.values.v1)]), itemCount: data.context._ha68d8c18cb, findChildIndexCallback: {nativeKeyIndex: { version: 1, program: \"{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"inputs\\\":[0],\\\"value\\\":{\\\"binding\\\":\\\"_h5d3e8d79eb\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"implementation\\\":\\\"5d3e8d79ebf17e7f5284a4a7cd8f1d4bebebf6b519307bc281d0870a4625129a\\\"}},\\\"captures\\\":{}}}],\\\"root\\\":1,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"}},\\\"parameters\\\":{}}\", captures: {c0: data.context._hab8f0bbb17 } }});";
+    "import restage.core; widget Root = GridViewBuilder(gridDelegate: {_s: \"SliverGridDelegateWithFixedCrossAxisCount\", crossAxisCount: 1}, itemBuilder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[1,0],\\\"value\\\":{\\\"binding\\\":\\\"_h8bd8426718\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},{\\\"kind\\\":\\\"int\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"implementation\\\":\\\"8bd8426718198eaafe1f0bc63e02fdbd9e398f1c04c14f88697f8a1929b59539\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"int\\\"}},\\\"locals\\\":{\\\"n3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":2,\\\"keyType\\\":\\\"nativeKey\\\"}}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":true}\", captures: {c0: data.context._hf2b8a2297d}, bodies: [(builder0) => AnimatedContainer(key: {kind: \"nativeLocal\", slot: \"n3\", type: \"flutter.Key\", nullable: false}, duration: 1, width: builder0.values.v0, height: builder0.values.v1)]), itemCount: data.context._ha68d8c18cb, findChildIndexCallback: {nativeKeyIndex: { version: 1, program: \"{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"inputs\\\":[0],\\\"value\\\":{\\\"binding\\\":\\\"_hf6870d7acc\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"implementation\\\":\\\"f6870d7acc1f64bd64ff7fdb9a63c521fe1ec2d14fbc673a87c9983e9bd54de2\\\"}},\\\"captures\\\":{}}}],\\\"root\\\":1,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"}},\\\"parameters\\\":{}}\", captures: {c0: data.context._hab8f0bbb17 } }});";
 ({Map<String, r.NativeBinding<Object?>> bindings, Map<String, Object?> context})
     constructedBuilderMount(List<Object> items,
         [int? Function(Key)? findIndex, int count = 2]) {
   final bindings = <String, r.NativeBinding<Object?>>{};
   final context = <String, Object?>{"count": 2};
-  bindings["_h5d3e8d79eb"] = r.NativeBinding(
-      contract: s.NativeBindingContract.fromJson(<String, Object?>{
-        "type": "installed.call",
-        "nullable": false,
-        "call": <String, Object?>{
-          "inputs": <Object?>[
-            <String, Object?>{
-              "kind": "native",
-              "nativeType":
-                  "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
-            }
-          ],
-          "captures": <String, Object?>{},
-          "result": <String, Object?>{
-            "kind": "native",
-            "nativeType": "flutter.ChildIndexGetter"
-          },
-          "implementation":
-              "5d3e8d79ebf17e7f5284a4a7cd8f1d4bebebf6b519307bc281d0870a4625129a"
-        }
-      }),
-      value: r.NativeCallAdapter(
-          s.NativeBindingContract.fromJson(<String, Object?>{
-            "type": "installed.call",
-            "nullable": false,
-            "call": <String, Object?>{
-              "inputs": <Object?>[
-                <String, Object?>{
-                  "kind": "native",
-                  "nativeType":
-                      "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
-                }
-              ],
-              "captures": <String, Object?>{},
-              "result": <String, Object?>{
-                "kind": "native",
-                "nativeType": "flutter.ChildIndexGetter"
-              },
-              "implementation":
-                  "5d3e8d79ebf17e7f5284a4a7cd8f1d4bebebf6b519307bc281d0870a4625129a"
-            }
-          }), (_restageInputs, _restageCells) {
-        T _restageAs<T>(Object? value) => value as T;
-        final int? Function(Key) _restageInput0 =
-            _restageAs<int? Function(Key)>(
-                (_restageInputs[0] as s.ValueNative).value);
-        final int? Function(Key) _restageResult =
-            (Key key) => _restageInput0(key);
-        return r.NativeBinding<int? Function(Key)>(
-            contract: s.NativeBindingContract(
-                type: "flutter.ChildIndexGetter", nullable: false),
-            value: _restageResult);
-      }));
-  context["_h5d3e8d79eb"] = s.NativeBindingContract.fromJson(<String, Object?>{
-    "type": "installed.call",
-    "nullable": false,
-    "call": <String, Object?>{
-      "inputs": <Object?>[
-        <String, Object?>{
-          "kind": "native",
-          "nativeType":
-              "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
-        }
-      ],
-      "captures": <String, Object?>{},
-      "result": <String, Object?>{
-        "kind": "native",
-        "nativeType": "flutter.ChildIndexGetter"
-      },
-      "implementation":
-          "5d3e8d79ebf17e7f5284a4a7cd8f1d4bebebf6b519307bc281d0870a4625129a"
-    }
-  }).reference("_h5d3e8d79eb");
-  bindings["_h714f894f43"] = r.NativeBinding(
+  bindings["_h8bd8426718"] = r.NativeBinding(
       contract: s.NativeBindingContract.fromJson(<String, Object?>{
         "type": "installed.call",
         "nullable": false,
@@ -449,7 +376,7 @@ const constructedBuilderSource =
             "nativeType": "flutter.Key"
           },
           "implementation":
-              "714f894f4356586746be0a62d1b01dbb0218cee2525c851c18471674803f9d1e"
+              "8bd8426718198eaafe1f0bc63e02fdbd9e398f1c04c14f88697f8a1929b59539"
         }
       }),
       value: r.NativeCallAdapter(
@@ -470,7 +397,7 @@ const constructedBuilderSource =
                 "nativeType": "flutter.Key"
               },
               "implementation":
-                  "714f894f4356586746be0a62d1b01dbb0218cee2525c851c18471674803f9d1e"
+                  "8bd8426718198eaafe1f0bc63e02fdbd9e398f1c04c14f88697f8a1929b59539"
             }
           }), (_restageInputs, _restageCells) {
         T _restageAs<T>(Object? value) => value as T;
@@ -484,7 +411,7 @@ const constructedBuilderSource =
                 s.NativeBindingContract(type: "flutter.Key", nullable: false),
             value: _restageResult);
       }));
-  context["_h714f894f43"] = s.NativeBindingContract.fromJson(<String, Object?>{
+  context["_h8bd8426718"] = s.NativeBindingContract.fromJson(<String, Object?>{
     "type": "installed.call",
     "nullable": false,
     "call": <String, Object?>{
@@ -501,9 +428,9 @@ const constructedBuilderSource =
         "nativeType": "flutter.Key"
       },
       "implementation":
-          "714f894f4356586746be0a62d1b01dbb0218cee2525c851c18471674803f9d1e"
+          "8bd8426718198eaafe1f0bc63e02fdbd9e398f1c04c14f88697f8a1929b59539"
     }
-  }).reference("_h714f894f43");
+  }).reference("_h8bd8426718");
   context["_ha68d8c18cb"] = count;
   bindings["_hab8f0bbb17"] = r.NativeBinding(
       contract: s.NativeBindingContract(
@@ -521,17 +448,90 @@ const constructedBuilderSource =
   context["_hf2b8a2297d"] = s.NativeBindingContract(
           type: 'dart:core#List<dart:core#Object>', nullable: false)
       .reference("_hf2b8a2297d");
+  bindings["_hf6870d7acc"] = r.NativeBinding(
+      contract: s.NativeBindingContract.fromJson(<String, Object?>{
+        "type": "installed.call",
+        "nullable": false,
+        "call": <String, Object?>{
+          "inputs": <Object?>[
+            <String, Object?>{
+              "kind": "native",
+              "nativeType":
+                  "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
+            }
+          ],
+          "captures": <String, Object?>{},
+          "result": <String, Object?>{
+            "kind": "native",
+            "nativeType": "flutter.ChildIndexGetter"
+          },
+          "implementation":
+              "f6870d7acc1f64bd64ff7fdb9a63c521fe1ec2d14fbc673a87c9983e9bd54de2"
+        }
+      }),
+      value: r.NativeCallAdapter(
+          s.NativeBindingContract.fromJson(<String, Object?>{
+            "type": "installed.call",
+            "nullable": false,
+            "call": <String, Object?>{
+              "inputs": <Object?>[
+                <String, Object?>{
+                  "kind": "native",
+                  "nativeType":
+                      "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
+                }
+              ],
+              "captures": <String, Object?>{},
+              "result": <String, Object?>{
+                "kind": "native",
+                "nativeType": "flutter.ChildIndexGetter"
+              },
+              "implementation":
+                  "f6870d7acc1f64bd64ff7fdb9a63c521fe1ec2d14fbc673a87c9983e9bd54de2"
+            }
+          }), (_restageInputs, _restageCells) {
+        T _restageAs<T>(Object? value) => value as T;
+        final int? Function(Key) _restageInput0 =
+            _restageAs<int? Function(Key)>(
+                (_restageInputs[0] as s.ValueNative).value);
+        final int? Function(Key) _restageResult =
+            (Key key) => _restageInput0(key);
+        return r.NativeBinding<int? Function(Key)>(
+            contract: s.NativeBindingContract(
+                type: "flutter.ChildIndexGetter", nullable: false),
+            value: _restageResult);
+      }));
+  context["_hf6870d7acc"] = s.NativeBindingContract.fromJson(<String, Object?>{
+    "type": "installed.call",
+    "nullable": false,
+    "call": <String, Object?>{
+      "inputs": <Object?>[
+        <String, Object?>{
+          "kind": "native",
+          "nativeType":
+              "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
+        }
+      ],
+      "captures": <String, Object?>{},
+      "result": <String, Object?>{
+        "kind": "native",
+        "nativeType": "flutter.ChildIndexGetter"
+      },
+      "implementation":
+          "f6870d7acc1f64bd64ff7fdb9a63c521fe1ec2d14fbc673a87c9983e9bd54de2"
+    }
+  }).reference("_hf6870d7acc");
   return (bindings: bindings, context: context);
 }
 
 const constructedSkippedSource =
-    "import restage.core; widget Root = LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"field\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"inputs\\\":[0],\\\"name\\\":\\\"maxWidth\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"value\\\":0},{\\\"op\\\":\\\"<\\\",\\\"type\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"inputs\\\":[1,2]},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[4],\\\"value\\\":{\\\"binding\\\":\\\"_h4f7ae70159\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"implementation\\\":\\\"4f7ae701592e9a7aba88570375b737073c9ce9ad37d3e2e844a013c0610969a5\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"value\\\":\\\"item\\\"},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[5],\\\"name\\\":\\\"n7\\\"}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}},\\\"locals\\\":{\\\"n7\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"branch\\\",\\\"condition\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":6,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":7,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":6},\\\"key\\\":5,\\\"keyType\\\":\\\"nativeKey\\\"}}}}},\\\"else\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":1,\\\"values\\\":{}}},\\\"bodyCount\\\":2,\\\"nullableResult\\\":false}\", captures: {c0: data.context._hf2b8a2297d}, bodies: [(builder0) => Text(text: builder0.values.v0, key: {kind: \"nativeLocal\", slot: \"n7\", type: \"flutter.Key\", nullable: false}), (builder0) => SizedBox()]));";
+    "import restage.core; widget Root = LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"field\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"inputs\\\":[0],\\\"name\\\":\\\"maxWidth\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"value\\\":0},{\\\"op\\\":\\\"<\\\",\\\"type\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"inputs\\\":[1,2]},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[4],\\\"value\\\":{\\\"binding\\\":\\\"_h623dc8bb87\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"implementation\\\":\\\"623dc8bb8734be0b95344fd662558990b6e82ebea938e19a1d569c119308dbec\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"String\\\"},\\\"value\\\":\\\"item\\\"},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[5],\\\"name\\\":\\\"n7\\\"}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}},\\\"locals\\\":{\\\"n7\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"branch\\\",\\\"condition\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":6,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":7,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":6},\\\"key\\\":5,\\\"keyType\\\":\\\"nativeKey\\\"}}}}},\\\"else\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":1,\\\"values\\\":{}}},\\\"bodyCount\\\":2,\\\"nullableResult\\\":false}\", captures: {c0: data.context._hf2b8a2297d}, bodies: [(builder0) => Text(text: builder0.values.v0, key: {kind: \"nativeLocal\", slot: \"n7\", type: \"flutter.Key\", nullable: false}), (builder0) => SizedBox()]));";
 ({Map<String, r.NativeBinding<Object?>> bindings, Map<String, Object?> context})
     constructedSkippedMount(List<Object> items,
         [int? Function(Key)? findIndex, int count = 2]) {
   final bindings = <String, r.NativeBinding<Object?>>{};
   final context = <String, Object?>{"count": 2};
-  bindings["_h4f7ae70159"] = r.NativeBinding(
+  bindings["_h623dc8bb87"] = r.NativeBinding(
       contract: s.NativeBindingContract.fromJson(<String, Object?>{
         "type": "installed.call",
         "nullable": false,
@@ -548,7 +548,7 @@ const constructedSkippedSource =
             "nativeType": "flutter.Key"
           },
           "implementation":
-              "4f7ae701592e9a7aba88570375b737073c9ce9ad37d3e2e844a013c0610969a5"
+              "623dc8bb8734be0b95344fd662558990b6e82ebea938e19a1d569c119308dbec"
         }
       }),
       value: r.NativeCallAdapter(
@@ -568,7 +568,7 @@ const constructedSkippedSource =
                 "nativeType": "flutter.Key"
               },
               "implementation":
-                  "4f7ae701592e9a7aba88570375b737073c9ce9ad37d3e2e844a013c0610969a5"
+                  "623dc8bb8734be0b95344fd662558990b6e82ebea938e19a1d569c119308dbec"
             }
           }), (_restageInputs, _restageCells) {
         T _restageAs<T>(Object? value) => value as T;
@@ -580,7 +580,7 @@ const constructedSkippedSource =
                 s.NativeBindingContract(type: "flutter.Key", nullable: false),
             value: _restageResult);
       }));
-  context["_h4f7ae70159"] = s.NativeBindingContract.fromJson(<String, Object?>{
+  context["_h623dc8bb87"] = s.NativeBindingContract.fromJson(<String, Object?>{
     "type": "installed.call",
     "nullable": false,
     "call": <String, Object?>{
@@ -596,9 +596,9 @@ const constructedSkippedSource =
         "nativeType": "flutter.Key"
       },
       "implementation":
-          "4f7ae701592e9a7aba88570375b737073c9ce9ad37d3e2e844a013c0610969a5"
+          "623dc8bb8734be0b95344fd662558990b6e82ebea938e19a1d569c119308dbec"
     }
-  }).reference("_h4f7ae70159");
+  }).reference("_h623dc8bb87");
   bindings["_hf2b8a2297d"] = r.NativeBinding(
       contract: s.NativeBindingContract(
           type: 'dart:core#List<dart:core#Object>', nullable: false),
@@ -610,86 +610,13 @@ const constructedSkippedSource =
 }
 
 const constructedNestedDelegateSource =
-    "import restage.core; widget Root = LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"value\\\":1},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"},\\\"name\\\":\\\"c1\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"inputs\\\":[3],\\\"value\\\":{\\\"binding\\\":\\\"_h5d3e8d79eb\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"implementation\\\":\\\"5d3e8d79ebf17e7f5284a4a7cd8f1d4bebebf6b519307bc281d0870a4625129a\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"inputs\\\":[4],\\\"name\\\":\\\"n5\\\"}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"int\\\"},\\\"c1\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}},\\\"locals\\\":{\\\"n5\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":1,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":1,\\\"v1\\\":2}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":false}\", captures: {c0: data.context._ha68d8c18cb, c1: data.context._hab8f0bbb17}, bodies: [(builder0) => GridViewCustom(gridDelegate: {_s: \"SliverGridDelegateWithFixedCrossAxisCount\", crossAxisCount: builder0.values.v0}, childrenDelegate: {_s: \"SliverChildBuilderDelegate\", builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[1,0],\\\"value\\\":{\\\"binding\\\":\\\"_h714f894f43\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},{\\\"kind\\\":\\\"int\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"implementation\\\":\\\"714f894f4356586746be0a62d1b01dbb0218cee2525c851c18471674803f9d1e\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"int\\\"}},\\\"locals\\\":{\\\"n3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":2,\\\"keyType\\\":\\\"nativeKey\\\"}}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":true}\", captures: {c0: data.context._hf2b8a2297d}, bodies: [(builder1) => AnimatedContainer(key: {kind: \"nativeLocal\", slot: \"n3\", type: \"flutter.Key\", nullable: false}, duration: 1, width: builder1.values.v0, height: builder1.values.v1)]), childCount: builder0.values.v1, findChildIndexCallback: {nativeKeyIndex: { version: 1, program: \"{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"name\\\":\\\"c0\\\"}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"}},\\\"parameters\\\":{}}\", captures: {c0: {kind: \"nativeLocal\", slot: \"n5\", type: \"flutter.ChildIndexGetter\", nullable: false} } }}})]));";
+    "import restage.core; widget Root = LayoutBuilder(builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"value\\\":1},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"},\\\"name\\\":\\\"c1\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"inputs\\\":[3],\\\"value\\\":{\\\"binding\\\":\\\"_hf6870d7acc\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"implementation\\\":\\\"f6870d7acc1f64bd64ff7fdb9a63c521fe1ec2d14fbc673a87c9983e9bd54de2\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"inputs\\\":[4],\\\"name\\\":\\\"n5\\\"}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"int\\\"},\\\"c1\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"(package:flutter/src/foundation/key.dart#Key)->dart:core#int?\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"minWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxWidth\\\":{\\\"kind\\\":\\\"double\\\"},\\\"minHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"maxHeight\\\":{\\\"kind\\\":\\\"double\\\"},\\\"hasBoundedWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasBoundedHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightWidth\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"hasTightHeight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"isTight\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"biggest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}},\\\"smallest\\\":{\\\"kind\\\":\\\"record\\\",\\\"fields\\\":{\\\"width\\\":{\\\"kind\\\":\\\"double\\\"},\\\"height\\\":{\\\"kind\\\":\\\"double\\\"}}}}}},\\\"locals\\\":{\\\"n5\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":1,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":1,\\\"v1\\\":2}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":false}\", captures: {c0: data.context._ha68d8c18cb, c1: data.context._hab8f0bbb17}, bodies: [(builder0) => GridViewCustom(gridDelegate: {_s: \"SliverGridDelegateWithFixedCrossAxisCount\", crossAxisCount: builder0.values.v0}, childrenDelegate: {_s: \"SliverChildBuilderDelegate\", builder: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"parameter\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"arg1\\\"},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"native.call\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[1,0],\\\"value\\\":{\\\"binding\\\":\\\"_h8bd8426718\\\",\\\"contract\\\":{\\\"type\\\":\\\"installed.call\\\",\\\"nullable\\\":false,\\\"call\\\":{\\\"inputs\\\":[{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"},{\\\"kind\\\":\\\"int\\\"}],\\\"captures\\\":{},\\\"result\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"implementation\\\":\\\"8bd8426718198eaafe1f0bc63e02fdbd9e398f1c04c14f88697f8a1929b59539\\\"}},\\\"captures\\\":{}}},{\\\"op\\\":\\\"local.write\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"inputs\\\":[2],\\\"name\\\":\\\"n3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"dart:core#List<dart:core#Object>\\\"}},\\\"parameters\\\":{\\\"arg1\\\":{\\\"kind\\\":\\\"int\\\"}},\\\"locals\\\":{\\\"n3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}}},\\\"result\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":2,\\\"keyType\\\":\\\"nativeKey\\\"}}}}}},\\\"bodyCount\\\":1,\\\"nullableResult\\\":true}\", captures: {c0: data.context._hf2b8a2297d}, bodies: [(builder1) => AnimatedContainer(key: {kind: \"nativeLocal\", slot: \"n3\", type: \"flutter.Key\", nullable: false}, duration: 1, width: builder1.values.v0, height: builder1.values.v1)]), childCount: builder0.values.v1, findChildIndexCallback: {nativeKeyIndex: { version: 1, program: \"{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"},\\\"name\\\":\\\"c0\\\"}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.ChildIndexGetter\\\"}},\\\"parameters\\\":{}}\", captures: {c0: {kind: \"nativeLocal\", slot: \"n5\", type: \"flutter.ChildIndexGetter\", nullable: false} } }}})]));";
 ({Map<String, r.NativeBinding<Object?>> bindings, Map<String, Object?> context})
     constructedNestedDelegateMount(List<Object> items,
         [int? Function(Key)? findIndex, int count = 2]) {
   final bindings = <String, r.NativeBinding<Object?>>{};
   final context = <String, Object?>{"count": 2};
-  bindings["_h5d3e8d79eb"] = r.NativeBinding(
-      contract: s.NativeBindingContract.fromJson(<String, Object?>{
-        "type": "installed.call",
-        "nullable": false,
-        "call": <String, Object?>{
-          "inputs": <Object?>[
-            <String, Object?>{
-              "kind": "native",
-              "nativeType":
-                  "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
-            }
-          ],
-          "captures": <String, Object?>{},
-          "result": <String, Object?>{
-            "kind": "native",
-            "nativeType": "flutter.ChildIndexGetter"
-          },
-          "implementation":
-              "5d3e8d79ebf17e7f5284a4a7cd8f1d4bebebf6b519307bc281d0870a4625129a"
-        }
-      }),
-      value: r.NativeCallAdapter(
-          s.NativeBindingContract.fromJson(<String, Object?>{
-            "type": "installed.call",
-            "nullable": false,
-            "call": <String, Object?>{
-              "inputs": <Object?>[
-                <String, Object?>{
-                  "kind": "native",
-                  "nativeType":
-                      "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
-                }
-              ],
-              "captures": <String, Object?>{},
-              "result": <String, Object?>{
-                "kind": "native",
-                "nativeType": "flutter.ChildIndexGetter"
-              },
-              "implementation":
-                  "5d3e8d79ebf17e7f5284a4a7cd8f1d4bebebf6b519307bc281d0870a4625129a"
-            }
-          }), (_restageInputs, _restageCells) {
-        T _restageAs<T>(Object? value) => value as T;
-        final int? Function(Key) _restageInput0 =
-            _restageAs<int? Function(Key)>(
-                (_restageInputs[0] as s.ValueNative).value);
-        final int? Function(Key) _restageResult =
-            (Key key) => _restageInput0(key);
-        return r.NativeBinding<int? Function(Key)>(
-            contract: s.NativeBindingContract(
-                type: "flutter.ChildIndexGetter", nullable: false),
-            value: _restageResult);
-      }));
-  context["_h5d3e8d79eb"] = s.NativeBindingContract.fromJson(<String, Object?>{
-    "type": "installed.call",
-    "nullable": false,
-    "call": <String, Object?>{
-      "inputs": <Object?>[
-        <String, Object?>{
-          "kind": "native",
-          "nativeType":
-              "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
-        }
-      ],
-      "captures": <String, Object?>{},
-      "result": <String, Object?>{
-        "kind": "native",
-        "nativeType": "flutter.ChildIndexGetter"
-      },
-      "implementation":
-          "5d3e8d79ebf17e7f5284a4a7cd8f1d4bebebf6b519307bc281d0870a4625129a"
-    }
-  }).reference("_h5d3e8d79eb");
-  bindings["_h714f894f43"] = r.NativeBinding(
+  bindings["_h8bd8426718"] = r.NativeBinding(
       contract: s.NativeBindingContract.fromJson(<String, Object?>{
         "type": "installed.call",
         "nullable": false,
@@ -707,7 +634,7 @@ const constructedNestedDelegateSource =
             "nativeType": "flutter.Key"
           },
           "implementation":
-              "714f894f4356586746be0a62d1b01dbb0218cee2525c851c18471674803f9d1e"
+              "8bd8426718198eaafe1f0bc63e02fdbd9e398f1c04c14f88697f8a1929b59539"
         }
       }),
       value: r.NativeCallAdapter(
@@ -728,7 +655,7 @@ const constructedNestedDelegateSource =
                 "nativeType": "flutter.Key"
               },
               "implementation":
-                  "714f894f4356586746be0a62d1b01dbb0218cee2525c851c18471674803f9d1e"
+                  "8bd8426718198eaafe1f0bc63e02fdbd9e398f1c04c14f88697f8a1929b59539"
             }
           }), (_restageInputs, _restageCells) {
         T _restageAs<T>(Object? value) => value as T;
@@ -742,7 +669,7 @@ const constructedNestedDelegateSource =
                 s.NativeBindingContract(type: "flutter.Key", nullable: false),
             value: _restageResult);
       }));
-  context["_h714f894f43"] = s.NativeBindingContract.fromJson(<String, Object?>{
+  context["_h8bd8426718"] = s.NativeBindingContract.fromJson(<String, Object?>{
     "type": "installed.call",
     "nullable": false,
     "call": <String, Object?>{
@@ -759,9 +686,9 @@ const constructedNestedDelegateSource =
         "nativeType": "flutter.Key"
       },
       "implementation":
-          "714f894f4356586746be0a62d1b01dbb0218cee2525c851c18471674803f9d1e"
+          "8bd8426718198eaafe1f0bc63e02fdbd9e398f1c04c14f88697f8a1929b59539"
     }
-  }).reference("_h714f894f43");
+  }).reference("_h8bd8426718");
   context["_ha68d8c18cb"] = count;
   bindings["_hab8f0bbb17"] = r.NativeBinding(
       contract: s.NativeBindingContract(
@@ -779,74 +706,147 @@ const constructedNestedDelegateSource =
   context["_hf2b8a2297d"] = s.NativeBindingContract(
           type: 'dart:core#List<dart:core#Object>', nullable: false)
       .reference("_hf2b8a2297d");
+  bindings["_hf6870d7acc"] = r.NativeBinding(
+      contract: s.NativeBindingContract.fromJson(<String, Object?>{
+        "type": "installed.call",
+        "nullable": false,
+        "call": <String, Object?>{
+          "inputs": <Object?>[
+            <String, Object?>{
+              "kind": "native",
+              "nativeType":
+                  "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
+            }
+          ],
+          "captures": <String, Object?>{},
+          "result": <String, Object?>{
+            "kind": "native",
+            "nativeType": "flutter.ChildIndexGetter"
+          },
+          "implementation":
+              "f6870d7acc1f64bd64ff7fdb9a63c521fe1ec2d14fbc673a87c9983e9bd54de2"
+        }
+      }),
+      value: r.NativeCallAdapter(
+          s.NativeBindingContract.fromJson(<String, Object?>{
+            "type": "installed.call",
+            "nullable": false,
+            "call": <String, Object?>{
+              "inputs": <Object?>[
+                <String, Object?>{
+                  "kind": "native",
+                  "nativeType":
+                      "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
+                }
+              ],
+              "captures": <String, Object?>{},
+              "result": <String, Object?>{
+                "kind": "native",
+                "nativeType": "flutter.ChildIndexGetter"
+              },
+              "implementation":
+                  "f6870d7acc1f64bd64ff7fdb9a63c521fe1ec2d14fbc673a87c9983e9bd54de2"
+            }
+          }), (_restageInputs, _restageCells) {
+        T _restageAs<T>(Object? value) => value as T;
+        final int? Function(Key) _restageInput0 =
+            _restageAs<int? Function(Key)>(
+                (_restageInputs[0] as s.ValueNative).value);
+        final int? Function(Key) _restageResult =
+            (Key key) => _restageInput0(key);
+        return r.NativeBinding<int? Function(Key)>(
+            contract: s.NativeBindingContract(
+                type: "flutter.ChildIndexGetter", nullable: false),
+            value: _restageResult);
+      }));
+  context["_hf6870d7acc"] = s.NativeBindingContract.fromJson(<String, Object?>{
+    "type": "installed.call",
+    "nullable": false,
+    "call": <String, Object?>{
+      "inputs": <Object?>[
+        <String, Object?>{
+          "kind": "native",
+          "nativeType":
+              "(package:flutter/src/foundation/key.dart#Key)->dart:core#int?"
+        }
+      ],
+      "captures": <String, Object?>{},
+      "result": <String, Object?>{
+        "kind": "native",
+        "nativeType": "flutter.ChildIndexGetter"
+      },
+      "implementation":
+          "f6870d7acc1f64bd64ff7fdb9a63c521fe1ec2d14fbc673a87c9983e9bd54de2"
+    }
+  }).reference("_hf6870d7acc");
   return (bindings: bindings, context: context);
 }
 
 const constructedConstantInlineSource =
-    "import restage.core; widget Root = Row(children: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"value\\\":2},{\\\"op\\\":\\\"==\\\",\\\"type\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"inputs\\\":[0,1]},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c1\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c2\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c4\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"int\\\"},\\\"c1\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c2\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c4\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}},\\\"parameters\\\":{}},\\\"result\\\":{\\\"kind\\\":\\\"branch\\\",\\\"condition\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":3,\\\"keyType\\\":\\\"nativeKey\\\"}}}},{\\\"kind\\\":\\\"let\\\",\\\"node\\\":6,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":7,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":8,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":1,\\\"values\\\":{\\\"v0\\\":7,\\\"v1\\\":8},\\\"key\\\":6,\\\"keyType\\\":\\\"nativeKey\\\"}}}}]},\\\"else\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"let\\\",\\\"node\\\":9,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":10,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":11,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":2,\\\"values\\\":{\\\"v0\\\":10,\\\"v1\\\":11},\\\"key\\\":9,\\\"keyType\\\":\\\"nativeKey\\\"}}}},{\\\"kind\\\":\\\"let\\\",\\\"node\\\":12,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":13,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":14,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":3,\\\"values\\\":{\\\"v0\\\":13,\\\"v1\\\":14},\\\"key\\\":12,\\\"keyType\\\":\\\"nativeKey\\\"}}}}]}},\\\"bodyCount\\\":4,\\\"nullableResult\\\":true,\\\"collection\\\":true}\", captures: {c0: data.context._ha68d8c18cb, c1: data.context._hc645be365d, c2: data.context._h1bb29660ee, c3: data.context._h1bb29660ee, c4: data.context._hc645be365d}, bodies: [(builder0) => AnimatedContainer(key: data.context._hc645be365d, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h1bb29660ee, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h1bb29660ee, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._hc645be365d, duration: 1, width: builder0.values.v0, height: builder0.values.v1)]));";
+    "import restage.core; widget Root = Row(children: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"value\\\":2},{\\\"op\\\":\\\"==\\\",\\\"type\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"inputs\\\":[0,1]},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c1\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c2\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c4\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"int\\\"},\\\"c1\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c2\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c4\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}},\\\"parameters\\\":{}},\\\"result\\\":{\\\"kind\\\":\\\"branch\\\",\\\"condition\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":3,\\\"keyType\\\":\\\"nativeKey\\\"}}}},{\\\"kind\\\":\\\"let\\\",\\\"node\\\":6,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":7,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":8,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":1,\\\"values\\\":{\\\"v0\\\":7,\\\"v1\\\":8},\\\"key\\\":6,\\\"keyType\\\":\\\"nativeKey\\\"}}}}]},\\\"else\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"let\\\",\\\"node\\\":9,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":10,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":11,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":2,\\\"values\\\":{\\\"v0\\\":10,\\\"v1\\\":11},\\\"key\\\":9,\\\"keyType\\\":\\\"nativeKey\\\"}}}},{\\\"kind\\\":\\\"let\\\",\\\"node\\\":12,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":13,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":14,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":3,\\\"values\\\":{\\\"v0\\\":13,\\\"v1\\\":14},\\\"key\\\":12,\\\"keyType\\\":\\\"nativeKey\\\"}}}}]}},\\\"bodyCount\\\":4,\\\"nullableResult\\\":true,\\\"collection\\\":true}\", captures: {c0: data.context._ha68d8c18cb, c1: data.context._h51d1c97e32, c2: data.context._h2883b78715, c3: data.context._h2883b78715, c4: data.context._h51d1c97e32}, bodies: [(builder0) => AnimatedContainer(key: data.context._h51d1c97e32, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h2883b78715, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h2883b78715, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h51d1c97e32, duration: 1, width: builder0.values.v0, height: builder0.values.v1)]));";
 ({Map<String, r.NativeBinding<Object?>> bindings, Map<String, Object?> context})
     constructedConstantInlineMount(List<Object> items,
         [int? Function(Key)? findIndex, int count = 2]) {
   final bindings = <String, r.NativeBinding<Object?>>{};
   final context = <String, Object?>{"count": 2};
-  bindings["_h1bb29660ee"] = r.NativeBinding(
+  bindings["_h2883b78715"] = r.NativeBinding(
       contract: s.NativeBindingContract(type: 'flutter.Key', nullable: false),
       value: const ObjectKey('second'));
-  context["_h1bb29660ee"] =
+  context["_h2883b78715"] =
       s.NativeBindingContract(type: 'flutter.Key', nullable: false)
-          .reference("_h1bb29660ee");
-  context["_ha68d8c18cb"] = count;
-  bindings["_hc645be365d"] = r.NativeBinding(
+          .reference("_h2883b78715");
+  bindings["_h51d1c97e32"] = r.NativeBinding(
       contract: s.NativeBindingContract(type: 'flutter.Key', nullable: false),
       value: const ObjectKey('first'));
-  context["_hc645be365d"] =
+  context["_h51d1c97e32"] =
       s.NativeBindingContract(type: 'flutter.Key', nullable: false)
-          .reference("_hc645be365d");
+          .reference("_h51d1c97e32");
+  context["_ha68d8c18cb"] = count;
   return (bindings: bindings, context: context);
 }
 
 const constructedConstantNamedSource =
-    "import restage.core; widget Root = Row(children: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"value\\\":2},{\\\"op\\\":\\\"==\\\",\\\"type\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"inputs\\\":[0,1]},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c1\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c2\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c4\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"int\\\"},\\\"c1\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c2\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c4\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}},\\\"parameters\\\":{}},\\\"result\\\":{\\\"kind\\\":\\\"branch\\\",\\\"condition\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":3,\\\"keyType\\\":\\\"nativeKey\\\"}}}},{\\\"kind\\\":\\\"let\\\",\\\"node\\\":6,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":7,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":8,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":1,\\\"values\\\":{\\\"v0\\\":7,\\\"v1\\\":8},\\\"key\\\":6,\\\"keyType\\\":\\\"nativeKey\\\"}}}}]},\\\"else\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"let\\\",\\\"node\\\":9,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":10,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":11,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":2,\\\"values\\\":{\\\"v0\\\":10,\\\"v1\\\":11},\\\"key\\\":9,\\\"keyType\\\":\\\"nativeKey\\\"}}}},{\\\"kind\\\":\\\"let\\\",\\\"node\\\":12,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":13,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":14,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":3,\\\"values\\\":{\\\"v0\\\":13,\\\"v1\\\":14},\\\"key\\\":12,\\\"keyType\\\":\\\"nativeKey\\\"}}}}]}},\\\"bodyCount\\\":4,\\\"nullableResult\\\":true,\\\"collection\\\":true}\", captures: {c0: data.context._ha68d8c18cb, c1: data.context._h99cdb0debb, c2: data.context._h9e77a665f9, c3: data.context._h9e77a665f9, c4: data.context._h99cdb0debb}, bodies: [(builder0) => AnimatedContainer(key: data.context._h99cdb0debb, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h9e77a665f9, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h9e77a665f9, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h99cdb0debb, duration: 1, width: builder0.values.v0, height: builder0.values.v1)]));";
+    "import restage.core; widget Root = Row(children: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"value\\\":2},{\\\"op\\\":\\\"==\\\",\\\"type\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"inputs\\\":[0,1]},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c1\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c2\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c4\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"int\\\"},\\\"c1\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c2\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c4\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}},\\\"parameters\\\":{}},\\\"result\\\":{\\\"kind\\\":\\\"branch\\\",\\\"condition\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":3,\\\"keyType\\\":\\\"nativeKey\\\"}}}},{\\\"kind\\\":\\\"let\\\",\\\"node\\\":6,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":7,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":8,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":1,\\\"values\\\":{\\\"v0\\\":7,\\\"v1\\\":8},\\\"key\\\":6,\\\"keyType\\\":\\\"nativeKey\\\"}}}}]},\\\"else\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"let\\\",\\\"node\\\":9,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":10,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":11,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":2,\\\"values\\\":{\\\"v0\\\":10,\\\"v1\\\":11},\\\"key\\\":9,\\\"keyType\\\":\\\"nativeKey\\\"}}}},{\\\"kind\\\":\\\"let\\\",\\\"node\\\":12,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":13,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":14,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":3,\\\"values\\\":{\\\"v0\\\":13,\\\"v1\\\":14},\\\"key\\\":12,\\\"keyType\\\":\\\"nativeKey\\\"}}}}]}},\\\"bodyCount\\\":4,\\\"nullableResult\\\":true,\\\"collection\\\":true}\", captures: {c0: data.context._ha68d8c18cb, c1: data.context._h1a30bbef61, c2: data.context._hbe2c2173f5, c3: data.context._hbe2c2173f5, c4: data.context._h1a30bbef61}, bodies: [(builder0) => AnimatedContainer(key: data.context._h1a30bbef61, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._hbe2c2173f5, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._hbe2c2173f5, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h1a30bbef61, duration: 1, width: builder0.values.v0, height: builder0.values.v1)]));";
 ({Map<String, r.NativeBinding<Object?>> bindings, Map<String, Object?> context})
     constructedConstantNamedMount(List<Object> items,
         [int? Function(Key)? findIndex, int count = 2]) {
   final bindings = <String, r.NativeBinding<Object?>>{};
   final context = <String, Object?>{"count": 2};
-  bindings["_h99cdb0debb"] = r.NativeBinding(
+  bindings["_h1a30bbef61"] = r.NativeBinding(
       contract: s.NativeBindingContract(type: 'flutter.Key', nullable: false),
       value: P.stableKey);
-  context["_h99cdb0debb"] =
+  context["_h1a30bbef61"] =
       s.NativeBindingContract(type: 'flutter.Key', nullable: false)
-          .reference("_h99cdb0debb");
-  bindings["_h9e77a665f9"] = r.NativeBinding(
+          .reference("_h1a30bbef61");
+  context["_ha68d8c18cb"] = count;
+  bindings["_hbe2c2173f5"] = r.NativeBinding(
       contract: s.NativeBindingContract(type: 'flutter.Key', nullable: false),
       value: P.otherKey);
-  context["_h9e77a665f9"] =
+  context["_hbe2c2173f5"] =
       s.NativeBindingContract(type: 'flutter.Key', nullable: false)
-          .reference("_h9e77a665f9");
-  context["_ha68d8c18cb"] = count;
+          .reference("_hbe2c2173f5");
   return (bindings: bindings, context: context);
 }
 
 const constructedConstantAliasSource =
-    "import restage.core; widget Root = Row(children: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"value\\\":2},{\\\"op\\\":\\\"==\\\",\\\"type\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"inputs\\\":[0,1]},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c1\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c2\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c4\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"int\\\"},\\\"c1\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c2\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c4\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}},\\\"parameters\\\":{}},\\\"result\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"branch\\\",\\\"condition\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":3,\\\"keyType\\\":\\\"nativeKey\\\"}}}},{\\\"kind\\\":\\\"let\\\",\\\"node\\\":6,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":7,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":8,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":1,\\\"values\\\":{\\\"v0\\\":7,\\\"v1\\\":8},\\\"key\\\":6,\\\"keyType\\\":\\\"nativeKey\\\"}}}}]},\\\"else\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"let\\\",\\\"node\\\":9,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":10,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":11,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":2,\\\"values\\\":{\\\"v0\\\":10,\\\"v1\\\":11},\\\"key\\\":9,\\\"keyType\\\":\\\"nativeKey\\\"}}}},{\\\"kind\\\":\\\"let\\\",\\\"node\\\":12,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":13,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":14,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":3,\\\"values\\\":{\\\"v0\\\":13,\\\"v1\\\":14},\\\"key\\\":12,\\\"keyType\\\":\\\"nativeKey\\\"}}}}]}}]},\\\"bodyCount\\\":4,\\\"nullableResult\\\":true,\\\"collection\\\":true}\", captures: {c0: data.context._ha68d8c18cb, c1: data.context._h99cdb0debb, c2: data.context._h1bb29660ee, c3: data.context._h1bb29660ee, c4: data.context._h99cdb0debb}, bodies: [(builder0) => AnimatedContainer(key: data.context._h99cdb0debb, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h1bb29660ee, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h1bb29660ee, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h99cdb0debb, duration: 1, width: builder0.values.v0, height: builder0.values.v1)]));";
+    "import restage.core; widget Root = Row(children: __RestageBuilderContinuation(version: 1, program: \"{\\\"version\\\":1,\\\"values\\\":{\\\"version\\\":1,\\\"nodes\\\":[{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"name\\\":\\\"c0\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"int\\\"},\\\"value\\\":2},{\\\"op\\\":\\\"==\\\",\\\"type\\\":{\\\"kind\\\":\\\"bool\\\"},\\\"inputs\\\":[0,1]},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c1\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c2\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c3\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"capture\\\",\\\"type\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"name\\\":\\\"c4\\\"},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0},{\\\"op\\\":\\\"literal\\\",\\\"type\\\":{\\\"kind\\\":\\\"double\\\"},\\\"value\\\":20.0}],\\\"root\\\":0,\\\"captures\\\":{\\\"c0\\\":{\\\"kind\\\":\\\"int\\\"},\\\"c1\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c2\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c3\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"},\\\"c4\\\":{\\\"kind\\\":\\\"native\\\",\\\"nativeType\\\":\\\"flutter.Key\\\"}},\\\"parameters\\\":{}},\\\"result\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"branch\\\",\\\"condition\\\":2,\\\"then\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"let\\\",\\\"node\\\":3,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":4,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":5,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":0,\\\"values\\\":{\\\"v0\\\":4,\\\"v1\\\":5},\\\"key\\\":3,\\\"keyType\\\":\\\"nativeKey\\\"}}}},{\\\"kind\\\":\\\"let\\\",\\\"node\\\":6,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":7,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":8,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":1,\\\"values\\\":{\\\"v0\\\":7,\\\"v1\\\":8},\\\"key\\\":6,\\\"keyType\\\":\\\"nativeKey\\\"}}}}]},\\\"else\\\":{\\\"kind\\\":\\\"sequence\\\",\\\"children\\\":[{\\\"kind\\\":\\\"let\\\",\\\"node\\\":9,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":10,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":11,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":2,\\\"values\\\":{\\\"v0\\\":10,\\\"v1\\\":11},\\\"key\\\":9,\\\"keyType\\\":\\\"nativeKey\\\"}}}},{\\\"kind\\\":\\\"let\\\",\\\"node\\\":12,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":13,\\\"then\\\":{\\\"kind\\\":\\\"let\\\",\\\"node\\\":14,\\\"then\\\":{\\\"kind\\\":\\\"body\\\",\\\"body\\\":3,\\\"values\\\":{\\\"v0\\\":13,\\\"v1\\\":14},\\\"key\\\":12,\\\"keyType\\\":\\\"nativeKey\\\"}}}}]}}]},\\\"bodyCount\\\":4,\\\"nullableResult\\\":true,\\\"collection\\\":true}\", captures: {c0: data.context._ha68d8c18cb, c1: data.context._h1a30bbef61, c2: data.context._h2883b78715, c3: data.context._h2883b78715, c4: data.context._h1a30bbef61}, bodies: [(builder0) => AnimatedContainer(key: data.context._h1a30bbef61, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h2883b78715, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h2883b78715, duration: 1, width: builder0.values.v0, height: builder0.values.v1), (builder0) => AnimatedContainer(key: data.context._h1a30bbef61, duration: 1, width: builder0.values.v0, height: builder0.values.v1)]));";
 ({Map<String, r.NativeBinding<Object?>> bindings, Map<String, Object?> context})
     constructedConstantAliasMount(List<Object> items,
         [int? Function(Key)? findIndex, int count = 2]) {
   final bindings = <String, r.NativeBinding<Object?>>{};
   final context = <String, Object?>{"count": 2};
-  bindings["_h1bb29660ee"] = r.NativeBinding(
-      contract: s.NativeBindingContract(type: 'flutter.Key', nullable: false),
-      value: const ObjectKey('second'));
-  context["_h1bb29660ee"] =
-      s.NativeBindingContract(type: 'flutter.Key', nullable: false)
-          .reference("_h1bb29660ee");
-  bindings["_h99cdb0debb"] = r.NativeBinding(
+  bindings["_h1a30bbef61"] = r.NativeBinding(
       contract: s.NativeBindingContract(type: 'flutter.Key', nullable: false),
       value: P.stableKey);
-  context["_h99cdb0debb"] =
+  context["_h1a30bbef61"] =
       s.NativeBindingContract(type: 'flutter.Key', nullable: false)
-          .reference("_h99cdb0debb");
+          .reference("_h1a30bbef61");
+  bindings["_h2883b78715"] = r.NativeBinding(
+      contract: s.NativeBindingContract(type: 'flutter.Key', nullable: false),
+      value: const ObjectKey('second'));
+  context["_h2883b78715"] =
+      s.NativeBindingContract(type: 'flutter.Key', nullable: false)
+          .reference("_h2883b78715");
   context["_ha68d8c18cb"] = count;
   return (bindings: bindings, context: context);
 }

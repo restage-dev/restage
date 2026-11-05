@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:args/args.dart';
+import 'package:restage_cli/src/api/component_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/surface_publication_api.dart';
@@ -220,6 +221,10 @@ Future<int> runPush({
         environmentTargetId: target.target.environmentTargetId,
         runtimePlane: target.target.runtimePlane,
         organizationId: target.organizationId,
+        components: (
+          api: ComponentApi(api),
+          organizationId: target.organizationId,
+        ),
         declareAssets: declareAssets,
         pushImage: imageOf?.call(publication),
         previewContext: previewContextOf?.call(publication),

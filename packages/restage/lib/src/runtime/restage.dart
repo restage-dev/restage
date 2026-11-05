@@ -203,6 +203,8 @@ abstract final class Restage {
   static bool get showSourceBadges => kDebugMode && _showSourceBadges;
   static String? _apiKey;
   static String? _reportedDeliveryConfiguration;
+  static bool _configured = false;
+  static bool _reportedUnconfigured = false;
   static String? _baseUrl;
   static RestageEnvironment _environment = RestageEnvironment.production;
   static VariantResolver _defaultResolver = const AssetVariantResolver();
@@ -546,6 +548,17 @@ abstract final class Restage {
       unawaited(decoding.then((_) => configureOnce(),
           onError: (Object _) => configureOnce()));
     }
+    _paywallSurfaceWidgets = {
+      for (final ref in surfaces)
+        if (switch (ref) {
+          PaywallRef() => ref,
+          GeneratedPlacementDefinition(:final PaywallRef defaultSurface) =>
+            defaultSurface,
+          _ => null,
+        }
+            case PaywallRef(:final id, surfaceWidget: final widget?))
+          id: widget,
+    };
     _installIttAssignmentTransport();
     if (apiKey == null) {
       GovernedMeasurementPortRegistry.install(null);
@@ -634,6 +647,7 @@ abstract final class Restage {
     _configureMeasurementHost(enabled: analyticsEnabled && measurementEnabled);
     if (apiKey != null) unawaited(_prefetchSurfaces(surfaces));
     notifyRestageCommerceConfigurationChanged();
+    _configured = true;
     _reportDeliveryConfiguration(
       hasResolverOverride: resolver != null ||
           flowResolver != null ||
@@ -929,6 +943,17 @@ abstract final class Restage {
     debugPrint('[restage] $description');
   }
 
+  /// Says once per run, in debug builds, that [surface] mounted before
+  /// [configure] ran and so shows only bundled designs.
+  @internal
+  static void reportUnconfiguredMount(String surface) {
+    if (!kDebugMode || _configured || _reportedUnconfigured) return;
+    _reportedUnconfigured = true;
+    debugPrint('[restage] `$surface` shows only the designs bundled with the '
+        "app because Restage isn't configured. Try calling "
+        '`Restage.configure` in `main()` to receive published designs.');
+  }
+
   /// Resolves the effective live-refresh trigger set for [surfaceSlug].
   ///
   /// Most-specific-wins, used verbatim (never merged): the per-widget
@@ -1174,6 +1199,12 @@ abstract final class Restage {
   /// The separate metering identifier remains unchanged. Use [privacy] to
   /// request erasure.
   /// Inert until [configure] supplies a `baseUrl`.
+  static Map<String, String> _paywallSurfaceWidgets = const {};
+
+  /// The widget generated for paywall [id], from the configured surfaces.
+  @internal
+  static String? paywallSurfaceWidget(String id) => _paywallSurfaceWidgets[id];
+
   static void reset() {
     _eventAttributionGeneration += 1;
     _placementRegistry?.dropSaved();
@@ -1625,11 +1656,14 @@ abstract final class Restage {
   @visibleForTesting
   static void debugReset() {
     _configurationGeneration += 1;
+    _paywallSurfaceWidgets = const {};
     _placementNow = null;
     _configureMeasurementHost(enabled: false, privacyReset: false);
     _onSurfaceResolution = null;
     _apiKey = null;
     _reportedDeliveryConfiguration = null;
+    _configured = false;
+    _reportedUnconfigured = false;
     _baseUrl = null;
     _environment = RestageEnvironment.production;
     configureSurfaceDeliveryObservations(initializeFirstLaunch: false);

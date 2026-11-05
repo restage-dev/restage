@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/backend_sites.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/library_requirements_api.dart';
 import 'package:restage_cli/src/api/render_bundle_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
@@ -15,6 +16,7 @@ import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/libraries/island_fallback.dart';
 import 'package:restage_cli/src/receipts/release_recorder.dart';
 import 'package:restage_cli/src/receipts/render_bundle_receipt.dart';
 import 'package:restage_cli/src/receipts/source_boundary.dart';
@@ -22,6 +24,8 @@ import 'package:restage_cli/src/render_bundles/bundle_source.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
 import 'package:restage_cli/src/render_bundles/flutter_toolchain.dart';
 import 'package:restage_cli/src/render_bundles/generated_widget_catalog.dart';
+import 'package:restage_cli/src/render_bundles/package_resolution.dart'
+    show readProjectPackageName;
 import 'package:restage_cli/src/render_bundles/push_target.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_cli/src/render_bundles/render_bundle_archive.dart';
@@ -300,6 +304,48 @@ final class BuildPushCommand extends Command<int> {
     }
   }
 
+  // Names each live version that shows the compiled screen on this build.
+  Future<void> _reportIslandFallbacks({
+    required RestageApi api,
+    required String project,
+    required String app,
+    required int? organizationId,
+    required String renderCatalog,
+    required Directory projectRoot,
+  }) async {
+    try {
+      final live = await LibraryRequirementsApi(api).liveLibraryRequirements(
+        project: project,
+        app: app,
+        organizationId: organizationId,
+      );
+      final fallbacks = findIslandFallbacks(
+        live: live,
+        tokens: islandTokens(renderCatalog),
+        local: LocalIslands.read(
+          File(
+            generatedCompilerHandoffPath(
+              projectRoot,
+              readProjectPackageName(projectRoot),
+            ),
+          ),
+        ),
+      );
+      if (fallbacks.isEmpty) return;
+      _stdout.writeln(islandFallbacksHeading);
+      for (final fallback in fallbacks) {
+        _stdout.writeln(
+          '  ${fallback.version.environment}: ${fallback.sentence}',
+        );
+      }
+    } on Object {
+      _stdout.writeln(
+        "Restage couldn't check which live versions this build changes. "
+        'The push itself succeeded.',
+      );
+    }
+  }
+
   Future<int> _push({
     required RestageApi api,
     required LoadedConfig? loaded,
@@ -460,7 +506,22 @@ final class BuildPushCommand extends Command<int> {
         'Pushed $app ${outcome.headReference} version ${outcome.version}. '
         '$moved. ${describeBundleSource(source)}',
       );
-      if (recorder == null) return 0;
+      // Advisory, after the push and its receipt; it never changes the exit.
+      Future<int> reported(int code) async {
+        if (!withKey) {
+          await _reportIslandFallbacks(
+            api: api,
+            project: project,
+            app: app,
+            organizationId: organizationId,
+            renderCatalog: renderCatalog,
+            projectRoot: projectRoot,
+          );
+        }
+        return code;
+      }
+
+      if (recorder == null) return await reported(0);
       final head = parseRenderBundleHead(outcome.headReference);
       final written = await _recordReceipt(
         recorder: recorder,
@@ -479,7 +540,7 @@ final class BuildPushCommand extends Command<int> {
         toolchain: artifact.flutterVersion,
       );
       // The bundle is pushed either way; only the receipt is in question.
-      return written ? 0 : 2;
+      return await reported(written ? 0 : 2);
     } on RenderBundleUploadException catch (error) {
       _stderr.writeln(_uploadFailureMessage(error, withKey: withKey));
       return 2;

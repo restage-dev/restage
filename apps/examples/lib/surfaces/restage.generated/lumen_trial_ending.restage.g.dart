@@ -1,6 +1,6 @@
 part of '../lumen_trial_ending.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 sealed class LumenTrialEndingScreenSurfaceEvent {
   const LumenTrialEndingScreenSurfaceEvent();
@@ -124,8 +124,8 @@ final _lumenTrialEndingScreenPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -143,6 +143,7 @@ final _lumenTrialEndingScreenPlacementDefinitionValue =
     'flowBoundary': null
   },
   vocabulary: lumenTrialEndingScreenRef.provenance.vocabulary,
+  surfaceWidget: 'LumenTrialEndingScreenSurface',
 );
 
 final lumenTrialEndingScreenPlacementDefinition =
@@ -189,20 +190,26 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<LumenTrialEndingScreenSurfaceEvent>(
-      screen: lumenTrialEndingScreenRef,
-      placementBinding: RestageScreen.generatedPlacementBinding(
-        definition: lumenTrialEndingScreenPlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      unavailable: unavailable ??
-          SurfaceScreenUnavailablePolicy.fallback(
-            builder: (context, error) => LumenTrialEndingScreen(),
-          ),
-      onEvent: onEvent,
-      resolver: resolver,
-      onUnavailable: onUnavailable,
-      loadingBuilder: loadingBuilder,
-    );
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      return RestageScreen<LumenTrialEndingScreenSurfaceEvent>(
+        screen: lumenTrialEndingScreenRef,
+        placementBinding: RestageScreen.generatedPlacementBinding(
+          definition: lumenTrialEndingScreenPlacementDefinition,
+          name: _restagePlacementName,
+        ),
+        unavailable: unavailable ??
+            SurfaceScreenUnavailablePolicy.fallback(
+              builder: (_, error) => _restageBuilt,
+            ),
+        onEvent: onEvent,
+        resolver: resolver,
+        onUnavailable: onUnavailable,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return (() => _restageDesign(LumenTrialEndingScreen()))();
   }
 }

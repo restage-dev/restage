@@ -2667,10 +2667,10 @@ final class NotificationResult {
     }
 
     test(
-      'state().equals() lowers byte-identically to the raw wire predicate',
+      'flowState().equals() lowers byte-identically to the raw wire predicate',
       () async {
         final doc = await buildDoc(_sugarOperatorsSources());
-        // branch 0: state('goal').equals('sleep')
+        // branch 0: flowState('goal').equals('sleep')
         expect(
           _canonicalWhen(whenOf(doc, 0)),
           _canonicalWhen(
@@ -2689,156 +2689,150 @@ final class NotificationResult {
       },
     );
 
-    test(
-      'every operator + state-ref RHS lowers byte-identically to raw wire',
-      () async {
-        final doc = await buildDoc(_sugarOperatorsSources());
-        // branch 1: state('goal').notEquals('focus')
-        expect(
-          _canonicalWhen(whenOf(doc, 1)),
-          _canonicalWhen(
-            const FlowBranchPredicate(
-              fields: {
-                'goal': NotEqualsFlowPredicateCondition(
-                  value: LiteralFlowValueSource(
-                    type: FlowDataType.string,
-                    value: 'focus',
-                  ),
+    test('every operator + state-ref RHS lowers byte-identically to raw wire', () async {
+      final doc = await buildDoc(_sugarOperatorsSources());
+      // branch 1: flowState('goal').notEquals('focus')
+      expect(
+        _canonicalWhen(whenOf(doc, 1)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'goal': NotEqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(
+                  type: FlowDataType.string,
+                  value: 'focus',
                 ),
-              },
-            ),
+              ),
+            },
           ),
-        );
-        // branch 2: state('rating').atLeast(4)
-        expect(
-          _canonicalWhen(whenOf(doc, 2)),
-          _canonicalWhen(
-            const FlowBranchPredicate(
-              fields: {
-                'rating': GreaterThanOrEqualsFlowPredicateCondition(
-                  value: LiteralFlowValueSource(
-                    type: FlowDataType.int,
-                    value: 4,
-                  ),
+        ),
+      );
+      // branch 2: flowState('rating').atLeast(4)
+      expect(
+        _canonicalWhen(whenOf(doc, 2)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'rating': GreaterThanOrEqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(
+                  type: FlowDataType.int,
+                  value: 4,
                 ),
-              },
-            ),
+              ),
+            },
           ),
-        );
-        // branch 3: state('goal').oneOf(['sleep', 'focus'])
-        expect(
-          _canonicalWhen(whenOf(doc, 3)),
-          _canonicalWhen(
-            const FlowBranchPredicate(
-              fields: {
-                'goal': InFlowPredicateCondition(
-                  values: [
-                    LiteralFlowValueSource(
-                      type: FlowDataType.string,
-                      value: 'sleep',
-                    ),
-                    LiteralFlowValueSource(
-                      type: FlowDataType.string,
-                      value: 'focus',
-                    ),
-                  ],
-                ),
-              },
-            ),
-          ),
-        );
-        // branch 4: state('goal').isSet()
-        expect(
-          _canonicalWhen(whenOf(doc, 4)),
-          _canonicalWhen(
-            const FlowBranchPredicate(
-              fields: {'goal': ExistsFlowPredicateCondition(exists: true)},
-            ),
-          ),
-        );
-        // branch 5: state('goal').equals(state('preferred')) — state-ref RHS
-        expect(
-          _canonicalWhen(whenOf(doc, 5)),
-          _canonicalWhen(
-            const FlowBranchPredicate(
-              fields: {
-                'goal': EqualsFlowPredicateCondition(
-                  value: StateFlowValueSource(key: 'preferred'),
-                ),
-              },
-            ),
-          ),
-        );
-        // branch 7: state('rating').atLeast(-5) — a negative int literal must
-        // lower the same as the runtime leg (both legs accept negative ints).
-        expect(
-          _canonicalWhen(whenOf(doc, 7)),
-          _canonicalWhen(
-            const FlowBranchPredicate(
-              fields: {
-                'rating': GreaterThanOrEqualsFlowPredicateCondition(
-                  value: LiteralFlowValueSource(
-                    type: FlowDataType.int,
-                    value: -5,
-                  ),
-                ),
-              },
-            ),
-          ),
-        );
-        // branch 8: state('rating').atLeast((4)) — a parenthesized literal lowers
-        // the same as a bare literal (the runtime sees the unwrapped value).
-        expect(
-          _canonicalWhen(whenOf(doc, 8)),
-          _canonicalWhen(
-            const FlowBranchPredicate(
-              fields: {
-                'rating': GreaterThanOrEqualsFlowPredicateCondition(
-                  value: LiteralFlowValueSource(
-                    type: FlowDataType.int,
-                    value: 4,
-                  ),
-                ),
-              },
-            ),
-          ),
-        );
-        // branch 9: state('goal').equals('sl' 'eep') — adjacent string literals
-        // fold to one string, the same as the runtime leg.
-        expect(
-          _canonicalWhen(whenOf(doc, 9)),
-          _canonicalWhen(
-            const FlowBranchPredicate(
-              fields: {
-                'goal': EqualsFlowPredicateCondition(
-                  value: LiteralFlowValueSource(
+        ),
+      );
+      // branch 3: flowState('goal').oneOf(['sleep', 'focus'])
+      expect(
+        _canonicalWhen(whenOf(doc, 3)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'goal': InFlowPredicateCondition(
+                values: [
+                  LiteralFlowValueSource(
                     type: FlowDataType.string,
                     value: 'sleep',
                   ),
-                ),
-              },
-            ),
-          ),
-        );
-        // branch 10: state('rating').atLeast(-(5)) — a parenthesized negative
-        // int lowers the same as a bare negative (operand parens are unwrapped).
-        expect(
-          _canonicalWhen(whenOf(doc, 10)),
-          _canonicalWhen(
-            const FlowBranchPredicate(
-              fields: {
-                'rating': GreaterThanOrEqualsFlowPredicateCondition(
-                  value: LiteralFlowValueSource(
-                    type: FlowDataType.int,
-                    value: -5,
+                  LiteralFlowValueSource(
+                    type: FlowDataType.string,
+                    value: 'focus',
                   ),
-                ),
-              },
-            ),
+                ],
+              ),
+            },
           ),
-        );
-      },
-    );
+        ),
+      );
+      // branch 4: flowState('goal').isSet()
+      expect(
+        _canonicalWhen(whenOf(doc, 4)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {'goal': ExistsFlowPredicateCondition(exists: true)},
+          ),
+        ),
+      );
+      // branch 5: flowState('goal').equals(flowState('preferred')) — state-ref RHS
+      expect(
+        _canonicalWhen(whenOf(doc, 5)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'goal': EqualsFlowPredicateCondition(
+                value: StateFlowValueSource(key: 'preferred'),
+              ),
+            },
+          ),
+        ),
+      );
+      // branch 7: flowState('rating').atLeast(-5) — a negative int literal must
+      // lower the same as the runtime leg (both legs accept negative ints).
+      expect(
+        _canonicalWhen(whenOf(doc, 7)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'rating': GreaterThanOrEqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(
+                  type: FlowDataType.int,
+                  value: -5,
+                ),
+              ),
+            },
+          ),
+        ),
+      );
+      // branch 8: flowState('rating').atLeast((4)) — a parenthesized literal lowers
+      // the same as a bare literal (the runtime sees the unwrapped value).
+      expect(
+        _canonicalWhen(whenOf(doc, 8)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'rating': GreaterThanOrEqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(type: FlowDataType.int, value: 4),
+              ),
+            },
+          ),
+        ),
+      );
+      // branch 9: flowState('goal').equals('sl' 'eep') — adjacent string literals
+      // fold to one string, the same as the runtime leg.
+      expect(
+        _canonicalWhen(whenOf(doc, 9)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'goal': EqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(
+                  type: FlowDataType.string,
+                  value: 'sleep',
+                ),
+              ),
+            },
+          ),
+        ),
+      );
+      // branch 10: flowState('rating').atLeast(-(5)) — a parenthesized negative
+      // int lowers the same as a bare negative (operand parens are unwrapped).
+      expect(
+        _canonicalWhen(whenOf(doc, 10)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'rating': GreaterThanOrEqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(
+                  type: FlowDataType.int,
+                  value: -5,
+                ),
+              ),
+            },
+          ),
+        ),
+      );
+    });
 
     test(
       'allOf merges distinct single-field predicates into one branch',
@@ -2868,9 +2862,9 @@ final class NotificationResult {
     });
 
     test(
-      'a non-Restage state().<op>() chain is not reinterpreted as sugar',
+      'a non-Restage flowState().<op>() chain is not reinterpreted as sugar',
       () async {
-        // A same-named app-defined `state(...)` returning a different
+        // A same-named app-defined `flowState(...)` returning a different
         // predicate must NOT be silently lowered to our wire — element resolution
         // rejects it, so
         // it falls to the raw-constructor path and fails the build loud.
@@ -4214,7 +4208,7 @@ final class DecisionRouteFlow extends RestageFlow {
           route,
           branches: [
             flowBranch(
-              when: state('goal').equals('sleep'),
+              when: flowState('goal').equals('sleep'),
               target: sleepScreenRef,
             ),
           ],
@@ -4276,29 +4270,29 @@ final class DecisionRouteFlow extends RestageFlow {
         decision(
           route,
           branches: [
-            flowBranch(when: state('goal').equals('sleep'), target: done),
-            flowBranch(when: state('goal').notEquals('focus'), target: done),
-            flowBranch(when: state('rating').atLeast(4), target: done),
+            flowBranch(when: flowState('goal').equals('sleep'), target: done),
+            flowBranch(when: flowState('goal').notEquals('focus'), target: done),
+            flowBranch(when: flowState('rating').atLeast(4), target: done),
             flowBranch(
-              when: state('goal').oneOf(['sleep', 'focus']),
+              when: flowState('goal').oneOf(['sleep', 'focus']),
               target: done,
             ),
-            flowBranch(when: state('goal').isSet(), target: done),
+            flowBranch(when: flowState('goal').isSet(), target: done),
             flowBranch(
-              when: state('goal').equals(state('preferred')),
+              when: flowState('goal').equals(flowState('preferred')),
               target: done,
             ),
             flowBranch(
               when: allOf([
-                state('rating').atLeast(4),
-                state('isPro').equals(true),
+                flowState('rating').atLeast(4),
+                flowState('isPro').equals(true),
               ]),
               target: done,
             ),
-            flowBranch(when: state('rating').atLeast(-5), target: done),
-            flowBranch(when: state('rating').atLeast((4)), target: done),
-            flowBranch(when: state('goal').equals('sl' 'eep'), target: done),
-            flowBranch(when: state('rating').atLeast(-(5)), target: done),
+            flowBranch(when: flowState('rating').atLeast(-5), target: done),
+            flowBranch(when: flowState('rating').atLeast((4)), target: done),
+            flowBranch(when: flowState('goal').equals('sl' 'eep'), target: done),
+            flowBranch(when: flowState('rating').atLeast(-(5)), target: done),
           ],
           defaultBranch: flowBranchTarget(done),
         ),
@@ -4347,8 +4341,8 @@ final class DecisionRouteFlow extends RestageFlow {
           branches: [
             flowBranch(
               when: allOf([
-                state('age').atLeast(18),
-                state('age').atMost(65),
+                flowState('age').atLeast(18),
+                flowState('age').atMost(65),
               ]),
               target: done,
             ),
@@ -4398,7 +4392,7 @@ final class DecisionRouteFlow extends RestageFlow {
         decision(
           route,
           branches: [
-            flowBranch(when: state('age').greaterThan('old'), target: done),
+            flowBranch(when: flowState('age').greaterThan('old'), target: done),
           ],
           defaultBranch: flowBranchTarget(done),
         ),
@@ -4423,7 +4417,7 @@ import '../screens/start.dart';
 
 part 'restage.generated/decision_route.restage.g.dart';
 
-// An app-defined construct that happens to spell `state(...).equals(...)`
+// An app-defined construct that happens to spell `flowState(...).equals(...)`
 // but is NOT the Restage SDK sugar.
 class _CustomRef {
   const _CustomRef();
@@ -4431,7 +4425,7 @@ class _CustomRef {
       const FlowBranchPredicate(fields: {});
 }
 
-_CustomRef state(String key) => const _CustomRef();
+_CustomRef flowState(String key) => const _CustomRef();
 
 @FlowSource(id: 'decision_route', version: 1)
 final class DecisionRouteFlow extends RestageFlow {
@@ -4455,7 +4449,7 @@ final class DecisionRouteFlow extends RestageFlow {
         decision(
           route,
           branches: [
-            flowBranch(when: state('goal').equals('sleep'), target: done),
+            flowBranch(when: flowState('goal').equals('sleep'), target: done),
           ],
           defaultBranch: flowBranchTarget(done),
         ),

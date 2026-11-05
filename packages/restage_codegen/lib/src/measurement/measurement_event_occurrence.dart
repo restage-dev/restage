@@ -135,6 +135,10 @@ final class MeasurementOccurrenceScope {
   MeasurementOccurrenceScope enterConditionalBranch({required bool then}) =>
       _append(then ? 'cond:then' : 'cond:else');
 
+  /// The scope of the [index]th path a build renders, of several.
+  MeasurementOccurrenceScope enterBuildBranch(int index) =>
+      _append('branch:$index');
+
   MeasurementOccurrenceScope _append(String segment) => _copy(
     pathSegments: <String>[...pathSegments, segment],
   );
@@ -438,6 +442,14 @@ final class MeasurementWidgetListOccurrence {
     slot: slot,
     scope: scope.enterConditionalBranch(then: then),
   );
+
+  /// The list occurrence on the [index]th path a build renders.
+  MeasurementWidgetListOccurrence enterBuildBranch(int index) =>
+      MeasurementWidgetListOccurrence._(
+        parent: parent,
+        slot: slot,
+        scope: scope.enterBuildBranch(index),
+      );
 
   /// Selects one exact element occurrence.
   MeasurementOccurrenceScope element(

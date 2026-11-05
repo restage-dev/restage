@@ -1,6 +1,6 @@
 part of '../get_started_screen.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 sealed class GetStartedScreenSurfaceEvent {
   const GetStartedScreenSurfaceEvent();
@@ -25,13 +25,13 @@ final _getStartedScreenProvenance = SurfaceScreenRuntimeProvenance.generated(
   slug: 'get_started_screen',
   contractVersion: 1,
   capabilities: CapabilityManifest(
-    builtInFloor: 1,
+    builtInFloor: 24,
     requiredLibraries: const [],
   ),
   eventSchemaJson:
       '{"schemaVersion":1,"events":[{"id":"continue","arguments":{"encoding":"value","shape":{"kind":"string"}}}]}',
   hostDataSchemaJson:
-      '{"schemaVersion":1,"inputs":{"context":{"kind":"string"},"data":{"kind":"string"},"description":{"kind":"string"},"enabled":{"kind":"bool"},"itemContext":{"kind":"string"},"title":{"kind":"string"},"usage":{"kind":"string"}}}',
+      '{"schemaVersion":1,"inputs":{"_hb227fda92b":{"kind":"nativeBinding","contract":{"type":"flutter.Key","nullable":false},"label":"const ValueKey(\'get-started-action\')"},"context":{"kind":"string"},"data":{"kind":"string"},"description":{"kind":"string"},"enabled":{"kind":"bool"},"itemContext":{"kind":"string"},"title":{"kind":"string"},"usage":{"kind":"string"}}}',
   vocabulary: const SurfaceVocabulary(
     widgets: RestageWidgetLibraries.fromVocabulary(
       core: {'Center': buildCenter, 'Text': buildText},
@@ -47,7 +47,7 @@ final getStartedScreenRef =
       provenance: _getStartedScreenProvenance,
       eventContract: _getStartedScreenEvents,
       measurementPublicationDraftDigest:
-          '7f2489841a7737ed05008ce9c08cb4644704c9de28050d7283bcddf2c16a1e18',
+          '0f285024e0b273cb31d26b74f1ad358b40633a24504d3b2129e67bdf0d5b8916',
     );
 
 GetStartedScreenSurfaceEvent _decodeValidatedGetStartedScreenSurfaceEvent(
@@ -83,6 +83,14 @@ final _getStartedScreenPlacementDefinitionValue =
         'providedContext': <String, Object?>{
           'schemaVersion': 1,
           'inputs': <String, Object?>{
+            '_hb227fda92b': <String, Object?>{
+              'kind': 'nativeBinding',
+              'contract': <String, Object?>{
+                'type': 'flutter.Key',
+                'nullable': false,
+              },
+              'label': 'const ValueKey(\'get-started-action\')',
+            },
             'context': <String, Object?>{'kind': 'string'},
             'data': <String, Object?>{'kind': 'string'},
             'description': <String, Object?>{'kind': 'string'},
@@ -107,6 +115,7 @@ final _getStartedScreenPlacementDefinitionValue =
         'flowBoundary': null,
       },
       vocabulary: getStartedScreenRef.provenance.vocabulary,
+      surfaceWidget: 'GetStartedScreenSurface',
     );
 
 final getStartedScreenPlacementDefinition = () =>
@@ -151,15 +160,13 @@ final class GetStartedScreenSurface extends StatelessWidget {
     this.onUnavailable,
     this.loadingBuilder,
     this.unavailable,
-  }) : _restageArgument1 = title,
-       _restageArgument2 = enabled,
-       _restageArgument3 = tone,
-       _restageArgument4 = data,
-       _restageArgument5 = context,
-       _restageArgument6 = itemContext,
-       _restageArgument7 = restageA2uiStatus,
-       _restageArgument8 = description,
-       _restageArgument9 = usage,
+  }) : _restageStored1 = title,
+       _restageStored2 = enabled,
+       _restageStored4 = data,
+       _restageStored5 = context,
+       _restageStored6 = itemContext,
+       _restageStored8 = description,
+       _restageStored9 = usage,
        _restagePlacementName = placement;
 
   /// Overrides the implicit placement with an explicit name.
@@ -182,34 +189,35 @@ final class GetStartedScreenSurface extends StatelessWidget {
     this.onUnavailable,
     this.loadingBuilder,
     this.unavailable,
-  }) : _restageArgument1 = title,
-       _restageArgument2 = enabled,
-       _restageArgument3 = tone,
-       _restageArgument4 = data,
-       _restageArgument5 = context,
-       _restageArgument6 = itemContext,
-       _restageArgument7 = restageA2uiStatus,
-       _restageArgument8 = description,
-       _restageArgument9 = usage,
+  }) : _restageStored1 = title,
+       _restageStored2 = enabled,
+       _restageStored4 = data,
+       _restageStored5 = context,
+       _restageStored6 = itemContext,
+       _restageStored8 = description,
+       _restageStored9 = usage,
        _restagePlacementName = restagePlacementId;
 
-  final String _restageArgument1;
+  final String _restageStored1;
+  String get _restageArgument1 => _restageStored1;
 
-  final bool _restageArgument2;
+  final bool _restageStored2;
+  bool get _restageArgument2 => _restageStored2;
 
-  final GetStartedScreenTone _restageArgument3;
+  final String _restageStored4;
+  String get _restageArgument4 => _restageStored4;
 
-  final String _restageArgument4;
+  final String _restageStored5;
+  String get _restageArgument5 => _restageStored5;
 
-  final String _restageArgument5;
+  final String _restageStored6;
+  String get _restageArgument6 => _restageStored6;
 
-  final String _restageArgument6;
+  final String _restageStored8;
+  String get _restageArgument8 => _restageStored8;
 
-  final GetStartedScreenTone _restageArgument7;
-
-  final String _restageArgument8;
-
-  final String _restageArgument9;
+  final String _restageStored9;
+  String get _restageArgument9 => _restageStored9;
   final String? _restagePlacementName;
 
   final ValueChanged<GetStartedScreenSurfaceEvent>? onEvent;
@@ -224,40 +232,78 @@ final class GetStartedScreenSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<GetStartedScreenSurfaceEvent>(
-      screen: getStartedScreenRef,
-      placementBinding: RestageScreen.generatedPlacementBinding(
-        definition: getStartedScreenPlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      context: <String, Object?>{
-        'title': _restageArgument1,
-        'enabled': _restageArgument2,
-        'data': _restageArgument4,
-        'context': _restageArgument5,
-        'itemContext': _restageArgument6,
-        'description': _restageArgument8,
-        'usage': _restageArgument9,
-      },
-      unavailable:
-          unavailable ??
-          SurfaceScreenUnavailablePolicy.fallback(
-            builder: (context, error) => GetStartedScreen(
-              title: _restageArgument1,
-              enabled: _restageArgument2,
-              tone: _restageArgument3,
-              data: _restageArgument4,
-              context: _restageArgument5,
-              itemContext: _restageArgument6,
-              restageA2uiStatus: _restageArgument7,
-              description: _restageArgument8,
-              usage: _restageArgument9,
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      return RestageNativeValues(
+        bindings: _restageRecording.bindings(
+          (key) => switch (key.split('#').first) {
+            '_hb227fda92b' => NativeBindingContract(
+              type: 'flutter.Key',
+              nullable: false,
             ),
+            _ => throw StateError(key),
+          },
+          {},
+        ),
+        labels: const bool.fromEnvironment('dart.vm.product')
+            ? const <String, String>{}
+            : const <String, String>{
+                '_hb227fda92b': 'const ValueKey(\'get-started-action\')',
+              },
+        child: RestageScreen<GetStartedScreenSurfaceEvent>(
+          screen: getStartedScreenRef,
+          placementBinding: RestageScreen.generatedPlacementBinding(
+            definition: getStartedScreenPlacementDefinition,
+            name: _restagePlacementName,
           ),
-      onEvent: onEvent,
-      resolver: resolver,
-      onUnavailable: onUnavailable,
-      loadingBuilder: loadingBuilder,
-    );
+          context: <String, Object?>{
+            ..._restageRecording.values,
+            'title': _restageArgument1,
+            'enabled': _restageArgument2,
+            'data': _restageArgument4,
+            'context': _restageArgument5,
+            'itemContext': _restageArgument6,
+            'description': _restageArgument8,
+            'usage': _restageArgument9,
+            '_hb227fda92b': <String, Object?>{
+              "kind": "nativeBinding",
+              "key": '_hb227fda92b',
+              "type": 'flutter.Key',
+              "nullable": false,
+            },
+          },
+          unavailable:
+              unavailable ??
+              SurfaceScreenUnavailablePolicy.fallback(
+                builder: (_, error) => _restageBuilt,
+              ),
+          onEvent: onEvent,
+          resolver: resolver,
+          onUnavailable: onUnavailable,
+          loadingBuilder: loadingBuilder,
+        ),
+      );
+    }
+
+    return (() {
+      return _restageDesign(
+        Center(
+          child: ElevatedButton(
+            key: _restageRecording.native(
+              '_hb227fda92b',
+              const ValueKey('get-started-action'),
+              type: 'flutter.Key',
+              nullable: false,
+            ),
+            onPressed: _restageRecording.surfaceEvent(
+              GetStartedScreen.continueEvent,
+              'preview',
+            ),
+            child: const Text('Get started'),
+          ),
+        ),
+      );
+    })();
   }
 }

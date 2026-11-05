@@ -17,6 +17,7 @@ import 'dart:ui'
         Size;
 
 import 'package:flutter/gestures.dart';
+import 'package:restage_core/src/runtime/island_stage.dart';
 import 'package:restage_core/src/runtime/resource_builder.dart';
 import 'package:restage_core/src/runtime/rfw_constructor_presence.dart';
 
@@ -77,6 +78,7 @@ import 'package:flutter/widgets.dart'
     show
         BuildContext,
         IconThemeData,
+        GlobalKey,
         Key,
         PreferredSizeWidget,
         ScrollNotificationPredicate,
@@ -134,12 +136,18 @@ abstract final class RestageDecoders {
   }
 
   /// Resolves a borrowed key for the actual native widget constructor.
+  ///
+  /// A global key waits while its version is staged beside the shown one.
   static Key? nativeKey(
     BuildContext context,
     DataSource source,
     List<Object> path,
-  ) =>
-      nativeBinding<Key>(context, source, path, type: 'flutter.Key');
+  ) {
+    final key = nativeBinding<Key>(context, source, path, type: 'flutter.Key');
+    return key is GlobalKey && RestageIslandStage.isCandidate(context)
+        ? null
+        : key;
+  }
 
   /// Rejects a key whose original widget owner a guarded replacement erases.
   ///
@@ -262,14 +270,25 @@ abstract final class RestageDecoders {
   /// Decodes exact native weights or standard weight tokens.
   static FontWeight? fontWeight(DataSource source, List<Object> path) {
     final value = source.v<int>(path);
-    if (value == null) {
-      return ArgumentDecoders.enumValue(FontWeight.values, source, path);
-    }
+    if (value == null) return _fontWeightTokens[source.v<String>(path)];
     if (value < 1 || value > 1000) {
       throw const FormatException('Font weight must be between 1 and 1000');
     }
     return FontWeight(value);
   }
+
+  // An explicit table: release builds strip `FontWeight.toString`.
+  static const _fontWeightTokens = <String?, FontWeight>{
+    'w100': FontWeight.w100,
+    'w200': FontWeight.w200,
+    'w300': FontWeight.w300,
+    'w400': FontWeight.w400,
+    'w500': FontWeight.w500,
+    'w600': FontWeight.w600,
+    'w700': FontWeight.w700,
+    'w800': FontWeight.w800,
+    'w900': FontWeight.w900,
+  };
 
   /// Decodes a paint with exact color and mode-filter components.
   static Paint? paint(DataSource source, List<Object> path) {
@@ -347,6 +366,18 @@ abstract final class RestageDecoders {
 
   static void Function(T) _valueChanged<T>(HandlerTrigger trigger) =>
       (T value) => trigger(<String, Object?>{'value': value});
+
+  /// Decodes an event slot that only the app's own callback can fill: a
+  /// design event can't supply Flutter's arguments, so it is refused.
+  static T? nativeCallback<T extends Function>(
+          DataSource source, List<Object> path, String slot) =>
+      source.handler<T>(
+          path,
+          (_) => throw ArgumentError(
+              "`$slot` needs a function from the app's code. Flutter calls it "
+              "with arguments, which an event from the design can't receive. "
+              "Try passing a function from your app's code to "
+              "`${slot.split('.').last}`."));
 
   /// Decodes an enum member by its declared name.
   ///

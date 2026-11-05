@@ -1,6 +1,6 @@
 part of '../stride_goals.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const strideGoalsScreenRef = NeutralFlowScreenRef(
   id: 'stride_goals',

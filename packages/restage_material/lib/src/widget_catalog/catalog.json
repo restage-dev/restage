@@ -60,6 +60,7 @@
           "name": "onPressed",
           "type": "event",
           "description": "",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -856,10 +857,6 @@
           "name": "elevation",
           "type": "length",
           "description": "The z-coordinate at which to place this card. This controls the size of the shadow below the card.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": 1.0
-          },
           "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
@@ -984,10 +981,6 @@
           "name": "elevation",
           "type": "length",
           "description": "The z-coordinate at which to place this card. This controls the size of the shadow below the card.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": 0.0
-          },
           "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
@@ -1112,10 +1105,6 @@
           "name": "elevation",
           "type": "length",
           "description": "The z-coordinate at which to place this card. This controls the size of the shadow below the card.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": 0.0
-          },
           "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
@@ -1242,6 +1231,7 @@
           "description": "Called when the value of the checkbox should change.",
           "required": true,
           "callbackSignature": "ValueChanged<bool?>",
+          "callbackTypeId": "(dart:core#bool?)->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
@@ -1319,6 +1309,7 @@
           "description": "Called when the value of the checkbox should change.",
           "required": true,
           "callbackSignature": "ValueChanged<bool?>",
+          "callbackTypeId": "(dart:core#bool?)->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
@@ -1406,6 +1397,16 @@
           }
         },
         {
+          "wireId": "p0590",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "{@macro flutter.material.inkwell.onFocusChange}",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
           "wireId": "p0421",
           "name": "analyticsId",
           "type": "string",
@@ -1461,6 +1462,16 @@
             "kind": "scalar",
             "propertyType": "widget"
           }
+        },
+        {
+          "wireId": "p0591",
+          "name": "onDeleted",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0354",
@@ -1575,6 +1586,7 @@
           "type": "event",
           "description": "",
           "callbackSignature": "ValueChanged<bool>",
+          "callbackTypeId": "(dart:core#bool)->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -1733,10 +1745,6 @@
           "name": "strokeWidth",
           "type": "length",
           "description": "The width of the line used to draw the circle.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": 4.0
-          },
           "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
@@ -1786,10 +1794,6 @@
           "name": "height",
           "type": "length",
           "description": "The divider's height extent.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": 16.0
-          },
           "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
@@ -1805,10 +1809,6 @@
           "name": "thickness",
           "type": "length",
           "description": "The thickness of the line drawn within the divider.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": 1.0
-          },
           "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
@@ -1875,9 +1875,40 @@
           "type": "event",
           "description": "",
           "required": true,
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
+        },
+        {
+          "wireId": "p0592",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0593",
+          "name": "onHover",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0594",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0356",
@@ -1943,15 +1974,6 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "Padding inside the button.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": [
-              24.0,
-              12.0,
-              24.0,
-              12.0
-            ]
-          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -1966,10 +1988,6 @@
           "name": "elevation",
           "type": "length",
           "description": "Material elevation in logical pixels.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": 1.0
-          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "length",
@@ -2220,6 +2238,7 @@
           "type": "event",
           "description": "Called when the tile expands or collapses.",
           "callbackSignature": "ValueChanged<bool>",
+          "callbackTypeId": "(dart:core#bool)->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -2354,9 +2373,40 @@
           "type": "event",
           "description": "",
           "required": true,
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
+        },
+        {
+          "wireId": "p0595",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0596",
+          "name": "onHover",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0597",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0358",
@@ -2426,15 +2476,6 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "Padding inside the button.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": [
-              24.0,
-              12.0,
-              24.0,
-              12.0
-            ]
-          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -2449,10 +2490,6 @@
           "name": "elevation",
           "type": "length",
           "description": "Material elevation in logical pixels.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": 0.0
-          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "length",
@@ -2670,9 +2707,40 @@
           "type": "event",
           "description": "",
           "required": true,
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
+        },
+        {
+          "wireId": "p0598",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0599",
+          "name": "onHover",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0600",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0359",
@@ -2742,15 +2810,6 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "Padding inside the button.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": [
-              24.0,
-              12.0,
-              24.0,
-              12.0
-            ]
-          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -3001,8 +3060,19 @@
           "type": "event",
           "description": "",
           "callbackSignature": "ValueChanged<bool>",
+          "callbackTypeId": "(dart:core#bool)->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0601",
+          "name": "onDeleted",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0360",
@@ -3185,6 +3255,7 @@
           "name": "onPressed",
           "type": "event",
           "description": "The callback that is called when the button is tapped or otherwise activated.",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -3403,10 +3474,6 @@
           "name": "iconSize",
           "type": "length",
           "description": "The size of the icon inside the button.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": 24.0
-          },
           "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
@@ -3439,9 +3506,30 @@
           "type": "event",
           "description": "The callback that is called when the button is tapped or otherwise activated.",
           "required": true,
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
+        },
+        {
+          "wireId": "p0602",
+          "name": "onHover",
+          "type": "event",
+          "description": "The callback that is called when the button is hovered.",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0603",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "The callback that is called when the button is long-pressed.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0105",
@@ -3520,8 +3608,129 @@
           "name": "onTap",
           "type": "event",
           "description": "",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0604",
+          "name": "onDoubleTap",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0605",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0606",
+          "name": "onLongPressUp",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0607",
+          "name": "onTapDown",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(package:flutter/src/gestures/tap.dart#TapDownDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0608",
+          "name": "onTapUp",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(package:flutter/src/gestures/tap.dart#TapUpDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0609",
+          "name": "onTapCancel",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0610",
+          "name": "onSecondaryTap",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0611",
+          "name": "onSecondaryTapUp",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(package:flutter/src/gestures/tap.dart#TapUpDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0612",
+          "name": "onSecondaryTapDown",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(package:flutter/src/gestures/tap.dart#TapDownDetails)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0613",
+          "name": "onSecondaryTapCancel",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0614",
+          "name": "onHighlightChanged",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0615",
+          "name": "onHover",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0273",
@@ -3538,6 +3747,16 @@
             },
             "wireCodec": "rfwShapeBorder"
           }
+        },
+        {
+          "wireId": "p0616",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0435",
@@ -3734,8 +3953,29 @@
           "name": "onTap",
           "type": "event",
           "description": "Called when the user taps this list tile.",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0617",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "Called when the user long-presses on this list tile.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0618",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "{@macro flutter.material.inkwell.onFocusChange}",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0437",
@@ -3783,6 +4023,16 @@
           }
         },
         {
+          "wireId": "p0619",
+          "name": "onNavigationNotification",
+          "type": "event",
+          "description": "{@macro flutter.widgets.widgetsApp.onNavigationNotification}",
+          "callbackTypeId": "(package:flutter/src/widgets/navigator.dart#NavigationNotification)->dart:core#bool",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
           "wireId": "p0118",
           "name": "title",
           "type": "string",
@@ -3800,6 +4050,24 @@
               "symbolName": "String"
             }
           }
+        },
+        {
+          "wireId": "p0648",
+          "name": "localeListResolutionCallback",
+          "type": "event",
+          "description": "{@macro flutter.widgets.widgetsApp.localeListResolutionCallback}",
+          "callbackTypeId": "(dart:core#List<dart:ui#Locale>?,dart:core#Iterable<dart:ui#Locale>)->dart:ui#Locale?",
+          "constructorNullable": true,
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0649",
+          "name": "localeResolutionCallback",
+          "type": "event",
+          "description": "{@macro flutter.widgets.LocaleResolutionCallback}",
+          "callbackTypeId": "(dart:ui#Locale?,dart:core#Iterable<dart:ui#Locale>)->dart:ui#Locale?",
+          "constructorNullable": true,
+          "sinceVersion": 26
         },
         {
           "wireId": "p0438",
@@ -4187,6 +4455,7 @@
           "name": "onSheetDismissed",
           "type": "event",
           "description": "Fires when the sheet is dismissed by a downward drag or a scrim tap. Distinct from the paywall-level dismiss: this is the *sheet* closing, not the surface that hosts it. Wire it back to `open = false`.",
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -4319,6 +4588,7 @@
           "type": "event",
           "description": "Fires with the new page index when the visible page changes.",
           "callbackSignature": "ValueChanged<int>",
+          "callbackTypeId": "(dart:core#int)->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -4386,6 +4656,7 @@
           "type": "event",
           "description": "Fires with the newly-selected value when the user taps a row. `null` disables selection (the rows render but do not respond).",
           "callbackSignature": "ValueChanged<String?>",
+          "callbackTypeId": "(dart:core#String?)->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -4454,6 +4725,7 @@
           "type": "event",
           "description": "Fires with the newly-selected value when the user picks an option. `null` disables the dropdown (it renders but does not open).",
           "callbackSignature": "ValueChanged<String?>",
+          "callbackTypeId": "(dart:core#String?)->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -4534,6 +4806,7 @@
           "type": "event",
           "description": "Fires with the pressed button's index when the user presses a button. `null` disables the set (the buttons render but do not respond).",
           "callbackSignature": "ValueChanged<int>",
+          "callbackTypeId": "(dart:core#int)->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -4606,6 +4879,7 @@
           "type": "event",
           "description": "Fires with the whole settled selection — a `List<T>` in **segment order** — when the user changes the selection. `null` leaves the button non-interactive (it renders the initial selection but does not respond).",
           "callbackSignature": "ValueChanged<List<String>>",
+          "callbackTypeId": "(dart:core#List<dart:core#String>)->void",
           "constructorNullable": true,
           "category": "behavior"
         },
@@ -4904,9 +5178,40 @@
           "type": "event",
           "description": "",
           "required": true,
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
+        },
+        {
+          "wireId": "p0620",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0621",
+          "name": "onHover",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0622",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0362",
@@ -4957,15 +5262,6 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "Padding inside the button.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": [
-              24.0,
-              12.0,
-              24.0,
-              12.0
-            ]
-          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -5169,9 +5465,40 @@
           "type": "event",
           "description": "",
           "required": true,
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
+        },
+        {
+          "wireId": "p0623",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0624",
+          "name": "onHover",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0625",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0363",
@@ -5234,15 +5561,6 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "Padding inside the button.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": [
-              24.0,
-              12.0,
-              24.0,
-              12.0
-            ]
-          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -5459,6 +5777,26 @@
           }
         },
         {
+          "wireId": "p0626",
+          "name": "onDrawerChanged",
+          "type": "event",
+          "description": "Optional callback that is called when the [Scaffold.drawer] is opened or closed.",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0627",
+          "name": "onEndDrawerChanged",
+          "type": "event",
+          "description": "Optional callback that is called when the [Scaffold.endDrawer] is opened or closed.",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
           "wireId": "p0139",
           "name": "backgroundColor",
           "type": "color",
@@ -5588,6 +5926,15 @@
           }
         },
         {
+          "wireId": "p0628",
+          "name": "notificationPredicate",
+          "type": "event",
+          "description": "{@macro flutter.widgets.Scrollbar.notificationPredicate}",
+          "callbackTypeId": "(package:flutter/src/widgets/scroll_notification.dart#ScrollNotification)->dart:core#bool",
+          "constructorNullable": true,
+          "sinceVersion": 26
+        },
+        {
           "wireId": "p0144",
           "name": "interactive",
           "type": "boolean",
@@ -5673,8 +6020,29 @@
           "type": "event",
           "description": "Called during a drag when the user is selecting a new value for the slider by dragging.",
           "callbackSignature": "ValueChanged<double>",
+          "callbackTypeId": "(dart:core#double)->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0629",
+          "name": "onChangeStart",
+          "type": "event",
+          "description": "Called when the user starts selecting a new value for the slider.",
+          "callbackTypeId": "(dart:core#double)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0630",
+          "name": "onChangeEnd",
+          "type": "event",
+          "description": "Called when the user is done selecting a new value for the slider.",
+          "callbackTypeId": "(dart:core#double)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0148",
@@ -5745,6 +6113,16 @@
           }
         },
         {
+          "wireId": "p0631",
+          "name": "semanticFormatterCallback",
+          "type": "event",
+          "description": "The callback used to create a semantic value from a slider value.",
+          "callbackTypeId": "(dart:core#double)->dart:core#String",
+          "constructorNullable": true,
+          "category": "accessibility",
+          "sinceVersion": 26
+        },
+        {
           "wireId": "p0451",
           "name": "analyticsId",
           "type": "string",
@@ -5801,6 +6179,7 @@
           "description": "Called when the user toggles the switch on or off.",
           "required": true,
           "callbackSignature": "ValueChanged<bool>",
+          "callbackTypeId": "(dart:core#bool)->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
@@ -5819,6 +6198,16 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0632",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "{@macro flutter.material.inkwell.onFocusChange}",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0452",
@@ -5877,6 +6266,7 @@
           "description": "Called when the user toggles the switch on or off.",
           "required": true,
           "callbackSignature": "ValueChanged<bool>",
+          "callbackTypeId": "(dart:core#bool)->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
@@ -5895,6 +6285,16 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0633",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "{@macro flutter.material.inkwell.onFocusChange}",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0158",
@@ -5985,9 +6385,40 @@
           "type": "event",
           "description": "",
           "required": true,
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
+        },
+        {
+          "wireId": "p0634",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0635",
+          "name": "onHover",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0636",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0364",
@@ -6037,15 +6468,6 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "Padding inside the button.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": [
-              24.0,
-              12.0,
-              24.0,
-              12.0
-            ]
-          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -6249,9 +6671,40 @@
           "type": "event",
           "description": "",
           "required": true,
+          "callbackTypeId": "()->void",
           "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
+        },
+        {
+          "wireId": "p0637",
+          "name": "onLongPress",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0638",
+          "name": "onHover",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0639",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "",
+          "callbackTypeId": "(dart:core#bool)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0365",
@@ -6318,15 +6771,6 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "Padding inside the button.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": [
-              24.0,
-              12.0,
-              24.0,
-              12.0
-            ]
-          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -6882,8 +7326,29 @@
           "type": "event",
           "description": "An optional callback that's called when the [TabBar] is tapped.",
           "callbackSignature": "ValueChanged<int>",
+          "callbackTypeId": "(dart:core#int)->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0640",
+          "name": "onHover",
+          "type": "event",
+          "description": "An optional callback that's called when a [Tab]'s hover state in the [TabBar] changes.",
+          "callbackTypeId": "(dart:core#bool,dart:core#int)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0641",
+          "name": "onFocusChange",
+          "type": "event",
+          "description": "An optional callback that's called when a [Tab]'s focus state in the [TabBar] changes.",
+          "callbackTypeId": "(dart:core#bool,dart:core#int)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0488",
@@ -7112,8 +7577,19 @@
           "type": "event",
           "description": "{@macro flutter.widgets.editableText.onChanged}",
           "callbackSignature": "ValueChanged<String>",
+          "callbackTypeId": "(dart:core#String)->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0642",
+          "name": "onEditingComplete",
+          "type": "event",
+          "description": "{@macro flutter.widgets.editableText.onEditingComplete}",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0181",
@@ -7121,8 +7597,39 @@
           "type": "event",
           "description": "{@macro flutter.widgets.editableText.onSubmitted}",
           "callbackSignature": "ValueChanged<String>",
+          "callbackTypeId": "(dart:core#String)->void",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0643",
+          "name": "onTap",
+          "type": "event",
+          "description": "{@template flutter.material.textfield.onTap} Called for the first tap in a series of taps.",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0644",
+          "name": "onTapOutside",
+          "type": "event",
+          "description": "{@macro flutter.widgets.editableText.onTapOutside}",
+          "callbackTypeId": "(package:flutter/src/gestures/events.dart#PointerDownEvent)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0645",
+          "name": "onTapUpOutside",
+          "type": "event",
+          "description": "{@macro flutter.widgets.editableText.onTapUpOutside}",
+          "callbackTypeId": "(package:flutter/src/gestures/events.dart#PointerUpEvent)->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
         },
         {
           "wireId": "p0366",
@@ -7316,6 +7823,25 @@
               "symbolName": "bool"
             }
           }
+        },
+        {
+          "wireId": "p0646",
+          "name": "onTriggered",
+          "type": "event",
+          "description": "{@macro flutter.widgets.RawTooltip.onTriggered}",
+          "callbackTypeId": "()->void",
+          "constructorNullable": true,
+          "category": "behavior",
+          "sinceVersion": 26
+        },
+        {
+          "wireId": "p0647",
+          "name": "positionDelegate",
+          "type": "event",
+          "description": "{@macro flutter.widgets.RawTooltip.positionDelegate}",
+          "callbackTypeId": "(package:flutter/src/widgets/raw_tooltip.dart#TooltipPositionContext)->dart:ui#Offset",
+          "constructorNullable": true,
+          "sinceVersion": 26
         },
         {
           "wireId": "p0186",
@@ -8221,15 +8747,6 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "Padding inside the button.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": [
-              24.0,
-              12.0,
-              24.0,
-              12.0
-            ]
-          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -8244,10 +8761,6 @@
           "name": "elevation",
           "type": "length",
           "description": "Material elevation in logical pixels.",
-          "defaultSource": {
-            "kind": "literal",
-            "value": 1.0
-          },
           "valueShape": {
             "kind": "scalar",
             "propertyType": "length",

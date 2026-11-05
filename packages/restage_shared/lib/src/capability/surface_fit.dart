@@ -9,6 +9,7 @@ import 'package:restage_shared/src/capability/blob_render_capability_gate.dart';
 import 'package:restage_shared/src/capability/capability_manifest.dart';
 import 'package:restage_shared/src/capability/installed_capability.dart';
 import 'package:restage_shared/src/capability/library_compatibility.dart';
+import 'package:restage_shared/src/capability/surface_layouts.dart';
 import 'package:restage_shared/src/capability/widget_vocabulary.dart';
 import 'package:restage_shared/src/flow_document/flow_action_schema.dart';
 import 'package:restage_shared/src/flow_document/flow_document.dart';
@@ -531,6 +532,9 @@ final class SurfaceHostContractV1 extends CanonicalValue
     required SurfaceScreenHostDataSchema providedContext,
     required SurfaceScreenEventSchema handledEvents,
     FlowHostBoundaryV1? flowBoundary,
+    Map<String, String> islands = const {},
+    SurfaceLayoutsV1? layouts,
+    Map<String, SurfaceLayoutsV1> screenLayouts = const {},
   }) {
     _checkBoundary(hosting.contentKind, flowBoundary);
     final result = SurfaceHostContractV1._(
@@ -541,6 +545,9 @@ final class SurfaceHostContractV1 extends CanonicalValue
         SurfaceScreenEventSchemaV1Codec.encode(handledEvents),
       ),
       flowBoundary: flowBoundary,
+      islands: _islands(islands),
+      layouts: layouts ?? SurfaceLayoutsV1.empty,
+      screenLayouts: _byScreen(screenLayouts, (layouts) => layouts.isEmpty),
     );
     // Taking the hash is the one encode, and it refuses a tree it cannot write.
     return result..contentHash;
@@ -551,6 +558,9 @@ final class SurfaceHostContractV1 extends CanonicalValue
     required Map<String, Object?> providedContextJson,
     required this.handledEvents,
     required this.flowBoundary,
+    required this.islands,
+    required this.layouts,
+    required this.screenLayouts,
   }) : _providedContextJson = providedContextJson;
 
   /// Decodes a complete host declaration strictly.
@@ -559,6 +569,7 @@ final class SurfaceHostContractV1 extends CanonicalValue
       value,
       const {'hosting', 'providedContext', 'handledEvents', 'flowBoundary'},
       r'$',
+      optional: const {'islands', 'layouts', 'screenLayouts'},
     );
     return SurfaceHostContractV1(
       hosting: SurfaceHostingV1.fromJson(json['hosting']),
@@ -570,6 +581,15 @@ final class SurfaceHostContractV1 extends CanonicalValue
       flowBoundary: json['flowBoundary'] == null
           ? null
           : FlowHostBoundaryV1.fromJson(json['flowBoundary']),
+      islands: _decodeIslands(json, 'islands'),
+      layouts: json.containsKey('layouts')
+          ? _decodeLayouts(json['layouts'], r'$.layouts')
+          : null,
+      screenLayouts: _decodeByScreen(
+        json,
+        'screenLayouts',
+        (value, path) => _decodeLayouts(value, path),
+      ),
     );
   }
 
@@ -589,6 +609,9 @@ final class SurfaceHostContractV1 extends CanonicalValue
       providedContextJson: _providedContextJson,
       handledEvents: handledEvents,
       flowBoundary: flowBoundary,
+      islands: islands,
+      layouts: layouts,
+      screenLayouts: screenLayouts,
     );
     return result..contentHash;
   }
@@ -603,6 +626,15 @@ final class SurfaceHostContractV1 extends CanonicalValue
   /// The complete host ABI when this is a flow mount.
   final FlowHostBoundaryV1? flowBoundary;
 
+  /// The islands this mount renders: qualified island name to fit token.
+  final Map<String, String> islands;
+
+  /// Where the mount's build produces each value and island it records.
+  final SurfaceLayoutsV1 layouts;
+
+  /// Where each flow step's build produces what it records, by screen ID.
+  final Map<String, SurfaceLayoutsV1> screenLayouts;
+
   /// The canonical mount contract without any particular surface identity.
   @override
   Map<String, Object?> toJson() => {
@@ -611,6 +643,13 @@ final class SurfaceHostContractV1 extends CanonicalValue
         'providedContext': _providedContextJson,
         'handledEvents': SurfaceScreenEventSchemaV1Codec.encode(handledEvents),
         'flowBoundary': flowBoundary?.toJson(),
+        if (islands.isNotEmpty) 'islands': islands,
+        if (!layouts.isEmpty) 'layouts': layouts.toJson(),
+        if (screenLayouts.isNotEmpty)
+          'screenLayouts': {
+            for (final MapEntry(:key, :value) in screenLayouts.entries)
+              key: value.toJson(),
+          },
       };
 
   /// Hash identifying this generated or explicitly declared host contract.
@@ -635,8 +674,18 @@ final class SurfaceFitRequirementV1 {
     required CapabilityManifest capabilities,
     required WidgetVocabulary requiredVocabulary,
     FlowHostBoundaryV1? flowBoundary,
+    Map<String, String> requiredIslands = const {},
+    Map<String, String> islandLabels = const {},
+    SurfaceLayoutReadsV1? layoutReads,
+    Map<String, SurfaceLayoutReadsV1> screenLayoutReads = const {},
   }) {
     _checkBoundary(hosting.contentKind, flowBoundary);
+    if (islandLabels.length != requiredIslands.length ||
+        !islandLabels.keys.every(requiredIslands.containsKey)) {
+      throw const FormatException(
+        'Every required island needs exactly one label.',
+      );
+    }
     final manifestJson = SurfaceContractJson.encodeCapabilityManifest(
       capabilities,
       path: r'$.capabilities',
@@ -654,6 +703,10 @@ final class SurfaceFitRequirementV1 {
       ),
       requiredVocabulary: _decodeVocabulary(requiredVocabulary.toJson()),
       flowBoundary: flowBoundary,
+      requiredIslands: _islands(requiredIslands),
+      islandLabels: _islands(islandLabels),
+      layoutReads: layoutReads ?? SurfaceLayoutReadsV1.empty,
+      screenLayoutReads: _byScreen(screenLayoutReads, (reads) => reads.isEmpty),
     );
   }
 
@@ -664,6 +717,10 @@ final class SurfaceFitRequirementV1 {
     required this.capabilities,
     required this.requiredVocabulary,
     required this.flowBoundary,
+    required this.requiredIslands,
+    required this.islandLabels,
+    required this.layoutReads,
+    required this.screenLayoutReads,
   }) : _requiredContextJson = requiredContextJson;
 
   /// Decodes every requirement facet with no default for absent metadata.
@@ -679,6 +736,12 @@ final class SurfaceFitRequirementV1 {
         'flowBoundary',
       },
       r'$',
+      optional: const {
+        'requiredIslands',
+        'islandLabels',
+        'layoutReads',
+        'screenLayoutReads',
+      },
     );
     return SurfaceFitRequirementV1(
       hosting: SurfaceHostingRequirementV1.fromJson(json['hosting']),
@@ -695,6 +758,16 @@ final class SurfaceFitRequirementV1 {
       flowBoundary: json['flowBoundary'] == null
           ? null
           : FlowHostBoundaryV1.fromJson(json['flowBoundary']),
+      requiredIslands: _decodeIslands(json, 'requiredIslands'),
+      islandLabels: _decodeIslands(json, 'islandLabels'),
+      layoutReads: json.containsKey('layoutReads')
+          ? _decodeLayoutReads(json['layoutReads'], r'$.layoutReads')
+          : null,
+      screenLayoutReads: _decodeByScreen(
+        json,
+        'screenLayoutReads',
+        (value, path) => _decodeLayoutReads(value, path),
+      ),
     );
   }
 
@@ -718,6 +791,19 @@ final class SurfaceFitRequirementV1 {
   /// The projected host boundary for a flow candidate.
   final FlowHostBoundaryV1? flowBoundary;
 
+  /// The islands the candidate renders: qualified island name to fit token.
+  final Map<String, String> requiredIslands;
+
+  /// A positionless readable label per required island, `<widget> in
+  /// <screen>`.
+  final Map<String, String> islandLabels;
+
+  /// The switch arms around each read and island placement inside a switch.
+  final SurfaceLayoutReadsV1 layoutReads;
+
+  /// Every read and island placement on each flow screen, by screen ID.
+  final Map<String, SurfaceLayoutReadsV1> screenLayoutReads;
+
   /// Canonical requirement metadata without artifact-integrity assertions.
   Map<String, Object?> toJson() => {
         'schemaVersion': 1,
@@ -727,6 +813,14 @@ final class SurfaceFitRequirementV1 {
         'capabilities': capabilities.toJson(),
         'requiredVocabulary': requiredVocabulary.toJson(),
         'flowBoundary': flowBoundary?.toJson(),
+        if (requiredIslands.isNotEmpty) 'requiredIslands': requiredIslands,
+        if (islandLabels.isNotEmpty) 'islandLabels': islandLabels,
+        if (!layoutReads.isEmpty) 'layoutReads': layoutReads.toJson(),
+        if (screenLayoutReads.isNotEmpty)
+          'screenLayoutReads': {
+            for (final MapEntry(:key, :value) in screenLayoutReads.entries)
+              key: value.toJson(),
+          },
       };
 
   /// Canonical requirement bytes.
@@ -792,6 +886,18 @@ enum SurfaceFitFailureCodeV1 {
 
   /// An external outbound field or payload is unsupported.
   outboundMismatch,
+
+  /// A required island is absent from the mount.
+  missingIsland,
+
+  /// A required island's interface or identity changed in this build.
+  changedIsland,
+
+  /// A value is read where the mount's build doesn't produce it.
+  unproducedHostField,
+
+  /// An island is placed where the mount's build doesn't produce it.
+  unproducedIsland,
 
   /// A complete requirement could not be obtained by the caller.
   missingRequirement,
@@ -960,6 +1066,14 @@ final class SurfaceFitFailureV1 {
         subject = _after(path, r'$.flowBoundary.outbound.');
         need = required is String ? required : null;
         have = available is String ? available : null;
+      case SurfaceFitFailureCodeV1.missingIsland ||
+            SurfaceFitFailureCodeV1.changedIsland:
+        subject = _after(path, r'$.requiredIslands.');
+        if (required is String) need = required;
+      case SurfaceFitFailureCodeV1.unproducedHostField:
+        subject = _layoutSubject(path, 'values');
+      case SurfaceFitFailureCodeV1.unproducedIsland:
+        subject = _layoutSubject(path, 'islands');
       case SurfaceFitFailureCodeV1.missingInstalledVocabulary ||
             SurfaceFitFailureCodeV1.missingRequirement ||
             SurfaceFitFailureCodeV1.malformedRequirement:
@@ -970,6 +1084,84 @@ final class SurfaceFitFailureV1 {
         '${need == null ? '' : '@${_escapeTokenPart(need)}'}'
         '${have == null ? '' : ';${_escapeTokenPart(have)}'}';
   }
+
+  /// The readable name a message gives this failure: the label it carries,
+  /// or else its [subject].
+  String? get label => switch (required) {
+        final String label when label.isNotEmpty => label,
+        {'label': final String label} when label.isNotEmpty => label,
+        _ => subject,
+      };
+
+  /// The widget, event, field, library, action or mode this failure names,
+  /// or null when it names none.
+  String? get subject {
+    final required = this.required;
+    final available = this.available;
+    String? after(String prefix) => _after(path, prefix);
+    final subject = switch (code) {
+      SurfaceFitFailureCodeV1.hostingMismatch => switch ((
+          required,
+          available,
+        )) {
+          (
+            {'contentKind': final String kind},
+            {'contentKind': final String has},
+          )
+              when kind != has =>
+            kind,
+          ({'allowedPresentations': [final String mode, ...]}, _) => mode,
+          _ => null,
+        },
+      SurfaceFitFailureCodeV1.missingHostField ||
+      SurfaceFitFailureCodeV1.incompatibleHostField =>
+        after(r'$.requiredContext.'),
+      SurfaceFitFailureCodeV1.unhandledEvent ||
+      SurfaceFitFailureCodeV1.incompatibleEventShape =>
+        after(r'$.emittedEvents.'),
+      SurfaceFitFailureCodeV1.missingIcon =>
+        after(r'$.requiredVocabulary.iconCodePoints.'),
+      SurfaceFitFailureCodeV1.missingLibrary ||
+      SurfaceFitFailureCodeV1.oldLibrary ||
+      SurfaceFitFailureCodeV1.brokenLibrary =>
+        after(r'$.capabilities.requiredLibraries.'),
+      SurfaceFitFailureCodeV1.actionMismatch =>
+        after(r'$.flowBoundary.actions.'),
+      SurfaceFitFailureCodeV1.seedMismatch =>
+        after(r'$.flowBoundary.hostSeedableState.'),
+      SurfaceFitFailureCodeV1.outboundMismatch =>
+        after(r'$.flowBoundary.outbound.')?.split('.').last,
+      SurfaceFitFailureCodeV1.builtInFloor =>
+        after(r'$.flowBoundary.actions.')?.split('.').first,
+      // These carry a readable label or name as their requirement.
+      SurfaceFitFailureCodeV1.missingIsland ||
+      SurfaceFitFailureCodeV1.changedIsland ||
+      SurfaceFitFailureCodeV1.unproducedIsland ||
+      SurfaceFitFailureCodeV1.unproducedHostField ||
+      SurfaceFitFailureCodeV1.missingWidget ||
+      SurfaceFitFailureCodeV1.signalMismatch ||
+      SurfaceFitFailureCodeV1.deliveryModeMismatch =>
+        required is String ? required : null,
+      SurfaceFitFailureCodeV1.missingInstalledVocabulary ||
+      SurfaceFitFailureCodeV1.resultMismatch ||
+      SurfaceFitFailureCodeV1.missingRequirement ||
+      SurfaceFitFailureCodeV1.malformedRequirement =>
+        null,
+    };
+    return subject == null || subject.isEmpty ? null : subject;
+  }
+}
+
+// The key or island a layout failure at [path] names, after its screen when
+// it has one: `welcome/_hKey`.
+String? _layoutSubject(String path, String facet) {
+  final single = _after(path, '\$.layoutReads.$facet.');
+  if (single != null) return single;
+  final screen = _after(path, r'$.screenLayoutReads.');
+  final at = screen?.indexOf('.$facet.') ?? -1;
+  return at < 1
+      ? null
+      : '${screen!.substring(0, at)}/${screen.substring(at + facet.length + 2)}';
 }
 
 String? _after(String path, String prefix) =>
@@ -1081,6 +1273,23 @@ abstract final class SurfaceFitEvaluator {
       }
     }
     _checkCapabilities(requirement, installed, failures);
+    for (final MapEntry(key: name, value: token)
+        in requirement.requiredIslands.entries) {
+      final available = host.islands[name];
+      if (available == token) continue;
+      final code = available == null
+          ? SurfaceFitFailureCodeV1.missingIsland
+          : SurfaceFitFailureCodeV1.changedIsland;
+      // The failure carries the island's readable label.
+      _fail(
+        failures,
+        code,
+        r'$.requiredIslands.' + name,
+        requirement.islandLabels[name],
+        available,
+      );
+    }
+    _checkLayouts(host, requirement, failures);
     final requiredBoundary = requirement.flowBoundary;
     final hostBoundary = host.flowBoundary;
     if (requiredBoundary != null && hostBoundary != null) {
@@ -1568,6 +1777,151 @@ void _fail(
   );
 }
 
+// Each read and island placement sits where the host's build produces it.
+void _checkLayouts(
+  SurfaceHostContractV1 host,
+  SurfaceFitRequirementV1 requirement,
+  List<SurfaceFitFailureV1> failures,
+) {
+  final labels = [
+    ...host.providedContext.inputs.values,
+    ...requirement.requiredContext.inputs.values,
+  ];
+  String labelOf(String key) =>
+      (host.providedContext.inputs[key] ??
+              requirement.requiredContext.inputs[key])
+          ?.label ??
+      _labelOf(labels, key) ??
+      key;
+  void check(
+    SurfaceLayoutsV1 layouts,
+    SurfaceLayoutReadsV1 reads,
+    String path, {
+    // Whether a key or island with no listed read is read outside every
+    // switch when the requirement names it.
+    required bool implied,
+  }) {
+    const everywhere = [<String, SurfaceLayoutArmV1>{}];
+    for (final MapEntry(key: name, value: needs) in layouts.values.entries) {
+      final paths = reads.values[name] ??
+          (implied && requirement.requiredContext.inputs.containsKey(name)
+              ? everywhere
+              : const <SurfaceLayoutPath>[]);
+      final misses = surfaceLayoutMisses(paths, needs, layouts);
+      if (misses == null) continue;
+      // The failure carries the value's readable label.
+      _fail(
+        failures,
+        SurfaceFitFailureCodeV1.unproducedHostField,
+        '$path.values.$name',
+        labelOf(name),
+        _layoutMissJson(layouts, misses),
+      );
+    }
+    for (final MapEntry(key: name, value: needs) in layouts.islands.entries) {
+      final paths = reads.islands[name] ??
+          (implied && requirement.requiredIslands.containsKey(name)
+              ? everywhere
+              : const <SurfaceLayoutPath>[]);
+      final misses = surfaceLayoutMisses(paths, needs, layouts);
+      if (misses == null) continue;
+      // The failure carries the island's readable label.
+      _fail(
+        failures,
+        SurfaceFitFailureCodeV1.unproducedIsland,
+        '$path.islands.$name',
+        requirement.islandLabels[name],
+        _layoutMissJson(layouts, misses),
+      );
+    }
+  }
+
+  if (requirement.hosting.contentKind == SurfaceContentKindV1.flow) {
+    // Flow screens share discriminator names, so each is checked alone and
+    // lists every read.
+    for (final MapEntry(key: screen, value: layouts)
+        in host.screenLayouts.entries) {
+      check(
+        layouts,
+        requirement.screenLayoutReads[screen] ?? SurfaceLayoutReadsV1.empty,
+        '\$.screenLayoutReads.$screen',
+        implied: false,
+      );
+    }
+    return;
+  }
+  check(host.layouts, requirement.layoutReads, r'$.layoutReads', implied: true);
+}
+
+// What a layout miss shows: the build, and when it produces the value.
+Map<String, Object?> _layoutMissJson(
+  SurfaceLayoutsV1 layouts,
+  SurfaceLayoutCondition misses,
+) =>
+    {
+      'needs': surfaceLayoutConditionJson(misses),
+      if (layouts.build case final build?) 'build': build,
+      if (layouts.whenOf(misses) case final texts?)
+        'when': [for (final text in texts) text.toJson()],
+    };
+
+Map<String, T> _byScreen<T>(Map<String, T> raw, bool Function(T) isEmpty) {
+  final screens = raw.keys.where((key) => !isEmpty(raw[key] as T)).toList()
+    ..forEach(_checkName)
+    ..sort(SurfaceContractJson.compareUtf8);
+  return Map.unmodifiable({for (final key in screens) key: raw[key]});
+}
+
+// Absent decodes as empty; an explicit empty map is not canonical.
+Map<String, T> _decodeByScreen<T>(
+  Map<String, Object?> parent,
+  String key,
+  T Function(Object? value, String path) decode,
+) {
+  if (!parent.containsKey(key)) return const {};
+  final path = '\$.$key';
+  final json = SurfaceContractJson.requireObject(parent[key], path);
+  if (json.isEmpty) throw FormatException('Empty $key at "$path".');
+  return {
+    for (final MapEntry(key: screen, :value) in json.entries)
+      screen: decode(value, '$path.$screen'),
+  };
+}
+
+// The label of the value [key] among [shapes] and the fields they nest.
+String? _labelOf(Iterable<SurfaceScreenHostDataShape> shapes, String key) {
+  for (final shape in shapes) {
+    final nested = switch (shape) {
+      SurfaceScreenHostDataNullableShapeV1(:final value) => [value],
+      SurfaceScreenHostDataListShapeV1(:final items) => [items],
+      SurfaceScreenHostDataMapShapeV1(:final values) => [values],
+      SurfaceScreenHostDataObjectShapeV1(:final fields) => [
+          if (fields[key]?.label case final label?) label,
+          ...fields.values,
+        ],
+      _ => const <Object>[],
+    };
+    if (nested.firstOrNull case final String label) return label;
+    if (_labelOf(nested.whereType<SurfaceScreenHostDataShape>(), key)
+        case final label?) {
+      return label;
+    }
+  }
+  return null;
+}
+
+SurfaceLayoutsV1 _decodeLayouts(Object? value, String path) {
+  final layouts = SurfaceLayoutsV1.fromJson(value, path: path);
+  if (layouts.isEmpty) throw FormatException('Empty layouts at "$path".');
+  return layouts;
+}
+
+SurfaceLayoutReadsV1 _decodeLayoutReads(Object? value, String path) {
+  final reads = SurfaceLayoutReadsV1.fromJson(value, path: path);
+  if (reads.isEmpty) throw FormatException('Empty layout reads at "$path".');
+  return reads;
+}
+
 void _checkBoundary(SurfaceContentKindV1 kind, FlowHostBoundaryV1? boundary) {
   if ((kind == SurfaceContentKindV1.flow) != (boundary != null)) {
     throw const FormatException(
@@ -1579,10 +1933,15 @@ void _checkBoundary(SurfaceContentKindV1 kind, FlowHostBoundaryV1? boundary) {
 Map<String, Object?> _versionedObject(
   Object? value,
   Set<String> fields,
-  String path,
-) {
+  String path, {
+  Set<String> optional = const {},
+}) {
   final json = SurfaceContractJson.requireObject(value, path);
-  SurfaceContractJson.exactKeys(json, {'schemaVersion', ...fields}, path);
+  SurfaceContractJson.exactKeys(
+    json,
+    {'schemaVersion', ...fields, ...optional.where(json.containsKey)},
+    path,
+  );
   if (SurfaceContractJson.requiredInt(json, 'schemaVersion', path) != 1) {
     throw FormatException('Unsupported schemaVersion at "$path".');
   }
@@ -1607,6 +1966,30 @@ List<String> _names(Iterable<String> names) {
   return names.toList()
     ..forEach(_checkName)
     ..sort(SurfaceContractJson.compareUtf8);
+}
+
+Map<String, String> _islands(Map<String, String> islands) {
+  final entries = islands.entries.toList()
+    ..sort((a, b) => SurfaceContractJson.compareUtf8(a.key, b.key));
+  for (final entry in entries) {
+    _checkName(entry.key);
+    _checkName(entry.value);
+  }
+  return Map.unmodifiable(Map.fromEntries(entries));
+}
+
+// Absent decodes as empty; an explicit null or empty map is not canonical.
+Map<String, String> _decodeIslands(Map<String, Object?> parent, String key) {
+  if (!parent.containsKey(key)) return const {};
+  final path = '\$.$key';
+  final json = SurfaceContractJson.requireObject(parent[key], path);
+  if (json.isEmpty) throw FormatException('Empty islands at "$path".');
+  return _islands({
+    for (final MapEntry(:key, :value) in json.entries)
+      key: value is String
+          ? value
+          : throw FormatException('Expected a string token at "$path.$key".'),
+  });
 }
 
 Set<String> _decodeNames(Object? value, String path) {
@@ -1846,3 +2229,6 @@ Object? _freezeJson(Object? value) => switch (value) {
 String _shapeHash(String domain, List<int> bytes) => SurfaceContractJson.hash(
       [...utf8.encode('restage.$domain.v1\n'), ...bytes],
     );
+
+/// The namespace the islands of the app package [package] register under.
+String islandLibraryNamespace(String package) => '$package.islands';

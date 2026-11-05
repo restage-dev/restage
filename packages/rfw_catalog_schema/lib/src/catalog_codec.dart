@@ -78,6 +78,7 @@ String encodeCatalog(Catalog catalog) {
             'compatibleSince': entry.value.compatibleSince,
           if (entry.value.generatedVersion case final generated?)
             'generatedVersion': generated,
+          if (entry.value.islands) 'islands': true,
         },
     },
     'widgets': catalog.widgets.map(_widgetToJson).toList(),
@@ -209,6 +210,15 @@ void _validateProperty(PropertyEntry property, String path) {
     _validateRfwCallbackSignature(
       callbackSignature,
       '$path.callbackSignature',
+    );
+  }
+  final callbackTypeId = property.callbackTypeId;
+  if (callbackTypeId != null &&
+      (property.type != PropertyType.event ||
+          !callbackTypeId.startsWith('(') ||
+          !callbackTypeId.contains(')->'))) {
+    throw CatalogSchemaException(
+      '$path.callbackTypeId: must be the function type of an event property',
     );
   }
   _validateCallbackContracts(
@@ -1508,6 +1518,7 @@ Map<String, dynamic> _widgetToJson(WidgetEntry w) => {
         'sinceVersion': w.sinceVersion,
       if (w.stability != Stability.volatile) 'stability': w.stability.name,
       if (w.deprecated != null) 'deprecated': _deprecationToJson(w.deprecated!),
+      if (w.itemInputs > 0) 'itemInputs': w.itemInputs,
     };
 
 // `PropertyType.unknown` is normally a decoder sentinel. The opaque
@@ -1528,6 +1539,7 @@ Map<String, dynamic> _propertyToJson(PropertyEntry p) {
     if (p.enumType != null) 'enumType': p.enumType,
     if (p.widgetType != null) 'widgetType': p.widgetType,
     if (p.callbackSignature != null) 'callbackSignature': p.callbackSignature,
+    if (p.callbackTypeId != null) 'callbackTypeId': p.callbackTypeId,
     if (p.builderContract != null)
       'builderContract': widgetBuilderContractToJson(p.builderContract!),
     if (p.scalarContract != null)
@@ -2095,6 +2107,26 @@ Catalog decodeCatalog(String source) {
   } on CatalogSchemaException {
     rethrow;
   }
+}
+
+/// Whether a design event can fill event [property]: its payload is declared
+/// by a callback signature, or the callback takes no arguments.
+bool designEventFits(PropertyEntry property) =>
+    property.callbackSignature != null ||
+    const {null, '()->void', '()->dart:async#FutureOr<void>'}
+        .contains(property.callbackTypeId);
+
+/// The exact function type of event [property], refusing a catalog that
+/// predates it.
+String requireCallbackTypeId(PropertyEntry property) {
+  final id = property.callbackTypeId;
+  if (property.type != PropertyType.event || id == null) {
+    throw CatalogSchemaException(
+      'Event property `${property.name}` has no callbackTypeId; regenerate '
+      'the catalog with a current compiler.',
+    );
+  }
+  return id;
 }
 
 /// Validate that [catalog] is native-v5-consumable, returning it on success.
@@ -2666,11 +2698,16 @@ LibraryInfo _libraryInfo(Map<String, dynamic> j, String path) {
       'got ${generatedVersion.runtimeType}: $generatedVersion',
     );
   }
+  final islands = j['islands'];
+  if (j.containsKey('islands') && islands != true) {
+    throw CatalogSchemaException('$path: islands must be true when present.');
+  }
   return LibraryInfo(
     version: _requiredString(j, 'version', path),
     capabilityVersion: capabilityVersion,
     compatibleSince: compatibleSince,
     generatedVersion: generatedVersion as int?,
+    islands: islands == true,
   );
 }
 
@@ -2790,6 +2827,13 @@ WidgetEntry _widgetFromJson(
       j['deprecated'],
       '$widgetPath.deprecated',
     ),
+    itemInputs: switch (j['itemInputs']) {
+      null when !j.containsKey('itemInputs') => 0,
+      final int count when count > 0 => count,
+      _ => throw CatalogSchemaException(
+          '$widgetPath: itemInputs must be a positive integer when present.',
+        ),
+    },
   );
   _validatePropertySinceVersions(widget, widgetPath);
   return widget;
@@ -3168,6 +3212,7 @@ PropertyEntry _propertyFromJson(
     enumType: _optionalString(j, 'enumType', path),
     widgetType: _optionalString(j, 'widgetType', path),
     callbackSignature: _optionalString(j, 'callbackSignature', path),
+    callbackTypeId: _optionalString(j, 'callbackTypeId', path),
     builderContract: j['builderContract'] == null
         ? null
         : widgetBuilderContractFromJson(
@@ -4376,7 +4421,7 @@ ValidationExpr validationExprFromJson(Map<String, dynamic> j, String path) {
 Map<String, dynamic> widgetBuilderContractToJson(
   WidgetBuilderContract contract,
 ) {
-  if (!contract.isSupported) {
+  if (!contract.isSupported && !contract.isAppValueSignature) {
     throw CatalogSchemaException(
       'builderContract: unsupported widget builder signature',
     );
@@ -4384,6 +4429,14 @@ Map<String, dynamic> widgetBuilderContractToJson(
   return {
     'parameters': contract.parameters.map((p) => p.name).toList(),
     'nullableResult': contract.nullableResult,
+    if (contract.nativeValues.isNotEmpty)
+      'nativeValues': {
+        for (final key in contract.nativeValues.keys.toList()..sort())
+          key: {
+            'type': contract.nativeValues[key]!.type,
+            'nullable': contract.nativeValues[key]!.nullable,
+          },
+      },
   };
 }
 
@@ -4404,11 +4457,29 @@ WidgetBuilderContract widgetBuilderContractFromJson(
         ),
     ]),
     nullableResult: _requiredBool(json, 'nullableResult', path),
+    nativeValues: _builderNativeValues(json['nativeValues'], path),
   );
-  if (!contract.isSupported) {
+  if (!contract.isSupported && !contract.isAppValueSignature) {
     throw CatalogSchemaException('$path: unsupported widget builder signature');
   }
   return contract;
+}
+
+Map<String, WidgetBuilderNativeValue> _builderNativeValues(
+    Object? raw, String path) {
+  if (raw == null) return const {};
+  if (raw is! Map<String, dynamic>) {
+    throw CatalogSchemaException('$path.nativeValues: not a map');
+  }
+  return Map.unmodifiable({
+    for (final entry in raw.entries)
+      entry.key: switch (entry.value) {
+        {'type': final String type, 'nullable': final bool nullable} =>
+          WidgetBuilderNativeValue(type, nullable: nullable),
+        _ => throw CatalogSchemaException(
+            '$path.nativeValues.${entry.key}: malformed native value'),
+      },
+  });
 }
 
 void _validateCallbackContracts(
@@ -4418,10 +4489,16 @@ void _validateCallbackContracts(
   String path,
 ) {
   if (type == PropertyType.widgetBuilder) {
-    if (builder == null || !builder.isSupported) {
+    if (builder == null ||
+        !builder.isSupported && !builder.isAppValueSignature) {
       throw CatalogSchemaException(
         '$path.builderContract: unsupported or missing '
         'widget builder signature',
+      );
+    }
+    if (builder.nativeValues.isNotEmpty && !builder.isAppValueSignature) {
+      throw CatalogSchemaException(
+        '$path.builderContract: native values need an app value signature',
       );
     }
   } else if (builder != null) {

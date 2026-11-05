@@ -29,6 +29,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     'push',
     'publish',
     'build',
+    'report',
   ];
   static const _minNavWidth = 18;
   static const _minSurfaceWidth = 22;
@@ -484,6 +485,11 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         _openPrompt(_PromptKind.publish);
       case 'build':
         await _pushBuild();
+      case 'report':
+        _showCommandOutput();
+        await component.controller.runCommand(const ['build', 'report']);
+        if (!mounted) return;
+        setState(() {});
     }
   }
 

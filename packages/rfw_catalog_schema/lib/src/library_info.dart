@@ -14,6 +14,7 @@ final class LibraryInfo {
     this.capabilityVersion,
     this.compatibleSince = 1,
     this.generatedVersion,
+    this.islands = false,
   });
 
   /// Semver of the library package this entry was generated from.
@@ -40,13 +41,18 @@ final class LibraryInfo {
   /// from, or `null` for 1. Stamped by the code generator on package catalogs.
   final int? generatedVersion;
 
+  /// Whether the compiler minted this library for widgets that render from
+  /// the app's code, which each surface's host provides.
+  final bool islands;
+
   @override
   bool operator ==(Object other) =>
       other is LibraryInfo &&
       other.version == version &&
       other.capabilityVersion == capabilityVersion &&
       other.compatibleSince == compatibleSince &&
-      other.generatedVersion == generatedVersion;
+      other.generatedVersion == generatedVersion &&
+      other.islands == islands;
 
   @override
   int get hashCode => Object.hash(
@@ -54,5 +60,6 @@ final class LibraryInfo {
         capabilityVersion,
         compatibleSince,
         generatedVersion,
+        islands,
       );
 }

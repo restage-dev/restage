@@ -18,8 +18,8 @@ library;
 /// value against. Dart positional params CANNOT be passed by name, so `isNamed`
 /// must match the ctor param exactly or the generated factory won't compile.
 /// `isRequired` (from the analyzer param, since the lowered field's `required`
-/// is not populated) drives the fail-closed decode: a required field throws on
-/// a missing wire value rather than fabricating one.
+/// is not populated) drives the fail-closed decode: a required non-nullable
+/// field throws on a missing wire value rather than fabricating one.
 ///
 /// `defaultCode` / `defaultEnumValue` carry the reproduced default an OPTIONAL
 /// NON-NULLABLE param must coalesce its (`T?`) decode against, or the generated

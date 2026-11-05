@@ -1,6 +1,6 @@
 part of '../lumen_cancel_flow.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _lumenCancelRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -55,6 +55,7 @@ const lumenCancelRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'LumenCancelSurface',
   measurementPublicationDraftDigest:
       '8f735624fb24d4ed5b01bcf5771b8060e5cee62aa1e3704049c1269539a42041',
   vocabulary: _lumenCancelRefVocabulary,
@@ -99,8 +100,8 @@ final _lumenCancelPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

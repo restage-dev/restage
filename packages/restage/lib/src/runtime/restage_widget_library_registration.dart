@@ -15,6 +15,7 @@ final class RestageWidgetLibraryRegistration {
     this.capabilityVersion,
     this.compatibleSince,
     this.generatedVersion,
+    this.islands = false,
   }) : _widgets = List<RestageWidgetFactory>.unmodifiable(widgets) {
     if (capabilityVersion != null && capabilityVersion! < 1) {
       throw ArgumentError.value(
@@ -45,6 +46,7 @@ final class RestageWidgetLibraryRegistration {
     this.capabilityVersion,
     this.compatibleSince,
     this.generatedVersion,
+    this.islands = false,
   })  : _widgets = widgets,
         assert(
           capabilityVersion == null || capabilityVersion >= 1,
@@ -69,6 +71,10 @@ final class RestageWidgetLibraryRegistration {
   /// The version of the generated code these factories come from, or `null`
   /// for factories written by hand.
   final int? generatedVersion;
+
+  /// Whether these are a package's islands: widgets its published surfaces
+  /// render from the app's own code.
+  final bool islands;
 
   /// The library's widget factories, unmodifiable.
   List<RestageWidgetFactory> get widgets =>

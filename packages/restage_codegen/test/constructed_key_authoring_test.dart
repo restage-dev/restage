@@ -61,21 +61,27 @@ void main() {
       },
     );
   }
-  for (final body in [
-    "Text('item', key: ObjectKey(items[0]))",
-    "LayoutBuilder(builder: (context, constraints) => Text('item', key: ObjectKey(items[0])))",
+  // A root LayoutBuilder builds a render object, so it stays in the design
+  // and renders from the app around its Text.
+  for (final (body, island) in [
+    ("Text('item', key: ObjectKey(items[0]))", 'Text'),
+    (
+      "LayoutBuilder(builder: (context, constraints) => Text('item', key: ObjectKey(items[0])))",
+      'LayoutBuilder',
+    ),
   ]) {
-    test('fresh key without initializer refuses: $body', () async {
-      final result = await compileConstructedKey(body);
-      expect(
-        result.issues.map((issue) => issue.message),
-        contains(contains('explicit callback or helper prelude initializer')),
-      );
-      expect(
-        result.hoisted.where((value) => value.nativeCall != null),
-        isEmpty,
-      );
-    });
+    test(
+      'a fresh key without initializer renders from the app: $body',
+      () async {
+        final result = await compileConstructedKey(body);
+        expect(result.issues, isEmpty);
+        expect([for (final island in result.islands) island.widget], [island]);
+        expect(
+          result.hoisted.where((value) => value.nativeCall != null),
+          isEmpty,
+        );
+      },
+    );
   }
   for (final callback in [
     'findIndex',
@@ -238,15 +244,13 @@ ObjectKey Function() x() => () {const first=ObjectKey(#_private); const alias=fi
     );
   });
   test(
-    'source native constant preserves private-symbol refusal as a diagnostic',
+    'a source native constant over a private symbol renders from the app',
     () async {
       final result = await compileConstructedKey(
         "Text('item',key:const ObjectKey(#_private))",
       );
-      expect(
-        result.issues.map((i) => i.message),
-        contains(contains('Private Symbol')),
-      );
+      expect(result.issues, isEmpty);
+      expect([for (final island in result.islands) island.widget], ['Text']);
       expect(result.hoisted, isEmpty);
     },
   );
@@ -255,12 +259,10 @@ ObjectKey Function() x() => () {const first=ObjectKey(#_private); const alias=fi
     'unsupportedKey',
     "const GlobalObjectKey('constant')",
   ]) {
-    test('unsupported constant key refuses explicitly: $key', () async {
+    test('an unsupported constant key renders from the app: $key', () async {
       final result = await compileConstructedKey("Text('item',key:$key)");
-      expect(
-        result.issues.map((i) => i.message),
-        contains(contains('constant Key family')),
-      );
+      expect(result.issues, isEmpty);
+      expect([for (final island in result.islands) island.widget], ['Text']);
       expect(result.hoisted, isEmpty);
     });
   }

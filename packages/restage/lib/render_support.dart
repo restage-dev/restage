@@ -12,3 +12,4 @@ export 'src/runtime/render_geometry.dart'
         geometryDrawnOrder,
         geometryTransformToFrame;
 export 'src/runtime/restage_paywall.dart' show paywallHostContext;
+export 'src/runtime/state_variables.dart' show themeDataOf;

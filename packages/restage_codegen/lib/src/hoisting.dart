@@ -10,9 +10,6 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
-import 'package:restage_codegen/src/builder_expression_lowering.dart'
-    show BuilderLoweringException;
-import 'package:restage_codegen/src/installed_native_provenance.dart';
 import 'package:restage_codegen/src/installed_native_call.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
@@ -55,6 +52,12 @@ enum HoistValueKind {
 
   /// A string-keyed map of crossing values.
   map,
+
+  /// The items a loop walks, published as one map of item values each.
+  items,
+
+  /// The position of each item in the list the mount walks.
+  itemIndex,
 }
 
 /// What a static type makes of a value that crosses into a surface.
@@ -316,7 +319,41 @@ final class HoistedValue {
     this.nativeConstant,
     this.computed = false,
     this.paints = const [],
+    this.pattern,
+    this.location,
+    this.site,
   }) : _template = template;
+
+  /// The node the app computes this value at, when known; not identity.
+  final AstNode? site;
+
+  /// This value, first computed at [location].
+  HoistedValue at(String location) => withKey(key, location: location);
+
+  /// This value under [key].
+  HoistedValue withKey(String key, {String? location}) => HoistedValue(
+    key: key,
+    label: label,
+    kind: kind,
+    shape: shape,
+    template: _template,
+    item: item,
+    nativeContract: nativeContract,
+    nativeCall: nativeCall,
+    nativeConstant: nativeConstant,
+    computed: computed,
+    paints: paints,
+    pattern: pattern,
+    location: location ?? this.location,
+    site: site,
+  );
+
+  /// Where the expression first appears, when recorded; not part of identity.
+  final String? location;
+
+  /// How the mount destructures each item, for a value of kind
+  /// [HoistValueKind.items].
+  final String? pattern;
 
   /// The compiler-owned context key.
   final String key;
@@ -352,17 +389,15 @@ final class HoistedValue {
 
   final String _template;
 
+  /// The value as a template, as [HoistAnalyzer.analyze] writes it.
+  String get template => _template;
+
   /// The mount's Dart source, reading each screen input through [slotOf]
   /// and the current item through [itemSource].
   String mountSource(
     String Function(String parameter) slotOf, {
     String? itemSource,
-  }) => _template
-      .replaceAllMapped(
-        _parameterMarker,
-        (match) => slotOf(match.group(1)!),
-      )
-      .replaceAll(_itemMarker, itemSource ?? '');
+  }) => mountTemplateSource(_template, slotOf, itemSource: itemSource);
 
   @override
   bool operator ==(Object other) =>
@@ -376,6 +411,16 @@ final class HoistedValue {
 }
 
 final RegExp _parameterMarker = RegExp('\u0000([A-Za-z0-9_\$]+)\u0000');
+
+/// [template] as mount source: screen inputs through [slotOf], the current
+/// item as [itemSource].
+String mountTemplateSource(
+  String template,
+  String Function(String parameter) slotOf, {
+  String? itemSource,
+}) => template
+    .replaceAllMapped(_parameterMarker, (match) => slotOf(match.group(1)!))
+    .replaceAll(_itemMarker, itemSource ?? '');
 const String _itemMarker = '\u0001';
 
 /// What the mount can make of one expression.
@@ -390,7 +435,11 @@ final class HoistEvaluable extends HoistAnalysis {
     required this.label,
     required this.template,
     this.item,
+    this.node,
   });
+
+  /// The node analyzed, where a recorded build computes the value.
+  final AstNode? node;
 
   /// The expression as the developer reads it.
   final String label;
@@ -401,6 +450,33 @@ final class HoistEvaluable extends HoistAnalysis {
   /// The screen input whose items the expression reads, if any.
   final String? item;
 
+  /// The items of this iterable, walked in the mount with [pattern].
+  HoistedValue items(DartType type, {required String pattern}) {
+    final value = this.value(
+      HoistCrosses(
+        HoistValueKind.items,
+        SurfaceScreenHostDataListShapeV1(
+          SurfaceScreenHostDataScalarShapeV1(
+            SurfaceScreenHostDataScalarKind.jsonValue,
+          ),
+        ),
+      ),
+      type,
+    );
+    // Each loop's pattern names its own item values.
+    final digest = crypto.sha256.convert(utf8.encode('${value.key}\n$pattern'));
+    return HoistedValue(
+      key: '$kHoistedKeyPrefix${digest.toString().substring(0, 10)}',
+      label: label,
+      kind: HoistValueKind.items,
+      shape: value.shape,
+      template: template,
+      item: item,
+      pattern: pattern,
+      site: node,
+    );
+  }
+
   /// The value of [expression] for a crossing [verdict].
   HoistedValue value(
     HoistCrosses verdict,
@@ -408,11 +484,12 @@ final class HoistEvaluable extends HoistAnalysis {
     Expression? expression,
     NativeBindingContract? nativeContract,
     bool computed = false,
+    String? location,
   }) {
     final typeName = type.getDisplayString();
     final digest = crypto.sha256.convert(
       utf8.encode(
-        '${_canonicalSource(template)}\n$typeName\n${item ?? ''}'
+        '${canonicalHoistSource(template)}\n$typeName\n${item ?? ''}'
         '${nativeContract == null ? '' : '\nnative:${jsonEncode(nativeContract.toJson())}'}',
       ),
     );
@@ -425,6 +502,8 @@ final class HoistEvaluable extends HoistAnalysis {
       shape: verdict.shape.withLabel(label),
       template: template,
       item: item,
+      location: location,
+      site: node,
       paints: verdict.kind == HoistValueKind.textStyle && expression != null
           ? _paintsSet(expression)
           : const [],
@@ -473,10 +552,34 @@ String _labelOf(String source) {
   return initializer?.toSource() ?? source.replaceAll(RegExp(r'\s+'), ' ');
 }
 
-/// [template]'s tokens, so formatting never changes a key.
-String _canonicalSource(String template) {
+/// The position of each item of [item], which an island in its loop reads to
+/// find its item in the list the mount walks.
+/// [label] reads as source, such as `index of p in plans`.
+HoistedValue itemIndexValue(String item, {required String label}) {
+  final digest = crypto.sha256.convert(utf8.encode('item index\n$item'));
+  return HoistedValue(
+    key: '$kHoistedKeyPrefix${digest.toString().substring(0, 10)}',
+    label: label,
+    kind: HoistValueKind.itemIndex,
+    shape: const SurfaceScreenHostDataScalarShapeV1(
+      SurfaceScreenHostDataScalarKind.integer,
+    ),
+    template: '',
+    item: item,
+  );
+}
+
+/// [template] as tokens, so comments, layout and trailing commas drop out
+/// and formatting never changes a key.
+String canonicalHoistSource(String template) {
   final source = template
-      .replaceAllMapped(_parameterMarker, (match) => 'input\$${match[1]}')
+      .replaceAllMapped(
+        _parameterMarker,
+        (match) => switch (_spelled(match[1]!)) {
+          final spelled when spelled != match[1] => spelled,
+          _ => 'input\$${match[1]}',
+        },
+      )
       .replaceAll(_itemMarker, r'item$');
   final unit = parseString(
     content: 'final restageValue = $source;',
@@ -500,23 +603,105 @@ String _canonicalSource(String template) {
 /// The expression reads [name], which only the surface has.
 final class HoistNeedsSurfaceValue extends HoistAnalysis {
   /// Creates a refusal naming [name].
-  const HoistNeedsSurfaceValue(this.name, {this.isBuildArgument = false});
+  const HoistNeedsSurfaceValue(
+    this.name, {
+    this.node,
+    this.elements = const {},
+  });
 
-  /// The surface-only name.
+  /// The first surface-only name.
   final String name;
 
-  /// Whether [name] is an argument of `build` other than its context.
-  final bool isBuildArgument;
+  /// Where the expression reads [name].
+  final AstNode? node;
+
+  /// Every surface-only declaration the expression reads.
+  final Set<Element> elements;
 }
 
 /// The expression cannot be written in the mount.
 final class HoistUnwritable extends HoistAnalysis {
   /// Creates an unwritable analysis.
-  const HoistUnwritable({this.unnamed});
+  const HoistUnwritable({this.unnamed, this.node});
 
   /// A declaration the mount's library cannot name, when that is the cause.
   final String? unnamed;
+
+  /// Where the copy stopped: the use of [unnamed], or a restricted call.
+  final AstNode? node;
 }
+
+/// Names a generated mount declares in its build's scope, which would hide a
+/// top-level declaration the app's build reads.
+const kMountScopeNames = {
+  'context',
+  'widget',
+  'mounted',
+  'setState',
+  'onEvent',
+  'resolver',
+  'errorBuilder',
+  'loadingBuilder',
+};
+
+/// The part's alias of the top-level [element] named [name]: a constant for
+/// a constant, a getter otherwise.
+String mountAliasOf(Element element, String name) =>
+    element is VariableElement && element.isConst
+    ? '_restageTopC\$$name'
+    : '_restageTopG\$$name';
+
+/// The declarations of every mount alias [source] uses.
+String mountAliasDeclarations(String source) => [
+  for (final match in {
+    for (final match in RegExp(
+      r'\b_restageTop([CG])\$(\w+)\b',
+    ).allMatches(source))
+      match[0]!: match,
+  }.values)
+    match[1] == 'C'
+        ? 'const ${match[0]} = ${match[2]};'
+        : '// ignore: unused_element\nget ${match[0]} => ${match[2]};',
+].join('\n');
+
+/// The mount slot naming the screen build's context, which a builder kept in
+/// the mount may shadow.
+const kRootContext = 'restageRootContext';
+
+/// The mount slot a lifted `State` reads its surface's instance through, as
+/// `widget`.
+const kStateWidget = 'restageWidget';
+
+/// [kStateWidget] marked in a template.
+const kStateWidgetSlot = '\u0000$kStateWidget\u0000';
+
+/// The mount slot naming a lifted `State`'s own `didUpdateWidget`.
+const kStateUpdateSlot = '\u0000restageDidUpdateWidget\u0000';
+
+// What a slot reads as in a label or a key.
+String _spelled(String slot) => switch (slot) {
+  kRootContext => 'context',
+  kStateWidget => 'widget',
+  // A build local keys as its name, which nothing else in the build
+  // resolves to; a local of a block, pattern or loop keys apart from it.
+  _ when slot.startsWith(_kHeldLocalPrefix) => slot.substring(
+    _kHeldLocalPrefix.length,
+  ),
+  _ when slot.startsWith(_kInnerLocalPrefix) =>
+    'local\$${slot.substring(_kInnerLocalPrefix.length)}',
+  _ => slot,
+};
+
+const _kHeldLocalPrefix = r'restageHeld$';
+const _kInnerLocalPrefix = r'restageInner$';
+
+/// The slot of a local the mount declares ahead under [name]; [inner] when a
+/// block, pattern or loop declares it.
+String heldLocalSlot(String name, {bool inner = false}) =>
+    '${inner ? _kInnerLocalPrefix : _kHeldLocalPrefix}$name';
+
+/// The mount slot holding an instance of a stateless surface.
+const kSurfaceInstance = '_restageSurface';
 
 /// Decides what the generated mount can evaluate.
 final class HoistAnalyzer {
@@ -530,7 +715,46 @@ final class HoistAnalyzer {
     this.rootContext,
     this.buildArgumentFor = _noBuildArgument,
     this.isDeclaredCallable = _noDeclaredCallable,
+    this.isMountScope = _noMountScope,
+    this.keepsItemNames = _noMountScope,
+    this.isSurfaceMember = _noMountScope,
+    this.outerItem = _noOuterItem,
+    this.thisFor = _noThis,
+    this.forwardsWidget = _noForward,
+    this.mountNameOf = _noMountName,
+    this.recordedLocalOf = _noMountName,
   });
+
+  /// The slot a build local the mount neither holds nor walks is keyed by;
+  /// a recorded build reads it where the app declares it.
+  final String? Function(Element element) recordedLocalOf;
+
+  /// The name the mount declares the local [element] under, or `null` when
+  /// it keeps its source name.
+  final String? Function(Element element) mountNameOf;
+
+  static String? _noMountName(Element _) => null;
+
+  /// Whether the mount forwards `State.widget`: a lifted `State` reads an
+  /// instance of its surface.
+  final bool Function() forwardsWidget;
+
+  static bool _noForward() => false;
+
+  /// How the mount spells `this` of [type], when it has one.
+  final String? Function(DartType? type) thisFor;
+
+  static String? _noThis(DartType? _) => null;
+
+  /// The item list whose items [item]'s list is computed from, when it is
+  /// nested in another loop.
+  final String? Function(String item) outerItem;
+
+  static String? _noOuterItem(String _) => null;
+
+  /// Whether an instance member belongs to a stateless surface, which the
+  /// mount reads from an instance of it.
+  final bool Function(Element element) isSurfaceMember;
 
   /// The screen build's `BuildContext` parameter; only it is the mount's.
   final Element? rootContext;
@@ -558,53 +782,87 @@ final class HoistAnalyzer {
   /// Whether a callable reference is an existing typed constructor input.
   final bool Function(Expression reference) isDeclaredCallable;
 
+  /// Whether the mount walks [item] itself, so its loop variables keep
+  /// their names.
+  final bool Function(String item) keepsItemNames;
+
+  /// Whether the mount declares [element] under its own name: a lifted
+  /// `State` member or a parameter or local of a builder dissolved into it.
+  final bool Function(Element element) isMountScope;
+
   static bool _noDeclaredCallable(Expression reference) => false;
+  static bool _noMountScope(Object _) => false;
   static String? _noBuildArgument(Element element) => null;
 
-  /// Analyzes [expression].
-  HoistAnalysis analyze(Expression expression) {
-    final writer = _HoistWriter(this);
+  /// Analyzes [expression], writing each node of [holes] as its text and
+  /// keying islands as [keys] says.
+  HoistAnalysis analyze(
+    AstNode expression, {
+    Map<AstNode, String> holes = const {},
+    Map<AstNode, List<({String before, String after})>> around = const {},
+    AstNode? scope,
+  }) {
+    final writer = _HoistWriter(this, holes)
+      ..around = around
+      ..scope = scope;
     final template = writer.render(expression, const []);
-    if (writer.surfaceValue case final blocked?) return blocked;
-    if (template == null) return HoistUnwritable(unnamed: writer.unnamed);
+    if (writer.surfaceValue case final blocked?) {
+      return HoistNeedsSurfaceValue(
+        blocked.name,
+        node: blocked.node,
+        elements: writer.blocked,
+      );
+    }
+    if (template == null) {
+      return HoistUnwritable(unnamed: writer.unnamed, node: writer.stoppedAt);
+    }
+    // A label reads as the source wrote the expression.
+    final unit = expression.root;
+    final contents = unit is CompilationUnit
+        ? unit.declaredFragment?.source.contents.data
+        : null;
     final label = _labelOf(
-      template
-          .replaceAllMapped(_parameterMarker, (match) => match.group(1)!)
-          .replaceAll(_itemMarker, writer.itemName ?? ''),
+      holes.isEmpty && contents != null && expression.end <= contents.length
+          ? contents.substring(expression.offset, expression.end)
+          : template
+                .replaceAllMapped(
+                  _parameterMarker,
+                  (match) =>
+                      match[1] == kRootContext ? 'context' : match.group(1)!,
+                )
+                .replaceAll(_itemMarker, writer.itemName ?? ''),
     );
     return HoistEvaluable(
       label: label,
       template: template,
       item: writer.item,
+      node: expression,
     );
   }
 }
 
 final class _HoistWriter {
-  _HoistWriter(this.analyzer);
+  _HoistWriter(this.analyzer, this.holes);
 
   final HoistAnalyzer analyzer;
+  final Map<AstNode, String> holes;
+
+  /// Text written around nodes, outermost first; recorded copies only.
+  Map<AstNode, List<({String before, String after})>> around = const {};
+
+  /// The scope whose own locals keep their source names; recorded copies
+  /// only.
+  AstNode? scope;
+
   HoistNeedsSurfaceValue? surfaceValue;
+  final Set<Element> blocked = {};
   bool failed = false;
   String? unnamed;
+  AstNode? stoppedAt;
   String? item;
   String? itemName;
 
-  String? render(Expression node, List<Element> active) {
-    // Every eager host computation shares the installed callable boundary.
-    try {
-      final calls = qualifyInstalledNativeCallables(
-        node,
-        isDeclaredCallable: analyzer.isDeclaredCallable,
-      );
-      if (calls.any((call) => installedIntlLookupFamily(call.target) != null)) {
-        failed = true;
-        return null;
-      }
-    } on BuilderLoweringException {
-      failed = true;
-      return null;
-    }
+  String? render(AstNode node, List<Element> active) {
     final unit = node.root;
     final contents = unit is CompilationUnit
         ? unit.declaredFragment?.source.contents.data
@@ -614,8 +872,34 @@ final class _HoistWriter {
     node.accept(visitor);
     if (failed || surfaceValue != null) return null;
     var source = contents.substring(node.offset, node.end);
+    // At one offset, a replacement applies before an insertion.
     final edits = visitor.edits
-      ..sort((left, right) => right.start.compareTo(left.start));
+      ..addAll(_constAround(node, contents))
+      ..addAll(_around(node));
+    // A hole's text replaces everything inside it, edits included.
+    final replaced = [
+      for (final edit in edits)
+        if (edit.end > edit.start) edit,
+    ];
+    edits
+      ..removeWhere(
+        (edit) => replaced.any(
+          (hole) =>
+              !identical(hole, edit) &&
+              hole.start <= edit.start &&
+              edit.end <= hole.end &&
+              // Text written around the hole itself stays.
+              !(edit.start == edit.end &&
+                  (edit.start == hole.start || edit.start == hole.end)) &&
+              !(edit.start == hole.start && edit.end == hole.end),
+        ),
+      )
+      ..sort(
+        (left, right) => switch (right.start.compareTo(left.start)) {
+          0 => right.end.compareTo(left.end),
+          final order => order,
+        },
+      );
     for (final edit in edits) {
       source = source.replaceRange(
         edit.start - node.offset,
@@ -625,36 +909,138 @@ final class _HoistWriter {
     }
     return source;
   }
+
+  // The text written around each node of [around] inside [node], merged per
+  // offset so outer text encloses inner text.
+  Iterable<({int start, int end, String text})> _around(AstNode node) {
+    final before = <int, List<(int, int, String)>>{};
+    final after = <int, List<(int, int, String)>>{};
+    for (final MapEntry(key: at, value: texts) in around.entries) {
+      if (at.offset < node.offset || at.end > node.end) continue;
+      // A bare `$name` interpolation needs braces once it is wrapped.
+      final bare = switch (at.parent) {
+        InterpolationExpression(rightBracket: null) => true,
+        _ => false,
+      };
+      for (final (order, text) in texts.indexed) {
+        (before[at.offset] ??= []).add((
+          at.length,
+          order,
+          '${bare && order == 0 ? '{' : ''}${text.before}',
+        ));
+        (after[at.end] ??= []).add((
+          at.length,
+          order,
+          '${text.after}${bare && order == 0 ? '}' : ''}',
+        ));
+      }
+    }
+    int outerFirst((int, int, String) a, (int, int, String) b) =>
+        a.$1 != b.$1 ? b.$1.compareTo(a.$1) : a.$2.compareTo(b.$2);
+    return [
+      for (final MapEntry(:key, :value) in before.entries)
+        (
+          start: key,
+          end: key,
+          text: (value..sort(outerFirst)).map((e) => e.$3).join(),
+        ),
+      for (final MapEntry(:key, :value) in after.entries)
+        (
+          start: key,
+          end: key,
+          text: (value..sort((a, b) => outerFirst(b, a)))
+              .map((e) => e.$3)
+              .join(),
+        ),
+    ];
+  }
+
+  // Removes each `const` from [node] down to a hole: a filled hole is not
+  // constant.
+  Iterable<({int start, int end, String text})> _constAround(
+    AstNode node,
+    String contents,
+  ) {
+    final keywords = <Token>{};
+    for (final hole in [
+      ...holes.keys,
+      ...around.keys,
+    ]) {
+      if (identical(hole, node) ||
+          hole.offset < node.offset ||
+          hole.end > node.end) {
+        continue;
+      }
+      // The hole's own text replaces the hole, `const` included.
+      for (AstNode? at = hole.parent; at != null; at = at.parent) {
+        final keyword = switch (at) {
+          InstanceCreationExpression(:final keyword?) => keyword,
+          TypedLiteral(:final constKeyword?) => constKeyword,
+          RecordLiteral(:final constKeyword?) => constKeyword,
+          _ => null,
+        };
+        if (keyword?.keyword == Keyword.CONST) keywords.add(keyword!);
+        if (identical(at, node)) break;
+      }
+    }
+    return [
+      for (final keyword in keywords)
+        (
+          start: keyword.offset,
+          end: RegExp(r'\s*').matchAsPrefix(contents, keyword.end)!.end,
+          text: '',
+        ),
+    ];
+  }
 }
 
 final class _HoistVisitor extends RecursiveAstVisitor<void> {
   _HoistVisitor(this.writer, this.root, this.active);
 
   final _HoistWriter writer;
-  final Expression root;
+  final AstNode root;
   final List<Element> active;
   final List<({int start, int end, String text})> edits = [];
 
   HoistAnalyzer get analyzer => writer.analyzer;
 
-  void _replace(AstNode node, String text) =>
-      edits.add((start: node.offset, end: node.end, text: text));
+  // A `$name` interpolation needs braces once its name is rewritten, when
+  // the interpolation is part of what is written.
+  void _replace(AstNode node, String text) => edits.add((
+    start: node.offset,
+    end: node.end,
+    text: switch (node.parent) {
+      final InterpolationExpression interpolation
+          when interpolation.rightBracket == null &&
+              interpolation.offset >= root.offset &&
+              !writer.around.containsKey(node) =>
+        '{$text}',
+      _ => text,
+    },
+  ));
 
-  void _fail() => writer.failed = true;
-
-  void _unnamed(String name) {
-    writer.unnamed ??= name;
-    _fail();
+  void _fail(AstNode node) {
+    writer.stoppedAt ??= node;
+    writer.failed = true;
   }
 
-  void _surfaceOnly(String name, {bool isBuildArgument = false}) =>
-      writer.surfaceValue ??= HoistNeedsSurfaceValue(
-        name,
-        isBuildArgument: isBuildArgument,
-      );
+  void _unnamed(AstNode node, String name) {
+    if (writer.unnamed == null) {
+      writer
+        ..unnamed = name
+        ..stoppedAt = node;
+    }
+    _fail(node);
+  }
+
+  void _surfaceOnly(AstNode node, String name, {Element? element}) {
+    writer.surfaceValue ??= HoistNeedsSurfaceValue(name, node: node);
+    if (element != null) writer.blocked.add(element);
+  }
 
   bool _declaredInside(Element element) {
     final fragment = element.firstFragment;
+    final root = writer.scope ?? this.root;
     final unit = root.root;
     if (unit is! CompilationUnit) return false;
     final source = unit.declaredFragment?.source;
@@ -665,22 +1051,30 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
   }
 
   @override
-  void visitThisExpression(ThisExpression node) => _surfaceOnly('this');
+  void visitThisExpression(ThisExpression node) {
+    final spelling = analyzer.thisFor(node.staticType);
+    if (spelling == null) {
+      _surfaceOnly(node, 'this');
+    } else if (spelling != 'this') {
+      _replace(node, spelling);
+    }
+  }
 
   @override
-  void visitSuperExpression(SuperExpression node) => _surfaceOnly('super');
+  void visitSuperExpression(SuperExpression node) =>
+      _surfaceOnly(node, 'super');
 
   @override
   void visitNamedType(NamedType node) {
     final element = node.element;
     if (element == null) {
       if (node.name.lexeme != 'dynamic' && node.name.lexeme != 'void') {
-        _fail();
+        _fail(node);
       }
     } else if (element is! TypeParameterElement) {
       final spelling = analyzer.namespace.elementName(element);
       if (spelling == null) {
-        _unnamed(node.name.lexeme);
+        _unnamed(node, node.name.lexeme);
         return;
       }
       edits.add(
@@ -728,6 +1122,10 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
 
   @override
   void visitMethodInvocation(MethodInvocation node) {
+    if (writer.holes[node] case final text?) {
+      _replace(node, text);
+      return;
+    }
     final target = node.target;
     if (target == null) {
       _reference(
@@ -735,6 +1133,9 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
         node.methodName.element,
         node.methodName.name,
       );
+    } else if (target is SimpleIdentifier && target.element is PrefixElement) {
+      // A call through an import prefix: the generated part shares the
+      // library's imports, so it is written as the app wrote it.
     } else {
       target.accept(this);
     }
@@ -747,30 +1148,104 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
       node.argumentExpression.accept(this);
 
   @override
+  void visitExpressionFunctionBody(ExpressionFunctionBody node) {
+    if (writer.holes[node.expression] case final text?) {
+      _replace(node.expression, text);
+    } else {
+      super.visitExpressionFunctionBody(node);
+    }
+  }
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    if (writer.holes[node] case final text?) {
+      _replace(node, text);
+    } else {
+      super.visitInstanceCreationExpression(node);
+    }
+  }
+
+  @override
+  void visitReturnStatement(ReturnStatement node) {
+    final value = node.expression;
+    final text = value == null ? null : writer.holes[value];
+    if (value != null && text != null) {
+      _replace(value, text);
+    } else {
+      super.visitReturnStatement(node);
+    }
+  }
+
+  @override
+  void visitArgumentList(ArgumentList node) {
+    for (final argument in node.arguments) {
+      final value = argument is NamedArgument
+          ? argument.argumentExpression
+          : argument;
+      if (writer.holes[value] case final text?) {
+        _replace(value, text);
+      } else {
+        argument.accept(this);
+      }
+    }
+  }
+
+  @override
   void visitSimpleIdentifier(SimpleIdentifier node) {
     if (node.inDeclarationContext() || _isSelector(node)) return;
-    _reference(node, node.element, node.name);
+    // An assignment or increment target resolves through its write element.
+    final element =
+        node.element ??
+        switch (node.parent) {
+          CompoundAssignmentExpression(:final writeElement) => writeElement,
+          _ => null,
+        };
+    _reference(node, element, node.name);
   }
 
   void _reference(AstNode node, Element? raw, String name) {
     if (raw == null) {
-      _fail();
+      _fail(node);
       return;
     }
     final element = raw is PropertyAccessorElement
         ? raw.variable
         : raw.baseElement;
-    if (_declaredInside(element)) return;
+    final mountName = analyzer.mountNameOf(element);
+    if (_declaredInside(element)) {
+      // A local the mount declares under another name is read by that name.
+      if (writer.scope == null && mountName != null && mountName != name) {
+        _replace(node, mountName);
+      }
+      return;
+    }
+    // A lifted State's mount forwards `widget`.
+    if (_isStateWidget(raw)) {
+      if (analyzer.forwardsWidget()) {
+        _replace(node, kStateWidgetSlot);
+      } else {
+        _surfaceOnly(node, name);
+      }
+      return;
+    }
+    if (analyzer.isMountScope(element)) {
+      final spelled = mountName ?? name;
+      if (_promotion(node, element) != null || spelled != name) {
+        _write(node, element, spelled);
+      }
+      return;
+    }
     final bound = analyzer.bindingFor(raw) ?? analyzer.bindingFor(element);
     if (bound != null) {
       if (active.contains(element)) {
-        _fail();
+        _fail(node);
         return;
       }
       final inner = writer.render(bound, [...active, element]);
       if (inner == null) return;
-      _replace(
+      _write(
         node,
+        element,
         bound is Identifier ||
                 bound is PropertyAccess ||
                 bound is MethodInvocation ||
@@ -784,34 +1259,57 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
     if (element is FormalParameterElement) {
       final root = analyzer.rootContext?.baseElement;
       if (root != null && identical(element.baseElement, root)) {
-        _replace(node, 'context');
+        _replace(node, '\u0000$kRootContext\u0000');
         return;
       }
       if (analyzer.buildArgumentFor(element) case final argument?) {
         _replace(node, argument);
         return;
       }
-      _surfaceOnly(
-        name,
-        isBuildArgument:
-            root != null &&
-            identical(
-              element.baseElement.enclosingElement,
-              root.enclosingElement,
-            ),
-      );
+      // A builder's own parameter, which a recorded copy of its body reads
+      // where the app declares it.
+      if (analyzer.recordedLocalOf(element) case final slot?) {
+        _write(node, element, '\u0000$slot\u0000');
+        return;
+      }
+      _surfaceOnly(node, name);
       return;
     }
     if (element is LocalVariableElement) {
       final item = analyzer.itemLoopFor(element);
-      if (item == null || (writer.item ?? item) != item) {
-        _surfaceOnly(name);
+      final current = writer.item;
+      // Items of nested loops combine; the value belongs to the innermost.
+      if (item == null ||
+          current != null &&
+              !_encloses(current, item) &&
+              !_encloses(item, current)) {
+        final slot = item == null ? analyzer.recordedLocalOf(element) : null;
+        if (slot != null) {
+          _write(node, element, '\u0000$slot\u0000');
+          return;
+        }
+        _surfaceOnly(node, name);
         return;
       }
-      writer
-        ..item = item
-        ..itemName = name;
-      _replace(node, _itemMarker);
+      if (current == null || _encloses(current, item)) {
+        writer
+          ..item = item
+          ..itemName = name;
+      }
+      final read = analyzer.keepsItemNames(item) ? name : _itemMarker;
+      if (read != name || _promotion(node, element) != null) {
+        _write(node, element, read);
+      }
+      return;
+    }
+    // A function the build declares: the copy runs the build as written, so
+    // it reads the function where the app declares it.
+    if (element is LocalFunctionElement) {
+      if (analyzer.recordedLocalOf(element) case final slot?) {
+        _write(node, element, '\u0000$slot\u0000');
+      } else {
+        _surfaceOnly(node, name);
+      }
       return;
     }
     final param = analyzer.rootParamFor(element);
@@ -826,22 +1324,66 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
       _ => false,
     };
     final String? spelling;
-    if (enclosing is LibraryElement || element is InterfaceElement) {
+    if (enclosing is LibraryElement && element is! InterfaceElement) {
+      final visible = analyzer.namespace.elementName(element);
+      // A name the generated mount declares reads through the part's alias.
+      spelling = visible == name && kMountScopeNames.contains(name)
+          ? mountAliasOf(element, name)
+          : visible;
+    } else if (element is InterfaceElement) {
       spelling = analyzer.namespace.elementName(element);
     } else if (isStatic) {
       spelling = analyzer.namespace.staticMemberName(element);
+    } else if (analyzer.isSurfaceMember(element)) {
+      spelling = '\u0000$kSurfaceInstance\u0000.$name';
     } else {
-      _surfaceOnly(name);
+      _surfaceOnly(node, name, element: element);
       return;
     }
     if (spelling == null) {
-      _unnamed(element.name ?? name);
+      _unnamed(node, element.name ?? name);
       return;
     }
-    _replace(node, spelling);
+    _write(node, element, spelling);
+  }
+
+  // Writes [text] for the read at [node], cast to the type the surface
+  // promoted it to.
+  void _write(AstNode node, Element element, String text) {
+    final type = _promotion(node, element);
+    if (type == null) {
+      _replace(node, text);
+      return;
+    }
+    final code = analyzer.namespace.typeCode(type);
+    if (code == null) {
+      _unnamed(node, type.getDisplayString());
+      return;
+    }
+    _replace(node, '($text as $code)');
+  }
+
+  // The promoted type of the read at [node] when it differs from the
+  // declared one; the part ignores the casts a copied guard makes redundant.
+  DartType? _promotion(AstNode node, Element element) {
+    if (element is! VariableElement || node is! Expression) return null;
+    final type = node.staticType;
+    if (type == null || type is DynamicType || type == element.type) {
+      return null;
+    }
+    return type;
   }
 
   bool _isStateWidget(Element? element) => analyzer.isStateWidget(element);
+
+  // Whether the loop over [outer] items encloses the loop over [inner], or
+  // they are the same.
+  bool _encloses(String outer, String inner) {
+    for (String? item = inner; item != null; item = analyzer.outerItem(item)) {
+      if (item == outer) return true;
+    }
+    return false;
+  }
 }
 
 bool _isSelector(SimpleIdentifier identifier) => switch (identifier.parent) {

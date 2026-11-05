@@ -4,6 +4,18 @@
 
 **Breaking:** `DeviceContractValueKind` gains `boolean`; exhaustive switches must handle it.
 
+Add `componentLibraryBlob`, `componentFingerprint`,
+`componentReachedDeclarations` and `kSharedComponentEntryName`, which build
+a shared component from a declaration and fingerprint its definition.
+
+- `validateBuilderProgramContract` takes the shapes of an app builder's values.
+
+**Breaking:** `SurfaceFitFailureCodeV1` adds `missingIsland` and
+`changedIsland`. Exhaustive switches must handle them.
+`SurfaceHostContractV1.islands` lists the app-rendered widgets a mount
+provides, and `SurfaceFitRequirementV1` gains `requiredIslands` and
+`islandLabels`; each is written only when non-empty.
+
 **Breaking:** `SurfaceArtifactDescriptor` is version 2 and carries a required
 Ed25519 `signature` and `authorizedAtMicros`. Version 1 descriptors no longer
 decode. `deliveryStatementBytes` defines what the signature covers, and

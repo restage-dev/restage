@@ -29,16 +29,14 @@ files use the same explicit id.
 ## unknownWidget
 
 ```text
-[unknownWidget] lib/messages/promo.dart:16:41: Widget 'Plain' is not a known catalog widget. If it is a custom widget, annotate its class with @RestageWidget so Restage can recognise it.
+[unknownWidget] lib/messages/promo.dart:16:41: `Plain` renders from your app's code because it isn't in Restage's widget catalog. Try promoting it with `restage widget promote lib/messages/promo.dart:16:41` if designers should place it on other screens.
+[unknownWidget] lib/messages/promo.dart:20:9: `SignalBuilder` (package:acme_state) renders from your app's code because it builds from your app's state.
 ```
 
-Your own widget class is used in a surface. Add `@RestageWidget()` to it and export
-it from the widget library file. See [custom-widgets.md](custom-widgets.md). The
-annotation lets Restage inline supported composition or register a native factory.
-For an unsupported helper call, check its body and arguments against the
-[supported helper patterns](surfaces-and-events.md#composition-and-helpers).
-Own methods and same-package top-level or static helpers can inline, including
-helpers imported from another file.
+In a surface with its generated part this doesn't stop the build: the widget renders
+from your app exactly as it is, and the build report lists it with this reason.
+Designers can't change what's inside it. Promote it only if designers should place
+it on other screens.
 
 ## missingCatalogDescription
 
@@ -234,11 +232,19 @@ enum as a `String` that carries its wire value.
 [buildMethodTooComplex] ... build() makes a recursive helper call ('_nest'); a helper cannot call itself.
 ```
 
+No helper may call itself, in any build.
+
+A surface's own `build()`, compiled into its generated widget, runs as written,
+so statements before its `return` don't stop it. A statement the generated
+widget can't copy, such as a `super.build` call, is refused with its own
+message. The rest of this section applies to `@RestageWidget` builds and to
+the helpers a build inlines.
+
 A helper that the build can't inline is refused by name: its body must be one returned
 expression, optionally after `final` or `const` locals it uses. Pass every parameter
-explicitly, including optional parameters, and avoid recursive helper calls.
+explicitly, including optional parameters.
 
-Every local in `build()` must reach the returned widget. Remove it, or use it. `late`,
+Every local must reach the returned widget. Remove it, or use it. `late`,
 several variables in one statement, and any statement other than a local or the
 `return` also stop the build.
 

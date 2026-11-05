@@ -38,9 +38,7 @@ const _kCupertinoButtonExcludes = [
   'borderRadius',
   'alignment',
   'focusColor',
-  'onFocusChange',
   'autofocus',
-  'onLongPress',
 ];
 
 // Synthetic catalog property shared by both `CupertinoButton` ctors.
@@ -102,6 +100,8 @@ const List<BuiltinWidgetCuration> kCuration = [
     category: WidgetCategory.action,
     excludeParams: _kCupertinoButtonExcludes,
     propertyOverrides: {
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
+      'onLongPress': PropertyOverride(sinceVersion: 26),
       'onPressed': PropertyOverride(required: false),
     },
     synthetics: [_kCupertinoButtonDisabledSynthetic],
@@ -115,6 +115,8 @@ const List<BuiltinWidgetCuration> kCuration = [
     excludeParams: _kCupertinoButtonExcludes,
     brandTokens: {'color': 'primary'},
     propertyOverrides: {
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
+      'onLongPress': PropertyOverride(sinceVersion: 26),
       'onPressed': PropertyOverride(required: false),
     },
     synthetics: [_kCupertinoButtonDisabledSynthetic],
@@ -194,11 +196,11 @@ const List<BuiltinWidgetCuration> kCuration = [
       'trackOutlineColor',
       'trackOutlineWidth',
       'thumbIcon',
-      'onFocusChange',
       'autofocus',
     ],
     brandTokens: {'activeTrackColor': 'primary'},
     propertyOverrides: {
+      'onFocusChange': PropertyOverride(sinceVersion: 26),
       'onChanged': PropertyOverride(
         required: false,
         callbackSignature: 'ValueChanged<bool>',
@@ -238,6 +240,10 @@ const List<BuiltinWidgetCuration> kCuration = [
       ),
     ],
     propertyOverrides: {
+      'onEditingComplete': PropertyOverride(sinceVersion: 26),
+      'onTapOutside': PropertyOverride(sinceVersion: 26),
+      'onTapUpOutside': PropertyOverride(sinceVersion: 26),
+      'onTap': PropertyOverride(sinceVersion: 26),
       'onChanged': PropertyOverride(
         callbackSignature: 'ValueChanged<String>',
       ),
@@ -282,9 +288,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'minLines',
       'expands',
       'maxLengthEnforcement',
-      'onEditingComplete',
-      'onTapOutside',
-      'onTapUpOutside',
       'inputFormatters',
       'enabled',
       'cursorWidth',
@@ -298,7 +301,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'enableInteractiveSelection',
       'selectAllOnFocus',
       'selectionControls',
-      'onTap',
       'autofillHints',
       'restorationId',
       'scribbleEnabled',
@@ -313,14 +315,14 @@ const List<BuiltinWidgetCuration> kCuration = [
   // as `CupertinoSwitch` above (double payload instead of bool).
   // `thumbColor` defaults to a non-nullable `CupertinoColors.white`
   // const the catalog can't express as a primitive default — rely on
-  // the runtime Flutter default by excluding. `onChangeStart` /
-  // `onChangeEnd` are imperative drag-lifecycle hooks outside the
-  // catalog's event taxonomy.
+  // the runtime Flutter default by excluding.
   BuiltinWidgetCuration<CupertinoSlider>(
     category: WidgetCategory.input,
-    excludeParams: ['onChangeStart', 'onChangeEnd', 'thumbColor'],
+    excludeParams: ['thumbColor'],
     brandTokens: {'activeColor': 'primary'},
     propertyOverrides: {
+      'onChangeStart': PropertyOverride(sinceVersion: 26),
+      'onChangeEnd': PropertyOverride(sinceVersion: 26),
       'onChanged': PropertyOverride(
         required: false,
         callbackSignature: 'ValueChanged<double>',
@@ -330,8 +332,8 @@ const List<BuiltinWidgetCuration> kCuration = [
   // The DateTime params (`initialDateTime`, `minimumDate`,
   // `maximumDate`) excluded — the catalog has no DateTime
   // PropertyType today, so the runtime default to `now` / no bounds
-  // applies. `selectionOverlayBuilder` and `selectableDayPredicate`
-  // take imperative callbacks that don't fit declarative serialization.
+  // applies. `selectionOverlayBuilder` is a widget builder; the app's own
+  // `selectableDayPredicate` passes through.
   // `onDateTimeChanged` remains the precise callback identity inferred from
   // the Flutter constructor.
   BuiltinWidgetCuration<CupertinoDatePicker>(
@@ -341,10 +343,10 @@ const List<BuiltinWidgetCuration> kCuration = [
       'minimumDate',
       'maximumDate',
       'selectionOverlayBuilder',
-      'selectableDayPredicate',
     ],
     brandTokens: {'backgroundColor': 'background'},
     propertyOverrides: {
+      'selectableDayPredicate': PropertyOverride(sinceVersion: 26),
       'onDateTimeChanged': PropertyOverride(
         callbackSignature: 'ValueChanged<DateTime>',
       ),
@@ -411,13 +413,11 @@ const List<BuiltinWidgetCuration> kCuration = [
       'suffixInsets',
       'suffixIcon',
       'suffixMode',
-      'onSuffixTap',
       'restorationId',
       'smartQuotesType',
       'smartDashesType',
       'enableIMEPersonalizedLearning',
       'autofocus',
-      'onTap',
       'autocorrect',
       'enabled',
       'cursorWidth',
@@ -428,6 +428,8 @@ const List<BuiltinWidgetCuration> kCuration = [
     ],
     brandTokens: {'backgroundColor': 'background'},
     propertyOverrides: {
+      'onSuffixTap': PropertyOverride(sinceVersion: 26),
+      'onTap': PropertyOverride(sinceVersion: 26),
       'onChanged': PropertyOverride(
         callbackSignature: 'ValueChanged<String>',
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:restage/render_support.dart' show addBuiltInIconTable;
+import 'package:restage/render_support.dart'
+    show addBuiltInIconTable, themeDataOf;
 import 'package:restage/restage.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
@@ -309,11 +310,7 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
     final environment = widget.environment;
     final revision = _lifecycleRevision;
     final epoch = widget.epoch;
-    final theme = ThemeData(
-      brightness:
-          environment.brightness == 'dark' ? Brightness.dark : Brightness.light,
-      useMaterial3: true,
-    );
+    final theme = _hostTheme(environment);
     final rendered = KeyedSubtree(
       key: _renderedKey,
       child: MediaQuery(
@@ -356,17 +353,47 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
   }
 }
 
-Map<String, Object?> _renderData(RawRfwRenderSurface widget) =>
-    <String, Object?>{
-      ...widget.data,
-      // The host's brightness joins the theme namespace so a surface can
-      // branch on it the same way it does under the SDK.
-      'theme': <String, Object?>{
+// The theme the host renders app code under.
+ThemeData _hostTheme(RenderEnv environment) => ThemeData(
+      brightness:
+          environment.brightness == 'dark' ? Brightness.dark : Brightness.light,
+      useMaterial3: true,
+    );
+
+// [over] on top of [base], nested maps merged key by key.
+Map<String, Object?> _mergeOver(
+    Map<String, Object?> base, Map<String, Object?> over) {
+  final merged = <String, Object?>{...base};
+  for (final MapEntry(:key, :value) in over.entries) {
+    final under = base[key];
+    merged[key] = under is Map<String, Object?> && value is Map<String, Object?>
+        ? _mergeOver(under, value)
+        : value;
+  }
+  return merged;
+}
+
+Map<String, Object?> _renderData(RawRfwRenderSurface widget) {
+  final theme = _hostTheme(widget.environment);
+  return <String, Object?>{
+    ...widget.data,
+    // The host's own theme, as the SDK projects it, under the shell's theme
+    // and brightness, so a surface reads what app code under it reads.
+    'theme': _mergeOver(
+      themeDataOf(
+        colorScheme: theme.colorScheme,
+        iconTheme: theme.iconTheme,
+        defaultTextStyle: theme.textTheme.bodyMedium!,
+        textTheme: theme.textTheme,
+      ),
+      <String, Object?>{
         ...widget.environment.theme,
         'brightness': widget.environment.brightness,
       },
-      'device': previewDeviceData(widget.environment),
-    };
+    ),
+    'device': previewDeviceData(widget.environment),
+  };
+}
 
 /// The `data.device.*` namespace for a previewed surface. The preview renders
 /// in the browser at the requested frame, so the platform is `web`, the pixel

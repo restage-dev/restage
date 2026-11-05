@@ -299,7 +299,10 @@ void main() {
           'hidden': {'note': 'kept'},
         },
       ),
-      refusal('its host data type `_Hidden` is private to its library'),
+      refusal(
+        'its host data type `_Hidden` is private to its library. Try making '
+        '`_Hidden` public to draw the image',
+      ),
     );
     // An optional one it can leave out does not stop the image.
     expect(

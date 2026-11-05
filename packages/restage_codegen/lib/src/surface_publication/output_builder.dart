@@ -45,8 +45,11 @@ final class RestageOutputsBuilder implements Builder {
       return;
     }
 
-    if (buildStep.inputId.path == r'$package$' && !plan.bundledRuntime) {
-      await warnAboutUnbundledSurfaceMounts(buildStep);
+    if (buildStep.inputId.path == r'$package$') {
+      await warnAboutUnbundledSurfaceMounts(
+        buildStep,
+        bundled: plan.bundledRuntime,
+      );
     }
 
     final bundle = await readRestageCompilerHandoff(buildStep);

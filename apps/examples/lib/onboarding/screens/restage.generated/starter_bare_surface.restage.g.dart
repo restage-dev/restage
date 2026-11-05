@@ -1,6 +1,6 @@
 part of '../starter_bare_surface.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const starterBareSurfaceScreenRef = NeutralFlowScreenRef(
   id: 'starter_bare_surface',

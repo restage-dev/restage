@@ -164,9 +164,10 @@ void main() {
         expect(
           stdout.toString(),
           contains(
-            "Git doesn't ignore these build files: "
-            '.restage/build/metadata/restage.capture.json. Add them to '
-            '.gitignore.',
+            'WARN  Build metadata ignored by git\n'
+            "      Git doesn't ignore "
+            '.restage/build/metadata/restage.capture.json. These files change '
+            'with every build. Try adding them to .gitignore.',
           ),
         );
       });
@@ -177,7 +178,13 @@ void main() {
         ).writeAsString('.restage/build/\n');
 
         expect(await runDoctor(), 0);
-        expect(stdout.toString(), contains('Build output is ignored by git.'));
+        expect(
+          stdout.toString(),
+          contains(
+            'PASS  Build metadata ignored by git\n'
+            '      Git ignores every build metadata file.',
+          ),
+        );
       });
 
       test('follows a configured output root', () async {
@@ -197,9 +204,7 @@ targets:
         expect(
           stdout.toString(),
           contains(
-            "Git doesn't ignore these build files: "
-            'tool/restage/metadata/restage.capture.json. Add them to '
-            '.gitignore.',
+            "Git doesn't ignore tool/restage/metadata/restage.capture.json. ",
           ),
         );
       });

@@ -22,7 +22,7 @@ r.NativeCallAdapter callableAuthorityAdapter() => r.NativeCallAdapter(
               "nativeType": "callback.context"
             },
             "implementation":
-                "05604fd75735fff3ce34fe89e416d215d3b726d4eca8e7a045ae3affe25b6620"
+                "99b9f2ec79e9ccfd3567a24aeb5702dde7ff37dcbff6ba0864f5b7a61cfa42fc"
           }
         }), (_restageInputs, _restageCells) {
       T _restageAs<T>(Object? value) => value as T;
@@ -70,7 +70,7 @@ r.NativeCallAdapter nullableCallableAdapter() => r.NativeCallAdapter(
               "nativeType": "callback.context"
             },
             "implementation":
-                "59230bd7e7bab3bc4cd98e98239567a75f924221b772c05fcd7207a541e369ad"
+                "e41f859bb6daa18d581cdc76b0a05aefe2ea483f6e9fa5e17261f8ef75ec7ba1"
           }
         }), (_restageInputs, _restageCells) {
       T _restageAs<T>(Object? value) => value as T;
@@ -101,7 +101,7 @@ r.NativeCallAdapter aliasedLookupAdapter() => r.NativeCallAdapter(
             "captures": <String, Object?>{},
             "result": <String, Object?>{"kind": "String"},
             "implementation":
-                "a5e68df1cc08cef764aa7b1f141c2046e2d796fc6d1a2c0750db96f86bbc085d"
+                "3d74013fe4f5fea17bd31c13543e24731271b5bdc8c046a7e14e85aaeaabaa43"
           }
         }), (_restageInputs, _restageCells) {
       final String _restageResult = callableLookup('fallback',

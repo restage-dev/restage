@@ -412,7 +412,7 @@ void main() {
       // flutterType to `package:restage_core/src/...`. The core barrel
       // (`package:restage_core/restage_core.dart`) re-exports it and is
       // already imported whenever a factory references core runtime
-      // (RestageDecoders / resolveThemeBinding) — so a direct import of the
+      // (RestageDecoders) — so a direct import of the
       // widget source is redundant and trips `unnecessary_import`. The
       // `duration` property forces a RestageDecoders reference (hence the
       // barrel); the assertion locks that the direct import is dropped while

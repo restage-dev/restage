@@ -18,6 +18,7 @@ import '../delivery/surface_sections_carrier.dart';
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_resolver.dart';
 import '../restage_rpc_client/placement_delivery_adapter.dart';
+import '../runtime/generated_surface_need.dart';
 import '../runtime/installed_widget_vocabulary.dart';
 import '../runtime/placement_registry.dart';
 import '../refresh/surface_update_channel.dart';
@@ -258,6 +259,11 @@ abstract class PlacementMountResolver<T extends Object>
 
   /// Called when a fresh fallback decision changes the watched fallback.
   void Function()? onFallbackChanged;
+
+  /// Why delivered content this mount can't render fell back.
+  PlacementNoAnswerCause unrenderable(
+          List<String> unfit, PublishedSurfaceLabel published) =>
+      PlacementNoAnswerUnrenderable(unfit, published: published);
 
   /// The server's reason for the latest fallback; null after a delivery.
   PlacementBatchRefusalReasonV1? fallbackReason;
@@ -639,7 +645,7 @@ abstract class PlacementMountResolver<T extends Object>
     if (accepted == null) {
       if (lapse == null) {
         noAnswer(SurfaceDeliveryReceiptReason.unsupported.name,
-            PlacementNoAnswerUnrenderable(unfit, published: published));
+            unrenderable(unfit, published));
       } else {
         noAnswer(lapse.$1, lapse.$2);
       }
@@ -990,9 +996,22 @@ final class PlacementPaywallResolver
       {required super.registry,
       required super.declaration,
       required this.id,
+      this.explicit = false,
       required this.originalResolver});
   final String id;
+
+  /// Whether the mount declares its contract itself, not through a
+  /// generated widget.
+  final bool explicit;
   final VariantResolver originalResolver;
+
+  // An explicit mount can't supply what a generated widget computes.
+  @override
+  PlacementNoAnswerCause unrenderable(
+          List<String> unfit, PublishedSurfaceLabel published) =>
+      explicit && unfit.any(fitTokenNeedsGeneratedSurface)
+          ? PlacementNoAnswerNeedsGeneratedSurface(id)
+          : super.unrenderable(unfit, published);
   @override
   Future<ResolvedPaywallPayload?> original() async {
     if (declaration.mount.defaultSurface == null) return null;

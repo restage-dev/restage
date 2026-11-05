@@ -1,6 +1,6 @@
 part of '../apex_drop.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const apexDropScreenRef = NeutralFlowScreenRef(
   id: 'apex_drop',

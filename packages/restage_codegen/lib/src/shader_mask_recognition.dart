@@ -20,7 +20,9 @@ import 'package:restage_codegen/src/theme_recognition.dart';
         }.contains(arg.name.lexeme)) {
       return (
         arguments: null,
-        reason: 'the widget has an unsupported argument',
+        reason:
+            'its arguments include one other than key, child, '
+            'shaderCallback, blendMode and colorFilter',
       );
     }
     args[arg.name.lexeme] = arg.argumentExpression;
@@ -39,7 +41,10 @@ import 'package:restage_codegen/src/theme_recognition.dart';
         filter.constructorName.element?.name != 'mode' ||
         filter.argumentList.arguments.length != 2 ||
         filter.argumentList.arguments.any((arg) => arg is NamedArgument)) {
-      return (arguments: null, reason: 'only ColorFilter.mode is supported');
+      return (
+        arguments: null,
+        reason: "its colorFilter isn't a `ColorFilter.mode`",
+      );
     }
     return (
       arguments: {
@@ -73,8 +78,8 @@ import 'package:restage_codegen/src/theme_recognition.dart';
       return (
         arguments: null,
         reason:
-            'shaderCallback must be a one-parameter closure or a '
-            'gradient.createShader tear-off',
+            "its shaderCallback isn't a one-parameter closure or a "
+            "gradient's `createShader` tear-off",
       );
     }
     final body = callback.body;
@@ -91,7 +96,8 @@ import 'package:restage_codegen/src/theme_recognition.dart';
     if (call is! MethodInvocation || call.methodName.name != 'createShader') {
       return (
         arguments: null,
-        reason: 'return a gradient.createShader(bounds) expression',
+        reason:
+            "its shaderCallback doesn't return `gradient.createShader(bounds)`",
       );
     }
     final bounds = call.argumentList.arguments;
@@ -103,7 +109,8 @@ import 'package:restage_codegen/src/theme_recognition.dart';
         (bounds.single as SimpleIdentifier).element != parameter) {
       return (
         arguments: null,
-        reason: 'createShader must receive the unchanged callback bounds',
+        reason:
+            'its shaderCallback changes the bounds it passes to `createShader`',
       );
     }
     gradientTarget = call.target;
@@ -138,7 +145,8 @@ import 'package:restage_codegen/src/theme_recognition.dart';
     return (
       arguments: null,
       reason:
-          'only Flutter LinearGradient, RadialGradient and SweepGradient are supported',
+          "its gradient isn't a Flutter `LinearGradient`, `RadialGradient` or "
+          '`SweepGradient`',
     );
   }
   arguments['gradient'] = gradient;
@@ -155,7 +163,7 @@ import 'package:restage_codegen/src/theme_recognition.dart';
         transform.argumentList.arguments.single is! Expression) {
       return (
         arguments: null,
-        reason: 'only GradientRotation transforms are supported',
+        reason: "its gradient's transform isn't a `GradientRotation`",
       );
     }
     arguments['rotation'] =

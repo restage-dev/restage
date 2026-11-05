@@ -58,7 +58,9 @@ final class RfwProgramEnvelope {
 /// Validates lexical ownership once for the envelopes in a complete RFW tree.
 final class RfwProgramScope {
   RfwProgramScope(Iterable<Object?> roots,
-      {required this.operations, this.validateNativeBindingReferences = true}) {
+      {required this.operations,
+      this.validateNativeBindingReferences = true,
+      this.scopedNativeValues = const {}}) {
     for (final root in roots) {
       _visit(root, ValueOperationContext(operations: operations));
     }
@@ -67,6 +69,20 @@ final class RfwProgramScope {
 
   /// Capability inspection may classify unresolved references without admitting them.
   final bool validateNativeBindingReferences;
+
+  /// The native values each builder scope supplies, by scope name and key:
+  /// what a body read as `<scope>.values.<key>` holds.
+  final Map<String, Map<String, NativeBindingContract>> scopedNativeValues;
+
+  /// The native contract [reference] reads from its builder scope, if any.
+  NativeBindingContract? scopedNativeValue(
+      rfw.WidgetBuilderArgReference reference) {
+    if (reference.parts.length != 2 || reference.parts.first != 'values') {
+      return null;
+    }
+    final values = scopedNativeValues[reference.argumentName];
+    return values == null ? null : values[reference.parts.last];
+  }
 
   /// Installed declarations actually used by a call in this lexical tree.
   final Map<String, NativeBindingContract> nativeCalls = {};
@@ -324,6 +340,9 @@ RfwProgramEnvelope? decodeRfwProgramEnvelope(
     for (final parameter in program.parameters.entries) {
       final contextType = builderContextValueType(parameter.key);
       if (contextType != null && parameter.value.accepts(contextType)) continue;
+      // A value the app's builder records reaches its body as a parameter.
+      if (builder != null &&
+          parameter.key.startsWith(kRecordedBuilderParameterPrefix)) continue;
       if (builder != null && !builder.collection) {
         if (parameter.key == callbackParameterName(1)) continue;
         // Catalog admission subsequently checks the actual callback contract.

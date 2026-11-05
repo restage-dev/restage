@@ -344,11 +344,11 @@ const generalNamed = GeneralJourneySurface.atPlacement('home_flow');
                   .singleWhere((variable) => variable.name == 'paywallOriginal')
                   .computeConstantValue()!;
               expect(
-                paywall.getField('_restageArgument0')!.toStringValue(),
+                paywall.getField('_restageStored0')!.toStringValue(),
                 'authored',
               );
               expect(
-                paywall.getField('_restageArgument1')!.toStringValue(),
+                paywall.getField('_restageStored1')!.toStringValue(),
                 'authored-id',
               );
             }

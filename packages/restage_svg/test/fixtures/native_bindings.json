@@ -25,16 +25,16 @@
     }
   },
   "network": {
-    "dsl": "SvgPictureNetwork(url: \"https://svg.test/picture.svg\", httpClient: data.context._hca44a8837d, headers: data.context._h455a35fd93, colorMapper: data.context._h58bdc4320d, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "dsl": "SvgPictureNetwork(url: \"https://svg.test/picture.svg\", httpClient: data.context._hca44a8837d, headers: data.context._h14bd06bcd3, colorMapper: data.context._h58bdc4320d, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
     "bindings": {
+      "_h14bd06bcd3": {
+        "source": "const {'X-Svg': 'bound'}",
+        "type": "dart:core#Map<dart:core#String,dart:core#String>",
+        "nullable": false
+      },
       "_h316773bcc2": {
         "source": "errorBuilder",
         "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
-        "nullable": false
-      },
-      "_h455a35fd93": {
-        "source": "const {'X-Svg': 'bound'}",
-        "type": "dart:core#Map<dart:core#String,dart:core#String>",
         "nullable": false
       },
       "_h58bdc4320d": {
@@ -205,16 +205,16 @@
     }
   },
   "networkLoader": {
-    "dsl": "SvgPicture(bytesLoader: {kind: \"SvgNetworkLoader\", value: \"https://svg.test/picture.svg\", httpClient: data.context._hca44a8837d, headers: data.context._h455a35fd93, colorMapper: data.context._h58bdc4320d}, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
+    "dsl": "SvgPicture(bytesLoader: {kind: \"SvgNetworkLoader\", value: \"https://svg.test/picture.svg\", httpClient: data.context._hca44a8837d, headers: data.context._h14bd06bcd3, colorMapper: data.context._h58bdc4320d}, errorBuilder: data.context._h316773bcc2, imageBuilder: data.context._h62d5c9958a)",
     "bindings": {
+      "_h14bd06bcd3": {
+        "source": "const {'X-Svg': 'bound'}",
+        "type": "dart:core#Map<dart:core#String,dart:core#String>",
+        "nullable": false
+      },
       "_h316773bcc2": {
         "source": "errorBuilder",
         "type": "flutter_svg.SvgErrorWidgetBuilder(package:flutter/src/widgets/framework.dart#BuildContext,dart:core#Object,dart:core#StackTrace)->package:flutter/src/widgets/framework.dart#Widget",
-        "nullable": false
-      },
-      "_h455a35fd93": {
-        "source": "const {'X-Svg': 'bound'}",
-        "type": "dart:core#Map<dart:core#String,dart:core#String>",
         "nullable": false
       },
       "_h58bdc4320d": {

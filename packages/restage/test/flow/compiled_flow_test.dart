@@ -80,6 +80,47 @@ void main() {
   });
 
   testWidgets(
+      'a step shown again after back keeps its callbacks, and a popped step '
+      'callback stays refused', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+        home: NativeWelcomeFlowSurface(
+      resolver: AssetFlowResolver(bundle: _NoAssets()),
+      actions: NativeWelcomeFlowActions(permission: (_, __) => true),
+      onComplete: (_) {},
+    )));
+    await tester.pumpAndSettle();
+    final controller = tester
+        .widget<RestageFlowView<NativeWelcomeFlowResult>>(
+          find.byType(RestageFlowView<NativeWelcomeFlowResult>),
+        )
+        .controller;
+    final welcome = controller.currentScreenEntryId;
+    await tester.tap(find.text('Welcome original'));
+    await tester.pumpAndSettle();
+    final popped = tester
+        .widget<TextButton>(
+            find.widgetWithText(TextButton, 'Preferences original'))
+        .onPressed!;
+    final refused = throwsA(isA<AssertionError>().having((e) => e.message,
+        'message', contains('callback dispatch is not admitted')));
+
+    controller.back();
+    await tester.pumpAndSettle();
+    expect(controller.currentScreenEntryId, welcome);
+    expect(popped, refused);
+    expect(controller.currentScreenEntryId, welcome);
+
+    await tester.tap(find.text('Welcome original'));
+    await tester.pumpAndSettle();
+    expect(find.text('Preferences original'), findsOneWidget);
+    expect(controller.currentScreenEntryId, isNot(welcome));
+    expect(popped, refused);
+    expect(find.text('Preferences original'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+  });
+
+  testWidgets(
       'generated builder parameters preserve arguments without restarting on rebuild',
       (tester) async {
     var completed = false;

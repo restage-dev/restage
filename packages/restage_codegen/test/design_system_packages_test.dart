@@ -355,18 +355,20 @@ void main() {
     },
   );
 
-  test('dependency helper errors retain their declaring file', () async {
+  test('a dependency helper island keeps its declaring file', () async {
     final build = await _DesignSystemBuild.create(
       widgetsSource: _fixture(
         'widgets',
       ).replaceAll('Text(title);', 'CustomPaint(child: Text(title));'),
     );
     addTearDown(build.close);
-    final result = await build.run(expectSuccess: false);
-    expect(result.status, runner.BuildStatus.failure);
-    final errors = result.errors.join('\n');
-    expect(errors, contains('acme_design_system'));
-    expect(errors, contains('widgets.dart'));
+    await build.run();
+    // The CustomPaint renders from the app, located where the dependency
+    // declares it.
+    final island = build.bundle.splitSites.singleWhere(
+      (site) => site.kind == SplitSiteKind.island,
+    );
+    expect(island.widget, 'CustomPaint');
     final helperLine =
         _fixture('widgets')
             .split('\n')
@@ -375,10 +377,10 @@ void main() {
             ) +
         1;
     expect(
-      errors,
-      contains('package:acme_design_system/widgets.dart:$helperLine:'),
+      island.location,
+      startsWith('package:acme_design_system/widgets.dart:$helperLine:'),
     );
-    expect(errors, isNot(contains('lib/welcome.dart:')));
+    expect(island.location, isNot(contains('lib/welcome.dart:')));
   });
 
   test(

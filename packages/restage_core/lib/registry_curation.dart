@@ -137,9 +137,8 @@ const List<BuiltinWidgetCuration> kCuration = [
   // between blob updates).
   BuiltinWidgetCuration<AnimatedAlign>(
     category: WidgetCategory.layout,
-    // Mirror `Align` — center default + length width/height factors.
+    // Mirror `Align`'s length width/height factors; `alignment` is required.
     propertyOverrides: {
-      'alignment': kAlignmentCenterOverride,
       'widthFactor': PropertyOverride(type: PropertyType.length),
       'heightFactor': PropertyOverride(type: PropertyType.length),
       'curve': kCurveLinearOverride,
@@ -166,9 +165,12 @@ const List<BuiltinWidgetCuration> kCuration = [
     // shared TextStyle synthetics + recipe. `textHeightBehavior` is a
     // structured type the catalog doesn't surface today.
     excludeParams: ['textHeightBehavior'],
-    propertyOverrides: {'curve': kCurveLinearOverride},
-    synthetics: kTextStyleSynthetics,
-    nativeDecomposes: [kTextStyleNativeDecompose],
+    propertyOverrides: {
+      'curve': kCurveLinearOverride,
+      'overflow': PropertyOverride(sinceVersion: 25),
+    },
+    synthetics: kTextStyleSyntheticsBesideOverflow,
+    nativeDecomposes: [kTextStyleNativeDecomposeBesideOverflow],
   ),
   BuiltinWidgetCuration<AnimatedOpacity>(
     category: WidgetCategory.decoration,
@@ -227,10 +229,9 @@ const List<BuiltinWidgetCuration> kCuration = [
   BuiltinWidgetCuration<AnimatedSlide>(
     category: WidgetCategory.decoration,
     // `offset: Offset` — a fractional translation of the child — over a
-    // child. The concrete-`Offset` slot routes through the `offset` decoder
-    // with the defensive `Offset.zero` override (see `kOffsetZeroOverride`).
+    // child. Required, like Flutter's.
     propertyOverrides: {
-      'offset': kOffsetZeroOverride,
+      'offset': PropertyOverride(type: PropertyType.offset),
       'curve': kCurveLinearOverride,
     },
   ),
@@ -371,8 +372,9 @@ const List<BuiltinWidgetCuration> kCuration = [
     // direct-property walk. `textHeightBehavior` is a structured
     // type the catalog doesn't surface today.
     excludeParams: ['textHeightBehavior'],
-    synthetics: kTextStyleSynthetics,
-    nativeDecomposes: [kTextStyleNativeDecompose],
+    propertyOverrides: {'overflow': PropertyOverride(sinceVersion: 25)},
+    synthetics: kTextStyleSyntheticsBesideOverflow,
+    nativeDecomposes: [kTextStyleNativeDecomposeBesideOverflow],
   ),
   BuiltinWidgetCuration<Expanded>(category: WidgetCategory.layout),
   BuiltinWidgetCuration<FadeInImage>(
@@ -430,67 +432,8 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<GestureDetector>(
     category: WidgetCategory.input,
-    // Three bare `VoidCallback?` gestures only — short tap, long-press,
-    // and double-tap. Every other gesture family (pan / scale / drag /
-    // secondary / tertiary / force / vertical / horizontal) carries
-    // typed payloads that the catalog's event surface doesn't yet
-    // serialise.
+    // Every gesture callback, each typed exactly as Flutter declares it.
     excludeParams: [
-      'onTapDown',
-      'onTapUp',
-      'onTapMove',
-      'onTapCancel',
-      'onSecondaryTap',
-      'onSecondaryTapDown',
-      'onSecondaryTapUp',
-      'onSecondaryTapCancel',
-      'onTertiaryTapDown',
-      'onTertiaryTapUp',
-      'onTertiaryTapCancel',
-      'onDoubleTapDown',
-      'onDoubleTapCancel',
-      'onLongPressDown',
-      'onLongPressCancel',
-      'onLongPressStart',
-      'onLongPressMoveUpdate',
-      'onLongPressUp',
-      'onLongPressEnd',
-      'onSecondaryLongPress',
-      'onSecondaryLongPressDown',
-      'onSecondaryLongPressCancel',
-      'onSecondaryLongPressStart',
-      'onSecondaryLongPressMoveUpdate',
-      'onSecondaryLongPressUp',
-      'onSecondaryLongPressEnd',
-      'onTertiaryLongPress',
-      'onTertiaryLongPressDown',
-      'onTertiaryLongPressCancel',
-      'onTertiaryLongPressStart',
-      'onTertiaryLongPressMoveUpdate',
-      'onTertiaryLongPressUp',
-      'onTertiaryLongPressEnd',
-      'onVerticalDragDown',
-      'onVerticalDragStart',
-      'onVerticalDragUpdate',
-      'onVerticalDragEnd',
-      'onVerticalDragCancel',
-      'onHorizontalDragDown',
-      'onHorizontalDragStart',
-      'onHorizontalDragUpdate',
-      'onHorizontalDragEnd',
-      'onHorizontalDragCancel',
-      'onForcePressStart',
-      'onForcePressPeak',
-      'onForcePressUpdate',
-      'onForcePressEnd',
-      'onPanDown',
-      'onPanStart',
-      'onPanUpdate',
-      'onPanEnd',
-      'onPanCancel',
-      'onScaleStart',
-      'onScaleUpdate',
-      'onScaleEnd',
       // `behavior: HitTestBehavior` and `dragStartBehavior: DragStartBehavior`
       // are excluded via the centralized type denylist.
       'excludeFromSemantics',
@@ -499,7 +442,64 @@ const List<BuiltinWidgetCuration> kCuration = [
       'trackpadScrollToScaleFactor',
     ],
     // The next GLOBAL content version — see the note on `ColoredBox`.
-    propertyOverrides: {'behavior': PropertyOverride(sinceVersion: 16)},
+    propertyOverrides: {
+      'onTapDown': PropertyOverride(sinceVersion: 26),
+      'onTapUp': PropertyOverride(sinceVersion: 26),
+      'onTapMove': PropertyOverride(sinceVersion: 26),
+      'onTapCancel': PropertyOverride(sinceVersion: 26),
+      'onSecondaryTap': PropertyOverride(sinceVersion: 26),
+      'onSecondaryTapDown': PropertyOverride(sinceVersion: 26),
+      'onSecondaryTapUp': PropertyOverride(sinceVersion: 26),
+      'onSecondaryTapCancel': PropertyOverride(sinceVersion: 26),
+      'onTertiaryTapDown': PropertyOverride(sinceVersion: 26),
+      'onTertiaryTapUp': PropertyOverride(sinceVersion: 26),
+      'onTertiaryTapCancel': PropertyOverride(sinceVersion: 26),
+      'onDoubleTapDown': PropertyOverride(sinceVersion: 26),
+      'onDoubleTapCancel': PropertyOverride(sinceVersion: 26),
+      'onLongPressDown': PropertyOverride(sinceVersion: 26),
+      'onLongPressCancel': PropertyOverride(sinceVersion: 26),
+      'onLongPressStart': PropertyOverride(sinceVersion: 26),
+      'onLongPressMoveUpdate': PropertyOverride(sinceVersion: 26),
+      'onLongPressUp': PropertyOverride(sinceVersion: 26),
+      'onLongPressEnd': PropertyOverride(sinceVersion: 26),
+      'onSecondaryLongPressDown': PropertyOverride(sinceVersion: 26),
+      'onSecondaryLongPressCancel': PropertyOverride(sinceVersion: 26),
+      'onSecondaryLongPress': PropertyOverride(sinceVersion: 26),
+      'onSecondaryLongPressStart': PropertyOverride(sinceVersion: 26),
+      'onSecondaryLongPressMoveUpdate': PropertyOverride(sinceVersion: 26),
+      'onSecondaryLongPressUp': PropertyOverride(sinceVersion: 26),
+      'onSecondaryLongPressEnd': PropertyOverride(sinceVersion: 26),
+      'onTertiaryLongPressDown': PropertyOverride(sinceVersion: 26),
+      'onTertiaryLongPressCancel': PropertyOverride(sinceVersion: 26),
+      'onTertiaryLongPress': PropertyOverride(sinceVersion: 26),
+      'onTertiaryLongPressStart': PropertyOverride(sinceVersion: 26),
+      'onTertiaryLongPressMoveUpdate': PropertyOverride(sinceVersion: 26),
+      'onTertiaryLongPressUp': PropertyOverride(sinceVersion: 26),
+      'onTertiaryLongPressEnd': PropertyOverride(sinceVersion: 26),
+      'onVerticalDragDown': PropertyOverride(sinceVersion: 26),
+      'onVerticalDragStart': PropertyOverride(sinceVersion: 26),
+      'onVerticalDragUpdate': PropertyOverride(sinceVersion: 26),
+      'onVerticalDragEnd': PropertyOverride(sinceVersion: 26),
+      'onVerticalDragCancel': PropertyOverride(sinceVersion: 26),
+      'onHorizontalDragDown': PropertyOverride(sinceVersion: 26),
+      'onHorizontalDragStart': PropertyOverride(sinceVersion: 26),
+      'onHorizontalDragUpdate': PropertyOverride(sinceVersion: 26),
+      'onHorizontalDragEnd': PropertyOverride(sinceVersion: 26),
+      'onHorizontalDragCancel': PropertyOverride(sinceVersion: 26),
+      'onForcePressStart': PropertyOverride(sinceVersion: 26),
+      'onForcePressPeak': PropertyOverride(sinceVersion: 26),
+      'onForcePressUpdate': PropertyOverride(sinceVersion: 26),
+      'onForcePressEnd': PropertyOverride(sinceVersion: 26),
+      'onPanDown': PropertyOverride(sinceVersion: 26),
+      'onPanStart': PropertyOverride(sinceVersion: 26),
+      'onPanUpdate': PropertyOverride(sinceVersion: 26),
+      'onPanEnd': PropertyOverride(sinceVersion: 26),
+      'onPanCancel': PropertyOverride(sinceVersion: 26),
+      'onScaleStart': PropertyOverride(sinceVersion: 26),
+      'onScaleUpdate': PropertyOverride(sinceVersion: 26),
+      'onScaleEnd': PropertyOverride(sinceVersion: 26),
+      'behavior': PropertyOverride(sinceVersion: 16)
+    },
   ),
   BuiltinWidgetCuration<IgnorePointer>(
     category: WidgetCategory.input,
@@ -635,6 +635,7 @@ const List<BuiltinWidgetCuration> kCuration = [
       'cacheExtent',
       'scrollCacheExtent',
       'itemExtent',
+      // A layout delegate, not an event; the delivered ListView doesn't take it.
       'itemExtentBuilder',
       'prototypeItem',
       'addAutomaticKeepAlives',
@@ -757,8 +758,8 @@ const List<BuiltinWidgetCuration> kCuration = [
     },
   ),
   // Names its subtree for assistive technology and for interaction labels.
-  // The flags, strings and heading level are surfaced; callbacks, attributed
-  // strings and runtime-object knobs stay out.
+  // The flags, strings, heading level and action callbacks are surfaced;
+  // attributed strings and runtime-object knobs stay out.
   BuiltinWidgetCuration<Semantics>(
     // A new widget. The old global ceiling was 6, so this takes 7.
     sinceVersion: 7,
@@ -779,27 +780,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'onLongPressHint',
       'sortKey',
       'tagForChildren',
-      'onTap',
-      'onLongPress',
-      'onScrollLeft',
-      'onScrollRight',
-      'onScrollUp',
-      'onScrollDown',
-      'onIncrease',
-      'onDecrease',
-      'onCopy',
-      'onCut',
-      'onPaste',
-      'onDismiss',
-      'onMoveCursorForwardByCharacter',
-      'onMoveCursorBackwardByCharacter',
-      'onSetSelection',
-      'onSetText',
-      'onDidGainAccessibilityFocus',
-      'onDidLoseAccessibilityFocus',
-      'onFocus',
-      'onExpand',
-      'onCollapse',
       'customSemanticsActions',
       'role',
       'controlsNodes',
@@ -810,6 +790,30 @@ const List<BuiltinWidgetCuration> kCuration = [
       'minValue',
       'maxValue',
     ],
+    // Callbacks the app's own closure fills.
+    propertyOverrides: {
+      'onTap': PropertyOverride(sinceVersion: 26),
+      'onLongPress': PropertyOverride(sinceVersion: 26),
+      'onScrollLeft': PropertyOverride(sinceVersion: 26),
+      'onScrollRight': PropertyOverride(sinceVersion: 26),
+      'onScrollUp': PropertyOverride(sinceVersion: 26),
+      'onScrollDown': PropertyOverride(sinceVersion: 26),
+      'onIncrease': PropertyOverride(sinceVersion: 26),
+      'onDecrease': PropertyOverride(sinceVersion: 26),
+      'onCopy': PropertyOverride(sinceVersion: 26),
+      'onCut': PropertyOverride(sinceVersion: 26),
+      'onPaste': PropertyOverride(sinceVersion: 26),
+      'onDismiss': PropertyOverride(sinceVersion: 26),
+      'onMoveCursorForwardByCharacter': PropertyOverride(sinceVersion: 26),
+      'onMoveCursorBackwardByCharacter': PropertyOverride(sinceVersion: 26),
+      'onSetSelection': PropertyOverride(sinceVersion: 26),
+      'onSetText': PropertyOverride(sinceVersion: 26),
+      'onDidGainAccessibilityFocus': PropertyOverride(sinceVersion: 26),
+      'onDidLoseAccessibilityFocus': PropertyOverride(sinceVersion: 26),
+      'onFocus': PropertyOverride(sinceVersion: 26),
+      'onExpand': PropertyOverride(sinceVersion: 26),
+      'onCollapse': PropertyOverride(sinceVersion: 26),
+    },
   ),
   BuiltinWidgetCuration<SizedBox>(
     category: WidgetCategory.layout,
@@ -899,8 +903,16 @@ const List<BuiltinWidgetCuration> kCuration = [
     // pivot). It is nullable with a null Flutter default — left optional with
     // no synthetic default so an absent slot centres on `alignment`, faithful
     // to `Transform.rotate`. The concrete-`Offset` source lowering routes it
-    // through the shared `offset` decoder.
-    propertyOverrides: {'alignment': kAlignmentCenterOverride},
+    // through the shared `offset` decoder. `alignment` is nullable with a
+    // default, so an explicit null and an omission stay distinct.
+    propertyOverrides: {
+      'alignment': PropertyOverride(
+        type: PropertyType.alignment,
+        defaultValue: 'center',
+        preserveConstructorDefault: true,
+        sinceVersion: 25,
+      ),
+    },
   ),
   BuiltinWidgetCuration<Transform>(
     displayLabel: 'Translate',

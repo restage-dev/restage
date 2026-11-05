@@ -108,9 +108,9 @@ class MinCardConstFold extends StatelessWidget {
   const MinCardConstFold({this.label});
   final String? label;
   Widget build(BuildContext context) => Container(
-        padding: EdgeInsets.all(_kGap),
-        child: Text(label),
-      );
+    padding: EdgeInsets.all(_kGap),
+    child: Text(label),
+  );
 }
 
 // ─── inlinable / + declarative-state ──────────────────────────────────

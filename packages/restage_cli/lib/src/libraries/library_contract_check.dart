@@ -73,23 +73,40 @@ final class LibraryBreak {
       '${minGenerated > 1 ? ' · generated code v$minGenerated+' : ''}';
 
   /// The line naming this finding.
-  String get sentence {
-    final v = version;
-    final surface =
-        '${v.surfaceType} ${v.surfaceSlug} '
-        'v${v.publishedRevision}${v.versionLabel == null ? '' : ' (${v.versionLabel})'}';
-    final needs =
-        'needs library $requirement. '
-        'This build renders v$compatibleSince and later.';
-    return switch (v.kind) {
-      LiveVersionKind.experimentArm =>
-        'Experiment ${v.experimentLabel ?? v.experimentId} '
-            'arm ${v.armLabel ?? v.armId} ($surface) $needs',
-      LiveVersionKind.deliveryRule =>
-        'Delivery rule ${v.routeId} ($surface) $needs',
-      LiveVersionKind.serving => 'Serving $surface $needs',
-    };
-  }
+  String get sentence =>
+      '${liveVersionSubject(version)} needs library $requirement. '
+      'This build renders v$compatibleSince and later.';
+}
+
+/// What serves [v] and which version it is, as a sentence's subject.
+@experimental
+String liveVersionSubject(LiveVersionRequirements v) {
+  final surface =
+      '${v.surfaceType} ${v.surfaceSlug} '
+      'v${v.publishedRevision}${v.versionLabel == null ? '' : ' (${v.versionLabel})'}';
+  return switch (v.kind) {
+    LiveVersionKind.experimentArm =>
+      'Experiment ${v.experimentLabel ?? v.experimentId} '
+          'arm ${v.armLabel ?? v.armId} ($surface)',
+    LiveVersionKind.deliveryRule => 'Delivery rule ${v.routeId} ($surface)',
+    LiveVersionKind.serving => 'Serving $surface',
+  };
+}
+
+/// [findings] grouped by environment, environments in order, keeping the
+/// order within each.
+@experimental
+List<T> inEnvironmentOrder<T>(
+  List<T> findings,
+  LiveVersionRequirements Function(T finding) versionOf,
+) {
+  final environments = {
+    for (final item in findings) versionOf(item).environment,
+  }.toList()..sort();
+  return [
+    for (final environment in environments)
+      ...findings.where((item) => versionOf(item).environment == environment),
+  ];
 }
 
 /// Every live version whose required library version this build no longer
@@ -119,13 +136,7 @@ List<LibraryBreak> findLibraryBreaks({
       }
     }
   }
-  final environments = {
-    for (final item in breaks) item.version.environment,
-  }.toList()..sort();
-  return [
-    for (final environment in environments)
-      ...breaks.where((item) => item.version.environment == environment),
-  ];
+  return inEnvironmentOrder(breaks, (item) => item.version);
 }
 
 /// The directory holding the app's `.restage` folder: the one with

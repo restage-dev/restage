@@ -1,6 +1,6 @@
 part of '../minimal_stats.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _minimalStatsFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -39,6 +39,7 @@ const minimalStatsFlowRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'MinimalStatsFlowSurface',
   measurementPublicationDraftDigest:
       'c4d2b8e797058a9cb6fbf3b3556f106e4b4672e5c4de4b0a9c51f53f0e574f2a',
   vocabulary: _minimalStatsFlowRefVocabulary,
@@ -81,8 +82,8 @@ final _minimalStatsFlowPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

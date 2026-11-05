@@ -189,7 +189,6 @@ String _emitRegistrationFile({
             d.contains('RestageBuilderBinding') ||
             d.contains('RestageValueBinding') ||
             d.contains('RestageRfwConstructorPresence.') ||
-            d.contains('resolveThemeBinding(') ||
             d.contains('restageIcon('),
       );
   final primaryFlutterImport = _flutterImportFor(library);
@@ -273,8 +272,19 @@ String _emitRegistrationFile({
 Iterable<DartTypeRef> _enumRefs(WidgetEntry entry) sync* {
   for (final property in entry.properties) {
     if (property.valueShape case EnumShape(:final enumRef)) yield enumRef;
+    // The classes a typed callback names are spelled the same way.
+    if (property.callbackTypeId case final id?) {
+      for (final m in _callbackTypeClass.allMatches(id)) {
+        if (m[1] == 'dart:core') continue;
+        yield DartTypeRef(libraryUri: m[1]!, symbolName: m[2]!);
+      }
+    }
   }
 }
+
+final _callbackTypeClass = RegExp(
+  r'((?:dart|package):[^#(),<>?]+)#([A-Za-z_$][\w$]*)',
+);
 
 /// The Flutter and Dart SDK enums [entry]'s properties name.
 Iterable<DartTypeRef> _sdkEnumRefs(WidgetEntry entry) =>

@@ -288,13 +288,21 @@ f.Widget x() => ${builder ? 'f.LayoutBuilder(builder: (context, constraints) => 
           catalog: catalog,
           helpers: HelperRegistry(),
         ).translate(expression, hoistInMount: true);
-        expect(
-          result.issues.where(
-            (issue) =>
-                issue.message.contains('explicit callback or helper prelude'),
-          ),
-          isNotEmpty,
-        );
+        expect(result.issues, isEmpty);
+        if (builder) {
+          // A LayoutBuilder root builds a render object, so it renders from the
+          // app whole: the mount keeps nothing and the design is one island.
+          expect(result.split!.shell, isEmpty);
+          expect(
+            [for (final island in result.islands) island.widget],
+            ['LayoutBuilder'],
+          );
+        } else {
+          // The root wrapper the payload cannot carry stays in the mount.
+          expect([
+            for (final node in result.split!.shell) node.widget,
+          ], contains('ColoredBox'));
+        }
         expect(
           result.hoisted.where((value) => value.nativeCall != null),
           isEmpty,
@@ -506,7 +514,7 @@ int Function(int) x(int count) => (int ignored) {
       expect(generated, contains('r.NativeCallAdapter('));
       expect(generated, contains('.cast<int>()'));
       expect(generated, contains('final int Function(int) _restageResult'));
-      expect(plan.binding.nativeCall, same(plan));
+      expect(plan.bindingAt(null).nativeCall, same(plan));
     },
   );
 

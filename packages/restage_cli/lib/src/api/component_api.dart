@@ -108,6 +108,13 @@ class ComponentVersionRow {
   final Uint8List payload;
 }
 
+/// A component version push lost a race with a newer version.
+@experimental
+final class ComponentVersionConflict implements Exception {
+  /// Construct the conflict.
+  const ComponentVersionConflict();
+}
+
 /// Typed wrapper over the backend's `component` RPC endpoint.
 @experimental
 class ComponentApi {
@@ -129,6 +136,49 @@ class ComponentApi {
       for (final row in raw as List<dynamic>)
         ComponentSummary.fromJson(row as Map<String, dynamic>),
     ];
+  }
+
+  /// Creates project component [name] whose version 1 is [payload].
+  Future<ComponentSummary> create({
+    required int organizationId,
+    required String project,
+    required String name,
+    required Uint8List payload,
+  }) async => ComponentSummary.fromJson(
+    await _api.call('component', 'create', {
+          'organizationId': organizationId,
+          'projectSlug': project,
+          'name': name,
+          'payload': encodeByteDataWire(payload),
+        })
+        as Map<String, dynamic>,
+  );
+
+  /// Appends [payload] after version [expectedLatestVersion] of
+  /// [componentId]; throws [ComponentVersionConflict] when a newer one
+  /// exists.
+  Future<ComponentSummary> pushVersion({
+    required int organizationId,
+    required int componentId,
+    required int expectedLatestVersion,
+    required Uint8List payload,
+  }) async {
+    try {
+      return ComponentSummary.fromJson(
+        await _api.call('component', 'pushVersion', {
+              'organizationId': organizationId,
+              'componentId': componentId,
+              'expectedLatestVersion': expectedLatestVersion,
+              'payload': encodeByteDataWire(payload),
+            })
+            as Map<String, dynamic>,
+      );
+    } on RestageApiException catch (error) {
+      if (error.body.contains('ComponentVersionConflictException')) {
+        throw const ComponentVersionConflict();
+      }
+      rethrow;
+    }
   }
 
   /// One version of component [componentId].

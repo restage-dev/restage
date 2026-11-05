@@ -53,8 +53,15 @@ void main() {
           'return Text(label); })',
           extraSource: declaration,
         );
+        // The builder renders from the app, and the refusal is its reason.
+        expect(result.issues, isEmpty, reason: call);
         expect(
-          result.issues.map((issue) => issue.message).join(),
+          result.islands.map((island) => island.widget),
+          ['LayoutBuilder'],
+          reason: call,
+        );
+        expect(
+          result.islands.single.reason?.message,
           contains('Native callable requires'),
           reason: call,
         );

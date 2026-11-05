@@ -3207,8 +3207,8 @@ FlowBranchPredicate? _flowBranchPredicate(
     );
     return null;
   }
-  // Predicate sugar: `allOf([...])` and `state(K).<op>(...)`. The `allOf`, the
-  // operator method, and the `state(...)` receiver are each resolved to the
+  // Predicate sugar: `allOf([...])` and `flowState(K).<op>(...)`. The `allOf`, the
+  // operator method, and the `flowState(...)` receiver are each resolved to the
   // Restage SDK library so a same-named app-defined construct is not silently
   // reinterpreted as sugar.
   if (expression is MethodInvocation) {
@@ -3229,7 +3229,7 @@ FlowBranchPredicate? _flowBranchPredicate(
     issues,
     assetId,
     'branch predicates must be a FlowBranchPredicate(...) constructor, a '
-        'state(...).<op>(...) predicate, or allOf([...]).',
+        'flowState(...).<op>(...) predicate, or allOf([...]).',
   );
   if (creation == null) return null;
   final fieldsExpr = _namedConstructorArg(creation, 'fields');
@@ -3374,12 +3374,12 @@ FlowPredicateCondition? _predicateCondition(
 
 bool _isStateInvocation(Expression? expression) {
   return expression is MethodInvocation &&
-      expression.methodName.name == 'state' &&
+      expression.methodName.name == 'flowState' &&
       _resolvesToRestageSdk(expression);
 }
 
 /// Whether [invocation]'s invoked function/method resolves to the Restage SDK
-/// library. A name-only match would let a same-named non-Restage `state(...)` /
+/// library. A name-only match would let a same-named non-Restage `flowState(...)` /
 /// `allOf(...)` / operator (an app-defined DSL) be silently
 /// reinterpreted as Restage
 /// sugar and lowered to our wire while the runtime runs the other function;
@@ -3394,7 +3394,7 @@ bool _resolvesToRestageSdk(MethodInvocation invocation) {
   return libraryUriMatchesOrigin(library.identifier, _kSdkLibraryOrigin);
 }
 
-/// Lowers a `state(K)` invocation into a [StateFlowValueSource], failing loud
+/// Lowers a `flowState(K)` invocation into a [StateFlowValueSource], failing loud
 /// on a non-literal key. Shared by the predicate-chain receiver, the sugar
 /// right-hand side, and the bare value-source position.
 StateFlowValueSource? _stateSugarSource(
@@ -3409,7 +3409,7 @@ StateFlowValueSource? _stateSugarSource(
     _unsupportedGraphDeclaration(
       issues,
       assetId,
-      'state(...) requires a string key literal.',
+      'flowState(...) requires a string key literal.',
     );
     return null;
   }
@@ -3463,7 +3463,7 @@ FlowBranchPredicate? _allOfPredicate(
   );
 }
 
-/// Lowers a `state(K).<op>(...)` sugar chain into a single-field
+/// Lowers a `flowState(K).<op>(...)` sugar chain into a single-field
 /// [FlowBranchPredicate], using the shared [buildFlowPredicateCondition] so the
 /// wire matches the authoring API exactly.
 FlowBranchPredicate? _statePredicateChain(
@@ -3540,7 +3540,7 @@ FlowPredicateCondition? _sugarCondition(
   }
 }
 
-/// Coerces a sugar right-hand side AST into a [FlowValueSource]: a `state(K)`
+/// Coerces a sugar right-hand side AST into a [FlowValueSource]: a `flowState(K)`
 /// reference passes through; a scalar literal is auto-wrapped with its inferred
 /// wire type. A non-scalar literal — or a non-int literal to an int-only
 /// [operator] — fails the build loud.
@@ -3551,7 +3551,7 @@ FlowValueSource? _sugarValueSource(
   AssetId assetId,
 ) {
   if (expression is MethodInvocation &&
-      expression.methodName.name == 'state' &&
+      expression.methodName.name == 'flowState' &&
       _resolvesToRestageSdk(expression)) {
     return _stateSugarSource(expression, issues, assetId);
   }
@@ -3561,7 +3561,7 @@ FlowValueSource? _sugarValueSource(
       issues,
       assetId,
       '${operator.methodName}(...) requires a bool, int, or String literal '
-      'or a state(...) reference.',
+      'or a flowState(...) reference.',
     );
     return null;
   }
@@ -3570,7 +3570,7 @@ FlowValueSource? _sugarValueSource(
       issues,
       assetId,
       '${operator.methodName}(...) compares integers; pass an int literal '
-      'or a state(...) reference.',
+      'or a flowState(...) reference.',
     );
     return null;
   }
@@ -3591,7 +3591,7 @@ FlowValueSource? _flowValueSource(
     return null;
   }
   if (expression is MethodInvocation &&
-      expression.methodName.name == 'state' &&
+      expression.methodName.name == 'flowState' &&
       _resolvesToRestageSdk(expression)) {
     return _stateSugarSource(expression, issues, assetId);
   }

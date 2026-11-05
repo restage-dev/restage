@@ -253,4 +253,28 @@ void main() {
     expect(reads, isEmpty);
     expect(nativeBindingsNeedInstalledHost(library, _catalog), isFalse);
   });
+
+  test('a loop variable read checks its list item field', () {
+    final library = rfw.parseLibraryFile('import restage.core; '
+        'widget Paywall = SpanHost(span: {children: [...for item in '
+        'data.context.items: {text: "x", recognizer: {borrowed: item.native}}]});');
+    SurfaceScreenHostDataSchema items(SurfaceScreenHostDataShape field) =>
+        SurfaceScreenHostDataSchema({
+          'items': SurfaceScreenHostDataListShapeV1(
+              SurfaceScreenHostDataObjectShapeV1({'native': field})),
+        });
+    expect(
+        _fit(library,
+                items(_schema('flutter.GestureRecognizer').inputs['native']!))
+            .requiredContext
+            .isEmpty,
+        isFalse);
+    for (final wrong in [
+      _schema('flutter.TabController').inputs['native']!,
+      const SurfaceScreenHostDataScalarShapeV1(
+          SurfaceScreenHostDataScalarKind.string),
+    ]) {
+      expect(() => _fit(library, items(wrong)), throwsFormatException);
+    }
+  });
 }

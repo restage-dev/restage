@@ -276,6 +276,19 @@ typedef FitBuild = ({
   String? appVersion,
   bool uploaded,
   bool fits,
+  List<FitReason> reasons,
+});
+
+/// Why one build can't show a version: the failure's code, the label it
+/// names and, for a layout miss, the build and the condition it tests.
+typedef FitReason = ({
+  String code,
+  String? token,
+  String? label,
+  String? build,
+  String? condition,
+  String? plain,
+  String? location,
 });
 
 /// Not every known app build of the environment can show the version, so the
@@ -405,6 +418,19 @@ GenericTypedException? decodeGenericTypedException(String body) {
               appVersion: build['appVersion'] as String?,
               uploaded: build['uploaded'] as bool? ?? false,
               fits: build['fits'] as bool? ?? false,
+              reasons: [
+                for (final reason in build['reasons'] as List<Object?>? ?? [])
+                  if (reason case {'code': final String code})
+                    (
+                      code: code,
+                      token: reason['token'] as String?,
+                      label: reason['label'] as String?,
+                      build: reason['build'] as String?,
+                      condition: reason['condition'] as String?,
+                      plain: reason['plain'] as String?,
+                      location: reason['location'] as String?,
+                    ),
+              ],
             ),
         ],
       );

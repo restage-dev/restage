@@ -8,7 +8,15 @@ import 'package:build/build.dart';
 import 'package:logging/logging.dart';
 import 'package:package_config/package_config.dart';
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/islands/islands.dart'
+    show islandNameConflictIssue;
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
+import 'package:restage_codegen/src/islands/island_registration.dart';
+import 'package:restage_codegen/src/render_catalog_builder.dart';
+import 'package:restage_codegen/src/user_factory_emitter.dart'
+    show emitEmptyUserFactoriesDart;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    show kMeasurementPublicationTapEventNameV1;
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/user_catalog_json_builder.dart';
@@ -193,7 +201,7 @@ final class NativeOffer extends f.StatelessWidget {
   );
 
   test(
-    'canonical helper native plans use destination imports and refuse private names',
+    'canonical helper native plans use destination imports; a private name renders from the app',
     () async {
       const screen = '''
 import 'package:flutter/material.dart' as _restageInputs;
@@ -231,21 +239,27 @@ f.Widget box() => f.LayoutBuilder(builder: (context, constraints) {
           readerWriter: readerWriter,
           flattenOutput: true,
         );
-        expect(result.succeeded, !private, reason: result.errors.join('\n'));
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
         final bundle = _readBundle(readerWriter);
-        expect(bundle.valid, !private, reason: bundle.errors.join('\n'));
-        if (private) {
-          expect(bundle.errors.join('\n'), contains('emission library'));
-          continue;
-        }
+        expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
         final generated = utf8.decode(
           bundle
               .ownedOutputs['lib/restage.generated/native_offer.restage.g.dart']!,
         );
-        expect(generated, contains('_restageInputs.MaterialColor'));
-        expect(generated, contains('h.swatch'));
-        expect(generated, contains('_restage_Inputs'));
-        expect(generated, isNot(contains('f.MaterialColor')));
+        if (private) {
+          // A private name can't be spelled here, so the helper renders whole
+          // from the app, as an island.
+          expect(
+            generated,
+            contains("_restageRecording.island('native__offer_box_0', h.box()"),
+          );
+          expect(generated, isNot(contains('_swatch')));
+        } else {
+          expect(generated, contains('_restageInputs.MaterialColor'));
+          expect(generated, contains('h.swatch'));
+          expect(generated, contains('_restage_Inputs'));
+          expect(generated, isNot(contains('f.MaterialColor')));
+        }
         await _expectAnalyzesClean({
           'apps_examples|lib/native_offer.dart': screen,
           'apps_examples|lib/helper.dart': helper,
@@ -452,6 +466,7 @@ const launch = FlowDefinition(
       expect(summaries.single, contains('1 flow'));
       expect(summaries.single, contains('FeatureAnnouncementSurface'));
       expect(summaries.single, contains('LaunchSurface'));
+      expect(summaries.single, contains('generated surface classes: '));
     },
   );
 
@@ -479,6 +494,44 @@ const launch = FlowDefinition(
       );
     },
   );
+
+  test("a standalone screen's mount records its islands", () async {
+    const screen = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/tips.restage.g.dart';
+
+class Painted extends StatelessWidget {
+  const Painted({super.key, required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(painter: null, child: child);
+}
+
+@Screen(id: 'tips', surface: Surface.general)
+final class Tips extends StatelessWidget {
+  const Tips({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [const Text('x'), Painted(child: const Text('tip'))]);
+}
+''';
+    late RestageSurfacePublicationBundle bundle;
+    final part = await _generatedPart(
+      screen,
+      'tips',
+      handoff: (b) => bundle = b,
+    );
+    final host = _hostContractOf(part, '');
+    expect(host.islands, isNotEmpty);
+    expect(bundle.surfaceIslands['general/tips'], host.islands.keys);
+    expect(
+      [for (final site in bundle.splitSites) site.mount],
+      everyElement('TipsSurface'),
+    );
+  });
 
   test('emits valid mount types for legacy callback formals', () async {
     // `final` and `var` on a function-typed formal's parameter are illegal
@@ -520,19 +573,19 @@ final class Callbacks extends StatelessWidget {
     );
     expect(
       descriptor,
-      contains('final void Function(int value) _restageArgument0;'),
+      contains('final void Function(int value) _restageStored0;'),
     );
     expect(
       descriptor,
-      contains('final void Function(dynamic value) _restageArgument1;'),
+      contains('final void Function(dynamic value) _restageStored1;'),
     );
     expect(
       descriptor,
-      contains('final void Function(int value)? _restageArgument2;'),
+      contains('final void Function(int value)? _restageStored2;'),
     );
     expect(
       descriptor,
-      contains('final void Function(int value) _restageArgument3;'),
+      contains('final void Function(int value) _restageStored3;'),
     );
     expect(descriptor, isNot(contains('Function(final')));
     expect(descriptor, isNot(contains('Function(var')));
@@ -599,7 +652,7 @@ final class CapturedCallback extends StatelessWidget {
       descriptor,
       contains(
         'final void Function<Uint8List>(data.Uint8List value) '
-        '_restageArgument0;',
+        '_restageStored0;',
       ),
     );
     expect(
@@ -638,7 +691,7 @@ final class ForwardedCallback extends CallbackBase {
     expect(
       descriptor,
       contains(
-        'final void Function<Uint8List>(data.Uint8List)? _restageArgument0;',
+        'final void Function<Uint8List>(data.Uint8List)? _restageStored0;',
       ),
     );
     expect(descriptor, isNot(contains('Function<Uint8List>(Uint8List)')));
@@ -675,7 +728,7 @@ final class InheritedCallback extends CallbackBase {
     );
     expect(
       descriptor,
-      contains('final void Function(num value) _restageArgument0;'),
+      contains('final void Function(num value) _restageStored0;'),
     );
     expect(descriptor, isNot(contains('void Function(int) callback')));
   });
@@ -804,8 +857,10 @@ final class BoundReceiverOffer extends StatelessWidget {
     }
   });
 
-  test('rejects mixed const and runtime object receivers', () async {
-    const sources = '''
+  test(
+    'mixed const and runtime object receivers render from the app',
+    () async {
+      const sources = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -848,33 +903,31 @@ final class MixedReceiverOffer extends StatelessWidget {
   );
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(
-        BuilderOptions({
-          kMeasurementMinimumClientOption: 1,
-          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
-          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
-        }),
-      ),
-      const <String, String>{
-        'apps_examples|lib/features/mixed_receiver.dart': sources,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    final errors = result.errors.join('\n');
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(
+          BuilderOptions({
+            kMeasurementMinimumClientOption: 1,
+            kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+            kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+          }),
+        ),
+        const <String, String>{
+          'apps_examples|lib/features/mixed_receiver.dart': sources,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final errors = result.errors.join('\n');
 
-    expect(result.succeeded, isFalse);
-    expect(
-      errors,
-      contains('A spread of a value known only at run time is unsupported'),
-    );
-    expect(errors, isNot(contains('Text(text: "constant")')));
-  });
+      // A screen splits like a paywall: what cannot lower renders from the
+      // app, so nothing is refused.
+      expect(result.succeeded, isTrue, reason: errors);
+    },
+  );
 
   test(
     'compiles hidden custom collection leaves for screens and paywalls',
@@ -996,6 +1049,8 @@ part 'restage.generated/plain_badge.restage.g.dart';
 )
 final class PlainBadge extends StatelessWidget {
   const PlainBadge({super.key, required this.label});
+
+  /// The badge text.
   final String label;
 
   @override
@@ -1097,10 +1152,8 @@ final class DependencyScreen extends StatelessWidget {
     );
   });
 
-  test(
-    'rejects reused callback collection sources before publication',
-    () async {
-      const sources = '''
+  test('reused callback collection sources render from the app', () async {
+    const sources = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1145,35 +1198,34 @@ final class ReusedActionsOffer extends StatelessWidget {
       Column(children: [...actions(), ...actions()]);
 }
 ''';
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      final result = await testBuilder(
-        const PackageSurfaceCompilerBuilder(
-          BuilderOptions({
-            kMeasurementMinimumClientOption: 1,
-            kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
-            kMeasurementCollectionBudgetRevisionOption: 'budget.default',
-          }),
-        ),
-        const <String, String>{
-          'apps_examples|lib/features/reused_actions.dart': sources,
-        },
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-      );
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(
+        BuilderOptions({
+          kMeasurementMinimumClientOption: 1,
+          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+        }),
+      ),
+      const <String, String>{
+        'apps_examples|lib/features/reused_actions.dart': sources,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
 
-      expect(result.succeeded, isFalse);
-      expect(
-        result.errors.join('\n'),
-        contains('callback-bearing static collection source is reused'),
-      );
-    },
-  );
+    // A screen splits like a paywall: what cannot lower renders from the
+    // app, so nothing is refused.
+    expect(result.succeeded, isTrue, reason: result.errors.join("\n"));
+  });
 
-  test('rejects callback reuse across nested sibling lists', () async {
-    const sources = '''
+  test(
+    'callback reuse across nested sibling lists renders from the app',
+    () async {
+      const sources = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1212,43 +1264,36 @@ final class NestedActionsOffer extends StatelessWidget {
       );
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(
-        BuilderOptions({
-          kMeasurementMinimumClientOption: 1,
-          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
-          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
-        }),
-      ),
-      const <String, String>{
-        'apps_examples|lib/features/nested_actions.dart': sources,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    final errors = result.errors.join('\n');
-
-    expect(result.succeeded, isFalse);
-    expect(
-      errors,
-      contains('callback-bearing static collection source is reused'),
-    );
-    expect(
-      errors,
-      isNot(
-        contains(
-          'One exact callback expression cannot carry two measurement routes',
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(
+          BuilderOptions({
+            kMeasurementMinimumClientOption: 1,
+            kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+            kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+          }),
         ),
-      ),
-    );
-  });
+        const <String, String>{
+          'apps_examples|lib/features/nested_actions.dart': sources,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final errors = result.errors.join('\n');
 
-  test('rejects one callback source shared by two event slots', () async {
-    const sources = '''
+      // A screen splits like a paywall: what cannot lower renders from the
+      // app, so nothing is refused.
+      expect(result.succeeded, isTrue, reason: errors);
+    },
+  );
+
+  test(
+    'one callback source shared by two event slots renders from the app',
+    () async {
+      const sources = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1280,40 +1325,31 @@ final class SharedSlotsOffer extends StatelessWidget {
       Column(children: [...actions(() {})]);
 }
 ''';
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final result = await testBuilder(
-      const PackageSurfaceCompilerBuilder(
-        BuilderOptions({
-          kMeasurementMinimumClientOption: 1,
-          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
-          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
-        }),
-      ),
-      const <String, String>{
-        'apps_examples|lib/features/shared_slots.dart': sources,
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-    );
-    final errors = result.errors.join('\n');
-
-    expect(result.succeeded, isFalse);
-    expect(
-      errors,
-      contains('callback-bearing static collection source is reused'),
-    );
-    expect(
-      errors,
-      isNot(
-        contains(
-          'One exact callback expression cannot carry two measurement routes',
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(
+          BuilderOptions({
+            kMeasurementMinimumClientOption: 1,
+            kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+            kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+          }),
         ),
-      ),
-    );
-  });
+        const <String, String>{
+          'apps_examples|lib/features/shared_slots.dart': sources,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final errors = result.errors.join('\n');
+
+      // A screen splits like a paywall: what cannot lower renders from the
+      // app, so nothing is refused.
+      expect(result.succeeded, isTrue, reason: errors);
+    },
+  );
 
   test(
     'rejects a helper root sharing one callback across event slots',
@@ -1671,10 +1707,7 @@ final class UpgradeOffer extends StatelessWidget {
       );
       expect(generated, contains('class UpgradeOfferSurface'));
       expect(generated, contains("id: 'upgrade_offer'"));
-      expect(
-        generated,
-        matches(RegExp(r'fallbackBuilder: \(context\) =>\s*UpgradeOffer\(')),
-      );
+      expect(generated, matches(RegExp(r'_restageDesign\(\s*UpgradeOffer\(')));
       await _expectAnalyzesClean({
         'apps_examples|lib/offer.dart':
             '''
@@ -1730,6 +1763,373 @@ final class UpgradeOffer extends StatelessWidget {
   });
 
   test(
+    'a helper the app renders is measured as the widget it builds',
+    () async {
+      const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/mounted.restage.g.dart';
+
+Widget card(bool on) {
+  if (on) return const Text('on');
+  return const Text('off');
+}
+
+class Wrapper extends StatelessWidget {
+  const Wrapper({super.key, this.on = false});
+  final bool on;
+  @override
+  Widget build(BuildContext context) => Column(children: [card(on)]);
+}
+
+@Paywall(id: 'mounted')
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, this.flag = false});
+  final bool flag;
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [card(flag), Wrapper(on: flag)]);
+}
+""";
+      final warnings = <String>[];
+      final part = await _generatedPart(
+        source,
+        'mounted',
+        warned: warnings.addAll,
+      );
+      expect(part, contains(r'_restageIsland$mounted_card_0'));
+      expect(
+        warnings.join('\n'),
+        isNot(contains('Measurement is unavailable')),
+      );
+    },
+  );
+
+  test('S10 a build local named context is a mount local', () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/mounted.restage.g.dart';
+
+class Tinted extends StatelessWidget {
+  const Tinted({super.key, required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) =>
+      ColoredBox(color: const Color(0xFF000000), child: child);
+}
+
+@Paywall(id: 'mounted')
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, this.title, this.flag = false});
+  final String? title;
+  final bool flag;
+  @override
+  Widget build(BuildContext buildContext) {
+    final context = title ?? 'x';
+    if (flag) {
+      return Tinted(child: Text(context));
+    }
+    return const Text('none');
+  }
+}
+""";
+    final part = await _generatedPart(source, 'mounted', warningFree: true);
+    final flat = part.replaceAll(RegExp(r'\s+'), ' ');
+    // The app's own local is declared and read where the app writes it.
+    expect(flat, contains("final context = _restageArgument1 ?? 'x';"));
+    expect(flat, isNot(contains('_restageLocal_')));
+  });
+
+  test(
+    'a loop that steps its own index compiles and runs as the app does',
+    () async {
+      const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/probed.restage.g.dart';
+
+class Offer {
+  const Offer(this.title);
+  final String title;
+}
+
+@Paywall(id: 'probed')
+final class Probed extends StatelessWidget {
+  const Probed({super.key, this.offers = const []});
+  final List<Offer> offers;
+  @override
+  Widget build(BuildContext context) {
+    for (var i = 0; i < offers.length; i++) {
+      final o = offers[i];
+      if (o.title.isNotEmpty) return Text(o.title);
+      i++;
+    }
+    return const Text('none');
+  }
+}
+""";
+      final part = await _generatedPart(source, 'probed', warningFree: true);
+      final flat = part.replaceAll(RegExp(r'\s+'), ' ');
+      // The copy runs the loop as written: it steps `i` itself, records the
+      // item's title and the branch the build takes.
+      expect(
+        flat,
+        contains(
+          'for (var i = 0; i < _restageArgument1.length; i++) { '
+          'final o = _restageArgument1[i]; '
+          'if (o.title.isNotEmpty) return _restageDesign( '
+          "_restageRecording.branch( '_h34a704d316', 0, "
+          "Text(_restageRecording.value('_hd048281828', o.title)), ), ); "
+          'i++; }',
+        ),
+      );
+      expect(
+        flat,
+        contains(
+          "_restageRecording.branch('_h34a704d316', 1, const Text('none'))",
+        ),
+      );
+    },
+  );
+
+  for (final (id, declarations, body, name, place) in [
+    (
+      'C1 an app function named with the reserved prefix',
+      "String _restageLocal_headline() => 'app';",
+      "if (flag) {\n      final headline = 'block';\n      return Text(headline);\n    }\n    return Text(_restageLocal_headline());",
+      '_restageLocal_headline',
+      'lib/probed.dart:17:17',
+    ),
+    (
+      'C5 an app final named with the reserved prefix',
+      "final _restageLocal_label2 = 'app2';",
+      "if (flag) {\n      final label = 'one';\n      return Text(label);\n    }\n    return Text(_restageLocal_label2);",
+      '_restageLocal_label2',
+      'lib/probed.dart:17:17',
+    ),
+    (
+      'C6 a local named with the reserved prefix',
+      '',
+      "final _restageCount = flag ? 1 : 2;\n    return Text('\$_restageCount');",
+      '_restageCount',
+      'lib/probed.dart:13:11',
+    ),
+  ]) {
+    test(id, () async {
+      final source =
+          """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/probed.restage.g.dart';
+
+$declarations
+
+@Paywall(id: 'probed')
+final class Probed extends StatelessWidget {
+  const Probed({super.key, this.flag = false});
+  final bool flag;
+  @override
+  Widget build(BuildContext context) {
+    $body
+  }
+}
+""";
+      await _generatedPart(
+        source,
+        'probed',
+        refused: (errors) {
+          expect(errors.map(_issueMessage), [
+            '`$name` ($place): Restage reserves names that start with '
+                "`_restage` for the code it generates. Try a name that doesn't "
+                'start with `_restage`.',
+          ]);
+        },
+      );
+    });
+  }
+
+  test('a build switch that throws over null quotes it readably', () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/mounted.restage.g.dart';
+
+@Paywall(id: 'mounted')
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, this.title});
+  final String? title;
+  @override
+  Widget build(BuildContext context) {
+    switch (title) {
+      case null:
+        throw StateError('none');
+      default:
+        return Text(title!);
+    }
+  }
+}
+""";
+    await _generatedPart(
+      source,
+      'mounted',
+      refused: (errors) {
+        expect(errors.map(_issueMessage), [
+          startsWith("`switch (title) {case null: throw StateError('none'); "),
+        ]);
+      },
+    );
+  });
+
+  test('a build switch with one returning case names the statement', () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/mounted.restage.g.dart';
+
+@Paywall(id: 'mounted')
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, this.flag = false});
+  final bool flag;
+  @override
+  Widget build(BuildContext context) {
+    switch (flag) {
+      case true:
+        return const Text('on');
+      case false:
+        throw StateError('off');
+    }
+  }
+}
+""";
+    await _generatedPart(
+      source,
+      'mounted',
+      refused: (errors) {
+        expect(errors.map(_issueMessage), [
+          "`switch (flag) {case true: return const Text('on'); case fal…` "
+              "(lib/mounted.dart:11:5): Restage can't translate this statement "
+              'in a build method. Try using a `switch` or `?:` expression in '
+              'the returned widget, or moving the code into a widget of its '
+              'own.',
+        ]);
+      },
+    );
+  });
+
+  test(
+    'an onboarding screen keeps a constant ValueKey on its widget',
+    () async {
+      const source = """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/get_started.restage.g.dart';
+
+@Screen(id: 'get_started', surface: Surface.onboarding)
+final class GetStarted extends StatelessWidget {
+  const GetStarted({super.key, required this.title});
+  static const continueEvent = SurfaceEvent<String>('continue');
+  final String title;
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ElevatedButton(
+        key: const ValueKey('get-started-action'),
+        onPressed: surfaceEvent(continueEvent, 'preview'),
+        child: const Text('Get started'),
+      ),
+    );
+  }
+}
+""";
+      String? design;
+      final generated = await _generatedPart(
+        source,
+        'get_started',
+        warningFree: true,
+        handoff: (bundle) => design = fmt
+            .decodeLibraryBlob(
+              Uint8List.fromList(
+                bundle.artifacts['assets/onboarding/screens/get_started.rfw']!,
+              ),
+            )
+            .toString(),
+      );
+      final key = RegExp(
+        r'key: data\.context\.(_h[0-9a-f]+)',
+      ).firstMatch(design!)?.group(1);
+      expect(key, isNotNull, reason: design);
+      final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+      expect(
+        flat,
+        contains(
+          "_restageRecording.native( '$key', "
+          "const ValueKey('get-started-action'), type: 'flutter.Key', "
+          'nullable: false, )',
+        ),
+      );
+      expect(
+        flat,
+        contains(
+          '"$key":{"kind":"nativeBinding","contract":'
+          '{"type":"flutter.Key","nullable":false}',
+        ),
+      );
+    },
+  );
+
+  test('an onboarding screen splits like a paywall', () async {
+    const source = """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/welcome.restage.g.dart';
+
+class Tinted extends StatelessWidget {
+  const Tinted({super.key, required this.child, this.tint = 0});
+  final Widget child;
+  final int tint;
+  @override
+  Widget build(BuildContext context) => ColoredBox(color: Color(0xFF000000 + tint), child: child);
+}
+
+@Screen(id: 'welcome', surface: Surface.onboarding)
+final class Welcome extends StatefulWidget {
+  const Welcome({super.key, required this.title});
+  final String title;
+  @override
+  State<Welcome> createState() => _WelcomeState();
+}
+
+class _WelcomeState extends State<Welcome> {
+  final ScrollController _scroll = ScrollController();
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Text(widget.title),
+        Tinted(tint: 2, child: const Text('slot')),
+        SizedBox(
+          height: 40,
+          child: ListView(controller: _scroll, children: const [Text('a')]),
+        ),
+      ]);
+}
+""";
+    final generated = await _generatedPart(source, 'welcome');
+    final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+    expect(flat, contains('class _WelcomeSurfaceState'));
+    expect(flat, contains('child: RestageScreen<'));
+    expect(flat, contains("WidgetLibrary.custom('apps_examples.islands')"));
+    expect(flat, contains(r'Widget _restageIsland$welcome_Tinted_0('));
+    expect(flat, contains('return RestageIslandScope('));
+    expect(
+      flat,
+      contains(
+        "controller: _restageRecording.native( '_h8604b300d0', "
+        "_scroll, type: 'flutter.ScrollController', nullable: false, )",
+      ),
+    );
+  });
+
+  test(
     'borrows constructor native scalers through the typed binding scope',
     () async {
       const source = """
@@ -1751,7 +2151,7 @@ final class Welcome extends StatelessWidget {
       );
       final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
       expect(flat, contains('RestageNativeValues('));
-      expect(flat, contains('bindings: {'));
+      expect(flat, contains('bindings: _restageRecording.bindings('));
       expect(flat, contains('NativeBinding('));
       expect(flat, contains("type: 'flutter.TextScaler', nullable: true"));
       expect(flat, contains('"kind": "nativeBinding"'));
@@ -1780,15 +2180,15 @@ final class Welcome extends StatelessWidget {
 """;
       final generated = await _generatedPart(source, 'welcome');
       final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
-      expect(flat, contains('restageNativeObjects({'));
       expect(
         flat,
         contains(
-          '() => MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.8)',
+          "textScaler: _restageRecording.scaler( '_h3a8adf83ba', "
+          'MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.8), )',
         ),
       );
       expect(flat, contains('RestageNativeValues('));
-      expect(flat, contains('textScalers: restageNativeValues'));
+      expect(flat, contains('textScalers: _restageRecording.scalers,'));
       expect(flat, contains('"kind": "native"'));
       expect(flat, isNot(contains('textScaleFactor:')));
     },
@@ -1812,8 +2212,14 @@ final class Welcome extends StatelessWidget {
 """;
     final generated = await _generatedPart(source, 'welcome');
     final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
-    expect(flat, contains('() => scalerFor(context)'));
-    expect(flat, contains('() => !MediaQuery.boldTextOf(context)'));
+    expect(
+      flat,
+      contains(
+        "textScaler: _restageRecording.scaler('_hfc4bc5d087', scalerFor(root))",
+      ),
+    );
+    expect(flat, contains('final root = context;'));
+    expect(flat, contains('!MediaQuery.boldTextOf(root)'));
     expect(flat, contains('RestageNativeValues('));
   });
 
@@ -1853,23 +2259,151 @@ final class Welcome extends StatelessWidget {
 """;
     final generated = await _generatedPart(source, 'welcome');
     final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
-    expect(flat, contains(_hostValuesOpen));
-    expect(
-      flat,
-      contains('() => Palette.of(context).ink'),
-    );
-    expect(flat, contains('.containsKey('));
+    // The build's prelude runs once in the mount; values read it by name.
+    expect(flat, contains('final ink = Palette.of(context).ink;'));
+    expect('Palette.of('.allMatches(flat), hasLength(1));
     expect(
       flat,
       contains(
-        '() => Styles.title.copyWith(color: Palette.of(context).ink)',
+        "color: _restageRecording.native( '_h311660936e', ink, "
+        "type: 'flutter.Color', nullable: false, )",
       ),
     );
-    expect(flat, contains("'name': _restageArgument1,"));
+    expect(
+      flat,
+      contains(
+        "style: _restageRecording.value( '_ha1c5544b55', "
+        'Styles.title.copyWith(color: ink), )',
+      ),
+    );
+    expect(flat, contains('Text( _restageArgument1,'));
     await _expectAnalyzesClean({
       'apps_examples|lib/welcome.dart': source,
       'apps_examples|lib/restage.generated/welcome.restage.g.dart': generated,
     });
+  });
+
+  test('a build local nothing reads still runs once in the mount', () async {
+    const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/seen.restage.g.dart';
+
+final class Store {
+  int marks = 0;
+  bool markSeen() => ++marks > 0;
+}
+
+final _store = Store();
+
+@Paywall()
+final class Seen extends StatelessWidget {
+  const Seen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final seen = _store.markSeen();
+    return const Text('Hi');
+  }
+}
+''';
+    final generated = await _generatedPart(source, 'seen');
+    expect(generated, contains('final seen = _store.markSeen();'));
+  });
+
+  test('a build local read by two values runs once in the mount', () async {
+    const source = r'''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/route.restage.g.dart';
+
+@Paywall()
+final class Route extends StatelessWidget {
+  const Route({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final route = Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(builder: (_) => const SizedBox()),
+    );
+    return Column(children: [Text('$route'), Text('at $route')]);
+  }
+}
+''';
+    final generated = await _generatedPart(source, 'route');
+    expect('Navigator.push'.allMatches(generated), hasLength(1));
+    expect(generated, contains(r"'$route'"));
+    expect(generated, contains(r"'at $route'"));
+  });
+
+  for (final (where, body) in [
+    (r"'$n'", r"Center(child: Text('$n'))"),
+    (r"'${n + 1}'", r"Center(child: Text('${n + 1}'))"),
+    (
+      r"an action's '$n'",
+      r"GestureDetector(onTap: () => mark('$n'), child: const Text('x'))",
+    ),
+  ]) {
+    test('a build prelude read only in $where is declared', () async {
+      final source =
+          """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/count.restage.g.dart';
+
+int _calls = 0;
+int count() => ++_calls;
+void mark(String value) {}
+
+@Paywall()
+final class Count extends StatelessWidget {
+  const Count({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final n = count();
+    return $body;
+  }
+}
+""";
+      // The part analyzes clean only when the local it reads is declared.
+      final generated = await _generatedPart(source, 'count');
+      expect(generated, contains('final n = count();'));
+    });
+  }
+
+  test('a build prelude whose reads lower stays delivered', () async {
+    const source = """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/shade.restage.g.dart';
+
+final _held = GlobalKey();
+
+@Paywall()
+final class Shade extends StatelessWidget {
+  const Shade({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Column(children: [
+      Container(color: dark ? Colors.black : Colors.white),
+      KeyedSubtree(key: _held, child: const Text('held')),
+    ]);
+  }
+}
+""";
+    late String text;
+    final generated = await _generatedPart(
+      source,
+      'shade',
+      paywallText: (payload) => text = payload,
+    );
+    expect(text, contains('switch data.theme.brightness'));
+    // Only the compiled fallback reads the local; the app computes nothing.
+    expect(generated, isNot(contains('() => dark')));
   });
 
   test('computes a per-item lookup for each host-supplied item', () async {
@@ -1908,12 +2442,11 @@ final class Garden extends StatelessWidget {
     final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
     expect(
       flat,
-      matches(
-        RegExp(
-          r"'tone': restageValue0\.tone, \.\.\.restageHostValues\(<String, "
-          r"\(String, Object\? Function\(\)\)>\{ ?'_h[0-9a-f]{10}': \( ?const bool\.fromEnvironment\('dart\.vm\.product'\) \? '' : '[^']*', \(\) => "
-          r'Labels\.of\(context\)\.labelFor\(restageValue0\.tone\)',
-        ),
+      contains(
+        "for (final plant in _restageRecording.items( 'plants', "
+        '_restageArgument1, )) Text( _restageRecording.value( '
+        "'_hb4c01f8328', Labels.of(context).labelFor(plant.tone), "
+        "'plants', ), ),",
       ),
     );
     await _expectAnalyzesClean({
@@ -1956,13 +2489,16 @@ final class Garden extends StatelessWidget {
 """;
     final generated = await _generatedPart(source, 'garden');
     final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
-    expect(flat, contains('"key": \'_h'));
-    expect(flat, contains('#\$restageIndex0\''));
     expect(
       flat,
-      contains('() => Tones.of(context).colorFor(restageItem.tone)'),
+      contains(
+        "for (final plant in _restageRecording.items( 'plants', "
+        '_restageArgument1, )) ColoredBox( color: '
+        "_restageRecording.native( '_hdc89203caa', "
+        "Tones.of(context).colorFor(plant.tone), items: 'plants', "
+        "type: 'flutter.Color', nullable: false, ), ),",
+      ),
     );
-    expect(flat, contains('in _restageArgument1.indexed)'));
   });
 
   test('gives the same per-item expression over two lists two keys', () async {
@@ -1999,10 +2535,7 @@ final class Plans extends StatelessWidget {
 """;
     final generated = await _generatedPart(source, 'plans');
     final keys =
-        RegExp(
-              r"'(_h[0-9a-f]{10})': \( ?const bool\.fromEnvironment"
-              r"\('dart\.vm\.product'\) \? '' : '[^']*', \(\) => Days\.of",
-            )
+        RegExp(r"_restageRecording\.value\(\s*'(_h[0-9a-f]{10})',\s*Days\.of")
             .allMatches(generated.replaceAll(RegExp(r'\s+'), ' '))
             .map((match) => match[1])
             .toList();
@@ -2051,8 +2584,13 @@ final class _OfferLineState extends State<OfferLine> {
 """;
     final generated = await _generatedPart(source, 'offer_line');
     final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
-    expect(flat, contains(_hostValuesOpen));
-    expect(flat, contains('() => Store.instance.offer!.title'));
+    // The State moves into the mount, and the lookup runs where the app runs
+    // it: only under its guard.
+    _expectTemplate(
+      flat,
+      "_restageRecording.value( '<wireKey>', isPro ? Store.instance.offer!.title "
+      ": 'Free', )",
+    );
   });
 
   test('mirrors a build that receives a ref so ref reads move too', () async {
@@ -2108,10 +2646,4750 @@ final class Greeting extends ConsumerWidget {
       flat,
       contains('Widget build(BuildContext context, WidgetRef ref) {'),
     );
-    expect(flat, contains('() => ref.watch(accent)'));
+    expect(
+      flat,
+      contains(
+        "color: _restageRecording.native( '_haa781a94f1', "
+        "ref.watch(accent), type: 'flutter.Color', nullable: false, )",
+      ),
+    );
     await _expectAnalyzesClean({
       'apps_examples|lib/greeting.dart': source,
       'apps_examples|lib/restage.generated/greeting.restage.g.dart': generated,
+    });
+  });
+
+  for (final (name, field, body, need) in [
+    (
+      'an island',
+      'final _scroll = ScrollController();',
+      "CustomPaint(painter: null, child: const Text('slot'))",
+      '`CustomPaint` in `Split` (lib/split.dart:11:7)',
+    ),
+    (
+      'a widget holding a global key',
+      'final _held = GlobalKey();',
+      "Column(children: [const Text('Go'), "
+          "KeyedSubtree(key: _held, child: const Text('held'))])",
+      '`KeyedSubtree` in `Split` (lib/split.dart:11:43)',
+    ),
+  ]) {
+    test('$name on a paywall without a part line is refused', () async {
+      final source =
+          '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+$field
+
+@Paywall()
+final class Split extends StatelessWidget {
+  const Split({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      $body;
+}
+''';
+      late List<String> errors;
+      await _generatedPart(
+        source,
+        'split',
+        expectPart: false,
+        refused: (e) => errors = e,
+      );
+      expect(
+        errors.map(_issueMessage),
+        contains(
+          '$need runs app code, which needs the generated '
+          '`SplitSurface`, and lib/split.dart has no '
+          "`part 'restage.generated/split.restage.g.dart';` line. Try "
+          'adding that line to lib/split.dart.',
+        ),
+      );
+    });
+  }
+
+  test('a deprecated screen source whose build needs a generated widget is '
+      'refused', () async {
+    const screen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/welcome.restage.g.dart';
+
+@ScreenSource(id: 'welcome', version: 1, minClient: 1)
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const Text('Welcome', key: ValueKey('welcome'));
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilders(
+      [
+        onboardingScreenBuilder(BuilderOptions.empty),
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      ],
+      const <String, String>{
+        'apps_examples|lib/onboarding/screens/welcome.dart': screen,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    expect(result.succeeded, isFalse);
+    expect(
+      result.errors.map(_issueMessage),
+      contains(
+        "`ValueKey('welcome')` "
+        '(lib/onboarding/screens/welcome.dart:11:34): Restage keeps a '
+        "widget's key only through the screen's generated widget, and this "
+        'build doesn\'t use one. Try showing the screen through '
+        '`WelcomeSurface`, or removing the key.',
+      ),
+      reason: result.errors.join('\n'),
+    );
+  });
+
+  test("a paywall's generated definition names its generated widget", () async {
+    const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/plain.restage.g.dart';
+
+@Paywall()
+final class Plain extends StatelessWidget {
+  const Plain({super.key});
+  @override
+  Widget build(BuildContext context) => const Text('Plain');
+}
+''';
+    final part = await _generatedPart(source, 'plain');
+    expect(part, contains("surfaceWidget: 'PlainSurface',"));
+  });
+
+  test("a screen's generated definition names its generated widget", () async {
+    const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/plain.restage.g.dart';
+
+@Screen(id: 'plain', surface: Surface.onboarding)
+final class Plain extends StatelessWidget {
+  const Plain({super.key, required this.title});
+  final String title;
+  @override
+  Widget build(BuildContext context) => Text(title);
+}
+''';
+    final part = await _generatedPart(source, 'plain', warningFree: true);
+    expect(part, contains('RestageScreen.generatedPlacementDefinition('));
+    expect(part, contains("surfaceWidget: 'PlainSurface',"));
+  });
+
+  test('a screen input its build never reads is not stored', () async {
+    const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/toned.restage.g.dart';
+
+enum Tone { calm, urgent }
+
+@Screen(id: 'toned', surface: Surface.onboarding)
+final class Toned extends StatelessWidget {
+  const Toned({super.key, required this.title, this.tone = Tone.calm});
+  final String title;
+  final Tone tone;
+  @override
+  Widget build(BuildContext context) =>
+      Text(title, key: const ValueKey('title'));
+}
+''';
+    final part = await _generatedPart(source, 'toned', warningFree: true);
+    expect(part, contains('Tone tone = '));
+    expect(part, isNot(contains('_restageStored2')));
+  });
+
+  test('an island repeated by a delivered loop publishes and fits', () async {
+    const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/plans.restage.g.dart';
+
+class Pressable extends StatefulWidget {
+  const Pressable({super.key, required this.child});
+  final Widget child;
+  @override
+  State<Pressable> createState() => _PressableState();
+}
+
+class _PressableState extends State<Pressable>
+    with SingleTickerProviderStateMixin {
+  late final _press = AnimationController(vsync: this);
+  @override
+  void dispose() {
+    _press.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      ScaleTransition(scale: _press, child: widget.child);
+}
+
+@Paywall()
+final class Plans extends StatelessWidget {
+  const Plans({super.key, required this.names});
+  final List<String> names;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        for (final name in names) Pressable(child: Text(name)),
+      ]);
+}
+''';
+    late RestageSurfacePublicationBundle bundle;
+    final generated = await _generatedPart(
+      source,
+      'plans',
+      handoff: (b) => bundle = b,
+    );
+    final publication = bundle.manifest!.publications.single.publication;
+    final requirement = publication.fitRequirement!;
+    final name = requirement.requiredIslands.keys.single;
+    expect(requirement.islandLabels[name], 'Pressable in Plans');
+    final entry = [
+      for (final contract in publication.compiledScreenContracts.values)
+        ...contract.catalog.widgets,
+    ].firstWhere((widget) => widget.name == name.split(':').last);
+    expect(entry.itemInputs, 1);
+    // Its own build provides it.
+    final host = _hostContractOf(generated, '');
+    expect(host.islands, requirement.requiredIslands);
+  });
+
+  test(
+    'an opt-out keeps a widget the design would deliver in the app',
+    () async {
+      const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/kept.restage.g.dart';
+
+@RenderInApp()
+class Pill extends StatelessWidget {
+  const Pill({super.key, required this.label});
+  final String label;
+  @override
+  Widget build(BuildContext context) => Text(label);
+}
+
+@Paywall()
+final class Kept extends StatelessWidget {
+  const Kept({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [const Text('delivered'), Pill(label: 'kept')]);
+}
+''';
+      late RestageSurfacePublicationBundle bundle;
+      await _generatedPart(source, 'kept', handoff: (b) => bundle = b);
+      expect(
+        [
+          for (final site in bundle.splitSites)
+            if (site.kind.name == 'island') '${site.widget}: ${site.reason}',
+        ],
+        [
+          "Pill: Designs can't change `Pill` (lib/kept.dart:19:50) because "
+              '`@RenderInApp` is on `Pill`.',
+        ],
+      );
+    },
+  );
+
+  test("a promoted island becomes a widget of the app's own", () async {
+    const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/promo.restage.g.dart';
+
+class Tinted extends StatelessWidget {
+  const Tinted({super.key, required this.child, this.tint = 0});
+  final Widget child;
+  final int tint;
+  @override
+  Widget build(BuildContext context) => ColoredBox(color: Color(0xFF000000 + tint), child: child);
+}
+
+@Paywall()
+final class Promo extends StatefulWidget {
+  const Promo({super.key});
+  @override
+  State<Promo> createState() => _PromoState();
+}
+
+class _PromoState extends State<Promo> {
+  final int _tint = 3;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        const Text('delivered'),
+        Tinted(tint: _tint + 1, child: const Text('slot')),
+      ]);
+}
+''';
+    late RestageSurfacePublicationBundle bundle;
+    await _generatedPart(source, 'promo', handoff: (b) => bundle = b);
+    final island = bundle.splitSites.singleWhere(
+      (site) => site.kind.name == 'island',
+    );
+    final plan = island.promotion!;
+    expect(plan['call'], '{{name}}(tint: _tint, child: const Text(\'slot\'))');
+    expect(
+      plan['class'],
+      [
+        '/// The `Tinted` moved out of `_PromoState.build`. Describe what '
+            'this widget shows.',
+        '@RestageWidget()',
+        'class {{name}} extends StatelessWidget {',
+        '  const {{name}}({super.key, required this.tint, required this.child});',
+        '  /// Describe `tint`.',
+        '  final int tint;',
+        '  /// Describe `child`.',
+        '  final Widget child;',
+        '',
+        '  @override',
+        '  Widget build(BuildContext context) => '
+            'Tinted(tint: tint + 1, child: child);',
+        '}',
+      ].join('\n'),
+    );
+    // Applied and exported from a widget library, the code is a widget the
+    // design delivers, and nothing renders from the app.
+    final offset = plan['offset']! as int;
+    final original = plan['original']! as String;
+    expect(source.substring(offset, offset + original.length), original);
+    String named(Object? text) =>
+        (text! as String).replaceAll('{{name}}', 'PromoTint');
+    final promoted =
+        '${source.replaceRange(offset, offset + original.length, named(plan['call']))}'
+        '\n${named(plan['class'])}\n';
+    late RestageSurfacePublicationBundle after;
+    String? text;
+    await _generatedPart(
+      promoted,
+      'promo',
+      otherFiles: {
+        'apps_examples|lib/widgets.dart': '''
+import 'package:restage/restage.dart';
+export 'promo.dart' show PromoTint;
+@RestageLibrary(library: WidgetLibrary.custom('promo.widgets'), capabilityVersion: 1)
+const restageLibrary = 0;
+''',
+      },
+      handoff: (b) => after = b,
+      paywallText: (payload) => text = payload,
+    );
+    expect(
+      [for (final site in after.splitSites) site.kind.name],
+      isNot(contains('island')),
+    );
+    // The design passes its input, the value the app's build records, so a
+    // new design can change it; the widget is placed by name, so its State
+    // moves between the design and the app.
+    expect(
+      text,
+      matches(
+        RegExp(
+          r'PromoTint\(tint: data\.context\._h[0-9a-f]+, '
+          r'child: Text\(text: "slot"\), restageIsland: "promo_PromoTint_0"\)',
+        ),
+      ),
+    );
+  });
+
+  test('islands render from the app through the generated part', () async {
+    const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/split.restage.g.dart';
+
+class Tinted extends StatelessWidget {
+  const Tinted({super.key, required this.child, this.tint = 0});
+  final Widget child;
+  final int tint;
+  @override
+  Widget build(BuildContext context) => ColoredBox(color: Color(0xFF000000 + tint), child: child);
+}
+
+void buy() {}
+
+@Paywall()
+final class Split extends StatelessWidget {
+  const Split({super.key});
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        const Text('delivered'),
+        Tinted(tint: 3, child: const Text('slot')),
+        Tinted(tint: 3, child: const Text('slot')),
+        GestureDetector(onTap: () => buy(), child: const Text('buy')),
+      ]);
+}
+''';
+    late RestageSurfacePublicationBundle bundle;
+    late Catalog render;
+    final generated = await _generatedPart(
+      source,
+      'split',
+      handoff: (b) => bundle = b,
+      renderCatalog: (c) => render = c,
+    );
+    // One app-wide library installs each mount's own registration, and the
+    // previews build each island outside a mount; both analyze against the
+    // generated part.
+    final factories = emitEmptyUserFactoriesDart(
+      dependencyFactories: islandRegistration(
+        'apps_examples',
+        bundle.splitSites,
+        surfaceIslands: bundle.surfaceIslands,
+      ),
+    );
+    // A surface's previews hold only its own islands.
+    expect(
+      factories.replaceAll(RegExp(r'\s+'), ''),
+      contains(
+        "'paywall/split':{'split_Tinted_0':island0.restagePreview"
+        r"$split_Tinted_0,'split_Tinted_1':island0.restagePreview$"
+        "split_Tinted_1},",
+      ),
+    );
+    final flatFactories = factories.replaceAll(RegExp(r'\s+'), ' ');
+    expect(
+      flatFactories,
+      contains(
+        "Restage.registerWidgetLibrary( "
+        "WidgetLibrary.custom('apps_examples.islands'), "
+        r"widgets: [ ...island0.restageIslands$split_Tinted_0.widgets, ], );",
+      ),
+    );
+    expect(
+      flatFactories,
+      contains("'split_Tinted_1': island0.restagePreview\$split_Tinted_1,"),
+    );
+    await _expectAnalyzesClean({
+      'apps_examples|lib/user_factories.g.dart': factories,
+      'apps_examples|lib/split.dart': source,
+      'apps_examples|lib/restage.generated/split.restage.g.dart': generated,
+    });
+    // Fit asks the mount for each island by token, not for a library.
+    final requirement =
+        bundle.manifest!.publications.single.publication.fitRequirement!;
+    expect(requirement.requiredIslands.keys, [
+      'apps_examples.islands:split_Tinted_0',
+      'apps_examples.islands:split_Tinted_1',
+    ]);
+    expect(requirement.capabilities.requiredLibraries, isEmpty);
+    // Each island's published label has no position in it.
+    expect(requirement.islandLabels.values, [
+      'Tinted in Split',
+      'Tinted in Split (2nd)',
+    ]);
+    // The render bundle's catalog carries the islands, with their tokens.
+    expect(
+      {
+        for (final widget in render.widgets)
+          if (widget.library.namespace == 'apps_examples.islands')
+            'apps_examples.islands:${widget.name}': widget.wireId.value,
+      },
+      requirement.requiredIslands,
+    );
+    expect(
+      [
+        for (final site in bundle.splitSites)
+          [
+            site.name,
+            site.widget,
+            site.location,
+            site.kind.name,
+            if (site.widgets case final widgets?) widgets,
+            if (site.reason != null) 'because',
+          ].join(' '),
+      ],
+      [
+        'SplitSurface Split lib/split.dart design 6',
+        'apps_examples.islands:split_Tinted_0 Tinted lib/split.dart:22:9 '
+            'island 1 because',
+        'apps_examples.islands:split_Tinted_1 Tinted lib/split.dart:23:9 '
+            'island 1 because',
+        '_h19162a7a41 () => buy() lib/split.dart:24:32 action',
+      ],
+    );
+    // The parts round-trip through the handoff.
+    expect(
+      RestageSurfacePublicationBundle.fromJson(
+        jsonDecode(bundle.encodeCanonicalJson()),
+      ).splitSites.map((site) => site.toJson()),
+      bundle.splitSites.map((site) => site.toJson()),
+    );
+    final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+    // The mount's host contract offers the same tokens.
+    expect(
+      flat,
+      contains(
+        "'islands': <String, Object?>{ "
+        "'apps_examples.islands:split_Tinted_0': "
+        "'${requirement.requiredIslands['apps_examples.islands:split_Tinted_0']}', ",
+      ),
+    );
+    // The mount registers its own islands through a public constant, which
+    // the package registration installs too.
+    expect(
+      flat,
+      contains(
+        r"const restageIslands$split_Tinted_0 = "
+        "RestageWidgetLibraryRegistration.constant( "
+        "library: WidgetLibrary.custom('apps_examples.islands'), "
+        "widgets: [ RestageWidgetFactory( name: 'split_Tinted_0', "
+        r"builder: _restageIsland$split_Tinted_0, ),",
+      ),
+    );
+    // The registration says structurally that these are islands.
+    expect(flat, contains('islands: true'));
+    expect(flat, isNot(contains('capabilityVersion')));
+    expect(
+      flat,
+      contains(
+        r'Widget _restageIsland$split_Tinted_0(BuildContext context, '
+        "DataSource source) => RestageIslandScope.build( 'split_Tinted_0', "
+        "'`Tinted` (lib/split.dart:22:9) needs app code that only "
+        "`SplitSurface` provides. Try using `SplitSurface` to build this "
+        "screen.',",
+      ),
+    );
+    expect(flat, contains(r'Widget restagePreview$split_Tinted_0('));
+    // Each island registers under its own name, and the mount builds it from
+    // what its build recorded.
+    expect(
+      flat,
+      contains(
+        "RestageWidgetFactory( name: 'split_Tinted_1', "
+        r"builder: _restageIsland$split_Tinted_1, ),",
+      ),
+    );
+    expect(
+      flat,
+      contains(
+        "'split_Tinted_1': (_restageContext, _restageSource) => "
+        "_restageRecording.islandAt( 'split_Tinted_1', [], "
+        '_restageContext, _restageSource, ),',
+      ),
+    );
+    expect(
+      flat,
+      contains(
+        "_restageRecording.island( 'split_Tinted_1', "
+        "_restageRecording.built( Tinted(tint: 3, child: const Text('slot')),",
+      ),
+    );
+    expect(
+      flat,
+      contains(
+        'RestageValueBinding.read<int>(restageSource, '
+        "const <Object>[ 'tint', ], restageContext) ?? 3",
+      ),
+    );
+  });
+
+  group('a mounted paywall compiles and analyzes clean', () {
+    const header = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/mounted.restage.g.dart';
+
+class Tinted extends StatelessWidget {
+  const Tinted({super.key, required this.child, this.tint = 0});
+  final Widget child;
+  final int tint;
+  @override
+  Widget build(BuildContext context) => ColoredBox(color: Color(0xFF000000 + tint), child: child);
+}
+
+class Tap extends StatelessWidget {
+  const Tap({super.key, required this.child, required this.onTap});
+  final Widget child;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(painter: null, child: GestureDetector(onTap: onTap, child: child));
+}
+
+void buy() {}
+void at(double x) {}
+
+class Plan {
+  const Plan({required this.id, required this.rank});
+  final String id;
+  final int rank;
+}
+''';
+    const stateful = '''
+@Paywall()
+final class Mounted extends StatefulWidget {
+  const Mounted({super.key, required this.title});
+  final String title;
+  @override
+  State<Mounted> createState() => _MountedState();
+}
+''';
+    for (final (name, body, expected, text) in [
+      (
+        'an island in a loop reads the published index',
+        '''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        for (final plan in plans) Tinted(tint: plan.rank, child: Text(plan.id)),
+      ]);
+}
+''',
+        ['restageIndex0', 'restageSource.v<int>('],
+        <String>[],
+      ),
+      (
+        'an island in a loop that reads no item takes the loop position',
+        '''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) => Hears(
+        onContext: (context) => Navigator.of(context).maybePop(),
+        child: Column(children: [
+          for (final plan in plans)
+            Row(children: [
+              Text(plan.id),
+              Tinted(tint: 2, child: const Text('x')),
+            ]),
+        ]),
+      );
+}
+''',
+        [
+          "for (final plan in _restageRecording.items( 'plans', _restageArgument1, null, ['<wireKey>'], )) Row( children: [ Text(plan.id), _restageRecording.island( 'mounted_Tinted_0', _restageRecording.built( Tinted(tint: 2, child: const Text('x')),",
+        ],
+        [
+          'mounted_Tinted_0(tint: 2, child: Text(text: "x"), '
+              'restageItems: [plan.',
+        ],
+      ),
+      (
+        "an island that maps a screen's list reads it in the mount",
+        '''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: plans.map((p) => Text(p.id)).toList());
+}
+''',
+        <String>[],
+        <String>[],
+      ),
+      (
+        "an island argument that calls a method on a screen's field",
+        '''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Tinted(
+          tint: plans.indexWhere((p) => p.id == 'a'),
+          child: const SizedBox(),
+        ),
+      ]);
+}
+''',
+        <String>[],
+        <String>[],
+      ),
+      (
+        'the fallback keys an island read through a local in a loop',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) {
+    final badge = Tinted(tint: 2, child: const Text('x'));
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: Column(children: [
+        for (final plan in plans) Row(children: [Text(plan.id), badge]),
+      ]),
+    );
+  }
+}
+''',
+        [
+          "final badge = _restageRecording.built( Tinted(tint: 2, child: const Text('x')),",
+          "Text(plan.id), _restageRecording.island( 'mounted_Tinted_0', badge, items: 'plans', ), ], ),",
+        ],
+        <String>[],
+      ),
+      (
+        'a widget local placed twice is two islands',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final card = Tinted(tint: 2, child: const Text('x'));
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: Column(children: [card, card]),
+    );
+  }
+}
+''',
+        [
+          "final card = _restageRecording.built( Tinted(tint: 2, child: const Text('x')),",
+          "_restageRecording.island('mounted_card0_Tinted_0', card), _restageRecording.island('mounted_card1_Tinted_0', card),",
+        ],
+        [
+          'Column(children: [mounted_card0_Tinted_0(tint: 2, child: '
+              'Text(text: "x")), mounted_card1_Tinted_0(',
+        ],
+      ),
+      (
+        'a widget local placed twice beside a for element',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) {
+    final card = Tinted(tint: 2, child: const Text('x'));
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: Column(children: [card, card, for (final p in plans) Text(p.id)]),
+    );
+  }
+}
+''',
+        [
+          "final card = _restageRecording.built( Tinted(tint: 2, child: const Text('x')),",
+          "_restageRecording.island('mounted_card0_Tinted_0', card), _restageRecording.island('mounted_card1_Tinted_0', card), for (final p in _restageArgument1) Text(p.id),",
+        ],
+        [
+          'Column(children: [mounted_card0_Tinted_0(tint: 2, child: '
+              'Text(text: "x")), mounted_card1_Tinted_0(',
+        ],
+      ),
+      (
+        'a widget local placed again under an if element',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) {
+    final card = Tinted(tint: 2, child: const Text('x'));
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: Column(children: [card, if (plans.isEmpty) card]),
+    );
+  }
+}
+''',
+        [
+          "final card = _restageRecording.built( Tinted(tint: 2, child: const Text('x')),",
+          "_restageRecording.island('mounted_card0_Tinted_0', card), if (_restageArgument1.isEmpty) ..._restageRecording.mark('<wireKey>', true, [ _restageRecording.island('mounted_card1_Tinted_0', card), ])",
+        ],
+        ['mounted_card0_Tinted_0(', 'mounted_card1_Tinted_0('],
+      ),
+      (
+        'the fallback keys a looped local beside a for element',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) {
+    final row = Row(children: [
+      for (final p in plans) Tinted(tint: p.rank, child: Text(p.id)),
+    ]);
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: Column(children: [row, for (final q in plans) Text(q.id)]),
+    );
+  }
+}
+''',
+        [
+          "final row = Row( children: [ for (final p in _restageRecording.items( 'plans', _restageArgument1, null, ['<wireKey>'], )) _restageRecording.island( 'mounted_Tinted_0', _restageRecording.built( Tinted(tint: p.rank, child: Text(p.id)),",
+          // Placed once through `row`, it is keyed where it is built.
+          "items: 'plans', ), ], );",
+          'Column( children: [row, for (final q in _restageArgument1) Text(q.id)],',
+        ],
+        <String>[],
+      ),
+      (
+        'the fallback keys a local read outside and inside a loop',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) {
+    final card = Tinted(tint: 2, child: const Text('x'));
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: Column(children: [
+        card,
+        for (final p in plans) Row(children: [Text(p.id), card]),
+      ]),
+    );
+  }
+}
+''',
+        [
+          "final card = _restageRecording.built( Tinted(tint: 2, child: const Text('x')),",
+          "_restageRecording.island('mounted_card0_Tinted_0', card), for (final p in _restageRecording.items( 'plans', _restageArgument1, null, ['<wireKey>'], )) Row( children: [ Text(p.id), _restageRecording.island( 'mounted_card1_Tinted_0', card, items: 'plans', ), ], ),",
+        ],
+        <String>[],
+      ),
+      (
+        'a widget local in exclusive branches is one island',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans, this.flag = false});
+  final List<Plan> plans;
+  final bool flag;
+  @override
+  Widget build(BuildContext context) {
+    final card = Tinted(tint: 2, child: const Text('x'));
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: flag
+          ? Column(children: [card])
+          : Column(children: [card, const Text('y')]),
+    );
+  }
+}
+''',
+        [
+          "final card = _restageRecording.built( Tinted(tint: 2, child: const Text('x')),",
+          "_restageArgument2 ? _restageRecording.taken( '<wireKey>', true, Column( children: [ _restageRecording.island('mounted_Tinted_0', card), ], ), ) : _restageRecording.taken( '<wireKey>', false, Column( children: [ _restageRecording.island('mounted_Tinted_0', card), const Text('y'), ], ), )",
+        ],
+        [
+          'true: Column(children: [mounted_Tinted_0(',
+          'false: Column(children: [mounted_Tinted_0(',
+        ],
+      ),
+      (
+        'a widget local beside itself in one branch only',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans, this.flag = false});
+  final List<Plan> plans;
+  final bool flag;
+  @override
+  Widget build(BuildContext context) {
+    final card = Tinted(tint: 2, child: const Text('x'));
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: flag
+          ? Column(children: [card])
+          : Column(children: [card, card]),
+    );
+  }
+}
+''',
+        <String>[],
+        [
+          'true: Column(children: [mounted_card0_Tinted_0(',
+          'false: Column(children: [mounted_card0_Tinted_0(tint: 2, child: '
+              'Text(text: "x")), mounted_card1_Tinted_0(',
+        ],
+      ),
+      (
+        'a helper parameter placed twice is two islands',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+Widget _twice(Widget w) => Row(children: [w, w]);
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans, this.flag = false});
+  final List<Plan> plans;
+  final bool flag;
+  @override
+  Widget build(BuildContext context) {
+    
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: _twice(Tinted(tint: 2, child: const Text('x'))),
+    );
+  }
+}
+''',
+        <String>[],
+        [
+          'Row(children: [mounted__twice0_w0_Tinted_0(tint: 2, child: '
+              'Text(text: "x")), mounted__twice0_w1_Tinted_0(',
+        ],
+      ),
+      (
+        'a const widget local placed twice is two islands',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans, this.flag = false});
+  final List<Plan> plans;
+  final bool flag;
+  @override
+  Widget build(BuildContext context) {
+    const card = Tinted(tint: 2, child: SizedBox());
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: Column(children: [card, card]),
+    );
+  }
+}
+''',
+        <String>[],
+        [
+          'Column(children: [mounted_card0_Tinted_0(tint: 2, child: '
+              'SizedBox()), mounted_card1_Tinted_0(',
+        ],
+      ),
+      (
+        'a list local spread twice is two islands each',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans, this.flag = false});
+  final List<Plan> plans;
+  final bool flag;
+  @override
+  Widget build(BuildContext context) {
+    final cards = <Widget>[Tinted(tint: 2, child: const SizedBox())];
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: Column(children: [...cards, ...cards]),
+    );
+  }
+}
+''',
+        // Each spread marks its widgets as its own placement, which keys the
+        // island the design places there.
+        [
+          '..._restageRecording.spotEach(0, cards)',
+          '..._restageRecording.spotEach(1, cards)',
+          'spots: [0]',
+          'spots: [1]',
+        ],
+        [
+          'Column(children: [mounted_cards0_Tinted_0(tint: 2, child: '
+              'SizedBox()), mounted_cards1_Tinted_0(',
+        ],
+      ),
+      (
+        'a helper called twice beside an if element is two islands',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+Widget card(int tint) => Tinted(tint: tint, child: const Text('x'));
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans, this.flag = false});
+  final List<Plan> plans;
+  final bool flag;
+  @override
+  Widget build(BuildContext context) {
+    
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: Column(children: [card(2), if (flag) card(2)]),
+    );
+  }
+}
+''',
+        <String>[],
+        [
+          'Column(children: [mounted_card0_Tinted_0(child: Text(text: "x")), ',
+          'mounted_card1_Tinted_0(child: Text(text: "x"))',
+        ],
+      ),
+      (
+        'the fallback keys an island in nested loops by both positions',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) => Hears(
+        onContext: (context) => Navigator.of(context).maybePop(),
+        child: Column(children: [
+          for (final plan in plans)
+            for (final unit in plan.id.codeUnits)
+              Tinted(tint: plan.rank, child: Text('$unit')),
+        ]),
+      );
+}
+''',
+        [
+          "for (final plan in _restageRecording.items( 'plans', _restageArgument1, null, ['<wireKey>'], )) for (final unit in _restageRecording.items( '<wireKey>', plan.id.codeUnits, 'plans', ['<wireKey>'], )) _restageRecording.island( 'mounted_Tinted_0', _restageRecording.built( Tinted( tint: plan.rank,",
+          "items: '<wireKey>', ),",
+        ],
+        <String>[],
+      ),
+      (
+        'an island in a nested loop reading the outer item takes both positions',
+        r'''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        for (final plan in plans)
+          for (final unit in plan.id.codeUnits)
+            Tinted(tint: plan.rank, child: Text('$unit')),
+      ]);
+}
+''',
+        <String>[],
+        ['restageItems: [plan.', ', unit.'],
+      ),
+      (
+        'a const island with a delivered child drops its const',
+        r'''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) => Column(children: [const Text('a'), const Tinted(child: SizedBox())]);
+}
+''',
+        [
+          "const Text('a'), _restageRecording.island( 'mounted_Tinted_0', _restageRecording.built( const Tinted(child: SizedBox()), (_restageContext, _restageSource) => Tinted(child: _restageSource.child(",
+        ],
+        <String>[],
+      ),
+      (
+        'a const island with a literal property drops its const',
+        r'''
+class Swatch extends StatelessWidget {
+  const Swatch({super.key, this.tint = 0});
+  final int tint;
+  @override
+  Widget build(BuildContext context) =>
+      ColoredBox(color: Color(0xFF000000 + tint), child: const SizedBox());
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) => Column(children: [const Text('a'), const Swatch(tint: 3)]);
+}
+''',
+        [
+          "_restageRecording.island( 'mounted_Swatch_0', _restageRecording.built( const Swatch(tint: 3), (_restageContext, _restageSource) => Swatch(",
+        ],
+        <String>[],
+      ),
+      (
+        'a wrapper the mount keeps under a const parent drops the const',
+        r'''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) => Center(child: const Tinted(child: Text('x')));
+}
+''',
+        [
+          "return (() => Center(child: Tinted(child: _restageDesign(Text('x')))))();",
+        ],
+        <String>[],
+      ),
+      (
+        'a const island in a loop drops its const',
+        r'''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        for (final plan in plans)
+          Row(children: [Text(plan.id), const Tinted(child: SizedBox())]),
+      ]);
+}
+''',
+        [
+          "Text(plan.id), _restageRecording.island( 'mounted_Tinted_0', _restageRecording.built( const Tinted(child: SizedBox()), (_restageContext, _restageSource) => Tinted( child:",
+        ],
+        <String>[],
+      ),
+      (
+        'a lifted State reads host data through the widget',
+        '''
+$stateful
+class _MountedState extends State<Mounted> {
+  final ScrollController _scroll = ScrollController();
+  @override
+  Widget build(BuildContext context) =>
+      ListView(controller: _scroll, children: [Text(widget.title)]);
+}
+''',
+        [
+          "Text( _restageRecording.value('<wireKey>', widget._restageArgument1), )",
+        ],
+        <String>[],
+      ),
+      (
+        'a lifted State keeps its mixins and interfaces',
+        '''
+$stateful
+class _MountedState extends State<Mounted>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final AnimationController _spin = AnimationController(vsync: this);
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context) =>
+      RotationTransition(turns: _spin, child: Text(widget.title));
+}
+''',
+        ['with SingleTickerProviderStateMixin, WidgetsBindingObserver'],
+        <String>[],
+      ),
+      (
+        'callbacks the app renders stay unmeasured',
+        '''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) => Tap(
+        onTap: () => buy(),
+        child: Column(children: [
+          GestureDetector(
+            onTap: () => buy(),
+            onTapDown: (details) => at(details.localPosition.dx),
+            child: const Text('buy'),
+          ),
+          GestureDetector(onTap: () => buy(), child: const Text('measured')),
+        ]),
+      );
+}
+''',
+        [
+          "GestureDetector( onTap: () => buy(), onTapDown: _restageRecording.native( '<wireKey>', (details) => at(details.localPosition.dx), type: '(package:flutter/src/gestures/tap.dart#TapDownDetails)->void', nullable: false, ), child: const Text('buy'), )",
+        ],
+        [kMeasurementPublicationTapEventNameV1],
+      ),
+      (
+        'a helper gives each call site and surface its own island',
+        '''
+Widget card(String label) => Tinted(tint: label.length, child: Text(label));
+
+@Paywall(id: 'mounted')
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [card('monthly'), card('yearly')]);
+}
+
+@Paywall(id: 'other')
+final class Other extends StatelessWidget {
+  const Other({super.key});
+  @override
+  Widget build(BuildContext context) => Column(children: [card('monthly')]);
+}
+''',
+        [
+          // Each call site is the same form, whichever comes first.
+          for (final (index, label) in ['monthly', 'yearly'].indexed)
+            "((String label) => _restageRecording.island( 'mounted_card${index}_Tinted_0', _restageRecording.built( Tinted(tint: label.length, child: Text(label)), (_restageContext, _restageSource) => Tinted( tint: label.length, child: _restageSource.child(const <Object>['child']), ), ), ))('$label'),",
+          r'builder: _restageIsland$mounted_card1_Tinted_0,',
+          r'builder: _restageIsland$other_card0_Tinted_0,',
+        ],
+        [
+          'mounted_card0_Tinted_0(child: Text(text: "monthly"))',
+          'mounted_card1_Tinted_0(child: Text(text: "yearly"))',
+        ],
+      ),
+      (
+        'islands over different lists or literals do not share a builder',
+        '''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.monthly, required this.yearly});
+  final List<Plan> monthly;
+  final List<Plan> yearly;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        for (final p in monthly) Tinted(tint: p.rank, child: Text(p.id)),
+        for (final p in yearly) Tinted(tint: p.rank, child: Text(p.id)),
+        Tinted(tint: 2, child: const Text('two')),
+        Tinted(tint: 5, child: const Text('five')),
+      ]);
+}
+''',
+        [
+          "_restageRecording.island( 'mounted_Tinted_0', _restageRecording.built( Tinted(tint: p.rank, child: Text(p.id)),",
+          "items: 'monthly', ),",
+          "_restageRecording.island( 'mounted_Tinted_1', _restageRecording.built( Tinted(tint: p.rank, child: Text(p.id)),",
+          "items: 'yearly', ),",
+          "_restageRecording.island( 'mounted_Tinted_2', _restageRecording.built( Tinted(tint: 2, child: const Text('two')),",
+          "_restageRecording.island( 'mounted_Tinted_3', _restageRecording.built( Tinted(tint: 5, child: const Text('five')),",
+          r'builder: _restageIsland$mounted_Tinted_3,',
+        ],
+        <String>[],
+      ),
+      // Each call's verdict is its own, whichever order the calls take.
+      for (final (calls, payload) in [
+        (
+          "t(ObjectKey(1)), t(const ValueKey('a'))",
+          'Column(children: [mounted_t0_Text_0(), '
+              'Text(text: "x", key: data.context._h',
+        ),
+        (
+          "t(const ValueKey('a')), t(ObjectKey(1))",
+          'Column(children: [Text(text: "x", key: data.context._h',
+        ),
+      ])
+        (
+          'helper calls keep their own verdicts: $calls',
+          '''
+Widget t(Key k) => Text('x', key: k);
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) => Column(children: [$calls]);
+}
+''',
+          <String>[],
+          [payload],
+        ),
+      (
+        'islands are numbered in the order the surface uses them',
+        '''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final first = Tinted(tint: 1, child: const Text('a'));
+    final second = Tinted(tint: 2, child: const Text('b'));
+    return Column(children: [second, first]);
+  }
+}
+''',
+        <String>[],
+        [
+          'Column(children: [mounted_Tinted_0(tint: 2, '
+              'child: Text(text: "b")), mounted_Tinted_1(tint: 1, '
+              'child: Text(text: "a"))])',
+        ],
+      ),
+      (
+        'a design copy keeps the reads its guards promote',
+        '''
+$stateful
+class _MountedState extends State<Mounted> {
+  final ScrollController _scroll = ScrollController();
+  final String? _label = 'x';
+  @override
+  Widget build(BuildContext context) => ListView(controller: _scroll, children: [
+        if (_label != null) Tinted(tint: _label.length, child: Text(_label)),
+      ]);
+}
+''',
+        ['class _MountedSurfaceState'],
+        <String>[],
+      ),
+      (
+        'a measured tap in a loop over a published list keeps its route',
+        '''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.names});
+  final List<String> names;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        for (final name in names)
+          GestureDetector(
+            onTap: () => buy(),
+            child: Tinted(tint: name.length, child: Text(name)),
+          ),
+      ]);
+}
+''',
+        [
+          "for (final name in _restageRecording.items( '<wireKey>', _restageArgument1, null, ['<wireKey>'], )) GestureDetector( onTap: () => buy(), child: _restageRecording.island( 'mounted_Tinted_0', _restageRecording.built( Tinted( tint: name.length, child: Text( _restageRecording.value( '<wireKey>', name, '<wireKey>', ), ), ),",
+          "items: '<wireKey>', ), ),",
+        ],
+        [kMeasurementPublicationTapEventNameV1],
+      ),
+      (
+        'an island property named source reads the payload in its own context',
+        '''
+class Thumbnail extends StatelessWidget {
+  const Thumbnail({super.key, required this.source, required this.child});
+  final String source;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => CustomPaint(painter: null, child: child);
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Thumbnail(source: 'hero.png', child: const Text('a')),
+      ]);
+}
+''',
+        [
+          "RestageDecoders.string(restageSource, const <Object>[ 'source', ], "
+              "context: restageContext) ?? 'hero.png'",
+        ],
+        <String>[],
+      ),
+      (
+        'root sheets that cannot lower run as actions',
+        '''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        TextButton(
+          onPressed: () => showModalBottomSheet<void>(
+              context: context, builder: (_) => const Text('first')),
+          child: const Text('a'),
+        ),
+        TextButton(
+          onPressed: () => showModalBottomSheet<void>(
+              context: context, builder: (_) => const Text('second')),
+          child: const Text('b'),
+        ),
+      ]);
+}
+''',
+        ['showModalBottomSheet<void>('],
+        ['TextButton(onPressed: {nativeEvent: data.context._h'],
+      ),
+      (
+        'a per-item action fits its list item',
+        '''
+void pick(String id) {}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        for (final p in plans)
+          GestureDetector(onTap: () => pick(p.id), child: Text(p.id)),
+      ]);
+}
+''',
+        <String>[],
+        ['GestureDetector(onTap: {nativeEvent: p._h'],
+      ),
+      (
+        'islands and actions in nested loops read every loop position',
+        '''
+void choose(String feature) {}
+
+class Tier {
+  const Tier({required this.name, required this.features});
+  final String name;
+  final List<String> features;
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.tiers});
+  final List<Tier> tiers;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        for (final tier in tiers)
+          for (final feature in tier.features)
+            GestureDetector(
+              onTap: () => choose('\${tier.name}/\$feature'),
+              child: Tinted(tint: feature.length, child: Text(feature)),
+            ),
+      ]);
+}
+''',
+        [
+          "for (final tier in _restageRecording.items( 'tiers', _restageArgument1, null, ['<wireKey>'], )) for (final feature in _restageRecording.items( '<wireKey>', tier.features, 'tiers', ['<wireKey>'], )) GestureDetector( onTap: _restageRecording.native( '<wireKey>', () => choose('\${tier.name}/\$feature'), items: '<wireKey>', type: '()->void', nullable: false, ), child: _restageRecording.island( 'mounted_Tinted_0',",
+          "_restageRecording.islandAt( 'mounted_Tinted_0', [ _restageSource.v<int>(const <Object>['restageItems', 0])!, _restageSource.v<int>(const <Object>['restageItems', 1])!, ],",
+        ],
+        [', feature.'],
+      ),
+      for (final (name, root) in [
+        (
+          'ListView.builder',
+          'ListView.builder(itemCount: names.length, '
+              'itemBuilder: (context, i) => Tinted(child: Text(names[i])))',
+        ),
+        (
+          'PageView.builder',
+          'PageView.builder(itemCount: names.length, '
+              'itemBuilder: (context, i) => Tinted(child: Text(names[i])))',
+        ),
+      ])
+        (
+          'a root $name stays in the design',
+          '''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.names});
+  final List<String> names;
+  @override
+  Widget build(BuildContext context) => $root;
+}
+''',
+          <String>[],
+          <String>[],
+        ),
+      (
+        'reads promoted by a guard around an island keep their type',
+        '''
+class Premium extends Plan {
+  const Premium({required super.id, required super.rank, required this.badge});
+  final String badge;
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans, this.name});
+  final List<Plan> plans;
+  final String? name;
+  @override
+  Widget build(BuildContext context) {
+    final n = name;
+    return Column(children: [
+      for (final p in plans)
+        if (p is Premium) Tinted(tint: p.badge.length, child: Text(p.id)),
+      if (n != null) Tinted(tint: n.length, child: Text(n)),
+    ]);
+  }
+}
+''',
+        [
+          "if (p is Premium) ..._restageRecording.mark('<wireKey>', true, [ _restageRecording.island( 'mounted_Tinted_0', _restageRecording.built( Tinted(tint: p.badge.length, child: Text(p.id)),",
+          'final n = _restageArgument2; return _restageDesign(',
+          "if (n != null) ..._restageRecording.mark('<wireKey>', true, [ _restageRecording.island( 'mounted_Tinted_1', _restageRecording.built( Tinted(tint: n.length, child: Text(n)),",
+        ],
+        <String>[],
+      ),
+      (
+        "an inherited State member an island needs moves the State in",
+        '''
+$stateful
+class _MountedState extends State<Mounted> {
+  int _count = 0;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Tap(onTap: () => setState(() => _count++), child: const Text('more')),
+        Text('\$_count'),
+      ]);
+}
+''',
+        ['class _MountedSurfaceState', 'setState(() => _count++)'],
+        <String>[],
+      ),
+      (
+        'a lifted State keeps its constructions and reads this',
+        '''
+class Again extends StatelessWidget {
+  const Again({super.key});
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+$stateful
+class _MountedState extends State<Mounted> {
+  final ScrollController _scroll = ScrollController();
+  void _again() => Navigator.of(context)
+      .push(MaterialPageRoute<void>(builder: (_) => const Again()));
+  @override
+  Widget build(BuildContext context) => ListView(
+        controller: this._scroll,
+        children: [Tap(onTap: _again, child: Text(widget.title))],
+      );
+}
+''',
+        [
+          'const Again()',
+          "controller: _restageRecording.native( '<wireKey>', this._scroll, type: "
+              "'flutter.ScrollController', nullable: false, )",
+        ],
+        <String>[],
+      ),
+      (
+        'an id that is not an identifier names its islands one to one',
+        '''
+@Paywall(id: '2024-sale')
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [Tinted(tint: 2, child: const Text('a'))]);
+}
+''',
+        ["'Island_d2024_x2d_sale_Tinted_0'"],
+        <String>[],
+      ),
+      (
+        'a read promoted without a guard keeps its type',
+        '''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, this.name});
+  final String? name;
+  @override
+  Widget build(BuildContext context) {
+    final n = name;
+    return Column(children: [
+      Text(n!),
+      Tinted(tint: n.length, child: const Text('a')),
+    ]);
+  }
+}
+''',
+        [
+          'final n = _restageArgument1; return _restageDesign(',
+          "Text(_restageRecording.value('<wireKey>', n!)), _restageRecording.island( 'mounted_Tinted_0', _restageRecording.built( Tinted(tint: n.length, child: const Text('a')),",
+        ],
+        <String>[],
+      ),
+      (
+        'a bare this reads the surface instance',
+        '''
+int describe(Mounted surface) => surface.title.length;
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.title});
+  final String title;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Tinted(tint: describe(this), child: const Text('a')),
+      ]);
+}
+''',
+        [
+          'final _restageSurface = _restageSurfaces[this] ??= Mounted( '
+              'title: _restageArgument1, );',
+          "_restageRecording.island( 'mounted_Tinted_0', _restageRecording.built( Tinted(tint: describe(_restageSurface), child: const Text('a')),",
+        ],
+        <String>[],
+      ),
+      (
+        'a lifted State renames only covariant parameter types',
+        '''
+$stateful
+class _MountedState extends State<Mounted> {
+  final ScrollController _scroll = ScrollController();
+  int _changes = 0;
+  void _note(Mounted? other) => _changes++;
+  @override
+  void didUpdateWidget(covariant Mounted oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _note(null);
+  }
+
+  @override
+  Widget build(BuildContext context) => ListView(
+        controller: _scroll,
+        children: [Text('\${widget.title} \$_changes')],
+      );
+}
+''',
+        [
+          'didUpdateWidget(covariant MountedSurface oldWidget)',
+          'Mounted oldWidget, MountedSurface _restageOldWidget,',
+          'super.didUpdateWidget(_restageOldWidget)',
+          '_note(Mounted? other)',
+        ],
+        <String>[],
+      ),
+      (
+        'a State override inherits its covariant parameter',
+        '''
+$stateful
+class _MountedState extends State<Mounted> {
+  final ScrollController _scroll = ScrollController();
+  int _changes = 0;
+  @override
+  void didUpdateWidget(Mounted oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _changes++;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      ListView(controller: _scroll, children: [Text('\${widget.title} \$_changes')]);
+}
+''',
+        ['Mounted oldWidget, MountedSurface _restageOldWidget,'],
+        <String>[],
+      ),
+      (
+        'a guard inside an island keeps its own promotion',
+        '''
+class Premium extends Plan {
+  const Premium({required super.id, required super.rank, required this.badge});
+  final String badge;
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        for (final p in plans)
+          Tinted(
+            tint: p is Premium ? p.badge.length : 0,
+            child: Text(p.id),
+          ),
+      ]);
+}
+''',
+        [
+          "_restageRecording.island( 'mounted_Tinted_0', _restageRecording.built( Tinted( tint: p is Premium ? p.badge.length : 0, child: Text(p.id), ),",
+          "items: 'plans', ),",
+        ],
+        <String>[],
+      ),
+      for (final (name, guard) in [
+        ('an inner condition', 'p.rank > 0 ? p.badge.length : 0'),
+        ('a closure', 'plans.any((q) => q.id == p.id) ? p.badge.length : 0'),
+      ])
+        (
+          'an outer guard with $name inside an island keeps its promotion',
+          '''
+class Premium extends Plan {
+  const Premium({required super.id, required super.rank, required this.badge});
+  final String badge;
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        for (final p in plans)
+          if (p is Premium) Tinted(tint: $guard, child: Text(p.id)),
+      ]);
+}
+''',
+          [
+            "if (p is Premium) ..._restageRecording.mark('<wireKey>', true, [ "
+                "_restageRecording.island( 'mounted_Tinted_0', "
+                // A guard with a closure is computed once, ahead of the widget.
+                '${guard.contains('=>') ? "restageOnce<(int,), Widget>( ( ${guard.replaceAll('plans', '_restageArgument1')}, ), (_restageArgs) => _restageRecording.built( Tinted(tint: _restageArgs.\$1, child: Text(p.id))," : "_restageRecording.built( Tinted( tint: ${guard.replaceAll('plans', '_restageArgument1')}, child: Text(p.id), ),"}',
+          ],
+          <String>[],
+        ),
+      (
+        "a stateless surface's members are read from an instance of it",
+        '''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.title});
+  final String title;
+  int get _count => title.length;
+  Widget _row(String label) {
+    if (label.isEmpty) return const SizedBox();
+    return Text(label);
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Tinted(tint: _count + 1, child: const Text('a')),
+        _row('b'),
+      ]);
+}
+''',
+        [
+          'final _restageSurface = _restageSurfaces[this] ??= Mounted( '
+              'title: _restageArgument1, );',
+          r"_restageRecording.island( 'mounted_Tinted_0', restageOnce<(int,), Widget>( (_restageSurface._count + 1,), (_restageArgs) => _restageRecording.built( Tinted(tint: _restageArgs.$1, child: const Text('a')),",
+          "_restageRecording.island( 'mounted__row_0', _restageSurface._row('b'), events: true, )",
+        ],
+        <String>[],
+      ),
+      (
+        'app wrappers above a builder stay in the app and the design starts below them',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+class Count extends StatelessWidget {
+  const Count({super.key, required this.builder});
+  final Widget Function(BuildContext context, int n) builder;
+  @override
+  Widget build(BuildContext context) => builder(context, 1);
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    return Tinted(
+      child: SafeArea(
+        child: Hears(
+          onContext: (context) => Navigator.of(context).maybePop(),
+          child: Count(
+            builder: (context, n) => Column(children: [
+              Text('$n'),
+              Tinted(tint: width.round(), child: const Text('a')),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+''',
+        [
+          "return (() { final width = MediaQuery.sizeOf(context).width; "
+              'return Tinted( child: SafeArea( child: Hears( onContext: '
+              '(context) => Navigator.of(context).maybePop(), child: Count( '
+              'builder: (context, n) => (_restageRecording..frame(0)).exposing( '
+              "{'<wireKey>': n}, _restageDesign( Column(",
+        ],
+        // The delivered path starts below the app's wrappers; the listener is
+        // the app's own and is written once.
+        ['widget Paywall = Column(children: [Text(text: data.context._h'],
+      ),
+      (
+        'a lifted State reads the surface through widget and didUpdateWidget',
+        r'''
+$stateful
+class _MountedState extends State<Mounted> {
+  final ScrollController _scroll = ScrollController();
+  late String _seen = widget.title;
+  int _changes = 0;
+  @override
+  void didUpdateWidget(Mounted oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.title != widget.title) _changes++;
+    _seen = widget.title;
+  }
+
+  @override
+  Widget build(BuildContext context) => ListView(
+        controller: _scroll,
+        children: [Text('$_seen $_changes ${widget.title.length}')],
+      );
+}
+'''
+            .replaceAll(r'$stateful', stateful),
+        [
+          'late Mounted _restageWidget = Mounted(title: widget._restageArgument1);',
+          'late String _seen = _restageWidget.title;',
+          'final _restagePrevious = _restageWidget;',
+          '_restageDidUpdateWidget(_restagePrevious, oldWidget);',
+          'if (oldWidget.title != _restageWidget.title) _changes++;',
+        ],
+        <String>[],
+      ),
+      (
+        'each island has a mount-free form for previews',
+        r'''
+class Needs extends StatelessWidget {
+  const Needs({super.key, required this.count, required this.child});
+  final int count;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => ColoredBox(color: Color(0xFF000000 + count), child: child);
+}
+
+class Scrolly extends StatelessWidget {
+  const Scrolly({super.key, required this.children, this.shrinkWrap = false});
+  final List<Widget> children;
+  final bool shrinkWrap;
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(painter: null, child: Column(children: children));
+}
+
+$stateful
+class _MountedState extends State<Mounted> {
+  int _count = 0;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Scrolly(shrinkWrap: true, children: [const Text('a')]),
+        Tap(onTap: () => setState(() => _count++), child: const Text('b')),
+        Needs(count: _count, child: Text(widget.title)),
+        Tinted(tint: 2, child: const Text('c')),
+      ]);
+}
+'''
+            .replaceAll(r'$stateful', stateful),
+        [
+          r'Widget restagePreview$mounted_Scrolly_0( BuildContext '
+              'restageContext, DataSource restageSource, ) => Scrolly( '
+              'shrinkWrap: (RestageValueBinding',
+          r'restagePreview$mounted_Tap_0',
+          'Tap(onTap: () {}, child:',
+          "RestageIslandPlaceholder( label: 'Needs', children: [ "
+              "restageSource.child(const <Object>['child']), ], )",
+          'return RestageIslandScope(',
+        ],
+        <String>[],
+      ),
+      (
+        "a mount takes its surface's own base kind",
+        r'''
+abstract class Counted extends StatelessWidget {
+  const Counted({super.key});
+  @override
+  StatelessElement createElement() => StatelessElement(this);
+}
+
+@Paywall()
+final class Mounted extends Counted {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [Tinted(tint: 1, child: const Text('a'))]);
+}
+''',
+        ['final class MountedSurface extends Counted {'],
+        <String>[],
+      ),
+      (
+        "a lifted State keeps a base that needs its surface's base kind",
+        r'''
+abstract class Scoped extends StatefulWidget {
+  const Scoped({super.key});
+  @override
+  ScopedState<Scoped> createState();
+}
+
+abstract class ScopedState<T extends Scoped> extends State<T> {
+  int get ref => 1;
+}
+
+@Paywall()
+final class Mounted extends Scoped {
+  const Mounted({super.key, required this.title});
+  final String title;
+  @override
+  ScopedState<Mounted> createState() => _MountedState();
+}
+
+class _MountedState extends ScopedState<Mounted> {
+  final ScrollController _scroll = ScrollController();
+  @override
+  Widget build(BuildContext context) =>
+      ListView(controller: _scroll, children: [Text('${widget.title} $ref')]);
+}
+''',
+        [
+          'final class MountedSurface extends Scoped {',
+          '_MountedSurfaceState createState() => _MountedSurfaceState();',
+          'extends ScopedState<MountedSurface>',
+        ],
+        <String>[],
+      ),
+      (
+        'a build prelude that calls code runs once in the mount',
+        r'''
+int _calls = 0;
+int count() => ++_calls;
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final n = count();
+    return Column(children: [
+      Tinted(tint: n, child: const Text('a')),
+      Text('${n + 1}'),
+    ]);
+  }
+}
+''',
+        ['final n = count();', 'tint: n,'],
+        <String>[],
+      ),
+      (
+        'a State that reads widget outside build moves into the mount',
+        r'''
+$stateful
+class _MountedState extends State<Mounted> {
+  final ScrollController _scroll = ScrollController();
+  late int _length;
+  @override
+  void initState() {
+    super.initState();
+    _length = widget.title.length;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      ListView(controller: _scroll, children: [Text('$_length')]);
+}
+'''
+            .replaceAll(r'$stateful', stateful),
+        ['_length = _restageWidget.title.length;'],
+        <String>[],
+      ),
+      (
+        'a build with statements runs them once in the mount',
+        r'''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.names});
+  final List<String> names;
+  @override
+  Widget build(BuildContext context) {
+    var count = 0;
+    for (final name in names) {
+      if (name.isNotEmpty) count++;
+    }
+    return Column(children: [
+      Text('$count'),
+      Tinted(tint: count, child: const Text('a')),
+    ]);
+  }
+}
+''',
+        ['var count = 0;', 'for (final name in ', 'tint: count,'],
+        <String>[],
+      ),
+      (
+        'a build with several returns delivers the one its mount took',
+        r'''
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.names});
+  final List<String> names;
+  @override
+  Widget build(BuildContext context) {
+    final n = names.length;
+    if (n == 0) {
+      return GestureDetector(onTap: () => buy(), child: const Text('none'));
+    }
+    if (n > 3) return Tinted(tint: n, child: const Text('many'));
+    return Column(children: [for (final name in names) Text(name)]);
+  }
+}
+''',
+        [
+          "final n = _restageArgument1.length; if (n == 0) { return _restageDesign( _restageRecording.branch( '<wireKey>', 0, GestureDetector(onTap: () => buy(), child: const Text('none')), ), ); } if (n > 3) return _restageDesign( _restageRecording.branch( '<wireKey>', 1, _restageRecording.island( 'mounted_Tinted_0',",
+          "'<wireKey>', 2, Column(children: [for (final name in _restageArgument1) Text(name)]),",
+        ],
+        ['switch data.context._h', 'default: Column('],
+      ),
+      (
+        'behavior among delivered siblings is an island built around the delivered child',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.title});
+  final String title;
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(children: [
+          Text(title),
+          Hears(
+            onContext: (context) => Navigator.of(context).maybePop(),
+            child: Text(title),
+          ),
+        ]),
+      );
+}
+''',
+        [
+          'Padding( padding: const EdgeInsets.all(8), child: Column( '
+              "children: [ Text(_restageArgument1), _restageRecording.island( "
+              "'mounted_Hears_0', _restageRecording.built( Hears( onContext: (context) => "
+              'Navigator.of(context).maybePop(), child: '
+              'Text(_restageArgument1), ), (_restageContext, '
+              '_restageSource) => Hears( onContext: (context) => '
+              'Navigator.of(context).maybePop(), child: '
+              "_restageSource.child(const <Object>['child']),",
+        ],
+        ['Padding(padding:', 'mounted_Hears_0(child: Text(text: '],
+      ),
+      (
+        "an island that reads a State's field moves the State into the mount",
+        '''
+$stateful
+class _MountedState extends State<Mounted> {
+  int _count = 0;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Tinted(tint: _count + 1, child: Text(widget.title)),
+        GestureDetector(
+          onTap: () => setState(() => _count++),
+          child: const Text('more'),
+        ),
+      ]);
+}
+''',
+        ['class _MountedSurfaceState', 'setState(() => _count++)'],
+        <String>[],
+      ),
+      (
+        'the fallback keys an island as the mount does',
+        r'''
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) => Hears(
+        onContext: (context) => Navigator.of(context).maybePop(),
+        child: Column(children: [
+          const Text('Go'),
+          Tinted(tint: 2, child: const Text('held')),
+        ]),
+      );
+}
+''',
+        [
+          "return (() => Hears( onContext: (context) => Navigator.of(context).maybePop(), child: _restageDesign( Column( children: [ const Text('Go'), _restageRecording.island( 'mounted_Tinted_0', _restageRecording.built( Tinted(tint: 2, child: const Text('held')),",
+        ],
+        <String>[],
+      ),
+    ]) {
+      test(name, () async {
+        final generated = await _generatedPart(
+          '$header$body',
+          'mounted',
+          warningFree: true,
+          paywallText: text.isEmpty
+              ? null
+              : (payload) {
+                  for (final fragment in text) {
+                    expect(payload, contains(fragment));
+                  }
+                },
+        );
+        final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+        for (final fragment in expected) {
+          _expectTemplate(flat, fragment);
+        }
+        _readableTextsOf(generated).forEach(_expectReadable);
+        // One mount per surface: no builder repeats it.
+        expect(
+          'RestagePaywall('.allMatches(generated).length,
+          '@Paywall('.allMatches(body).length,
+        );
+      });
+    }
+
+    test(
+      'a widget local that calls code is computed once for its placements',
+      () async {
+        final generated = await _generatedPart(
+          '''
+$header
+var calls = 0;
+
+Widget makeCard() {
+  calls++;
+  return Tinted(tint: calls, child: const Text('x'));
+}
+
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) {
+    final card = makeCard();
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: Column(children: [card, card]),
+    );
+  }
+}
+''',
+          'mounted',
+          warningFree: true,
+          paywallText: (payload) => expect(
+            payload,
+            contains(
+              'Column(children: [mounted_card0_makeCard_0(), '
+              'mounted_card1_makeCard_0()])',
+            ),
+          ),
+        );
+        final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+        // The build calls it once; each placement reads the local.
+        expect(_callsIn(generated, 'makeCard'), 1);
+        expect(flat, contains('final card = makeCard();'));
+        _expectTemplate(
+          flat,
+          "_restageRecording.island('mounted_card0_makeCard_0', card)",
+        );
+        _expectTemplate(
+          flat,
+          "_restageRecording.island('mounted_card1_makeCard_0', card)",
+        );
+      },
+    );
+  });
+
+  test('a preview never copies a value that reads a builder local', () async {
+    final part = await _generatedPart(
+      '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/legal.restage.g.dart';
+
+class Count extends StatelessWidget {
+  const Count({super.key, required this.builder});
+  final Widget Function(BuildContext context, int n) builder;
+  @override
+  Widget build(BuildContext context) => builder(context, 1);
+}
+
+class Legal extends StatelessWidget {
+  const Legal({super.key, required this.heading, required this.lines});
+  final String heading;
+  final List<String> lines;
+  @override
+  Widget build(BuildContext context) =>
+      GestureDetector(onTap: () => debugPrint(heading), child: Text(lines.join()));
+}
+
+String note(List<String> products) => products.join(', ');
+
+const free = 'Free';
+
+@Paywall()
+final class Terms extends StatelessWidget {
+  const Terms({super.key});
+  @override
+  Widget build(BuildContext context) => Count(builder: (context, n) {
+        final products = ['a', 'b'];
+        return Column(children: [
+          Legal(heading: 'Subscription terms', lines: [free, note(products)]),
+          Legal(heading: 'Free terms', lines: const [free]),
+        ]);
+      });
+}
+''',
+      'legal',
+      warningFree: true,
+    );
+    final flat = part.replaceAll(RegExp(r'\s+'), '');
+    // The closed value is copied; the one reading `products` is not.
+    expect(flat, contains("??const[free]"));
+    expect(
+      RegExp(r'restagePreview\$[^;]*note\(products\)').hasMatch(flat),
+      isFalse,
+    );
+  });
+
+  test(
+    'a recorded mount publishes where its build produces a guarded value',
+    () async {
+      final part = await _generatedPart(
+        '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/guarded.restage.g.dart';
+
+String describe(String o) => o.toUpperCase();
+
+@Paywall()
+final class Guarded extends StatelessWidget {
+  const Guarded({super.key, this.offer});
+  final String? offer;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        if (offer != null) Text(describe(offer!)),
+      ]);
+}
+''',
+        'guarded',
+        warningFree: true,
+      );
+      final flat = part.replaceAll(RegExp(r'\s+'), '');
+      expect(flat, contains("'layouts':<String,Object?>{'domains':"));
+      expect(flat, contains("'values':<String,Object?>{'_h"));
+    },
+  );
+
+  // A builder closure runs only when Flutter calls it, so what its body
+  // computes is recorded by that closure: a kept builder or an island slot.
+  for (final (id, body, check) in <(String, String, void Function(String, String))>[
+    (
+      'acme_root',
+      'SafeArea(child: Listen(listener: (context, state) => calls.add("l"), '
+          'child: Signal(builder: (context, state) { final c = ink(); '
+          'return Padding(padding: const EdgeInsets.all(8), child: ListView('
+          'controller: _scroll, children: [Text("n \$state", style: TextStyle(color: c))])); })))',
+      (part, text) {
+        expect(
+          part,
+          matches(
+            RegExp(
+              r'Signal\(\s*builder: \(context, state\) \{[^]*return _restageDesign\(\s*Padding\(',
+            ),
+          ),
+        );
+        expect(text, contains('widget Paywall = Padding('));
+      },
+    ),
+    (
+      'acme_slot',
+      'Column(children: [const Text("head"), Expanded(child: Signal('
+          'builder: (context, state) { final c = ink(); '
+          'return ListView(controller: _scroll, children: [Text("n \$state", style: TextStyle(color: c))]); }))])',
+      // An installed value in the body keeps the builder whole in its island.
+      (part, text) {
+        expect(
+          part,
+          contains(
+            "_restageRecording.island(\n              'acme__slot_Signal_0',",
+          ),
+        );
+        expect(text, contains('child: acme__slot_Signal_0()'));
+        expect(text, isNot(contains('data.context')));
+      },
+    ),
+    (
+      'once_tween',
+      'Column(children: [TweenAnimationBuilder<double>(tween: Tween(begin: 0, '
+          'end: end()), duration: const Duration(seconds: 1), builder: '
+          '(context, value, child) => Text("t \${value.round()}"))])',
+      // A shared argument keeps the type its parameter infers.
+      (part, text) {
+        expect(
+          part,
+          matches(RegExp(r'restageOnce<\(Tween<double>,\s*\),\s*Widget>\(')),
+        );
+        expect(RegExp(r'\bend\(\)').allMatches(part), hasLength(2));
+      },
+    ),
+    (
+      'slot_flag',
+      '{ final shown = flagNow(); return Column(children: [const Text("h"), '
+          'ValueListenableBuilder<int>(valueListenable: counter, builder: '
+          '(context, count, child) => Visibility(visible: shown, child: Text("n \$count")))]); }',
+      // The slot records the condition into its own recording.
+      (part, text) {
+        expect(part, contains('_restageSlotRecording.'));
+        expect(part, isNot(contains('_restageRecording.mark(')));
+        expect(text, isNot(contains('data.context._h')));
+      },
+    ),
+    (
+      'slot_if',
+      '{ final shown = flagNow(); return Column(children: [const Text("h"), '
+          'ValueListenableBuilder<int>(valueListenable: counter, builder: '
+          '(context, count, child) => Column(children: [if (shown) Text("n \$count")]))]); }',
+      // The slot records the condition into its own recording.
+      (part, text) {
+        expect(part, contains('_restageSlotRecording.'));
+        expect(part, isNot(contains('_restageRecording.mark(')));
+        expect(text, isNot(contains('data.context._h')));
+      },
+    ),
+    (
+      'slot_and',
+      '{ final shown = flagNow(); return Column(children: [const Text("h"), '
+          'ValueListenableBuilder<int>(valueListenable: counter, builder: '
+          '(context, count, child) => Column(children: [if (shown && count > 0) Text("n \$count")]))]); }',
+      // The slot records the condition into its own recording.
+      (part, text) {
+        expect(part, contains('_restageSlotRecording.'));
+        expect(part, isNot(contains('_restageRecording.mark(')));
+        expect(text, isNot(contains('data.context._h')));
+      },
+    ),
+  ]) {
+    test('app builder rows: $id', () async {
+      final source =
+          """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/$id.restage.g.dart';
+
+final calls = <String>[];
+
+class Listen extends StatelessWidget {
+  const Listen({super.key, required this.listener, required this.child});
+  final void Function(BuildContext context, int state) listener;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => child;
+}
+
+class Signal extends StatelessWidget {
+  const Signal({super.key, required this.builder});
+  final Widget Function(BuildContext context, int state) builder;
+  @override
+  Widget build(BuildContext context) => builder(context, 2);
+}
+
+double end() {
+  calls.add('end');
+  return 100;
+}
+
+final counter = ValueNotifier<int>(1);
+
+bool flagNow() {
+  calls.add('flag');
+  return true;
+}
+
+Color ink() {
+  calls.add('ink');
+  return const Color(0xFF112233);
+}
+
+@Paywall(id: '$id')
+final class Shape extends StatefulWidget {
+  const Shape({super.key});
+  @override
+  State<Shape> createState() => _ShapeState();
+}
+
+class _ShapeState extends State<Shape> {
+  final ScrollController _scroll = ScrollController();
+
+  @override
+  Widget build(BuildContext context) ${body.startsWith('{') ? body : '=> $body;'}
+}
+""";
+      late String text;
+      final part = await _generatedPart(
+        source,
+        id,
+        paywallText: (t) => text = t,
+      );
+      check(part, text);
+    });
+  }
+
+  // A value only an app builder slot records belongs to that slot: a design
+  // that reads it at the top of the surface doesn't fit.
+  test('a top-level read of a slot-only value is refused by fit', () async {
+    const id = 'slot_only';
+    late RestageSurfacePublicationBundle bundle;
+    final part = await _generatedPart(
+      '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/$id.restage.g.dart';
+
+final counter = ValueNotifier<int>(1);
+
+String shout(String text) => text.toUpperCase();
+
+@Paywall(id: '$id')
+final class Shape extends StatelessWidget {
+  const Shape({super.key, required this.label});
+  final String label;
+  @override
+  Widget build(BuildContext context) {
+    final shown = shout(label);
+    return Column(children: [
+      const Text('h'),
+      ValueListenableBuilder<int>(
+        valueListenable: counter,
+        builder: (context, count, child) => Text('\$shown \$count'),
+      ),
+    ]);
+  }
+}
+''',
+      id,
+      handoff: (b) => bundle = b,
+    );
+    final key = RegExp(
+      r"_restageSlotRecording\.value\('(_h\w+)'",
+    ).firstMatch(part)![1]!;
+    final host = _hostContractOf(part, '');
+    expect(host.providedContext.inputs.keys, isNot(contains(key)));
+    final own = bundle.manifest!.publications
+        .singleWhere((entry) => entry.publication.slug == id)
+        .publication
+        .fitRequirement!;
+    // The context failures of [requirement] against the surface's contract.
+    List<String> fit(SurfaceFitRequirementV1 requirement) => [
+      for (final failure in SurfaceFitEvaluator.evaluate(
+        host: host,
+        requirement: requirement,
+        installed: InstalledCapability(
+          builtInCatalogVersion: 1 << 20,
+          installedLibraries: const [],
+        ),
+      ).failures)
+        if (failure.path.startsWith(r'$.requiredContext')) failure.code.name,
+    ];
+    expect(fit(own), isEmpty);
+    final topLevel = SurfaceFitRequirementV1(
+      hosting: own.hosting,
+      requiredContext: SurfaceScreenHostDataSchema({
+        ...own.requiredContext.inputs,
+        key: const SurfaceScreenHostDataScalarShapeV1(
+          SurfaceScreenHostDataScalarKind.string,
+        ),
+      }),
+      emittedEvents: own.emittedEvents,
+      capabilities: own.capabilities,
+      requiredVocabulary: own.requiredVocabulary,
+      flowBoundary: own.flowBoundary,
+      requiredIslands: own.requiredIslands,
+      islandLabels: own.islandLabels,
+      layoutReads: own.layoutReads,
+    );
+    expect(fit(topLevel), contains('missingHostField'));
+  });
+
+  group('source placement shapes compile as the app runs them', () {
+    String shell(String child) =>
+        'return Hears(onContext: (context) => Navigator.of(context).maybePop(), '
+        'child: $child);';
+    const local = "final card = makeCard();\n    ";
+    // Each call's count in the part: the copy of the app's build writes
+    // every call once where the app writes it (an inlined helper's body takes
+    // the helper's place); previews and string literals are not calls.
+    for (final (id, body, counts) in <(String, String, Map<String, int>)>[
+      (
+        'A01 call local placed twice',
+        local + shell('Column(children: [card, card])'),
+        {'makeCard': 1},
+      ),
+      (
+        'A02 call local placed once and read once',
+        local + shell(r"Column(children: [card, Text('${card.key}')])"),
+        {'makeCard': 1},
+      ),
+      (
+        'A03 call local placed once in a loop',
+        local +
+            shell(
+              'Column(children: [for (final p in plans) Row(children: [Text(p.name), card])])',
+            ),
+        {'makeCard': 1},
+      ),
+      (
+        'A04 call local in exclusive arms',
+        local +
+            shell('flag ? Column(children: [card]) : Row(children: [card])'),
+        {'makeCard': 1},
+      ),
+      (
+        'A05 helper places a call argument twice',
+        shell('Column(children: [twice(makeCard())])'),
+        {'makeCard': 1},
+      ),
+      (
+        'A06 helper twice per item',
+        shell('Column(children: [for (final p in plans) twice(makeFor(p))])'),
+        {'makeFor': 1},
+      ),
+      (
+        'A07 guarded helper twice',
+        shell('Column(children: [if (flag) twice(makeCard())])'),
+        {'makeCard': 1},
+      ),
+      (
+        'A08 code guard',
+        shell('Column(children: [if (eligible()) twice(makeCard())])'),
+        {'makeCard': 1, 'eligible': 1},
+      ),
+      (
+        'A09 code guard per item',
+        shell(
+          'Column(children: [for (final p in plans) if (okFor(p)) twice(makeFor(p))])',
+        ),
+        {'makeFor': 1, 'okFor': 1},
+      ),
+      (
+        'A10 one code guard over two arguments',
+        shell('cond() ? twice(makeA()) : twice(makeB())'),
+        {'makeA': 1, 'makeB': 1, 'cond': 1},
+      ),
+      (
+        'A11 helper inside a helper',
+        shell('Column(children: [outer()])'),
+        {'makeCard': 1},
+      ),
+      (
+        'A12 helper places once and reads once',
+        shell('Column(children: [show(makeCard())])'),
+        {'makeCard': 1},
+      ),
+      (
+        'A13 iterable that runs code',
+        shell(
+          'Column(children: [for (final p in loadPlans()) twice(makeFor(p))])',
+        ),
+        {'makeFor': 1, 'loadPlans': 1},
+      ),
+      (
+        'A15 source order of preludes',
+        "final a = logA();\n    " +
+            shell(
+              'Column(children: [twice(makeCard()), Text(a), Text(logC())])',
+            ),
+        {'makeCard': 1, 'logA': 1, 'logC': 1},
+      ),
+      (
+        'A17 call local passed to a helper',
+        local + shell('Column(children: [twice(card)])'),
+        {'makeCard': 1},
+      ),
+      (
+        'A18 argument through another helper',
+        shell('Column(children: [twice(wrap(makeCard()))])'),
+        {'makeCard': 1},
+      ),
+      (
+        'A19 shorthand pattern loop',
+        shell(
+          'Column(children: [for (final Plan(:name) in plans) twice(makeNamed(name))])',
+        ),
+        {'makeNamed': 1},
+      ),
+      (
+        'A20 literal-list loop',
+        shell(
+          "Column(children: [for (final s in const ['a', 'b']) twice(makeLabel(s))])",
+        ),
+        {'makeLabel': 1},
+      ),
+      (
+        'A21 getter guard per item',
+        shell(
+          'Column(children: [for (final p in plans) if (p.name.isNotEmpty) twice(makeFor(p))])',
+        ),
+        {'makeFor': 1},
+      ),
+      (
+        'A22 conditional per item',
+        shell(
+          'Column(children: [for (final p in plans) p.name.isEmpty ? const SizedBox() : twice(makeFor(p))])',
+        ),
+        {'makeFor': 1},
+      ),
+      (
+        'A23 nested loops',
+        shell(
+          'Column(children: [for (final p in plans) Column(children: [for (final t in tags) twice(make2(p, t))])])',
+        ),
+        {'make2': 1},
+      ),
+      (
+        'A24 code guard outside a loop',
+        shell(
+          'Column(children: [if (eligible()) for (final p in plans) twice(makeFor(p))])',
+        ),
+        {'makeFor': 1, 'eligible': 1},
+      ),
+      (
+        'A25 code guard with an else arm',
+        shell(
+          "Column(children: [if (eligible()) twice(makeA()) else const Text('no')])",
+        ),
+        {'makeA': 1, 'eligible': 1},
+      ),
+      (
+        'A27 helper call in a local initializer',
+        "final pair = twice(makeCard());\n    " +
+            shell('Column(children: [pair])'),
+        {'makeCard': 1},
+      ),
+      (
+        'A28 two helpers with one call each',
+        shell('Column(children: [twice(makeA()), twice(makeB())])'),
+        {'makeA': 1, 'makeB': 1},
+      ),
+      (
+        'A30 code conditional',
+        shell('Column(children: [cond() ? twice(makeA()) : const SizedBox()])'),
+        {'makeA': 1, 'cond': 1},
+      ),
+      (
+        'A31 code conditional per item',
+        shell(
+          'Column(children: [for (final p in plans) okFor(p) ? twice(makeFor(p)) : const SizedBox()])',
+        ),
+        {'makeFor': 1, 'okFor': 1},
+      ),
+      (
+        'A32 code if with calls in both arms',
+        shell(
+          'Column(children: [if (cond()) twice(makeA()) else twice(makeB())])',
+        ),
+        {'makeA': 1, 'makeB': 1, 'cond': 1},
+      ),
+      (
+        'A33 nested guards, inner runs code',
+        shell(
+          'Column(children: [if (flag) if (eligible()) twice(makeCard())])',
+        ),
+        {'makeCard': 1, 'eligible': 1},
+      ),
+      (
+        'A36 helper inside a helper, const argument',
+        shell('Column(children: [outerConst()])'),
+        <String, int>{},
+      ),
+      (
+        'A37 list parameter spread twice',
+        shell('twiceList([makeCard()])'),
+        {'makeCard': 1},
+      ),
+      (
+        'A38 code conditional, call in the else arm',
+        shell('Column(children: [cond() ? const SizedBox() : twice(makeA())])'),
+        {'makeA': 1, 'cond': 1},
+      ),
+      (
+        'A40 call local in exclusive arms and twice in one',
+        local +
+            shell(
+              'flag ? Column(children: [card]) : Row(children: [card, card])',
+            ),
+        {'makeCard': 1},
+      ),
+      (
+        'A41 pattern loop with a named field',
+        shell(
+          'Column(children: [for (final Plan(name: n) in plans) twice(makeNamed(n))])',
+        ),
+        {'makeNamed': 1},
+      ),
+      (
+        'A42 shorthand pattern, value read outside too',
+        shell(
+          'Column(children: [for (final Plan(:name) in plans) Row(children: [Text(name), twice(makeNamed(name))])])',
+        ),
+        {'makeNamed': 1},
+      ),
+      (
+        'A44 a value before a helper call',
+        shell('Column(children: [Text(logC()), twice(makeCard())])'),
+        {'makeCard': 1, 'logC': 1},
+      ),
+      (
+        'A45 a helper twice inside a helper twice',
+        shell('Column(children: [twice(twice(makeCard()))])'),
+        {'makeCard': 1},
+      ),
+      (
+        'K4c list local spread twice',
+        "final cards = <Widget>[Opaque(child: const SizedBox())];\n    " +
+            shell('Column(children: [...cards, ...cards])'),
+        <String, int>{},
+      ),
+      (
+        'K4d const local twice in a const list',
+        "const card = Opaque(child: SizedBox());\n    " +
+            shell('Column(children: const [card, card])'),
+        <String, int>{},
+      ),
+      (
+        'N1 helper beside an if element',
+        shell(
+          "Column(children: [cardFor(const Plan('a')), Opaque(child: const SizedBox()), if (flag) const Text('x')])",
+        ),
+        <String, int>{},
+      ),
+      (
+        'G11 list helper spread',
+        shell('Column(children: [...twiceItems(makeCard())])'),
+        {'makeCard': 1},
+      ),
+      (
+        'G12 list helper as children',
+        shell('Column(children: twiceItems(makeCard()))'),
+        {'makeCard': 1},
+      ),
+      (
+        'G8 two loops over one computed list',
+        shell(
+          'Column(children: [for (final p in loadPlans()) Text(p.name), for (final q in loadPlans()) Text(q.name)])',
+        ),
+        {'loadPlans': 2},
+      ),
+      (
+        'G1 loop under a null check',
+        shell(
+          'Column(children: [if (offer != null) for (final f in offer!.features) Text(f)])',
+        ),
+        <String, int>{},
+      ),
+      (
+        'G2 loop under a length check, list empty',
+        shell(
+          'Column(children: [if (tagged.isNotEmpty) for (final t in tagged.first.tags) Text(t)])',
+        ),
+        <String, int>{},
+      ),
+      (
+        'G5 code list under a code guard',
+        shell(
+          'Column(children: [if (eligible()) for (final p in loadPlans()) Text(p.name)])',
+        ),
+        {'eligible': 1, 'loadPlans': 1},
+      ),
+      (
+        'G9 condition over a nullable string',
+        shell(
+          "Column(children: [if (title != null) for (final c in title!.split(',')) Text(c)])",
+        ),
+        <String, int>{},
+      ),
+      (
+        'G10 collection condition beside a local',
+        "final card = Opaque(child: const SizedBox());\n    " +
+            shell('Column(children: [card, if (plans.isEmpty) card])'),
+        <String, int>{},
+      ),
+      (
+        'H8 early return before a guarded list',
+        "if (offer == null) return const Text('none');\n    " +
+            shell(
+              'Column(children: [for (final f in offer!.features) Text(f)])',
+            ),
+        <String, int>{},
+      ),
+      (
+        'X1 return inside an if block before a guarded list',
+        "if (offer != null) {\n      " +
+            shell(
+              'Column(children: [for (final f in offer!.features) Text(f)])',
+            ) +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'X2 return inside an if without braces',
+        "if (offer != null) " +
+            shell(
+              'Column(children: [for (final f in offer!.features) Text(f)])',
+            ) +
+            "\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'X3 return two ifs deep',
+        "if (flag) {\n      if (offer != null) {\n        " +
+            shell(
+              'Column(children: [for (final f in offer!.features) Text(f)])',
+            ) +
+            "\n      }\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'H12 top-level list under a per-item check',
+        shell(
+          'Column(children: [for (final p in plans) if (p.name.isNotEmpty) for (final f in offer!.features) Text(f)])',
+        ),
+        <String, int>{},
+      ),
+      (
+        'H15 guard at a helper call',
+        shell('Column(children: [if (offer != null) featuresOf(offer!)])'),
+        {'featuresOf': 0},
+      ),
+      (
+        'H16 nested code guard',
+        shell(
+          'Column(children: [if (offer != null) if (hasFeatures(offer!)) for (final f in offer!.features) Text(f)])',
+        ),
+        {'hasFeatures': 1},
+      ),
+      (
+        'H17 code guard under a flag',
+        shell(
+          'Column(children: [if (flag) if (eligible()) for (final p in loadPlans()) Text(p.name)])',
+        ),
+        {'eligible': 1, 'loadPlans': 1},
+      ),
+      (
+        'H19 conditional at a helper call',
+        shell('offer == null ? const SizedBox() : featuresOf(offer!)'),
+        {'featuresOf': 0},
+      ),
+      (
+        'H21 early return before a computed list',
+        "if (plans.isEmpty) return const Text('none');\n    " +
+            shell(
+              'Column(children: [for (final p in loadPlans()) Text(p.name)])',
+            ),
+        {'loadPlans': 1},
+      ),
+      (
+        'H22 guard at a helper call with a computed list',
+        shell('Column(children: [if (flag) planList()])'),
+        {'loadPlans': 1, 'planList': 0},
+      ),
+      (
+        'C3 right operand of a null check',
+        shell(
+          "Column(children: [if (title != null && title!.isNotEmpty) const Text('titled')])",
+        ),
+        <String, int>{},
+      ),
+      (
+        'I1 per-item value under a per-item null check',
+        shell(
+          'Column(children: [for (final h in holders) if (h.offer != null) Text(describe(h.offer!))])',
+        ),
+        {'describe': 1},
+      ),
+      (
+        'I2 per-item value under a per-item check that calls code',
+        shell(
+          'Column(children: [for (final h in holders) if (h.offer != null && hasFeatures(h.offer!)) Text(describe(h.offer!))])',
+        ),
+        {'describe': 1, 'hasFeatures': 1},
+      ),
+      (
+        'D1a per-item list under a per-item check that calls code',
+        shell(
+          'Column(children: [for (final h in holders) if (h.offer != null && hasFeatures(h.offer!)) for (final f in h.offer!.features) Text(f)])',
+        ),
+        {'hasFeatures': 1},
+      ),
+      (
+        'D1b per-item list under a per-item call alone',
+        shell(
+          'Column(children: [for (final h in holders) if (hasFeatures(h.offer!)) for (final f in h.offer!.features) Text(f)])',
+        ),
+        {'hasFeatures': 1},
+      ),
+      (
+        'K30a block local read in an app-rendered widget',
+        "if (offer != null) {\n      final features = offer!.features;\n      " +
+            shell('Opaque(child: Text(features.first))') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'K30b block local looped over',
+        "if (offer != null) {\n      final features = offer!.features;\n      " +
+            shell('Column(children: [for (final f in features) Text(f)])') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'K30c block local read in a Text',
+        "if (offer != null) {\n      final features = offer!.features;\n      " +
+            shell('Text(features.first)') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'K30d the same name declared in two branches',
+        "if (offer != null) {\n      final label = offer!.features.first;\n      " +
+            shell('Text(label)') +
+            "\n    }\n    if (title != null) {\n      final label = title!;\n      " +
+            shell('Text(label)') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'K30e a block local shadowing a top-level local',
+        "final label = describeAll();\n    if (offer != null) {\n      final label = offer!.features.first;\n      " +
+            shell('Text(label)') +
+            "\n    }\n    " +
+            shell('Text(label)'),
+        {'describeAll': 1},
+      ),
+      (
+        'X15a if-case variable read in a Text',
+        "if (offer case final o?) {\n      " +
+            shell('Text(o.features.first)') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'X15b if-case variable read in an app-rendered widget',
+        "if (offer case final o?) {\n      " +
+            shell('Opaque(child: Text(o.features.first))') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'X15c if-case variable looped over',
+        "if (offer case final o?) {\n      " +
+            shell('Column(children: [for (final f in o.features) Text(f)])') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'X15d if-case variable under a when guard',
+        "if (offer case final o? when o.features.isNotEmpty) {\n      " +
+            shell('Text(o.features.first)') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'R4 loop body local read by a conditional return',
+        "for (final p in plans) {\n      final n = p.name;\n      if (n.isNotEmpty) " +
+            shell('Text(n)') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'R5 loop variable read by a return',
+        "for (final p in plans) {\n      if (p.name.isNotEmpty) " +
+            shell('Text(p.name)') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'Q9 nested-loop key from the inner item',
+        shell(
+          'Column(children: [for (final p in tagged) for (final t in p.tags) ElevatedButton(key: ValueKey(t), onPressed: null, child: Text(t))])',
+        ),
+        <String, int>{},
+      ),
+      (
+        'Q3 nested-loop key from both items',
+        shell(
+          "Column(children: [for (final p in tagged) for (final t in p.tags) ElevatedButton(key: ValueKey('\${p.tags.first}/\$t'), onPressed: null, child: Text(t))])",
+        ),
+        <String, int>{},
+      ),
+      (
+        'Z1 block local named like a top-level function the build calls',
+        "if (flag) {\n      final headline = 'block';\n      " +
+            shell('Text(headline)') +
+            "\n    }\n    " +
+            shell('Text(headline())'),
+        {'headline': 1},
+      ),
+      (
+        'Z2 block local named like a top-level final the build reads',
+        "if (flag) {\n      final kBanner = 'block';\n      " +
+            shell('Text(kBanner)') +
+            "\n    }\n    " +
+            shell('Text(kBanner)'),
+        <String, int>{},
+      ),
+      (
+        'Z2c block local named like a top-level const the build reads',
+        "if (flag) {\n      final kConst = 'block';\n      " +
+            shell('Text(kConst)') +
+            "\n    }\n    " +
+            shell('Text(kConst)'),
+        <String, int>{},
+      ),
+      (
+        'Z4 block local named context',
+        "if (flag) {\n      final context = 'block';\n      " +
+            shell('Text(context)') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'Z5 block local named like a mount field',
+        "if (flag) {\n      final resolver = 'block';\n      " +
+            shell('Text(resolver)') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'Z7 destructuring declaration in a block',
+        "if (offer != null) {\n      final (count, first) = (offer!.features.length, offer!.features.first);\n      " +
+            shell('Text(first.padLeft(count))') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'T1 classic loop index read by a return',
+        "for (var i = 0; i < plans.length; i++) {\n      if (plans[i].name.isNotEmpty) " +
+            shell('Text(plans[i].name)') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'T3b try block local read by a return',
+        "try {\n      final t = describe(offer!);\n      " +
+            shell('Text(t)') +
+            "\n    } on Object {\n      // The offer may be missing.\n    }\n    return const Text('none');",
+        {'describe': 1},
+      ),
+      (
+        'XC3 switch statement whose cases return',
+        "switch (flag) {\n      case true:\n        " +
+            shell("const Text('on')") +
+            "\n      case false:\n        return const Text('off');\n    }",
+        <String, int>{},
+      ),
+      (
+        'S1 pattern switch statement with a guard that binds',
+        "switch (offer) {\n      case Offer(features: [final first, ...]) when first.isNotEmpty:\n        " +
+            shell('Text(first)') +
+            "\n      case _:\n        return const Text('none');\n    }",
+        <String, int>{},
+      ),
+      (
+        'W13 pattern loop variables read by a return',
+        "for (final (i, p) in plans.indexed) {\n      if (i == 1) " +
+            shell('Text(p.name)') +
+            "\n    }\n    return const Text('none');",
+        <String, int>{},
+      ),
+      (
+        'T2 root switch expression whose arm binds',
+        "return switch (offer) {\n      Offer(:final features) => Hears(onContext: (context) => Navigator.of(context).maybePop(), child: Column(children: [for (final f in features) Text(f)])),\n      _ => const Text('none'),\n    };",
+        <String, int>{},
+      ),
+      (
+        'T2g root switch expression with a guard that binds',
+        "return switch (offer) {\n      Offer(:final features) when features.isNotEmpty => Hears(onContext: (context) => Navigator.of(context).maybePop(), child: Text(features.first)),\n      _ => const Text('none'),\n    };",
+        <String, int>{},
+      ),
+      (
+        'SW1 sealed switch expression with a guard over a computed subject',
+        "return switch (tierOf(flag)) {\n      Paid(:final plan) when plan.isNotEmpty => Hears(onContext: (context) => Navigator.of(context).maybePop(), child: Text(plan)),\n      Paid() => const Text('paid'),\n      Free() => const Text('free'),\n    };",
+        {'tierOf': 1},
+      ),
+      (
+        'SW2 sealed switch statement over a computed subject',
+        "switch (tierOf(flag)) {\n      case Paid(:final plan):\n        return Hears(onContext: (context) => Navigator.of(context).maybePop(), child: Text(plan));\n      case Free():\n        return const Text('free');\n    }",
+        {'tierOf': 1},
+      ),
+      (
+        'T4 catch parameters read by a return',
+        "try {\n      final d = describe(offer!);\n      " +
+            shell('Text(d)') +
+            "\n    } on TypeError catch (e, s) {\n      " +
+            shell("Text('\${e.runtimeType} \${s.toString().isNotEmpty}')") +
+            "\n    }",
+        {'describe': 1},
+      ),
+      (
+        'K21 per-item key over an input list',
+        shell(
+          'Column(children: [for (final p in plans) ElevatedButton(key: ValueKey(p.name), onPressed: null, child: Text(p.name))])',
+        ),
+        <String, int>{},
+      ),
+      (
+        'K22 per-item key over a guarded computed list',
+        shell(
+          'Column(children: [if (offer != null) for (final f in offer!.features) ElevatedButton(key: ValueKey(f), onPressed: null, child: Text(f))])',
+        ),
+        <String, int>{},
+      ),
+      (
+        'K43 per-item key over a computed list',
+        shell(
+          'Column(children: [for (final p in loadPlans()) ElevatedButton(key: ValueKey(p.name), onPressed: null, child: Text(p.name))])',
+        ),
+        {'loadPlans': 1},
+      ),
+      (
+        'K46 per-item callbacks over a guarded computed list',
+        shell(
+          'Column(children: [if (offer != null) for (final f in offer!.features) TextButton(onPressed: () => calls.add(f), child: Text(f))])',
+        ),
+        <String, int>{},
+      ),
+      (
+        'I3 per-item check that also tests a top-level call',
+        shell(
+          'Column(children: [for (final h in holders) if (eligible() && h.offer != null) Text(describe(h.offer!))])',
+        ),
+        {'eligible': 1, 'describe': 1},
+      ),
+      (
+        'I4 top-level call as the only per-item check',
+        shell(
+          'Column(children: [for (final h in holders) if (eligible()) Text(describe(h.offer!))])',
+        ),
+        {'eligible': 1, 'describe': 1},
+      ),
+      (
+        'G6 list under a conditional',
+        shell(
+          "Column(children: [offer != null ? Column(children: [for (final f in offer!.features) Text(f)]) : const Text('none')])",
+        ),
+        <String, int>{},
+      ),
+    ]) {
+      test(id, () async {
+        final source =
+            """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/probed.restage.g.dart';
+
+final calls = <String>[];
+
+class Plan {
+  const Plan(this.name);
+  final String name;
+}
+
+Widget makeCard() {
+  calls.add('card');
+  return Opaque(child: const SizedBox());
+}
+
+Widget makeA() {
+  calls.add('a');
+  return Opaque(tint: 1, child: const SizedBox());
+}
+
+Widget makeB() {
+  calls.add('b');
+  return Opaque(tint: 2, child: const SizedBox());
+}
+
+Widget makeFor(Plan p) {
+  calls.add('for');
+  return Opaque(child: Text(p.name));
+}
+
+Widget make2(Plan p, String t) {
+  calls.add('two');
+  return Opaque(child: Text(t));
+}
+
+Widget makeNamed(String name) {
+  calls.add('named');
+  return Opaque(child: Text(name));
+}
+
+Widget makeLabel(String s) {
+  calls.add('label');
+  return Opaque(child: Text(s));
+}
+
+bool eligible() {
+  calls.add('eligible');
+  return true;
+}
+
+bool okFor(Plan p) {
+  calls.add('ok');
+  return true;
+}
+
+bool cond() {
+  calls.add('cond');
+  return true;
+}
+
+List<Plan> loadPlans() {
+  calls.add('load');
+  return [for (var i = 0; i < calls.length; i++) Plan('\$i')];
+}
+
+String logA() {
+  calls.add('logA');
+  return 'a';
+}
+
+String logC() {
+  calls.add('logC');
+  return 'c';
+}
+
+Widget twice(Widget w) => Row(children: [w, w]);
+
+Widget cardFor(Plan p) => Opaque(child: Text(p.name));
+
+Widget outer() => twice(makeCard());
+
+Widget show(Widget w) => Column(children: [w, Text('\${w.key}')]);
+
+Widget wrap(Widget w) => Padding(padding: EdgeInsets.zero, child: w);
+
+Widget outerConst() => twice(Opaque(child: const SizedBox()));
+
+Widget twiceList(List<Widget> ws) => Column(children: [...ws, ...ws]);
+
+List<Widget> twiceItems(Widget w) => [w, w];
+
+Widget featuresOf(Offer o) => Column(children: [for (final f in o.features) Text(f)]);
+
+bool hasFeatures(Offer o) {
+  calls.add('has');
+  return o.features.isNotEmpty;
+}
+
+Widget planList() => Column(children: [for (final p in loadPlans()) Text(p.name)]);
+
+final class Holder {
+  const Holder(this.offer);
+  final Offer? offer;
+}
+
+sealed class Tier {
+  const Tier();
+}
+
+final class Free extends Tier {
+  const Free();
+}
+
+final class Paid extends Tier {
+  const Paid(this.plan);
+  final String plan;
+}
+
+Tier tierOf(bool flag) {
+  calls.add('tierOf');
+  return flag ? const Paid('pro') : const Free();
+}
+
+String headline() {
+  calls.add('headline');
+  return 'top';
+}
+
+final kBanner = 'top';
+
+const kConst = 'top';
+
+String describeAll() {
+  calls.add('describeAll');
+  return 'all';
+}
+
+String describe(Offer o) {
+  calls.add('describe');
+  return o.features.join(', ');
+}
+
+final class Offer {
+  const Offer(this.features);
+  final List<String> features;
+}
+
+final class Tagged {
+  const Tagged(this.tags);
+  final List<String> tags;
+}
+
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+class Opaque extends StatelessWidget {
+  const Opaque({super.key, required this.child, this.tint = 0});
+  final Widget child;
+  final int tint;
+  @override
+  Widget build(BuildContext context) => ColoredBox(color: Color(0xFF000000 + tint), child: child);
+}
+
+@Paywall()
+final class Probed extends StatelessWidget {
+  const Probed({super.key, required this.plans, this.tags = const [], this.flag = false, this.offer, this.tagged = const [], this.title, this.holders = const []});
+  final List<Plan> plans;
+  final List<String> tags;
+  final bool flag;
+  final Offer? offer;
+  final List<Tagged> tagged;
+  final String? title;
+  final List<Holder> holders;
+  @override
+  Widget build(BuildContext context) {
+    $body
+  }
+}
+""";
+        final messages = <String>[];
+        String? payload;
+        final part = await _generatedPart(
+          source,
+          'probed',
+          warningFree: true,
+          warned: messages.addAll,
+          paywallText: (text) => payload = text,
+        );
+        // A switch resolves its key as data, never as a program.
+        expect(payload, isNot(contains('switch { version: 1')));
+        final spaced = part.replaceAll(RegExp(r'\s+'), ' ');
+        expect(messages.join('\n'), isNot(contains('This design places')));
+        // No helper argument is computed ahead of the build, and nothing of
+        // the old lifted machinery is left.
+        for (final old in const [
+          '_restageShared',
+          '_restageItems',
+          '_restageLocal_',
+          'restageBound',
+          'restageBranch',
+          'case true)',
+        ]) {
+          expect(part, isNot(contains(old)));
+        }
+        // The app's build runs once per build; each call is written once
+        // where the app writes it, and a previewed island's copy is not a call.
+        expect({
+          for (final call in counts.keys) call: _callsIn(part, call),
+        }, counts);
+        final copy = spaced.substring(spaced.indexOf('return (() {'));
+        void copies(String template) => _expectTemplate(copy, template);
+
+        // The statements and guards the app writes, with the recording around
+        // each value, list, guard and return.
+        switch (id.split(' ').first) {
+          case 'A13':
+            copies(
+              "for (final p in _restageRecording.items( '<wireKey>', loadPlans(), "
+              "null, ['<wireKey>'], )) _restageRecording.island( 'probed_twice_0', "
+              'twice(makeFor(p)),',
+            );
+          case 'A15':
+            copies(
+              'return (() { final a = logA(); return '
+              '_restageRecording.withEvents( Hears(',
+            );
+            copies(
+              "_restageRecording.island( 'probed_twice_0', "
+              'twice(makeCard()), events: true, ), '
+              "Text(_restageRecording.value('<wireKey>', a)), "
+              "Text(_restageRecording.value('<wireKey>', logC())),",
+            );
+          case 'A44':
+            copies(
+              "Text(_restageRecording.value('<wireKey>', logC())), "
+              "_restageRecording.island( 'probed_twice_0', "
+              'twice(makeCard()), events: true, ),',
+            );
+          case 'G1':
+            copies(
+              "if (_restageArgument4 != null) ..._restageRecording.mark("
+              "'<wireKey>', true, [ for (final f in _restageRecording.items( '<wireKey>', "
+              '_restageArgument4!.features, )) Text(',
+            );
+            copies(
+              "else ..._restageRecording.mark('<wireKey>', false, const [])",
+            );
+          case 'G2':
+            copies(
+              'if (_restageArgument5.isNotEmpty) ..._restageRecording.mark('
+              "'<wireKey>', true, [ for (final t in _restageRecording.items( '<wireKey>', "
+              '_restageArgument5.first.tags, ))',
+            );
+          case 'G5':
+            copies(
+              "if (eligible()) ..._restageRecording.mark('<wireKey>', true, [ "
+              "for (final p in _restageRecording.items( '<wireKey>', loadPlans(), ))",
+            );
+          case 'G8':
+            copies(
+              "for (final p in _restageRecording.items( '<wireKey>', "
+              "loadPlans(), )) Text( _restageRecording.value( '<wireKey>', p.name, "
+              "'<wireKey>', ), ), for (final q in _restageRecording.items( '<wireKey>', "
+              'loadPlans(), ))',
+            );
+          case 'X1':
+            copies(
+              'if (_restageArgument4 != null) { return _restageDesign( '
+              "_restageRecording.branch( '<wireKey>', 0,",
+            );
+            copies(
+              "return _restageDesign( _restageRecording.branch('<wireKey>', 1, "
+              "const Text('none')), );",
+            );
+          case 'X2':
+            copies(
+              'if (_restageArgument4 != null) return _restageDesign( '
+              "_restageRecording.branch( '<wireKey>', 0,",
+            );
+          case 'X3':
+            copies(
+              'if (_restageArgument3) { if (_restageArgument4 != null) { '
+              "return _restageDesign( _restageRecording.branch( '<wireKey>', 0,",
+            );
+          case 'H8':
+            copies(
+              'if (_restageArgument4 == null) return _restageDesign( '
+              "_restageRecording.branch('<wireKey>', 0, const Text('none')), ); "
+              "return _restageDesign( _restageRecording.branch( '<wireKey>', 1,",
+            );
+          case 'H12':
+            // The list is read only under the app's own guard.
+            copies(
+              "for (final p in _restageRecording.items( 'plans', "
+              '_restageArgument1, )) if (p.name.isNotEmpty) '
+              "..._restageRecording.mark('<wireKey>', true, [ for (final f in "
+              "_restageRecording.items( '<wireKey>', _restageArgument4!.features,",
+            );
+          case 'H15':
+            copies(
+              'if (_restageArgument4 != null) ..._restageRecording.mark('
+              "'<wireKey>', true, [ ((Offer o) => Column(",
+            );
+            copies('))(_restageArgument4!), ]) else');
+          case 'H22':
+            copies(
+              'if (_restageArgument3) ..._restageRecording.mark('
+              "'<wireKey>', true, [ (() => Column(",
+            );
+          case 'H16':
+            copies(
+              'if (_restageArgument4 != null) ..._restageRecording.mark('
+              "'<wireKey>', true, [ if (hasFeatures(_restageArgument4!)) "
+              "..._restageRecording.mark('<wireKey>', true, [ for (final f in",
+            );
+          case 'H17':
+            copies(
+              'if (_restageArgument3) ..._restageRecording.mark('
+              "'<wireKey>', true, [ if (eligible()) ..._restageRecording.mark('<wireKey>', "
+              'true, [ for (final p in',
+            );
+          case 'H19':
+            copies(
+              "_restageArgument4 == null ? _restageRecording.taken( '<wireKey>', "
+              "true, const SizedBox(), ) : _restageRecording.taken( '<wireKey>', "
+              'false, ((Offer o) => Column(',
+            );
+          case 'H21':
+            copies(
+              'if (_restageArgument1.isEmpty) return _restageDesign( '
+              "_restageRecording.branch('<wireKey>', 0, const Text('none')), );",
+            );
+            copies(
+              "for (final p in _restageRecording.items( '<wireKey>', "
+              'loadPlans(), ))',
+            );
+          case 'I1':
+            copies(
+              "for (final h in _restageRecording.items( '<wireKey>', "
+              '_restageArgument7, )) if (h.offer != null) '
+              "..._restageRecording.mark('<wireKey>', true, [ Text( "
+              "_restageRecording.value( '<wireKey>', describe(h.offer!), '<wireKey>', ), ), "
+              "], '<wireKey>') else",
+            );
+          case 'I2':
+            copies(
+              'if (((h.offer != null || (_restageRecording.value( '
+              "'<wireKey>', false, '<wireKey>', ) && false)) && (_restageRecording.value( "
+              "'<wireKey>', true, '<wireKey>', ) || true)) && ((hasFeatures(h.offer!) || "
+              "(_restageRecording.value( '<wireKey>', false, '<wireKey>', ) && false)) && "
+              "(_restageRecording.value( '<wireKey>', true, '<wireKey>', ) || true))) Text(",
+            );
+          case 'D1a':
+            copies(
+              'if (((h.offer != null || (_restageRecording.value( '
+              "'<wireKey>', false, '<wireKey>', ) && false)) && (_restageRecording.value( "
+              "'<wireKey>', true, '<wireKey>', ) || true)) && ((hasFeatures(h.offer!) || "
+              "(_restageRecording.value( '<wireKey>', false, '<wireKey>', ) && false)) && "
+              "(_restageRecording.value( '<wireKey>', true, '<wireKey>', ) || true))) for "
+              "(final f in _restageRecording.items( '<wireKey>', h.offer!.features,",
+            );
+          case 'D1b':
+            copies(
+              'if (hasFeatures(h.offer!)) ..._restageRecording.mark('
+              "'<wireKey>', true, [ for (final f in _restageRecording.items( '<wireKey>', "
+              "h.offer!.features, '<wireKey>', ))",
+            );
+          case 'I3':
+            copies(
+              "if (((eligible() || (_restageRecording.value('<wireKey>', false) "
+              "&& false)) && (_restageRecording.value('<wireKey>', true) || true)) "
+              '&& ((h.offer != null ||',
+            );
+          case 'I4':
+            copies(
+              "for (final h in _restageRecording.items( '<wireKey>', "
+              '_restageArgument7, )) if (eligible()) '
+              "..._restageRecording.mark('<wireKey>', true, [ Text(",
+            );
+          case 'C3':
+            copies(
+              'if (((_restageArgument6 != null || '
+              "(_restageRecording.value('<wireKey>', false) && false)) && "
+              "(_restageRecording.value('<wireKey>', true) || true)) && "
+              '((_restageArgument6!.isNotEmpty || '
+              "(_restageRecording.value('<wireKey>', false) && false)) && "
+              "(_restageRecording.value('<wireKey>', true) || true))) const "
+              "Text('titled')",
+            );
+          case 'K21':
+            expect(payload, contains('ElevatedButton(key: p._h'));
+            copies(
+              "key: _restageRecording.native( '<wireKey>', ValueKey(p.name), "
+              "items: 'plans', type: 'flutter.Key', nullable: false, )",
+            );
+          case 'K22':
+            expect(payload, contains('ElevatedButton(key: f._h'));
+            copies(
+              "key: _restageRecording.native( '<wireKey>', ValueKey(f), items: "
+              "'<wireKey>', type: 'flutter.Key', nullable: false, )",
+            );
+          case 'K43':
+            expect(payload, contains('ElevatedButton(key: p._h'));
+            copies(
+              "key: _restageRecording.native( '<wireKey>', ValueKey(p.name), "
+              "items: '<wireKey>', type: 'flutter.Key', nullable: false, )",
+            );
+          case 'K46':
+            copies(
+              "onPressed: _restageRecording.native( '<wireKey>', () => "
+              "calls.add(f), items: '<wireKey>', type: '()->void', nullable: "
+              'false, )',
+            );
+          case 'K30a' || 'K30b' || 'K30c':
+            // The block's local is declared and assigned as the app writes it.
+            copies(
+              'if (_restageArgument4 != null) { final features = '
+              '_restageArgument4!.features; return _restageDesign( '
+              "_restageRecording.branch( '<wireKey>', 0,",
+            );
+          case 'K30d':
+            copies(
+              '{ final label = _restageArgument4!.features.first; '
+              'return _restageDesign(',
+            );
+            copies(
+              '{ final label = _restageArgument6!; return _restageDesign(',
+            );
+            // Two branches' reads of one name are two recorded values.
+            final keys = {
+              for (final m in RegExp(
+                r"value\('(_h\w+)', label\)",
+              ).allMatches(copy))
+                m[1],
+            };
+            expect(keys, hasLength(2));
+          case 'K30e':
+            copies(
+              'return (() { final label = describeAll(); '
+              'if (_restageArgument4 != null) { final label = '
+              '_restageArgument4!.features.first; return',
+            );
+          case 'X15a' || 'X15b' || 'X15c':
+            copies(
+              'if (_restageArgument4 case final o?) { return '
+              "_restageDesign( _restageRecording.branch( '<wireKey>', 0,",
+            );
+          case 'X15d':
+            copies(
+              'if (_restageArgument4 case final o? when '
+              'o.features.isNotEmpty) { return _restageDesign(',
+            );
+          case 'R4':
+            copies(
+              'for (final p in _restageArgument1) { final n = p.name; '
+              'if (n.isNotEmpty) return _restageDesign( '
+              "_restageRecording.branch( '<wireKey>', 0,",
+            );
+          case 'R5':
+            copies(
+              'for (final p in _restageArgument1) { '
+              'if (p.name.isNotEmpty) return _restageDesign(',
+            );
+          case 'Z1':
+            copies(
+              "if (_restageArgument3) { final headline = 'block'; "
+              'return _restageDesign(',
+            );
+            copies("Text(_restageRecording.value('<wireKey>', headline()))");
+          case 'Z2':
+            copies(
+              "if (_restageArgument3) { final kBanner = 'block'; "
+              'return _restageDesign(',
+            );
+          case 'Z2c':
+            copies(
+              "if (_restageArgument3) { final kConst = 'block'; "
+              'return _restageDesign(',
+            );
+            // A constant is read as the constant, not recorded.
+            copies('child: Text(kConst)');
+          case 'Z4':
+            copies(
+              "if (_restageArgument3) { final context = 'block'; "
+              'return _restageDesign(',
+            );
+          case 'Z5':
+            copies(
+              "if (_restageArgument3) { final resolver = 'block'; "
+              'return _restageDesign(',
+            );
+          case 'Q9' || 'Q3':
+            // A nested list publishes its items so each item's key crosses.
+            expect(payload, contains('ElevatedButton(key: t._h'));
+            copies(
+              "for (final p in _restageRecording.items( '<wireKey>', "
+              "_restageArgument5, )) for (final t in "
+              "_restageRecording.items( '<wireKey>', p.tags, '<wireKey>', )) "
+              'ElevatedButton(',
+            );
+          case 'Z7':
+            copies(
+              'final (count, first) = ( _restageArgument4!.features'
+              '.length, _restageArgument4!.features.first, );',
+            );
+          case 'T1':
+            copies(
+              'for (var i = 0; i < _restageArgument1.length; i++) { '
+              'if (_restageArgument1[i].name.isNotEmpty) return '
+              '_restageDesign(',
+            );
+          case 'T3b':
+            copies(
+              'try { final t = describe(_restageArgument4!); return '
+              "_restageDesign( _restageRecording.branch( '<wireKey>', 0,",
+            );
+            copies('} on Object {');
+          case 'T4':
+            copies(
+              'try { final d = describe(_restageArgument4!); return '
+              '_restageDesign(',
+            );
+            copies('} on TypeError catch (e, s) { return _restageDesign(');
+          case 'XC3':
+            copies(
+              'switch (_restageArgument3) { case true: return '
+              "_restageDesign( _restageRecording.branch( '<wireKey>', 0,",
+            );
+            copies(
+              "case false: return _restageDesign( "
+              "_restageRecording.branch('<wireKey>', 1,",
+            );
+          case 'S1':
+            copies(
+              'switch (_restageArgument4) { case Offer(features: '
+              '[final first, ...]) when first.isNotEmpty: return '
+              '_restageDesign(',
+            );
+          case 'W13':
+            copies(
+              'for (final (i, p) in _restageArgument1.indexed) { '
+              'if (i == 1) return _restageDesign(',
+            );
+          case 'T2':
+            copies(
+              'return switch (_restageArgument4) { Offer(:final '
+              "features) => _restageDesign( _restageRecording.branch( '<wireKey>', "
+              '0,',
+            );
+          case 'T2g':
+            copies(
+              'Offer(:final features) when features.isNotEmpty => '
+              '_restageDesign(',
+            );
+          case 'SW1':
+            copies(
+              'return switch (tierOf(_restageArgument3)) { Paid(:final '
+              'plan) when plan.isNotEmpty => _restageDesign(',
+            );
+          case 'SW2':
+            copies(
+              'switch (tierOf(_restageArgument3)) { case Paid(:final '
+              'plan): return _restageDesign(',
+            );
+        }
+      });
+    }
+  });
+
+  group('developer messages', () {
+    const header = """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/mounted.restage.g.dart';
+
+class Tinted extends StatelessWidget {
+  const Tinted({super.key, required this.child, this.tint = 0});
+  final Widget child;
+  final int tint;
+  @override
+  Widget build(BuildContext context) => ColoredBox(color: Color(0xFF000000 + tint), child: child);
+}
+""";
+    const stateful = """
+@Paywall()
+final class Mounted extends StatefulWidget {
+  const Mounted({super.key});
+  @override
+  State<Mounted> createState() => _MountedState();
+}
+""";
+    // Each row is a surface and the exact message a developer reads, from
+    // the build or, for a build that succeeds, from the generated part.
+    final rows = <(String, String, String)>[
+      for (final (name, base, message) in [
+        (
+          'a base that needs constructor arguments',
+          'const Counted(this.tint, {super.key}); final int tint;',
+          "`MountedSurface` wasn't generated because `Counted` requires "
+              'constructor arguments. Try extending `StatelessWidget` '
+              'directly.',
+        ),
+        (
+          'a base that leaves a member unimplemented',
+          'const Counted({super.key}); int get tint;',
+          "`MountedSurface` wasn't generated because `Counted` leaves `tint` "
+              'without a body. Try extending `StatelessWidget` directly.',
+        ),
+      ])
+        (
+          name,
+          """
+abstract class Counted extends StatelessWidget {
+  $base
+  @override
+  StatelessElement createElement() => StatelessElement(this);
+}
+
+@Paywall()
+final class Mounted extends Counted {
+  const Mounted({super.key})${base.contains('this.tint') ? ' : super(1)' : ''};
+${base.contains('this.tint') ? '' : '  @override\n  int get tint => 1;\n'}
+  @override
+  Widget build(BuildContext context) => const Text('a');
+}
+""",
+          message,
+        ),
+      (
+        'a build with several returns',
+        """
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, this.empty = false});
+  final bool empty;
+  @override
+  Widget build(BuildContext context) {
+    if (empty) return const Text('none');
+    return Column(children: [Tinted(tint: 1, child: const Text('a'))]);
+  }
+}
+""",
+        '  which return Mounted.build takes',
+      ),
+      (
+        'a surface that has no build of its own',
+        """
+@Paywall()
+final class Mounted extends SingleChildRenderObjectWidget {
+  const Mounted({super.key});
+  @override
+  RenderObject createRenderObject(BuildContext context) => RenderProxyBox();
+}
+""",
+        '@Paywall Mounted must resolve to a Flutter StatelessWidget or '
+            'StatefulWidget.',
+      ),
+      (
+        'an island that reads what only the screen has',
+        """
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) => Column(
+      children: [Tinted(tint: super.hashCode, child: const Text('a'))]);
+}
+""",
+        '`Column(children: [Tinted(tint: super.hashCode, child: const…` '
+            '(lib/mounted.dart:17:41): uses `super`, which only exists inside '
+            "`Mounted`. Try passing it in through the screen's constructor.",
+      ),
+      (
+        'an opt-out the generated widget cannot keep',
+        """
+@RenderInApp()
+class Pill extends StatelessWidget {
+  const Pill({super.key, required this.tint});
+  final int tint;
+  @override
+  Widget build(BuildContext context) => Text('\$tint');
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [Pill(tint: super.hashCode)]);
+}
+""",
+        "The generated widget can't build `Pill` (lib/mounted.dart:26:25) "
+            'in app code as `@RenderInApp` asks because `Pill` uses `super`, '
+            "which the generated widget can't reach. Try removing "
+            '`@RenderInApp`, or passing what `Pill` uses in through the '
+            "screen's constructor.",
+      ),
+      (
+        'a State whose screen the generated surface cannot copy',
+        """
+$stateful
+class _MountedState extends State<Mounted> {
+  final ScrollController _scroll = ScrollController();
+  @override
+  Widget build(BuildContext context) => ListView(
+      controller: _scroll, children: [Text('\${super.hashCode}')]);
+}
+""",
+        "`_MountedState` can't be used in the generated `MountedSurface` "
+            'because its build reads `super.hashCode` (lib/mounted.dart:24:47). '
+            'Try reading the value through a member of `_MountedState`.',
+      ),
+      (
+        'a State whose build calls a restricted lookup',
+        """
+import 'package:intl/intl.dart';
+$stateful
+class _MountedState extends State<Mounted> {
+  final ScrollController _scroll = ScrollController();
+  @override
+  Widget build(BuildContext context) => ListView(
+      controller: _scroll,
+      children: [Text(Intl.message('Hi', name: 'hi')),
+        Tinted(tint: 1, child: const Text('a'))]);
+}
+""",
+        // The State moves into the mount, and the lookup runs where the app
+        // calls it.
+        "`Tinted` (lib/mounted.dart:27:9) needs app code that only "
+            '`MountedSurface` provides. Try using `MountedSurface` to build '
+            'this screen.',
+      ),
+      (
+        'a State whose build calls a method on a restricted lookup',
+        """
+import 'package:intl/intl.dart';
+$stateful
+class _MountedState extends State<Mounted> {
+  final ScrollController _scroll = ScrollController();
+  @override
+  Widget build(BuildContext context) => ListView(
+      controller: _scroll,
+      children: [Text(Intl.message('Hi', name: 'hi').toUpperCase()),
+        Tinted(tint: 1, child: const Text('a'))]);
+}
+""",
+        // The State moves into the mount, and the lookup runs where the app
+        // calls it.
+        "`Tinted` (lib/mounted.dart:27:9) needs app code that only "
+            '`MountedSurface` provides. Try using `MountedSurface` to build '
+            'this screen.',
+      ),
+      (
+        'a State whose build calls a function by its bare name',
+        """
+$stateful
+String label(int taps) => 'taps \$taps';
+class _MountedState extends State<Mounted> {
+  int taps = 0;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Text(label(taps)),
+        Tinted(tint: taps, child: const Text('a')),
+      ]);
+}
+""",
+        // The State moves into the mount, which calls it as the app does.
+        "`Tinted` (lib/mounted.dart:26:9) needs app code that only "
+            '`MountedSurface` provides. Try using `MountedSurface` to build '
+            'this screen.',
+      ),
+      (
+        'a State whose base accepts only its screen',
+        """
+$stateful
+abstract class MountedBase<T extends Mounted> extends State<T> {}
+class _MountedState extends MountedBase<Mounted> {
+  final ScrollController _scroll = ScrollController();
+  @override
+  Widget build(BuildContext context) => ListView(
+      controller: _scroll, children: [Tinted(tint: 1, child: const Text('a'))]);
+}
+""",
+        "`_MountedState` can't be used in the generated `MountedSurface`. Its "
+            'base class `MountedBase` only accepts `Mounted` as its widget. '
+            "Try loosening the bound on `MountedBase`'s type parameter.",
+      ),
+      (
+        'a build statement the generated surface cannot copy',
+        """
+$stateful
+class _MountedState extends State<Mounted>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Column(children: [Tinted(tint: 1, child: const Text('a'))]);
+  }
+}
+""",
+        "`_MountedState` can't be used in the generated `MountedSurface` "
+            'because its build calls `super.build(context)` '
+            '(lib/mounted.dart:26:5). Try calling it through a member of '
+            '`_MountedState`.',
+      ),
+      (
+        'an island on a screen with no generated surface',
+        """
+final class MountedSurface {}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [Tinted(tint: 2, child: const Text('a'))]);
+}
+""",
+        "`Tinted(tint: 2, child: const Text('a'))` (lib/mounted.dart:20:25) "
+            "runs app code, which needs the generated `MountedSurface`, and "
+            "Restage didn't "
+            'generate it because `MountedSurface` already exists in '
+            'lib/mounted.dart. Try renaming `MountedSurface` in '
+            'lib/mounted.dart.',
+      ),
+      (
+        'a loop island on a screen with no generated surface',
+        """
+final class MountedSurface {}
+
+class Plan {
+  const Plan({required this.id, required this.rank});
+  final String id;
+  final int rank;
+}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.plans});
+  final List<Plan> plans;
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        for (final p in plans) Tinted(tint: p.rank, child: Text(p.id)),
+      ]);
+}
+""",
+        '`Tinted(tint: p.rank, child: Text(p.id))` (lib/mounted.dart:27:32) '
+            "runs app code, which needs the generated `MountedSurface`, and "
+            "Restage didn't "
+            'generate it because `MountedSurface` already exists in '
+            'lib/mounted.dart. Try renaming `MountedSurface` in '
+            'lib/mounted.dart.',
+      ),
+      (
+        'a value on a screen with no generated surface',
+        """
+final class MountedSurface {}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.name});
+  final String name;
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [Text(name.toUpperCase())]);
+}
+""",
+        '`name.toUpperCase()` (lib/mounted.dart:21:30) runs app code, '
+            "which needs the generated `MountedSurface`, and Restage didn't "
+            'generate it because `MountedSurface` already exists in '
+            'lib/mounted.dart. Try renaming `MountedSurface` in '
+            'lib/mounted.dart.',
+      ),
+      (
+        'a State on a screen with no generated surface',
+        """
+final class MountedSurface {}
+$stateful
+class _MountedState extends State<Mounted> {
+  int taps = 0;
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+      onTap: () => setState(() => taps++),
+      child: Column(children: [Tinted(tint: taps, child: const Text('a'))]));
+}
+""",
+        "`_MountedState` (lib/mounted.dart:21:1) holds the screen's state in "
+            "app code, which needs the generated `MountedSurface`, and Restage "
+            "didn't "
+            'generate it because `MountedSurface` already exists in '
+            'lib/mounted.dart. Try renaming `MountedSurface` in '
+            'lib/mounted.dart.',
+      ),
+      (
+        'a screen whose generated surface is left out',
+        """
+final class MountedSurface {}
+
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.name});
+  final String name;
+  @override
+  Widget build(BuildContext context) => Column(children: [Text(name)]);
+}
+""",
+        "`MountedSurface` wasn't generated because `MountedSurface` already "
+            'exists in lib/mounted.dart. Try renaming `MountedSurface` in '
+            'lib/mounted.dart.',
+      ),
+      (
+        'an import prefix that clashes with the generated surface',
+        """
+import 'dart:math' as resolver;
+@Paywall()
+final class Mounted extends StatelessWidget {
+  const Mounted({super.key, required this.name});
+  final String name;
+  @override
+  Widget build(BuildContext context) => Column(children: [Text(name)]);
+}
+""",
+        "`MountedSurface` wasn't generated because the import prefix "
+            '`resolver` clashes with a name the generated `MountedSurface` '
+            'uses. Try renaming the prefix.',
+      ),
+    ];
+    test('a Restage bug links to a pre-filled bug report', () {
+      final issue = islandNameConflictIssue('Tinted', 'lib/mounted.dart:3:4');
+      expect(
+        issue.message,
+        'Tinted at lib/mounted.dart:3:4 compiled to two different '
+        'app-rendered widgets under one name. Report this as a Restage bug.',
+      );
+      _expectReadable(issue.message);
+      final log = issue.toLogString();
+      final link = Uri.parse(
+        log.split('\nReport this Restage bug: ').last.trim(),
+      );
+      expect(link.path, endsWith('/issues/new'));
+      expect(
+        link.queryParameters['title'],
+        '[restage_codegen] Bug: islandNameConflict',
+      );
+      expect(link.queryParameters['labels'], 'codegen-bug');
+      expect(link.queryParameters['body'], contains('restage.codegen.bug.v1'));
+    });
+
+    for (final (name, body, message) in rows) {
+      test(name, () async {
+        final messages = <String>[];
+        // A runtime message, a warning and a value's label come from a build
+        // that succeeds.
+        final builds =
+            message.contains('needs app code that only') ||
+            message.contains("wasn't generated") ||
+            message.trimLeft().startsWith('which return ');
+        // A row's own imports go before the header's part directive.
+        final imports = [
+          for (final line in body.split('\n'))
+            if (line.startsWith('import ')) line,
+        ];
+        final source =
+            header.replaceFirst(
+              "part '",
+              '${imports.map((line) => '$line\n').join()}part \'',
+            ) +
+            body
+                .split('\n')
+                .where((line) => !line.startsWith('import '))
+                .join('\n');
+        final part = await _generatedPart(
+          source,
+          'mounted',
+          warned: (warnings) => messages.addAll([
+            for (final warning in warnings) ...warning.split('\n'),
+          ]),
+          expectPart: !message.contains("wasn't generated"),
+          refused: builds
+              ? null
+              : (errors) => messages.addAll(errors.map(_issueMessage)),
+        );
+        messages.addAll(_readableTextsOf(part));
+        expect(messages, contains(message));
+        messages.forEach(_expectReadable);
+      });
+    }
+  });
+
+  group('a flow step that needs the app', () {
+    String step(
+      String fields,
+      String body, {
+      bool flow = true,
+      String combinator = '',
+      String prelude = '',
+    }) =>
+        """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart'$combinator;
+
+part 'restage.generated/${flow ? 'first_run' : 'welcome'}.restage.g.dart';
+
+final _held = GlobalKey();
+
+class Tinted extends StatelessWidget {
+  const Tinted({super.key, required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => ColoredBox(color: const Color(0xFF000000), child: child);
+}
+
+@Screen(id: 'welcome')
+final class Welcome extends StatelessWidget {
+  $fields
+
+  static const next = SurfaceEvent<void>('next');
+
+  @override
+  Widget build(BuildContext context) {
+    $prelude
+    return Column(children: [
+        $body,
+        FilledButton(onPressed: surfaceEvent(next), child: const Text('Go')),
+      ]);
+  }
+}
+
+${flow ? '''
+@FlowGraph(id: 'first_run', surface: Surface.onboarding)
+const firstRun = FlowDefinition(
+  start: Welcome,
+  transitions: [Transition.complete(Welcome.next)],
+);
+''' : ''}""";
+
+    test('a categorized step that needs the app gets a mount', () async {
+      final flat = (await _generatedPart(
+        step(
+          'const Welcome({super.key, required this.title});\n'
+              'final String title;',
+          'Text(title.toUpperCase())',
+        ).replaceFirst(
+          "@Screen(id: 'welcome')",
+          "@Screen(id: 'welcome', surface: Surface.onboarding)",
+        ),
+        'first_run',
+      )).replaceAll(RegExp(r'\s+'), '');
+      expect(flat, contains(r'restageStepMount$welcome('));
+      expect(flat, contains(r"stepMounts:{'welcome':restageStepMount$welcome"));
+    });
+
+    test('gets a mount the flow names', () async {
+      final flat = (await _generatedPart(
+        step(
+          'const Welcome({super.key, required this.title});\n'
+              'final String title;',
+          'Text(title.toUpperCase()), '
+              "KeyedSubtree(key: _held, child: const Text('held'))",
+        ),
+        'first_run',
+      )).replaceAll(RegExp(r'\s+'), '');
+      for (final part in [
+        r'final_restageStepOwner$welcome=Object();',
+        r'WidgetrestageStepMount$welcome(BuildContextcontext,'
+            'Widget_restageChild,Widget_restageOriginal,){',
+        'final_restageSurface=_restageOriginalasWelcome;',
+        'RestageStepValues(built:_restageBuilt,values:',
+        "_restageRecording.value('_h",
+        '_restageSurface.title.toUpperCase(),',
+        r'RestageIslandScope(owner:RestageIslandScope.hostOf(context)??'
+            r'_restageStepOwner$welcome,',
+        r"stepMounts:{'welcome':restageStepMount$welcome",
+        "surfaceWidget:'FirstRunSurface'",
+        r'libraries:[restageIslands$welcome_KeyedSubtree_0]',
+        'needsappcodethatonly`FirstRunSurface`provides.Tryusing'
+            '`FirstRunSurface`tobuildthisflow.',
+      ]) {
+        expect(flat, contains(part));
+      }
+      // The flow installs the step's islands before any step runs.
+      expect(flat, isNot(contains('addToInstalled')));
+    });
+
+    test("fits a build by its steps' islands", () async {
+      late RestageSurfacePublicationBundle bundle;
+      final part = await _generatedPart(
+        step(
+          'const Welcome({super.key});',
+          "KeyedSubtree(key: _held, child: const Text('held'))",
+        ),
+        'first_run',
+        handoff: (b) => bundle = b,
+      );
+      final requirement = bundle.manifest!.publications
+          .singleWhere((entry) => entry.publication.slug == 'first_run')
+          .publication
+          .fitRequirement!;
+      expect(requirement.requiredIslands, hasLength(1));
+      final host = _hostContractOf(part, 'firstRun');
+      expect(host.islands, requirement.requiredIslands);
+      // The handoff records the same islands for the flow's previews and
+      // push report.
+      expect(
+        bundle.surfaceIslands['onboarding/first_run'],
+        requirement.requiredIslands.keys,
+      );
+      final name = requirement.requiredIslands.keys.single;
+      for (final (row, islands, codes) in [
+        ('its own build', host.islands, <String>[]),
+        ('a changed island', {name: 'w1'}, ['changedIsland']),
+        ('a build without it', <String, String>{}, ['missingIsland']),
+      ]) {
+        final verdict = SurfaceFitEvaluator.evaluate(
+          host: SurfaceHostContractV1(
+            hosting: host.hosting,
+            providedContext: host.providedContext,
+            handledEvents: host.handledEvents,
+            flowBoundary: host.flowBoundary,
+            islands: islands,
+          ),
+          requirement: requirement,
+          installed: InstalledCapability(
+            builtInCatalogVersion: 1 << 20,
+            installedLibraries: const [],
+          ),
+        );
+        expect(
+          [
+            for (final failure in verdict.failures)
+              if (failure.path.startsWith(r'$.requiredIslands.'))
+                failure.code.name,
+          ],
+          codes,
+          reason: row,
+        );
+      }
+    });
+
+    // The step's build reads the field its input is kept in.
+    for (final (name, body) in [
+      ('a value', 'Text(label.toUpperCase())'),
+      ('a widget', "Tinted(child: const Text('held'))"),
+    ]) {
+      test('compiles $name when an input is kept under another name', () async {
+        final part = await _generatedPart(
+          step(
+            'Welcome({super.key, required String title}) : label = title;\n'
+            'final String label;\n'
+            'Key get held => _held;',
+            body,
+          ),
+          'first_run',
+          warningFree: true,
+        );
+        // A constant widget needs nothing from the app.
+        if (name == 'a value') {
+          expect(part, contains(r'restageStepMount$welcome'));
+        }
+      });
+    }
+
+    test('a stateful step gets a widget that holds its State', () async {
+      const source = """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/first_run.restage.g.dart';
+
+class Tap extends StatelessWidget {
+  const Tap({super.key, required this.child, required this.onTap});
+  final Widget child;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => GestureDetector(onTap: onTap, child: child);
+}
+
+@Screen(id: 'welcome', surface: Surface.onboarding)
+final class Welcome extends StatefulWidget {
+  const Welcome({super.key});
+
+  static const next = SurfaceEvent<void>('next');
+
+  @override
+  State<Welcome> createState() => _WelcomeState();
+}
+
+class _WelcomeState extends State<Welcome> {
+  int _count = 0;
+
+  void _bump() => setState(() => _count++);
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Text('\$_count'),
+        Tap(onTap: _bump, child: const Text('More')),
+      ]);
+}
+
+@FlowGraph(id: 'first_run', surface: Surface.onboarding)
+const firstRun = FlowDefinition(
+  start: Welcome,
+  transitions: [Transition.complete(Welcome.next)],
+);
+""";
+      final flat = (await _generatedPart(
+        source,
+        'first_run',
+        warningFree: true,
+      )).replaceAll(RegExp(r'\s+'), '');
+      for (final part in [
+        r'restageStepMount$welcome(BuildContextcontext,Widget_restageChild,'
+            r'Widget_restageOriginal,)=>_restageStepWidget$welcome(',
+        r'finalclass_restageStepWidget$welcomeextendsStatefulWidget{',
+        r'extendsState<_restageStepWidget$welcome>{',
+        'Welcomeget_restageWidget=>widget.original;',
+        'int_count=0;',
+        'RestageStepValues(built:_restageBuilt,',
+        'child:widget.child',
+      ]) {
+        expect(flat, contains(part));
+      }
+    });
+
+    test(
+      'compiles when its own surface keeps the State its island needs',
+      () async {
+        const source = """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/first_run.restage.g.dart';
+
+class Tap extends StatelessWidget {
+  const Tap({super.key, required this.child, required this.onTap});
+  final Widget child;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => GestureDetector(onTap: onTap, child: child);
+}
+
+@Screen(id: 'welcome', surface: Surface.onboarding)
+final class Welcome extends StatefulWidget {
+  const Welcome({super.key});
+
+  static const next = SurfaceEvent<void>('next');
+
+  @override
+  State<Welcome> createState() => _WelcomeState();
+}
+
+class _WelcomeState extends State<Welcome> {
+  int _count = 0;
+
+  void _bump() => setState(() => _count++);
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Text('\$_count'),
+        Tap(onTap: _bump, child: const Text('More')),
+      ]);
+}
+
+@FlowGraph(id: 'first_run', surface: Surface.onboarding)
+const firstRun = FlowDefinition(
+  start: Welcome,
+  transitions: [Transition.complete(Welcome.next)],
+);
+""";
+        await _generatedPart(source, 'first_run', warningFree: true);
+      },
+    );
+
+    test(
+      'compiles when its own surface keeps the State a value needs',
+      () async {
+        const source = """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/first_run.restage.g.dart';
+
+@Screen(id: 'welcome', surface: Surface.onboarding)
+final class Welcome extends StatefulWidget {
+  const Welcome({super.key});
+
+  static const next = SurfaceEvent<void>('next');
+
+  @override
+  State<Welcome> createState() => _WelcomeState();
+}
+
+class _WelcomeState extends State<Welcome> {
+  int _count = 0;
+
+  String _label() {
+    final count = _count;
+    return 'Seen \$count times';
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Text(_label()),
+        TextButton(
+          onPressed: () => setState(() => _count++),
+          child: const Text('More'),
+        ),
+      ]);
+}
+
+@FlowGraph(id: 'first_run', surface: Surface.onboarding)
+const firstRun = FlowDefinition(
+  start: Welcome,
+  transitions: [Transition.complete(Welcome.next)],
+);
+""";
+        await _generatedPart(source, 'first_run', warningFree: true);
+      },
+    );
+
+    test(
+      'runs the build local its design reads once, as the app writes it',
+      () async {
+        final part = await _generatedPart(
+          step(
+            'const Welcome({super.key});',
+            'Container(color: dark ? Colors.black : Colors.white), '
+                "KeyedSubtree(key: _held, child: const Text('held'))",
+            prelude:
+                'final dark = Theme.of(context).brightness == '
+                'Brightness.dark;',
+          ),
+          'first_run',
+        );
+        expect(part, contains(r'restageStepMount$welcome'));
+        expect('final dark ='.allMatches(part).length, 1);
+        final flat = part.replaceAll(RegExp(r'\s+'), ' ');
+        expect(
+          flat,
+          contains(
+            'return (() { final dark = Theme.of(context).brightness == '
+            'Brightness.dark; return _restageDesign( Column( children: [ '
+            'Container(color: dark ? Colors.black : Colors.white),',
+          ),
+        );
+      },
+    );
+
+    test('is refused when its flow gets no generated widget', () async {
+      await _generatedPart(
+        step(
+          'const Welcome({super.key, required this.title});\n'
+              'final String title;',
+          'Text(title.toUpperCase())',
+          combinator: ' hide RestageFlowGraph',
+        ),
+        'first_run',
+        refused: (errors) {
+          final found = errors.map(_issueMessage).toList();
+          expect(
+            found,
+            contains(
+              "Restage can't generate the widget for flow `firstRun`. Try "
+              'importing `package:restage/restage.dart` without `show` or '
+              '`hide` in lib/first_run.dart.',
+            ),
+          );
+          found.forEach(_expectReadable);
+        },
+      );
+    });
+
+    test('is refused when its flow cannot refer to its mount', () async {
+      await _generatedPart(
+        """
+import 'package:restage/restage.dart';
+import 'welcome.dart' show Welcome;
+
+part 'restage.generated/first_run.restage.g.dart';
+
+@FlowGraph(id: 'first_run', surface: Surface.onboarding)
+const firstRun = FlowDefinition(
+  start: Welcome,
+  transitions: [Transition.complete(Welcome.next)],
+);
+""",
+        'first_run',
+        otherFiles: {
+          'apps_examples|lib/welcome.dart': step(
+            'const Welcome({super.key, required this.title});\n'
+                'final String title;',
+            'Text(title.toUpperCase())',
+            flow: false,
+          ),
+        },
+        refused: (errors) {
+          final found = errors.map(_issueMessage).toList();
+          expect(
+            found,
+            contains(
+              "`FirstRunSurface` can't refer to the generated code for "
+              'step `Welcome`. Try importing the library that declares '
+              '`Welcome` in the library that declares the flow.',
+            ),
+          );
+          found.forEach(_expectReadable);
+        },
+      );
     });
   });
 
@@ -2162,43 +7440,28 @@ final class Leafy extends StatelessWidget {
         'leafy',
         otherFiles: helpers,
       );
-      expect(generated, contains('() => leafInk(context)'));
-    });
-
-    test('that builds a widget names the import the screen lacks', () async {
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-      );
-      final records = <LogRecord>[];
-      await testBuilders(
-        [
-          restageSourceRosterBuilder(
-            const BuilderOptions({'bundled_runtime': true}, isRoot: true),
-          ),
-          userCatalogJsonBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(
-            const BuilderOptions({'bundled_runtime': true}, isRoot: true),
-          ),
-        ],
-        {
-          'apps_examples|lib/leafy.dart': screen(
-            'Center(child: leafArt(context))',
-          ),
-          ...helpers,
-        },
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        flattenOutput: true,
-        onLog: records.add,
-      );
       expect(
-        records.map((record) => record.message).join('\n'),
+        generated.replaceAll(RegExp(r'\s+'), ' '),
         contains(
-          "'Palette.of(context).ink' is evaluated in the app, and "
-          "lib/leafy.dart can't refer to 'Palette'. Import it there.",
+          "_restageRecording.native( '_hf6b1c00000', "
+          "leafInk(context), type: 'flutter.Color', nullable: false, )",
         ),
       );
     });
+
+    test(
+      'that builds a widget the screen cannot name renders from the app',
+      () async {
+        final generated = await _generatedPart(
+          screen('Center(child: leafArt(context))'),
+          'leafy',
+          otherFiles: helpers,
+        );
+        final flat = generated.replaceAll(RegExp(r'\s+'), ' ');
+        expect(flat, contains(r'Widget _restageIsland$leafy_leafArt_0('));
+        expect(flat, contains('leafArt(context)'));
+      },
+    );
   });
 
   test('refuses an app-only value when the screen has no mount', () async {
@@ -2249,9 +7512,10 @@ final class Plain extends StatelessWidget {
     expect(
       records.map((record) => record.message).join('\n'),
       contains(
-        "'Palette.of(context).ink' is evaluated in the app, and this screen "
-        'has no generated mount: Plain declares the reserved constructor '
-        "parameter 'resolver'.",
+        "`Palette.of(context).ink` (lib/plain.dart:21:25) runs app code, "
+        'which needs the generated `PlainSurface`, and Restage didn\'t '
+        "generate it because `Plain`'s constructor parameter `resolver` "
+        'uses a name the generated code needs.',
       ),
     );
   });
@@ -3736,18 +9000,113 @@ final _alternateMeasurementPolicy =
       }),
     );
 
-const _hostValuesOpen =
-    '...restageHostValues(<String, (String, Object? Function())>{';
+/// The message of a build error, without its code and location prefix.
+String _issueMessage(String error) =>
+    error.split('\n').first.replaceFirst(RegExp(r'^\[\w+\] [^ ]*: '), '');
+
+/// Every text a generated part shows a developer: debug value labels,
+/// native value labels and the messages its island lookups throw.
+List<String> _readableTextsOf(String part) {
+  const literal = r"""('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")""";
+  String text(String source) => source
+      .substring(1, source.length - 1)
+      .replaceAll(r"\'", "'")
+      .replaceAll(r'\"', '"')
+      .replaceAll(r'\$', r'$');
+  final labels =
+      RegExp(
+            r"labels: const bool\.fromEnvironment\('dart\.vm\.product'\)"
+            r'\s*\?\s*const <String, String>\{\}\s*:\s*const <String, String>\{([^}]*)\}',
+          )
+          .allMatches(part)
+          .expand(
+            (match) => RegExp(
+              '$literal\\s*:\\s*$literal',
+            ).allMatches(match[1]!).map((entry) => text(entry[2]!)),
+          );
+  return [
+    for (final match in RegExp(
+      r"'dart\.vm\.product'\)\s*\?\s*''\s*:\s*" + literal,
+    ).allMatches(part))
+      text(match[1]!),
+    ...labels,
+    for (final match in RegExp(
+      r'\.build\(\s*' + literal + r',\s*' + literal,
+    ).allMatches(part))
+      text(match[2]!),
+  ];
+}
+
+/// Fails when [message] shows a developer anything they did not write.
+void _expectReadable(String message) {
+  // Source a message quotes in backticks is the developer's own code.
+  final prose = message.replaceAll(RegExp('`[^`]*`'), '``');
+  // A quoted app name may be one Restage reserves, which the message names.
+  for (final unreadable in [
+    RegExp(r'(?<![=!]=\s)(?<!\?\?\s)\bnull\b'),
+    RegExp(r'restage[A-Z_$]'),
+    // A literal in the developer's own code may be hex; a leaked hash is not.
+    RegExp('0x[0-9a-fA-F]+'),
+  ]) {
+    expect(prose, isNot(contains(unreadable)), reason: message);
+  }
+  for (final unreadable in [
+    RegExp('_h[0-9a-f]{6,}'),
+    RegExp('Instance of'),
+    RegExp('[\u0000-\u0006]'),
+    RegExp(r'(^|[\s(])/[A-Za-z]'),
+    RegExp('file:///'),
+    RegExp(r'offset \d'),
+    RegExp('<unknown>'),
+    RegExp(r'\bmount\b'),
+    RegExp(r'\w+\.\w+(>\w+)*/[\w.]+#\d+'),
+    RegExp(r'\b[A-Z]\w*(Expression|Invocation)\b'),
+  ]) {
+    expect(message, isNot(contains(unreadable)), reason: message);
+  }
+}
+
+/// Expects [text] to contain [template], where `<wireKey>` stands for a wire key.
+void _expectTemplate(String text, String template) {
+  final pattern = RegExp(
+    RegExp.escape(template).replaceAll('<wireKey>', r'_h[0-9a-f]{10}'),
+  );
+  expect(pattern.hasMatch(text), isTrue, reason: 'Missing: $template');
+}
+
+/// Calls to [name] the part writes as code: no string literals, and no
+/// island previews, which never run in a build.
+int _callsIn(String part, String name) => RegExp("(?<!['\\w])$name\\(")
+    .allMatches(
+      part
+          .replaceAll(RegExp(r"'''[\s\S]*?'''"), "''")
+          .replaceAll(RegExp(r"'(?:[^'\\\n]|\\.)*'"), "''")
+          .replaceAll(
+            RegExp(r'Widget restagePreview\$\w+\([^)]*\)\s*=>[^;]*;'),
+            '',
+          ),
+    )
+    .length;
 
 Future<String> _generatedPart(
   String source,
   String name, {
   Map<String, String> otherFiles = const {},
   int? expectedFloor,
+  void Function(String text)? paywallText,
+  void Function(List<String> errors)? refused,
+  void Function(List<String> warnings)? warned,
+  void Function(List<String> logs)? logged,
+  void Function(RestageSurfacePublicationBundle bundle)? handoff,
+  void Function(Catalog catalog)? renderCatalog,
+  bool warningFree = false,
+  bool expectPart = true,
 }) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: 'apps_examples',
   );
+  final warnings = <String>[];
+  final logs = <String>[];
   final result = await testBuilders(
     [
       restageSourceRosterBuilder(
@@ -3763,14 +9122,40 @@ Future<String> _generatedPart(
       restageOutputsBuilder(
         const BuilderOptions({'bundled_runtime': true}),
       ),
+      if (renderCatalog != null) const RenderCatalogBuilder(),
     ],
     {'apps_examples|lib/$name.dart': source, ...otherFiles},
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,
     flattenOutput: true,
+    onLog: (record) {
+      logs.add(record.message);
+      if (record.level == Level.WARNING) warnings.add(record.message);
+    },
+  );
+  warned?.call(warnings);
+  logged?.call(logs);
+  // Every error and warning a developer reads names what they wrote.
+  for (final message in [...result.errors.map(_issueMessage), ...warnings]) {
+    message.split('\n').forEach(_expectReadable);
+  }
+
+  if (refused != null) {
+    expect(result.succeeded, isFalse);
+    refused(result.errors.toList());
+    return '';
+  }
+  expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  handoff?.call(_readBundle(readerWriter));
+  renderCatalog?.call(
+    decodeCatalog(
+      readerWriter.testing.readString(
+        AssetId('apps_examples', kRenderCatalogPath),
+      ),
+    ),
   );
 
-  expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  if (!expectPart) return '';
   if (expectedFloor != null) {
     final bytes = _readBundle(
       readerWriter,
@@ -3788,15 +9173,24 @@ Future<String> _generatedPart(
     ),
   );
   expect(descriptor, isNotEmpty);
+  if (paywallText != null) {
+    final text = _readBundle(
+      readerWriter,
+    ).ownedOutputs['assets/paywalls/$name.rfwtxt'];
+    paywallText(utf8.decode(text!));
+  }
   await _expectAnalyzesClean({
     'apps_examples|lib/$name.dart': source,
     'apps_examples|lib/restage.generated/$name.restage.g.dart': descriptor,
     ...otherFiles,
-  });
+  }, warningFree: warningFree);
   return descriptor;
 }
 
-Future<void> _expectAnalyzesClean(Map<String, String> sources) async {
+Future<void> _expectAnalyzesClean(
+  Map<String, String> sources, {
+  bool warningFree = false,
+}) async {
   final entry = sources.keys.first;
   await resolveWorkspaceSources(
     sources,
@@ -3811,7 +9205,8 @@ Future<void> _expectAnalyzesClean(Map<String, String> sources) async {
       final errors = [
         for (final unit in resolved.units)
           for (final diagnostic in unit.diagnostics)
-            if (diagnostic.severity == Severity.error)
+            if (diagnostic.severity == Severity.error ||
+                warningFree && diagnostic.severity == Severity.warning)
               '${unit.path}: ${diagnostic.message}',
       ];
       expect(errors, isEmpty, reason: 'the generated part must analyze clean');
@@ -3898,3 +9293,24 @@ String _declarativeText(List<int> blob) =>
 String _withoutMeasurementIdentity(String source) => source
     .replaceAll(RegExp(r'carriers: \[[^\]]*\]'), 'carriers: [...]')
     .replaceAll(RegExp(r'pointTokens: \[[^\]]*\]'), 'pointTokens: [...]');
+
+/// The host contract the generated placement definition of [declaration] in
+/// [part] declares.
+SurfaceHostContractV1 _hostContractOf(String part, String declaration) {
+  final start = part.indexOf('hostContractJson: ', part.indexOf(declaration));
+  var depth = 0;
+  var end = part.indexOf('{', start);
+  final open = end;
+  do {
+    if (part[end] == '{' || part[end] == '[') depth++;
+    if (part[end] == '}' || part[end] == ']') depth--;
+    end++;
+  } while (depth > 0);
+  final json = part
+      .substring(open, end)
+      .replaceAll('<String, Object?>', '')
+      .replaceAll('<Object?>', '')
+      .replaceAll("'", '"')
+      .replaceAllMapped(RegExp(r',(\s*[}\]])'), (m) => m[1]!);
+  return SurfaceHostContractV1.fromJson(jsonDecode(json));
+}

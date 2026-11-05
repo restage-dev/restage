@@ -1,6 +1,6 @@
 part of '../starter_stats.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const starterStatsScreenRef = NeutralFlowScreenRef(
   id: 'starter_stats',

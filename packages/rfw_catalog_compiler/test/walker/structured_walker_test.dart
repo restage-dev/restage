@@ -832,7 +832,7 @@ class Data {
       expect(ir.diagnostics.single.code, issue_codes.denylistedPropertyType);
     });
 
-    test('classifies inline scalar fields', () {
+    test('classifies inline scalar and void callback fields', () {
       final ledger = policy.extend(
         structuredWalk: const StructuredWalkPolicy(
           concreteTypes: {'package:test/types.dart#Scalars'},
@@ -860,6 +860,10 @@ class Data {
               libraryIdentifier: 'dart:core',
             ),
           ),
+          fakes.fakeFieldElement(
+            'onTap',
+            fakes.fakeFunctionType(returnType: fakes.fakeVoidType()),
+          ),
         ],
       );
 
@@ -878,6 +882,7 @@ class Data {
           ResolvedTypeKind.color,
           ResolvedTypeKind.real,
           ResolvedTypeKind.string,
+          ResolvedTypeKind.event,
         ],
       );
     });

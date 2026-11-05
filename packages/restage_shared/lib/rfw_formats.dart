@@ -20,3 +20,4 @@ export 'src/fonts/literal_icon_code_points.dart';
 export 'src/rfw_catalog_occurrence.dart';
 export 'src/rfw_formats.dart';
 export 'src/rfw_preview_reservation.dart';
+export 'src/rfw_split_island_placements.dart';

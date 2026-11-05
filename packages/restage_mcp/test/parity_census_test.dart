@@ -27,6 +27,8 @@ final _cliToMcp = <String, Set<String>>{
   'catalog push': {'restage_push_catalog'},
   'build list': {'restage_list_builds'},
   'build push': {'restage_push_build'},
+  'build report': {'restage_build_report'},
+  promoteCommandName: {'restage_widget_promote'},
   'surface list': {'restage_list_surfaces'},
   'surface push': {'restage_push_surface'},
   'surface publish': {'restage_publish_surface'},

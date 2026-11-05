@@ -130,6 +130,7 @@ final class RenderRequest {
     required Uint8List blob,
     required Map<String, Object?> data,
     required this.env,
+    this.surface,
   })  : blob = Uint8List.fromList(blob).asUnmodifiableView(),
         data = snapshotWireMap(data, argumentName: 'data') {
     if (epoch < 0) {
@@ -141,6 +142,9 @@ final class RenderRequest {
   final Uint8List blob;
   final Map<String, Object?> data;
   final RenderEnv env;
+
+  /// The rendered surface, `<surfaceType>/<slug>`, when the sender names it.
+  final String? surface;
 }
 
 /// Environment applied independently to every render request.
@@ -506,6 +510,7 @@ final class RenderHostProvider
         'blob': encodeRenderBlob(request.blob),
         'data': request.data,
         'env': request.env.toJson(),
+        if (request.surface case final surface?) 'surface': surface,
       },
       targetOrigin: bundleOrigin,
     );

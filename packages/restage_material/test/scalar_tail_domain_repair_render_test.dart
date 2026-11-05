@@ -70,8 +70,10 @@ widget Surface = Column(children: [
     final tab = tester.widget<Tab>(find.byType(Tab));
     expect(appBar.toolbarHeight, isNull);
     expect(appBar.leadingWidth, isNull);
-    expect(divider.height, 16);
-    expect(divider.thickness, 1);
+    // Unauthored, as in Flutter: the divider lays out at its default height.
+    expect(divider.height, isNull);
+    expect(divider.thickness, isNull);
+    expect(tester.getSize(find.byType(Divider)).height, 16);
     expect(tab.height, isNull);
     for (final finder in [find.byType(AppBar), find.byType(Divider)]) {
       final size = tester.getSize(finder);

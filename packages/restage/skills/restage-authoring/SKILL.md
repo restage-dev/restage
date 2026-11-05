@@ -37,7 +37,7 @@ and handles each event, from [main.dart](examples/lib/main.dart):
 <!-- skill-check: example examples/lib/main.dart -->
 ```dart
 // The default placement needs no name. Until delivered content is
-// available, the mount renders WeeklyRecap itself.
+// available, the mount renders WeeklyRecap's own build.
 WeeklyRecapSurface(
   name: 'Sam',
   streakDays: 12,
@@ -90,8 +90,12 @@ WeeklyRecapSurface(
    change. Rewrite a part only when the compiler still refuses it after a
    minimal change, and never write a parallel copy of a screen to make it
    compile. Use [diagnostics.md](references/diagnostics.md) for each message.
-   When OTA flexibility matters, review `customWidgetAppFactoryUsed` notices:
-   each names a component that only an app release can change.
+   When OTA flexibility matters, run `restage build report` (MCP:
+   `restage_build_report`) and review `customWidgetAppFactoryUsed` notices:
+   each part that renders from the app changes only with an app release. Keep
+   those parts unless the developer wants one changeable over the air; never
+   rewrite code only to make a part render from the design. See
+   [surface-design.md](references/surface-design.md#read-the-build-report).
 4. Once the build is clean, mount the generated widget and wire real app handlers. Exercise fallback,
    events and any state or flow behavior touched by the change. Also exercise
    RFW rendering when the change depends on delivered composition; a passing

@@ -111,9 +111,13 @@ final class NativeCallContract {
       };
   @override
   bool operator ==(Object other) =>
-      other is NativeCallContract &&
-      SurfaceContractJson.encode(toJson()) ==
-          SurfaceContractJson.encode(other.toJson());
+      identical(this, other) ||
+      other is NativeCallContract && _encoded(this) == _encoded(other);
   @override
-  int get hashCode => SurfaceContractJson.encode(toJson()).hashCode;
+  int get hashCode => _encoded(this).hashCode;
+
+  // The canonical encoding, computed once per contract.
+  static final _encodings = Expando<String>();
+  static String _encoded(NativeCallContract contract) =>
+      _encodings[contract] ??= SurfaceContractJson.encode(contract.toJson());
 }

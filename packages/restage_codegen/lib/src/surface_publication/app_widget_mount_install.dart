@@ -5,6 +5,8 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
+import 'package:restage_codegen/src/surface_publication/split_widgets.dart'
+    show SplitRegistration;
 import 'package:restage_codegen/src/catalog_loader.dart'
     show customCatalogPackages;
 import 'package:restage_codegen/src/dart_import_planner.dart';
@@ -16,7 +18,8 @@ import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/user_factory_emitter.dart';
 import 'package:restage_codegen/src/widget_library_registration.dart';
-import 'package:restage_shared/restage_shared.dart' show WidgetVocabulary;
+import 'package:restage_shared/restage_shared.dart'
+    show WidgetVocabulary, islandLibraryNamespace;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const String _sdkLibrary = 'package:restage/restage.dart';
@@ -33,12 +36,14 @@ typedef AppWidgetMountInstall = ({
   String? libraries,
   List<String> fragments,
   String? problem,
+  bool fatal,
 });
 
 const AppWidgetMountInstall _nothing = (
   libraries: null,
   fragments: <String>[],
   problem: null,
+  fatal: false,
 );
 
 /// Where the app widget factory sidecar sits in a package.
@@ -130,6 +135,7 @@ final class AppWidgetMountFactories {
         custom: custom,
         aliases: aliases,
         customChildProperties: true,
+        appWidget: true,
       );
       if (body == null) continue;
       factories[WidgetVocabulary.qualifiedName(
@@ -338,9 +344,19 @@ final class AppWidgetMountFactories {
 
   /// Standalone factory declarations and custom registrations for startup.
   /// Built-in vocabulary remains owned by the consuming app's derivation.
-  AppWidgetRegistrationSource registrationSource() {
+  /// The registration of these factories; each of [splits] adds its
+  /// wrapper to its library's registration.
+  AppWidgetRegistrationSource registrationSource({
+    List<SplitRegistration> splits = const [],
+  }) {
     final declarations = StringBuffer();
     final registrations = StringBuffer();
+    final splitLibraries = {for (final split in splits) split.library}.toList()
+      ..sort();
+    final splitPrefixes = {
+      for (final (index, library) in splitLibraries.indexed)
+        library: 'splitDependency$index',
+    };
     for (final namespace in _namesByNamespace.keys.toList()..sort()) {
       final builders = <String, String>{};
       for (final name in _namesByNamespace[namespace]!) {
@@ -365,6 +381,11 @@ final class AppWidgetMountFactories {
         builders: builders,
         capabilityVersion: _versions[namespace],
         compatibleSince: _compatibleSince[namespace],
+        spreads: [
+          for (final split in splits)
+            if (split.namespace == namespace)
+              '${splitPrefixes[split.library]}.${split.name}.widgets',
+        ],
       );
     }
     return (
@@ -372,6 +393,8 @@ final class AppWidgetMountFactories {
         if (!isEmpty) "import 'package:flutter/widgets.dart';",
         for (final entry in _uriByAlias.entries)
           'import ${dartStringLiteral(entry.value)} as ${entry.key};',
+        for (final library in splitLibraries)
+          'import ${dartStringLiteral(library)} as ${splitPrefixes[library]};',
       ],
       declarations: declarations.toString(),
       registrations: registrations.toString(),
@@ -412,26 +435,73 @@ final class AppWidgetMountFactories {
   /// Delivery may select any widget within an admitted library version.
   /// [takenNames] prevents local name collisions. An inaccessible widget leaves
   /// the surface on its compiled fallback.
+  ///
+  /// [surface] names the generated surface class in a problem. The build's
+  /// copy places each split in [placedSplits], by catalog name, through its
+  /// wrapper function.
   AppWidgetMountInstall plan(
     Iterable<String> widgetNames,
     LibraryElement library, {
     required String sdkPrefix,
     required Set<String> takenNames,
+    required String surface,
+    Map<String, AppWidgetSplit> splits = const {},
+    Set<String> placedSplits = const {},
   }) {
     final drawn = <String, Set<String>>{};
+    final drawnSplits = <AppWidgetSplit>{};
+    final splitIslands = {
+      for (final split in splits.values) ...split.islandNames,
+    };
     for (final qualified in widgetNames) {
       final separator = qualified.indexOf(':');
-      if (separator <= 0) continue;
+      if (separator <= 0 || splitIslands.contains(qualified)) continue;
+      // A split wrapper registers through its widget's own library.
+      if (splits[qualified] case final split?) {
+        drawnSplits.add(split);
+        continue;
+      }
       final namespace = qualified.substring(0, separator);
-      if (WidgetLibrary.builtInByNamespace(namespace) != null) continue;
+      // The mount registers islands itself.
+      if (WidgetLibrary.builtInByNamespace(namespace) != null ||
+          namespace == islandLibraryNamespace(library.uri.pathSegments.first)) {
+        continue;
+      }
       (drawn[namespace] ??= {}).add(qualified.substring(separator + 1));
     }
-    if (drawn.isEmpty) return _nothing;
+    if (drawn.isEmpty && drawnSplits.isEmpty) return _nothing;
 
     final speller = _spellers[library] ??= _PartSpeller(
       library,
       _uriByAlias.keys.toSet(),
     );
+    final splitRegistrations = <String>[];
+    final hidden = <String>[];
+    for (final split in drawnSplits) {
+      String? beside(String constant) => spellBesideClass(
+        library,
+        split.library,
+        split.className,
+        constant,
+      );
+      final registered = [split.registration, ?split.islands];
+      final missing = [
+        for (final constant in [
+          ...registered,
+          if (placedSplits.contains(split.widget)) split.app,
+        ])
+          if (beside(constant) == null) constant,
+      ];
+      if (missing.isNotEmpty) {
+        hidden.add(_hidden(surface, library, split, missing));
+        continue;
+      }
+      splitRegistrations.addAll(registered.map((name) => beside(name)!));
+    }
+    // Without them the design keys the widget and the app's build can't,
+    // so its State would be lost: the build fails.
+    if (hidden.isNotEmpty) return _unavailable(hidden.join(' '), fatal: true);
+    splitRegistrations.sort();
     final declared = _functionsByLibrary[library] ??= {};
     final fragments = <String>[];
     final registrations = StringBuffer('[');
@@ -439,7 +509,10 @@ final class AppWidgetMountFactories {
       final installed = _namesByNamespace[namespace] ?? const <String>[];
       for (final name in drawn[namespace]!) {
         if (!installed.contains(name)) {
-          return _unavailable(name, 'no widget factory was generated for it');
+          return _unavailable(
+            '${_cannotRegister(surface, name)} because the build left it '
+            'out. See the build warning for `$name` above.',
+          );
         }
       }
       registrations
@@ -458,15 +531,18 @@ final class AppWidgetMountFactories {
         final factory = _factories[qualified]!;
         final function = _factoryFunctionName(namespace, name);
         if (takenNames.contains(function)) {
+          final file = _filePath(library.uri);
           return _unavailable(
-            name,
-            '${library.uri} already declares $function',
+            '${_cannotRegister(surface, name)} because $file already declares '
+            'a top-level name that starts with `_restage`. Try renaming the '
+            'declarations in $file whose names start with `_restage`.',
           );
         }
         if (declared[function] case final other? when other != qualified) {
           return _unavailable(
-            name,
-            '$function also names the factory of $other',
+            '${_cannotRegister(surface, name)} because its generated name '
+            'matches the one for `${other.substring(other.indexOf(':') + 1)}`. '
+            'Try renaming `$name`.',
           );
         }
         final spelled = speller.spell(
@@ -475,9 +551,16 @@ final class AppWidgetMountFactories {
           rename: {factory.function: function},
         );
         if (spelled.unresolved case final missing?) {
+          final file = _filePath(library.uri);
+          if (takenNames.contains(missing)) {
+            return _unavailable(
+              '${_cannotRegister(surface, name)}. $file declares its own '
+              '`$missing`, which hides the one `$name` uses. Try renaming it.',
+            );
+          }
           return _unavailable(
-            name,
-            '${library.uri} cannot name $missing; import it there',
+            "${_cannotRegister(surface, name)}. $file doesn't import "
+            '`$missing`. Try importing the library that declares it.',
           );
         }
         declared[function] = qualified;
@@ -489,11 +572,14 @@ final class AppWidgetMountFactories {
       }
       registrations.write('],),');
     }
-    registrations.write(']');
+    registrations
+      ..writeAll(splitRegistrations.map((spelled) => '$spelled,'))
+      ..write(']');
     return (
       libraries: registrations.toString(),
       fragments: fragments,
       problem: null,
+      fatal: false,
     );
   }
 
@@ -538,14 +624,54 @@ final class _Factory {
   }
 }
 
-AppWidgetMountInstall _unavailable(String widget, String reason) => (
+/// A split widget's wrapper registration: the constants [registration] and,
+/// when it has islands, [islands] its generated part declares beside
+/// [className] in [library], with [app], the function that wraps the app's
+/// [widget]; [islandNames] are its islands, qualified.
+typedef AppWidgetSplit = ({
+  String library,
+  String className,
+  String widget,
+  String registration,
+  String? islands,
+  String app,
+  Set<String> islandNames,
+});
+
+// A problem the app-wide registration renders around unless [fatal].
+AppWidgetMountInstall _unavailable(String problem, {bool fatal = false}) => (
   libraries: null,
   fragments: const <String>[],
-  problem:
-      'The generated mount cannot install the app widget $widget: '
-      '$reason. Published versions of this surface render only after '
-      'registerRestageWidgets() runs at startup.',
+  problem: problem,
+  fatal: fatal,
 );
+
+// No import of [library] shows both [split]'s class and each of [missing].
+String _hidden(
+  String surface,
+  LibraryElement library,
+  AppWidgetSplit split,
+  List<String> missing,
+) {
+  final names = missing.map((name) => '`$name`').toList();
+  final listed = names.length == 1
+      ? names.single
+      : '${names.take(names.length - 1).join(', ')} and ${names.last}';
+  return "${_cannotRegister(surface, split.className)}. "
+      "${_filePath(library.uri)} imports `${split.className}` with a `show` or "
+      "`hide` list that leaves out $listed, which Restage generates beside "
+      "`${split.className}`. Try importing that library without `show` or "
+      "`hide`, or adding ${names.length == 1 ? listed : 'them'} to its `show` "
+      'list.';
+}
+
+String _cannotRegister(String surface, String widget) =>
+    "`$surface` can't register `$widget`";
+
+// [uri] as a path in its package, such as lib/plans/plan_picker.dart.
+String _filePath(Uri uri) => uri.isScheme('package')
+    ? 'lib/${uri.pathSegments.skip(1).join('/')}'
+    : uri.toString();
 
 /// Spells generated factory source for the library that owns a part.
 final class _PartSpeller {
@@ -599,7 +725,7 @@ final class _PartSpeller {
             : _librarySpelling(uri, use.name),
       );
       if (spelling == null) {
-        return (source: null, unresolved: uri ?? use.name);
+        return (source: null, unresolved: use.name);
       }
       if (alias != null || spelling != use.name) {
         edits.add((offset: use.offset, end: use.end, text: spelling));
@@ -767,4 +893,50 @@ final class _NameCollector extends RecursiveAstVisitor<void> {
       (alias: null, name: node.name, offset: node.offset, end: node.end),
     );
   }
+}
+
+/// [constant], declared beside [className] in [classLibrary], as [library]
+/// sees it through an import whose show and hide lists, and those of the
+/// exports it reaches the class through, admit both; null when none does.
+String? spellBesideClass(
+  LibraryElement library,
+  String classLibrary,
+  String className,
+  String constant,
+) {
+  final names = [className, constant];
+  bool admits(List<NamespaceCombinator> combinators) => names.every(
+    (name) => combinators.every(
+      (combinator) => switch (combinator) {
+        ShowElementCombinator(:final shownNames) => shownNames.contains(name),
+        HideElementCombinator(:final hiddenNames) => !hiddenNames.contains(
+          name,
+        ),
+      },
+    ),
+  );
+  bool reaches(LibraryElement from, Set<String> seen) {
+    if (from.identifier == classLibrary) return true;
+    if (!seen.add(from.identifier)) return false;
+    return from.firstFragment.libraryExports.any((export) {
+      final exported = export.exportedLibrary;
+      return exported != null &&
+          admits(export.combinators) &&
+          reaches(exported, seen);
+    });
+  }
+
+  if (library.identifier == classLibrary) return constant;
+  for (final import in library.firstFragment.libraryImports) {
+    final imported = import.importedLibrary;
+    if (imported == null ||
+        import.prefix?.isDeferred == true ||
+        !admits(import.combinators) ||
+        !reaches(imported, {})) {
+      continue;
+    }
+    final prefix = import.prefix?.element.name;
+    return prefix == null || prefix.isEmpty ? constant : '$prefix.$constant';
+  }
+  return null;
 }

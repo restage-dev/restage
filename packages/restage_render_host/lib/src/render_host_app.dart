@@ -34,8 +34,9 @@ class RenderHostApp extends StatefulWidget {
   final List<int> supportedVersions;
   final String? entryWidgetName;
 
-  /// Places the app's own ancestors, such as its theme, above each surface.
-  final Widget Function(Widget child)? wrap;
+  /// Places the app's own ancestors, such as its theme, above each surface;
+  /// given the rendered surface when the request names it.
+  final Widget Function(String? surface, Widget child)? wrap;
   final RenderBundleRasterController? _rasterController;
 
   @override
@@ -261,6 +262,10 @@ class _RenderHostAppState extends State<RenderHostApp> {
     if (request == null || entryWidgetName == null) {
       return const SizedBox.shrink();
     }
+    final surfaceWrap = widget.wrap;
+    final wrap = surfaceWrap == null
+        ? null
+        : (Widget child) => surfaceWrap(request.surface, child);
     if (library == null) {
       return RawRfwRenderSurface(
         epoch: request.epoch,
@@ -272,7 +277,7 @@ class _RenderHostAppState extends State<RenderHostApp> {
         entryWidgetName: entryWidgetName,
         onRemoteEvent: _onSurfaceEvent,
         onRenderEvent: _onRenderEvent,
-        wrap: widget.wrap,
+        wrap: wrap,
       );
     }
     return RawRfwRenderSurface.library(
@@ -285,7 +290,7 @@ class _RenderHostAppState extends State<RenderHostApp> {
       entryWidgetName: entryWidgetName,
       onRemoteEvent: _onSurfaceEvent,
       onRenderEvent: _onRenderEvent,
-      wrap: widget.wrap,
+      wrap: wrap,
     );
   }
 }

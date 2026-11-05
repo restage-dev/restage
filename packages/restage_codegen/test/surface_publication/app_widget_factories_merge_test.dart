@@ -158,8 +158,22 @@ import 'package:alpha/widgets.dart';
                 library,
                 sdkPrefix: 'sdk.',
                 takenNames: {},
+                surface: 'SurfaceSurface',
               );
           expect(plan.problem, isNull);
+          expect(
+            _factories('alpha', 'Badge', compatibleSince: since)
+                .plan(
+                  ['alpha.widgets:Missing'],
+                  library,
+                  sdkPrefix: 'sdk.',
+                  takenNames: {},
+                  surface: 'SurfaceSurface',
+                )
+                .problem,
+            "`SurfaceSurface` can't register `Missing` because the build left "
+            'it out. See the build warning for `Missing` above.',
+          );
           expect(
             plan.libraries,
             contains('RestageWidgetLibraryRegistration.constant('),

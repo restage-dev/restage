@@ -14,7 +14,7 @@ import 'helpers.dart';
 
 void main() {
   test(
-    'resolved app TransformScale cannot bind the native catalog entry',
+    'an app TransformScale is inlined beside the native catalog entry',
     () async {
       const source = '''
 import 'package:flutter/widgets.dart';
@@ -35,7 +35,12 @@ class TransformScale extends StatelessWidget {
 class IdentitySurface extends StatelessWidget {
   const IdentitySurface();
   @override
-  Widget build(BuildContext context) => TransformScale(scale: 2.0);
+  Widget build(BuildContext context) => Column(
+    children: [
+      TransformScale(scale: 2.0),
+      Transform.scale(scale: 3.0, child: const SizedBox()),
+    ],
+  );
 }
 ''';
       final readerWriter = await readerWriterWithFilesystemSources(
@@ -51,16 +56,31 @@ class IdentitySurface extends StatelessWidget {
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         onLog: (record) => messages.add(record.message),
-        outputs: const {},
+        flattenOutput: true,
       );
-      expect(result.succeeded, isFalse);
-      expect(
-        messages.join('\n'),
-        allOf(
-          contains('[unknownWidget]'),
-          contains("Widget 'TransformScale' is not a known catalog widget"),
+      expect(result.succeeded, isTrue, reason: messages.join('\n'));
+      final library = fmt.parseLibraryFile(
+        result.readerWriter.testing.readString(
+          AssetId('apps_examples', 'assets/paywalls/foreign_identity.rfwtxt'),
         ),
       );
+      final local = {
+        for (final widget in library.widgets) widget.name: widget.root,
+      };
+      // The app class gets a definition of its own, so the catalog name
+      // still resolves to the native entry.
+      expect(local.keys, isNot(contains('TransformScale')));
+      final appName = local.keys.singleWhere(
+        (name) => name.startsWith('TransformScale_'),
+      );
+      final app = local[appName]! as fmt.ConstructorCall;
+      expect((app.name, app.arguments['text']), ('Text', 'App widget'));
+      final column = local['Paywall']! as fmt.ConstructorCall;
+      final children = [
+        for (final child in column.arguments['children']! as List<Object?>)
+          (child! as fmt.ConstructorCall).name,
+      ];
+      expect(children, [appName, 'TransformScale']);
     },
   );
 
@@ -326,4 +346,88 @@ Transform.scale(
       }
     }
   });
+
+  test(
+    'rotation keeps an explicit null alignment apart from omission at 25',
+    () async {
+      // (id, alignment argument, expected wire value, expected floor)
+      final cases = <(String, String, Object?, int)>[
+        ('omitted', '', null, 1),
+        ('null', 'alignment: null,', <Object?, Object?>{_marker: _version}, 25),
+        (
+          'concrete',
+          'alignment: const Alignment(1, -1),',
+          <Object?, Object?>{
+            _marker: _version,
+            RfwConstructorPresenceProtocol.valueKey: {'x': 1.0, 'y': -1.0},
+          },
+          25,
+        ),
+      ];
+      final sources = {
+        for (final (id, alignment, _, _) in cases)
+          'apps_examples|lib/paywalls/rotate_$id.dart':
+              '''
+          import 'package:flutter/widgets.dart';
+          class PaywallSource {
+            const PaywallSource({required this.id});
+            final String id;
+          }
+          @PaywallSource(id: 'rotate_$id')
+          class RotateSurface extends StatelessWidget {
+            const RotateSurface();
+            @override
+            Widget build(BuildContext context) =>
+                Transform.rotate(angle: 0.5, $alignment);
+          }
+        ''',
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+        includeFlutter: true,
+      );
+      for (final source in sources.entries) {
+        readerWriter.testing.writeString(
+          AssetId.parse(source.key),
+          source.value,
+        );
+      }
+      final result = await testBuilder(
+        restageCodegenBuilder(BuilderOptions.empty),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      for (final (id, _, wire, floor) in cases) {
+        final library = fmt.parseLibraryFile(
+          readerWriter.testing.readString(
+            AssetId('apps_examples', 'assets/paywalls/rotate_$id.rfwtxt'),
+          ),
+        );
+        final args =
+            (library.widgets.single.root as fmt.ConstructorCall).arguments;
+        expect(args['alignment'], wire, reason: id);
+        final sidecar =
+            jsonDecode(
+                  readerWriter.testing.readString(
+                    AssetId(
+                      'apps_examples',
+                      'assets/paywalls/rotate_$id.capability.json',
+                    ),
+                  ),
+                )
+                as Map<String, dynamic>;
+        expect(
+          (sidecar['manifest'] as Map<String, dynamic>)['builtInFloor'],
+          floor,
+          reason: id,
+        );
+      }
+    },
+  );
 }
+
+const _marker = RfwConstructorPresenceProtocol.markerKey;
+const _version = RfwConstructorPresenceProtocol.version;

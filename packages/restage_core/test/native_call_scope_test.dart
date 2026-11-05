@@ -123,6 +123,43 @@ void main() {
           throwsFormatException);
     }
   });
+  testWidgets('only a reader of native values rebuilds when they change',
+      (tester) async {
+    const contract = NativeBindingContract(type: 'flutter.Key');
+    final raw = Source({
+      'text': 'plain',
+      'key': contract.reference('key'),
+    });
+    var plainBuilds = 0;
+    var nativeBuilds = 0;
+    Key? read;
+    // The same leaves each pump, so only a dependency rebuilds them.
+    final leaves = Column(children: [
+      _Leaf((context) {
+        plainBuilds++;
+        RestageValueBinding.dataSource(raw, context).v<String>(['text']);
+      }),
+      _Leaf((context) {
+        nativeBuilds++;
+        read = RestageValueBinding.readNative<Key>(
+            RestageValueBinding.dataSource(raw, context), ['key'], context,
+            type: 'flutter.Key');
+      }),
+    ]);
+    Widget tree(Key key) => Directionality(
+          textDirection: TextDirection.ltr,
+          child: RestageNativeValues(
+            bindings: {'key': NativeBinding(contract: contract, value: key)},
+            child: leaves,
+          ),
+        );
+    await tester.pumpWidget(tree(const ValueKey(1)));
+    await tester.pumpWidget(tree(const ValueKey(2)));
+    expect(read, const ValueKey(2));
+    expect(nativeBuilds, 2);
+    expect(plainBuilds, 1);
+  });
+
   testWidgets('retained computed reader keeps its original installed map',
       (tester) async {
     const native = ValueType.native('flutter.Key');
@@ -555,5 +592,18 @@ void main() {
               operations: registry);
       expect(direct, 'original');
     });
+  }
+}
+
+// Reports each build.
+final class _Leaf extends StatelessWidget {
+  const _Leaf(this.onBuild);
+
+  final void Function(BuildContext context) onBuild;
+
+  @override
+  Widget build(BuildContext context) {
+    onBuild(context);
+    return const SizedBox();
   }
 }

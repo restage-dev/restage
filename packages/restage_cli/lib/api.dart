@@ -127,6 +127,8 @@ export 'src/config/restage_config.dart'
         EndpointFormatException,
         EndpointMismatchException;
 export 'src/credentials/credential.dart';
+export 'src/libraries/build_report.dart';
+export 'src/libraries/generated_part_check.dart';
 export 'src/libraries/library_contract_binding.dart'
     show
         BoundLibraryContract,

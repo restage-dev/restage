@@ -1,6 +1,6 @@
 part of '../starter_done_explore.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const starterDoneExploreScreenRef = NeutralFlowScreenRef(
   id: 'starter_done_explore',

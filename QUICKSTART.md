@@ -105,11 +105,10 @@ The build stops with an error if a surface uses the event names `purchase` or
 or the measurement name `__restage_measurement_tap_v1`. Use your own event names,
 as this guide does.
 
-The compiler supports widget composition, helpers and theme reads. Widgets and
-helpers from a package your app depends on work when that package publishes them
-as Restage widgets; other package calls, such as font or plugin methods, are not
-supported. Custom rendering logic, such as a `CustomPainter`, belongs in a
-registered app widget. Unsupported expressions produce build diagnostics.
+The compiler supports widget composition, helpers and theme reads. Widgets that
+need app code can render alongside the delivered layout. Use `@RenderInApp` to
+keep a widget in app code explicitly. Generated surfaces retain those widgets'
+state when a newer delivered version replaces the shown layout.
 
 ## 3. Compile it
 

@@ -3,17 +3,18 @@
 
 import 'package:build/build.dart';
 import 'package:restage_codegen/builder.dart';
-import 'package:restage_codegen/src/issue.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
 
 const String _package = 'apps_examples';
 
-String _paywall(String name, String body) =>
+String _paywall(String file, String name, String body) =>
     '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
+
+part 'restage.generated/$file.restage.g.dart';
 
 @Paywall()
 class $name extends StatefulWidget {
@@ -38,7 +39,7 @@ class _${name}State extends State<$name> {
 Future<TestBuilderResult> _build(Map<String, String> bodies) async {
   final sources = {
     for (final MapEntry(:key, :value) in bodies.entries)
-      '$_package|lib/paywalls/$key.dart': _paywall('P$key', value),
+      '$_package|lib/paywalls/$key.dart': _paywall(key, 'P$key', value),
   };
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: _package,
@@ -104,20 +105,12 @@ void main() {
     });
   });
 
-  test(
-    'a value that is not a String is refused with what is allowed',
-    () async {
-      final result = await _build({
-        'number': r'''
+  test('a mounted paywall computes a non-String part in the app', () async {
+    final result = await _build({
+      'number': r'''
     return Text('${42} days');''',
-      });
-      expect(
-        result.errors.join('\n'),
-        allOf(
-          contains(IssueCode.unsupportedInterpolation.name),
-          contains('must be a non-null String'),
-        ),
-      );
-    },
-  );
+    });
+    expect(result.errors, isEmpty);
+    expect(_rfwtxt(result, 'number'), contains('data.context._h'));
+  });
 }

@@ -1,6 +1,6 @@
 part of '../starter_host_data.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 sealed class StarterChecklistSurfaceEvent {
   const StarterChecklistSurfaceEvent();
@@ -109,21 +109,21 @@ final _starterChecklistPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
+      'schemaVersion': 1,
       'inputs': <String, Object?>{
         'items': <String, Object?>{
+          'kind': 'list',
           'items': <String, Object?>{
+            'kind': 'object',
             'fields': <String, Object?>{
               'id': <String, Object?>{'kind': 'string'},
               'status': <String, Object?>{'kind': 'string'},
               'title': <String, Object?>{'kind': 'string'}
-            },
-            'kind': 'object'
-          },
-          'kind': 'list'
+            }
+          }
         },
         'owner': <String, Object?>{'kind': 'string'}
-      },
-      'schemaVersion': 1
+      }
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -140,6 +140,7 @@ final _starterChecklistPlacementDefinitionValue =
     'flowBoundary': null
   },
   vocabulary: starterChecklistRef.provenance.vocabulary,
+  surfaceWidget: 'StarterChecklistSurface',
 );
 
 final starterChecklistPlacementDefinition =
@@ -159,8 +160,8 @@ final class StarterChecklistSurface extends StatelessWidget {
     this.onUnavailable,
     this.loadingBuilder,
     this.unavailable,
-  })  : _restageArgument0 = owner,
-        _restageArgument1 = items,
+  })  : _restageStored0 = owner,
+        _restageStored1 = items,
         _restagePlacementName = placement;
 
   /// Overrides the implicit placement with an explicit name.
@@ -176,13 +177,15 @@ final class StarterChecklistSurface extends StatelessWidget {
     this.onUnavailable,
     this.loadingBuilder,
     this.unavailable,
-  })  : _restageArgument0 = owner,
-        _restageArgument1 = items,
+  })  : _restageStored0 = owner,
+        _restageStored1 = items,
         _restagePlacementName = restagePlacementId;
 
-  final String _restageArgument0;
+  final String _restageStored0;
+  String get _restageArgument0 => _restageStored0;
 
-  final List<ChecklistItem> _restageArgument1;
+  final List<ChecklistItem> _restageStored1;
+  List<ChecklistItem> get _restageArgument1 => _restageStored1;
   final String? _restagePlacementName;
 
   final ValueChanged<StarterChecklistSurfaceEvent>? onEvent;
@@ -197,34 +200,39 @@ final class StarterChecklistSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageScreen<StarterChecklistSurfaceEvent>(
-      screen: starterChecklistRef,
-      placementBinding: RestageScreen.generatedPlacementBinding(
-        definition: starterChecklistPlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      context: <String, Object?>{
-        'owner': _restageArgument0,
-        'items': <Object?>[
-          for (final restageValue0 in _restageArgument1)
-            <String, Object?>{
-              'id': restageValue0.id,
-              'title': restageValue0.title,
-              'status': restageValue0.status
-            }
-        ],
-      },
-      unavailable: unavailable ??
-          SurfaceScreenUnavailablePolicy.fallback(
-            builder: (context, error) => StarterChecklist(
-              owner: _restageArgument0,
-              items: _restageArgument1,
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      return RestageScreen<StarterChecklistSurfaceEvent>(
+        screen: starterChecklistRef,
+        placementBinding: RestageScreen.generatedPlacementBinding(
+          definition: starterChecklistPlacementDefinition,
+          name: _restagePlacementName,
+        ),
+        context: <String, Object?>{
+          ..._restageRecording.values,
+          'owner': _restageArgument0,
+          'items': <Object?>[
+            for (final restageValue0 in _restageArgument1)
+              <String, Object?>{
+                'id': restageValue0.id,
+                'title': restageValue0.title,
+                'status': restageValue0.status
+              }
+          ],
+        },
+        unavailable: unavailable ??
+            SurfaceScreenUnavailablePolicy.fallback(
+              builder: (_, error) => _restageBuilt,
             ),
-          ),
-      onEvent: onEvent,
-      resolver: resolver,
-      onUnavailable: onUnavailable,
-      loadingBuilder: loadingBuilder,
-    );
+        onEvent: onEvent,
+        resolver: resolver,
+        onUnavailable: onUnavailable,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return (() => _restageDesign(StarterChecklist(
+        owner: _restageArgument0, items: _restageArgument1)))();
   }
 }

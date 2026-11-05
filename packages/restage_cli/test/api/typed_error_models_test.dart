@@ -238,4 +238,139 @@ void main() {
       expect(mcp.message, isNot(contains('boom')));
     });
   });
+
+  test('a fit confirmation says why each build cannot show the version', () {
+    // Every other failure kind: code, token, label, sentence.
+    const others = [
+      (
+        'hostingMismatch',
+        'hostingMismatch@single/inline;flow/inline',
+        'flow',
+        'This version is a flow, and this placement doesn\'t show flows. '
+            'Try publishing it to a placement that does.',
+      ),
+      (
+        'hostingMismatch',
+        'hostingMismatch@flow/presented;flow/inline',
+        'presented',
+        'This version can be shown only on a route of its own, and this '
+            "placement doesn't show it that way. Try publishing it to a "
+            'placement that does.',
+      ),
+      (
+        'missingHostField',
+        'missingHostField:_h0123456789',
+        'plan.name',
+        "This version reads `plan.name`, which this build doesn't compute. "
+            'Try removing `plan.name` from the version, or releasing an app '
+            'build that computes it.',
+      ),
+      (
+        'missingHostField',
+        'missingHostField:userName',
+        'userName',
+        "This build doesn't pass `userName` to this placement. Try removing "
+            "`userName` from the version, or passing it in the placement's "
+            '`context` in a new app build.',
+      ),
+      (
+        'missingWidget',
+        'missingWidget:acme.ui:Badge',
+        'acme.ui:Badge',
+        "This build doesn't include the widget `acme.ui:Badge`. Try removing "
+            'it from the version, or releasing an app build that includes it.',
+      ),
+      (
+        'builtInFloor',
+        'builtInFloor@3;2',
+        null,
+        "This build's built-in widgets are older than the version needs. Try "
+            'releasing an app build made with a newer Restage SDK.',
+      ),
+      (
+        'changedIsland',
+        'changedIsland:app.islands:Badge@w0001',
+        'Badge in PlanPicker',
+        'This build changed the app code of `Badge in PlanPicker`. Try '
+            'republishing the version to show it on this build.',
+      ),
+      (
+        'somethingNew',
+        'somethingNew',
+        null,
+        "This build can't show the version for a reason this `restage` CLI "
+            "doesn't know. Try updating the `restage` CLI.",
+      ),
+    ];
+    final body = jsonEncode({
+      'className': 'SurfaceFitNeedsConfirmationException',
+      'data': {
+        '__className__': 'SurfaceFitNeedsConfirmationException',
+        'verdict': 'someFit',
+        'environment': 'production',
+        'share': 0.5,
+        'builds': {
+          'items': [
+            {
+              'platform': 'ios',
+              'appVersion': '2.3.0',
+              'uploaded': false,
+              'fits': true,
+            },
+            {
+              'platform': 'ios',
+              'appVersion': '2.2.0',
+              'uploaded': false,
+              'fits': false,
+              'reasons': [
+                {
+                  'token': 'unproducedHostField:_hT',
+                  'code': 'unproducedHostField',
+                  'label': 'plan.name',
+                  'build': 'PlanPicker.build',
+                  'condition': 'offer != null',
+                  'plain': "when there's an offer",
+                  'location': 'lib/plans.dart:12:9',
+                },
+                {
+                  'token': 'unproducedIsland:app.islands:Badge',
+                  'code': 'unproducedIsland',
+                  'label': 'Badge in PlanPicker',
+                  'build': 'PlanPicker.build',
+                  'condition': 'offer != null',
+                  'plain': "when there's an offer",
+                  'location': 'lib/plans.dart:12:9',
+                },
+                for (final (code, token, label, _) in others)
+                  {'token': token, 'code': code, 'label': ?label},
+              ],
+            },
+          ],
+        },
+      },
+    });
+    final reasons = [
+      '    `plan.name` is shown where `PlanPicker.build` doesn\'t compute it. '
+          'The build computes it only when `offer != null` '
+          '(lib/plans.dart:12:9). Try showing it only in that case, or '
+          'computing it before that `if`.',
+      '    `Badge` is placed where `PlanPicker.build` doesn\'t create it. The '
+          'build creates it only when `offer != null` (lib/plans.dart:12:9). '
+          'Try placing it only in that case, or creating it before that '
+          '`if`.',
+      for (final (_, _, _, sentence) in others) '    $sentence',
+    ];
+    for (final (syntax, last) in [
+      (SelectorSyntax.cli, 'Use --yes to go ahead.'),
+      (SelectorSyntax.mcp, 'Call again with acceptFit: true to go ahead.'),
+    ]) {
+      expect(typedErrorSentence(body, syntax: syntax)!.split('\n'), [
+        'Not every app version can show this.',
+        '50% of users are on versions that can.',
+        '  ios 2.2.0',
+        ...reasons,
+        last,
+      ]);
+    }
+  });
 }

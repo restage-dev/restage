@@ -54,6 +54,17 @@ void main() {
       'SvgPictureFile': ['file', 'colorMapper', 'errorBuilder', 'imageBuilder'],
       'SvgPicture': ['bytesLoader', 'errorBuilder', 'imageBuilder'],
     };
+    // Each constructor's required argument, beside the one under test.
+    const required = {
+      'SvgPictureAsset': 'assetName: "a.svg", ',
+      'SvgPictureNetwork': 'url: "https://example.com/a.svg", ',
+      'SvgPictureString': 'string: "<svg/>", ',
+      'SvgPictureMemory': 'bytes: data.context.bytes, ',
+      'SvgPictureFile': 'file: data.context.file, ',
+      'SvgPicture': 'bytesLoader: data.context.loader, ',
+    };
+    String others(String widget, String field) =>
+        required[widget]!.startsWith('$field:') ? '' : required[widget]!;
     List<Issue> validate(String body) => validateModelAgainstCatalog(
       parseLibraryFile(
         'import restage.svg; import restage.core; widget Root = $body;',
@@ -62,18 +73,24 @@ void main() {
     );
     for (final consumer in consumers.entries) {
       for (final field in consumer.value) {
+        final given = others(consumer.key, field);
         expect(
-          validate('${consumer.key}($field: data.context.native)'),
+          validate('${consumer.key}($given$field: data.context.native)'),
           isEmpty,
         );
-        expect(validate('${consumer.key}($field: null)'), isEmpty);
+        // A required argument passed as null is missing.
+        if (given.isNotEmpty) {
+          expect(validate('${consumer.key}($given$field: null)'), isEmpty);
+        }
         for (final opaque in [
           'SizedBox()',
           '(frame) => SizedBox()',
           'event "unused" {}',
         ]) {
           for (final value in [opaque, 'switch true { true: $opaque }']) {
-            final issues = validate('${consumer.key}($field: $value)');
+            final issues = validate(
+              '${consumer.key}(${others(consumer.key, field)}$field: $value)',
+            );
             expect(
               issues.map((issue) => issue.code),
               contains(IssueCode.propertyValueTypeMismatch),

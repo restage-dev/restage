@@ -18,12 +18,14 @@ import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
+import 'package:restage_codegen/src/frozen_occurrence_rebinding.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
 import 'package:restage_codegen/src/dsl_parse_diagnostic.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/hoisting.dart';
+import 'package:restage_codegen/src/islands/islands.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
@@ -31,8 +33,10 @@ import 'package:restage_codegen/src/onboarding/onboarding_helpers.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/screen_source_admission.dart';
 import 'package:restage_codegen/src/source_state.dart';
+import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
 import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
+import 'package:restage_codegen/src/surface_publication/split_widgets.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_compiler_core/restage_compiler_core.dart';
@@ -96,7 +100,11 @@ final class CompiledResolvedScreen {
     this.vocabulary = SurfaceVocabularyReferences.empty,
     Map<String, Object> localSeeds = const {},
     Iterable<HoistedValue> hoisted = const [],
+    this.islands = const [],
+    this.split,
+    Iterable<SplitWidgetInput> splitWidgets = const [],
   }) : blob = Uint8List.fromList(blob),
+       splitWidgets = List.unmodifiable(splitWidgets),
        hoisted = List.unmodifiable(hoisted),
        capabilitySidecar = Uint8List.fromList(capabilitySidecar),
        analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations),
@@ -123,6 +131,16 @@ final class CompiledResolvedScreen {
 
   /// Values the screen's mount computes, ordered by key.
   final List<HoistedValue> hoisted;
+
+  /// Widget expressions the screen's mount renders from the app.
+  final List<Island> islands;
+
+  /// How the screen's mount takes over its shell and `State`.
+  final MountSplit? split;
+
+  /// The custom widgets its library splits: each one's delivered definition
+  /// and the build its generated wrapper records.
+  final List<SplitWidgetInput> splitWidgets;
 }
 
 @immutable
@@ -209,6 +227,7 @@ Future<ResolvedScreenInspectionResult> inspectCanonicalScreenDeclarations(
       astNodeFor: resolvedAstNodeFor,
       issues: issues,
       location: location,
+      liftState: surface != null,
     );
     if (build == null) continue;
     screens.add(
@@ -281,13 +300,35 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
     astNodeFor: (fragment) =>
         resolvedNodeInLongForm(buildStep.resolver, fragment),
   );
+  // Each custom widget that doesn't fully inline, split as its own root, as
+  // each screen's library sees it.
+  final splitsByLibrary =
+      Map<LibraryElement, Future<List<SplitWidgetInput>>>.identity();
+  Future<List<SplitWidgetInput>> splitsOf(LibraryElement library) =>
+      splitsByLibrary[library] ??= splitWidgetsOf(
+        noticeKeys: noticeKeys,
+        custom: () => packageReconstruction(buildStep),
+        classification: classification,
+        catalog: catalog,
+        surfaceLibrary: library,
+        astNodeFor: (fragment) =>
+            resolvedNodeInLongForm(buildStep.resolver, fragment),
+        translator: ExpressionTranslator(
+          catalog: catalog,
+          helpers: helpers,
+          customWidgetClassifications: classification.classifications,
+          customWidgetBlueprints: classification.blueprints,
+        ),
+      );
   ExpressionTranslator translatorFor(
     MeasurementRouteEmissionPlan? measurementRoutePlan,
+    List<SplitWidgetInput> splits,
   ) => ExpressionTranslator(
     catalog: catalog,
     helpers: helpers,
     customWidgetClassifications: classification.classifications,
     customWidgetBlueprints: classification.blueprints,
+    splitWidgetDefinitions: splitWidgetDefinitionsOf(splits),
     measurementRouteEmissionPlan: measurementRoutePlan,
   );
   final compiled = <CompiledResolvedScreen>[];
@@ -297,21 +338,37 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
         resolved is ResolvedLibraryResult && resolved.units.isNotEmpty
         ? resolved.units.first.lineInfo
         : null;
-    final translation =
+    final splits = await splitsOf(source.declaration.library);
+    TranslationResult translate(SourceBuildBlueprint build) =>
         translatorFor(
           measurementRoutePlans[source.declarationIdentity],
+          splits,
         ).translate(
-          source.build.rootExpression,
+          build.rootExpression,
           sourcePath: source.assetId.path,
           lineInfo: lineInfo,
-          rootState: source.build.state,
-          rootParams: source.build.rootParams,
-          rootEventHandlers: source.build.eventHandlers,
-          rootInlined: source.build.inlined,
-          buildContextParameter: source.build.buildContextParameter,
-          hoistInMount: source.surface != null,
-          rootBuildArguments: source.build.buildArguments,
+          rootState: build.state,
+          rootParams: build.rootParams,
+          rootEventHandlers: build.eventHandlers,
+          rootInlined: build.inlined,
+          buildContextParameter: build.buildContextParameter,
+          hoistInMount: true,
+          liftedState: build.liftedState,
+          contentFree: build.contentFree,
+          rootBuildArguments: build.buildArguments,
+          surfaceId: source.id,
         );
+    var translation = translate(source.build);
+    // An island that needs a lowerable State's members moves the State into
+    // the mount.
+    if (source.build.liftable case final lifted?
+        when (translation.issues.any((issue) => !issue.code.isBuildNotice) ||
+                translation.split?.recordProblem != null) &&
+            translation.blocked.any(
+              (element) => isInstanceMemberOf(lifted.liftedState!, element),
+            )) {
+      translation = translate(lifted);
+    }
     if (_collectTranslationIssues(
       issues,
       translation.issues,
@@ -367,9 +424,17 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
               renderEntryNames: const [onboardingScreenRootWidgetName],
             ),
           );
-      final occurrenceRebinding = frozenOccurrenceSet?.rebindFinalLibrary(
+      final rebound = rebindFrozenOccurrences(
+        frozenOccurrenceSet,
         parsedLibrary,
+        name: source.declaration.name ?? '<unnamed>',
+        location:
+            '${source.assetId.path}#'
+            '${source.declaration.name ?? '<unnamed>'}',
+        issues: issues,
       );
+      if (rebound == null) continue;
+      final occurrenceRebinding = rebound.rebinding;
       final lowering = lowerAnalyticsIds(
         text: text,
         library: parsedLibrary,
@@ -385,19 +450,24 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       issues.addAll(lowering.issues);
       if (lowering.issues.isNotEmpty) continue;
       final library = lowering.library;
+      final screenCatalog = withSplits(catalog, translation.islands, splits);
       final validationIssues = validateModelAgainstCatalog(
         library,
-        catalog,
+        screenCatalog,
         rootLabels: {
           onboardingScreenRootWidgetName: source.declaration.name ?? source.id,
         },
         operations: translation.valueOperations,
+        hostDataContract: hostDataContractOf(
+          const [],
+          hoisted: translation.hoisted,
+        ),
       );
       issues.addAll(validationIssues);
       if (validationIssues.isNotEmpty) continue;
       final derivation = deriveCapabilityManifest(
         library,
-        catalog,
+        screenCatalog,
         hoisted: translation.hoisted,
       );
       issues.addAll(derivation.issues);
@@ -428,6 +498,9 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
           analyticsIdDeclarations: lowering.declarations,
           localSeeds: translation.localSeeds,
           hoisted: translation.hoisted,
+          islands: translation.islands,
+          split: translation.split,
+          splitWidgets: splits,
         ),
       );
     } on fmt.ParserException catch (error) {

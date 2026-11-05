@@ -13,7 +13,7 @@ import 'helpers.dart';
 
 void main() {
   test(
-    'resolved app TransformTranslate cannot bind the native catalog entry',
+    'an app TransformTranslate is inlined beside the native catalog entry',
     () async {
       const source = '''
 import 'package:flutter/widgets.dart';
@@ -34,7 +34,12 @@ class TransformTranslate extends StatelessWidget {
 class IdentitySurface extends StatelessWidget {
   const IdentitySurface();
   @override
-  Widget build(BuildContext context) => TransformTranslate(offset: const Offset(1, 2));
+  Widget build(BuildContext context) => Column(
+    children: [
+      TransformTranslate(offset: const Offset(1, 2)),
+      Transform.translate(offset: const Offset(3, 4), child: const SizedBox()),
+    ],
+  );
 }
 ''';
       final readerWriter = await readerWriterWithFilesystemSources(
@@ -50,16 +55,31 @@ class IdentitySurface extends StatelessWidget {
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         onLog: (record) => messages.add(record.message),
-        outputs: const {},
+        flattenOutput: true,
       );
-      expect(result.succeeded, isFalse);
-      expect(
-        messages.join('\n'),
-        allOf(
-          contains('[unknownWidget]'),
-          contains("Widget 'TransformTranslate' is not a known catalog widget"),
+      expect(result.succeeded, isTrue, reason: messages.join('\n'));
+      final library = fmt.parseLibraryFile(
+        result.readerWriter.testing.readString(
+          AssetId('apps_examples', 'assets/paywalls/foreign_identity.rfwtxt'),
         ),
       );
+      final local = {
+        for (final widget in library.widgets) widget.name: widget.root,
+      };
+      // The app class gets a definition of its own, so the catalog name
+      // still resolves to the native entry.
+      expect(local.keys, isNot(contains('TransformTranslate')));
+      final appName = local.keys.singleWhere(
+        (name) => name.startsWith('TransformTranslate_'),
+      );
+      final app = local[appName]! as fmt.ConstructorCall;
+      expect((app.name, app.arguments['text']), ('Text', 'App widget'));
+      final column = local['Paywall']! as fmt.ConstructorCall;
+      final children = [
+        for (final child in column.arguments['children']! as List<Object?>)
+          (child! as fmt.ConstructorCall).name,
+      ];
+      expect(children, [appName, 'TransformTranslate']);
     },
   );
 

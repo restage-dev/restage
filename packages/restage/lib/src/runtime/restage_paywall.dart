@@ -31,6 +31,7 @@ import '../flow/flow_resolver.dart';
 import '../flow/restage_flow_view.dart';
 import '../measurement/measurement_event_sanitizer.dart';
 import 'local_values.dart';
+import 'offstage_candidates.dart';
 import '../measurement/measurement_host_session.dart';
 import '../measurement/restage_measurement.dart' show attachPurchaseExposure;
 import '../measurement/placement_mount_attribution.dart';
@@ -55,12 +56,15 @@ import '../resolver/asset_variant_resolver.dart';
 import '../resolver/placement_mount_resolver.dart';
 import 'placement_presentation.dart';
 import 'source_badge.dart';
+import 'user_interaction.dart';
 import 'error_boundary.dart';
 import 'event_demux.dart';
 import 'first_paint_lease_guard.dart';
 import 'library_runtime_registry.dart';
 import 'restage_widget_libraries.dart';
 import 'context_data.dart';
+import 'generated_surface_need.dart';
+import 'island_scope.dart';
 import 'restage.dart';
 import 'paywall_controller.dart';
 import 'paywall_error.dart';
@@ -146,9 +150,10 @@ class RestagePaywall extends StatefulWidget implements RestagePlacementMount {
     required Map<String, Object?> defaultSurfaceLocatorJson,
     required Map<String, Object?> hostContractJson,
     SurfaceVocabulary vocabulary = SurfaceVocabulary.none,
+    String? surfaceWidget,
   }) =>
       GeneratedPlacementDefinition.generated(
-        defaultSurface: PaywallRef(id),
+        defaultSurface: PaywallRef(id, surfaceWidget: surfaceWidget),
         defaultSurfaceLocatorJson: defaultSurfaceLocatorJson,
         hostContractJson: hostContractJson,
         vocabulary: vocabulary,
@@ -228,6 +233,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   _BlobStage? _blobPresentation;
   _BlobStage? _pendingBlobStage;
+
+  final _offstage = OffstageCandidates();
   SurfaceDeliveryObservationCell? _observationCell;
   int _loadEpoch = 0;
   RestagePaywallError? _error;
@@ -266,10 +273,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// unregistered at dispose. Null until [initState] registers it.
   SurfaceRefreshHandle? _refreshHandle;
 
-  /// True once any authored event has been dispatched from the rendered
-  /// content (a tap or input). Deliberately broad: any interaction
-  /// makes the surface dirty for the rest of this mount so a live swap never
-  /// pulls the rug from under a user who has started engaging.
+  /// True once the user touched, scrolled or sent any authored event from what
+  /// this mount shows. Deliberately broad: any interaction makes the surface
+  /// dirty for the rest of this mount so a live swap never pulls the rug from
+  /// under a user who has started engaging.
   bool _userInteracted = false;
 
   /// The anonymous-identity generation that selected the rendered hosted
@@ -302,6 +309,18 @@ class _RestagePaywallState extends State<RestagePaywall> {
   final Map<RestageFlowController<void>, MountAttributionSnapshotV1>
       _flowMountAttributions = {};
   Object? _fallbackAttributionIdentity;
+  PaywallEventHandler? _fallbackEventHandler;
+  bool Function() _fallbackIsCurrent = _notCurrent;
+  static bool _notCurrent() => false;
+
+  /// The generated mount whose own build dispatches its events explicitly;
+  /// null keeps every build below inside the event registration.
+  Object? get _eventMount {
+    if (!(widget.placementBinding?.isGenerated ?? false)) return null;
+    final scope = context.getInheritedWidgetOfExactType<RestageIslandScope>();
+    return scope != null && scope.explicitEvents ? scope.owner : null;
+  }
+
   Object? _errorPaintMarkedFor;
   MountAttributionSnapshotV1? _fallbackMountAttribution;
   RootAnalyticsPresentation? _fallbackAnalyticsPresentation;
@@ -864,6 +883,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _pendingBlobStage?.transaction.supersede();
     _flowTransaction?.supersede();
     _pendingFlowTransaction?.supersede();
+    // The next load's islands start fresh, as on a first mount.
+    _offstage.release();
     _blobPresentation = null;
     _pendingBlobStage = null;
     _flowController = null;
@@ -958,6 +979,16 @@ class _RestagePaywallState extends State<RestagePaywall> {
   VariantResolver _resolver() {
     final original = widget.resolver ?? Restage.defaultResolver;
     final binding = widget.placementBinding;
+    if (widget.resolver == null) {
+      Restage.reportUnconfiguredMount(switch (binding) {
+        final binding? when binding.isGenerated => switch (
+              binding.definition().defaultSurface) {
+            PaywallRef(surfaceWidget: final name?) => name,
+            _ => widget.id,
+          },
+        _ => widget.id,
+      });
+    }
     final declaration = _placementDiscovery.capture(binding, widget, context);
     final registry = Restage.placementRegistry;
     if (widget.resolver == null &&
@@ -981,6 +1012,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
           registry: registry,
           declaration: declaration!,
           id: widget.id,
+          explicit: binding.isExplicit,
           originalResolver: const AssetVariantResolver())
         ..onFallbackChanged = () {
           if (_refreshHandle case final handle?) {
@@ -1293,6 +1325,25 @@ class _RestagePaywallState extends State<RestagePaywall> {
         payload.abandonHostedLastGood();
         return;
       }
+      // A design that needs the generated widget renders only through it.
+      if (!(widget.placementBinding?.isGenerated ?? false) &&
+          needsGeneratedSurface(
+            library,
+            variant.bytes,
+            root: _paywallRootWidget,
+            provided: {...?widget._context?.keys},
+            islandsHosted:
+                context.getInheritedWidgetOfExactType<RestageIslandScope>() !=
+                    null,
+          )) {
+        payload.abandonHostedLastGood();
+        final message = generatedSurfaceRequiredMessage(widget.id);
+        debugLogGeneratedSurfaceRequired(widget.id, message);
+        throw RestagePaywallError(
+          code: RestageErrorCodes.renderError,
+          message: message,
+        );
+      }
       if (isRefresh) {
         // Identical served content re-renders nothing.
         if (_isUnchangedBlob(variant)) {
@@ -1506,7 +1557,17 @@ class _RestagePaywallState extends State<RestagePaywall> {
           _scheduleDiscardPendingFlow(pending);
           return;
         }
+        _offstage.route(pending, pending.currentLibrary,
+            step: pending.currentStepMount != null);
         setState(() => _pendingFlowIsStaged = true);
+        _offstage.showAfterLayout(
+          pending,
+          mayReplace: () =>
+              _canSwap() &&
+              _canCommitPendingFlow(pending, payload, epoch, transaction),
+          setState: setState,
+          reject: () => _scheduleDiscardPendingFlow(pending),
+        );
       }
       if (!pending.hasRenderedContent ||
           !transaction.isCommitted ||
@@ -2629,7 +2690,20 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _disposeBlobStageAfterDetach(superseded);
     }
     _pendingBlobStage = stage;
-    setState(() => _error = null);
+    _offstage.route(stage, library);
+    // A fallback stays shown beside the staged design until the design is
+    // shown, so the app widgets in both keep their State.
+    setState(() {});
+    _offstage.showAfterLayout(
+      stage,
+      mayReplace: () => _canCommitBlobStage(stage),
+      setState: setState,
+      reject: () {
+        if (!identical(_pendingBlobStage, stage)) return;
+        stage.transaction.supersede();
+        _rejectBlobStage(stage);
+      },
+    );
     return true;
   }
 
@@ -2745,7 +2819,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final shouldRetry = stage.epoch == _loadEpoch &&
         (stage.analyticsPresentation.isInvalidatedByIdentityReset ||
             !(stage.payload.assignmentLease?.isCurrent ?? true));
-    setState(() => _pendingBlobStage = null);
+    setState(() {
+      _pendingBlobStage = null;
+      _offstage.release();
+    });
     _disposeBlobStageAfterDetach(stage);
     if (shouldRetry) {
       _retryLoadAfterRejectedLease(
@@ -2789,7 +2866,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _blobPresentation != null ||
         (_flowTransaction?.isCommitted ?? false);
     if (preserveLastGood) {
-      setState(() => _pendingBlobStage = null);
+      setState(() {
+        _pendingBlobStage = null;
+        _offstage.release();
+      });
       _disposeBlobStageAfterDetach(stage);
       return;
     }
@@ -2971,9 +3051,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      withSourceBadge(_sourceBadgeLabel, _buildContent(context),
-          description: () {
+  Widget build(BuildContext context) => withSourceBadge(
+          _sourceBadgeLabel,
+          UserInteractionWatch(
+            onInteraction: () => _userInteracted = true,
+            child: _buildContent(context),
+          ), description: () {
         final late = _late;
         return late == null || _badgePayload != null
             ? null
@@ -3020,6 +3103,19 @@ class _RestagePaywallState extends State<RestagePaywall> {
               builder == null
                   ? const SizedBox.shrink()
                   : _markErrorPainted(error, builder(context, error)));
+      // A staged design replaces the fallback once it is shown.
+      if (_pendingBlobStage case final stage?) {
+        return Stack(
+          fit: StackFit.passthrough,
+          children: <Widget>[
+            if (!_offstage.isShown(stage)) fallback,
+            if (stage.isRefresh)
+              Positioned.fill(child: _buildBlobLayer(stage, staged: true))
+            else
+              _buildBlobLayer(stage, staged: true),
+          ],
+        );
+      }
       // A refreshed flow stages beside the fallback until it paints.
       final staged = _pendingFlowIsStaged ? _pendingFlowController : null;
       if (staged == null || !_canBuildHostedFlow(staged)) return fallback;
@@ -3054,10 +3150,15 @@ class _RestagePaywallState extends State<RestagePaywall> {
     // Keep a stable Stack across flow staging and promotion. The controller-keyed
     // candidate moves from the second slot to the first without remounting, so
     // the successful build being committed is the exact element the user sees.
+    // A shown offstage candidate takes the shown version's islands, which
+    // Flutter moves only out of a subtree that has left the tree; the shown
+    // version comes back if the candidate's first paint fails.
+    final promoted =
+        _offstage.isShown(_pendingBlobStage) || _offstage.isShown(pending);
     return Stack(
       fit: StackFit.passthrough,
       children: <Widget>[
-        current,
+        if (!promoted) current,
         if (_pendingBlobStage case final stage?)
           if (stage.isRefresh)
             Positioned.fill(child: _buildBlobLayer(stage, staged: true))
@@ -3098,8 +3199,26 @@ class _RestagePaywallState extends State<RestagePaywall> {
       )..stage(surfaceVersion: null);
       _fallbackMountAttribution =
           captureMountAttribution(_placementDiscovery.declaration?.mount);
+      final snapshot = _fallbackMountAttribution;
+      // One handler per fallback, so a rebuild keeps the callbacks the app's
+      // widgets already captured.
+      _fallbackEventHandler = (name, args) {
+        if (!_fallbackIsCurrent()) return;
+        if (snapshot == null) {
+          _handleRfwEvent(name, args);
+        } else {
+          MountAttributionEventContext(
+                  snapshot: snapshot,
+                  isCurrent: () =>
+                      mounted &&
+                      _fallbackIsCurrent() &&
+                      identical(_fallbackMountAttribution, snapshot))
+              .run(() => _handleRfwEvent(name, args));
+        }
+      };
     }
-    final snapshot = _fallbackMountAttribution;
+    _fallbackIsCurrent = isCurrent;
+    final mount = _eventMount;
     final load = _fallbackLoad ?? _surfaceLoad;
     return RestageContextSnapshotScope(
       snapshot: _context,
@@ -3108,20 +3227,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
         content: error,
         isCurrent: isCurrent,
         child: RestagePaywallEventDispatcher(
-          onEvent: (name, args) {
-            if (!isCurrent()) return;
-            if (snapshot == null) {
-              _handleRfwEvent(name, args);
-            } else {
-              MountAttributionEventContext(
-                      snapshot: snapshot,
-                      isCurrent: () =>
-                          mounted &&
-                          isCurrent() &&
-                          identical(_fallbackMountAttribution, snapshot))
-                  .run(() => _handleRfwEvent(name, args));
-            }
-          },
+          onEvent: _fallbackEventHandler!,
+          scoped: mount == null,
+          mount: mount,
           child: RuntimeErrorBoundary(
             debugLabel: widget.id,
             onFirstPaintSuccess: () {
@@ -3203,73 +3311,88 @@ class _RestagePaywallState extends State<RestagePaywall> {
         child: child,
       );
     }
+    // A staged version builds its islands only once it is shown.
     return KeyedSubtree(
       key: ObjectKey(controller),
-      child: ExcludeSemantics(
-        excluding: staged || candidatePending,
-        child: AbsorbPointer(
-          absorbing: staged || candidatePending,
-          // A lowered navigation paywall: host the flow. A staged refresh is
-          // visibly built above last-good, but inert.
-          child: child,
-        ),
+      // A lowered navigation paywall: host the flow. A staged refresh is
+      // built beside last-good, inert.
+      child: _offstage.layer(
+        controller,
+        inert: staged || candidatePending,
+        child: child,
       ),
     );
   }
 
   Widget _buildBlobLayer(_BlobStage stage, {required bool staged}) {
     final candidatePending = !stage.transaction.isCommitted;
+    // A staged version builds its islands only once it is shown.
     return KeyedSubtree(
       key: ObjectKey(stage),
-      child: ExcludeSemantics(
-        excluding: staged || candidatePending,
-        child: AbsorbPointer(
-          absorbing: staged || candidatePending,
-          child: FirstPaintLeaseScope(
+      child: _offstage.layer(
+        stage,
+        inert: staged || candidatePending,
+        child: FirstPaintLeaseScope(
+          transaction: stage.transaction,
+          child: FirstPaintLeaseGuard(
             transaction: stage.transaction,
-            child: FirstPaintLeaseGuard(
-              transaction: stage.transaction,
-              armed: true,
-              child: RestagePagerEventScope(
-                sink: _pagerSinkForBlobStage(stage),
-                child: RestagePaywallEventTargetScope(
-                  owner: this,
-                  content: stage,
-                  isCurrent: () => _isBlobEventStageCurrent(stage),
-                  child: RestagePaywallEventDispatcher(
-                    onEvent: stage.eventHandler,
-                    child: RuntimeErrorBoundary(
-                      debugLabel: widget.id,
-                      onError: (error, _) {
-                        markSurfaceDeliveryRenderFailed(stage.payload.variant);
-                        _handleBlobBuildFailure(stage, error);
-                      },
-                      errorReplacement: (context, _, __) {
-                        if (!stage.transaction.isCommitted) {
-                          return const SizedBox.shrink();
-                        }
-                        const error = RestagePaywallError(
-                          code: RestageErrorCodes.renderError,
-                          message:
-                              'A widget in the paywall threw during build.',
-                        );
-                        final eb = widget.errorBuilder;
-                        // Content that failed after it committed paints this.
-                        return _failSurfaceLoadOnPaint(
-                            error,
-                            eb == null
-                                ? const SizedBox.shrink()
-                                : eb(context, error),
-                            load: stage.load);
-                      },
-                      child: stage.measurementSession.wrapRootSubtree(
-                        // Keep paint authority at the RFW boundary so a build
-                        // failure rejects the candidate.
-                        FirstPaintLeaseScope(
-                          transaction: stage.transaction,
-                          child: SurfaceDeliveryPaintBoundary(
-                            resolved: stage.payload.variant,
-                            child: _completeOnPaint(stage),
+            armed: true,
+            child: RestagePagerEventScope(
+              sink: _pagerSinkForBlobStage(stage),
+              child: RestagePaywallEventTargetScope(
+                owner: this,
+                content: stage,
+                isCurrent: () => _isBlobEventStageCurrent(stage),
+                child: RestagePaywallEventDispatcher(
+                  onEvent: stage.eventHandler,
+                  scoped: _eventMount == null,
+                  mount: _eventMount,
+                  child: RuntimeErrorBoundary(
+                    debugLabel: widget.id,
+                    onError: (error, _) {
+                      markSurfaceDeliveryRenderFailed(stage.payload.variant);
+                      _handleBlobBuildFailure(stage, error);
+                    },
+                    errorReplacement: (context, _, __) {
+                      if (!stage.transaction.isCommitted) {
+                        return const SizedBox.shrink();
+                      }
+                      const error = RestagePaywallError(
+                        code: RestageErrorCodes.renderError,
+                        message: 'A widget in the paywall threw during build.',
+                      );
+                      final eb = widget.errorBuilder;
+                      // Content that failed after it committed paints this.
+                      return _failSurfaceLoadOnPaint(
+                          error,
+                          eb == null
+                              ? const SizedBox.shrink()
+                              : eb(context, error),
+                          load: stage.load);
+                    },
+                    child: stage.measurementSession.wrapRootSubtree(
+                      // Keep paint authority at the RFW boundary so a build
+                      // failure rejects the candidate.
+                      FirstPaintLeaseScope(
+                        transaction: stage.transaction,
+                        child: SurfaceDeliveryPaintBoundary(
+                          resolved: stage.payload.variant,
+                          child: _completeOnPaint(
+                            stage,
+                            DeliveredIconFontLoader.scope(
+                              stage.sections.iconFonts,
+                              // The same widget each build, so a rebuild above
+                              // stops here; data and scopes reach what reads them.
+                              child: stage.remoteWidget ??= RemoteWidget(
+                                runtime: stage.runtime,
+                                data: stage.data,
+                                widget: placementWidgetNameFor(
+                                    stage.payload.variant,
+                                    const FullyQualifiedWidgetName(
+                                        _paywallLibrary, _paywallRootWidget)),
+                                onEvent: stage.eventHandler,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -3284,24 +3407,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
     );
   }
 
-  Widget _completeOnPaint(_BlobStage stage) {
+  // Completes [stage]'s load when [child], its delivered content, paints.
+  Widget _completeOnPaint(_BlobStage stage, Widget child) {
     final load = stage.load;
     return SurfaceLoadPaint(
       load: load,
       onPainted: () => _completeSurfaceLoad(
           load, stage.analyticsPresentation, stage.payload),
-      child: DeliveredIconFontLoader.scope(
-        stage.sections.iconFonts,
-        child: RemoteWidget(
-          runtime: stage.runtime,
-          data: stage.data,
-          widget: placementWidgetNameFor(
-              stage.payload.variant,
-              const FullyQualifiedWidgetName(
-                  _paywallLibrary, _paywallRootWidget)),
-          onEvent: stage.eventHandler,
-        ),
-      ),
+      child: child,
     );
   }
 }
@@ -3392,6 +3505,7 @@ final class _BlobStage {
   final MeasurementHostSessionController measurementSession;
   final MountAttributionSnapshotV1? mountAttribution;
   late final PaywallEventHandler eventHandler;
+  RemoteWidget? remoteWidget;
 
   _BlobStage? previousBlob;
   RestageFlowController<void>? previousFlow;

@@ -317,7 +317,7 @@ final class _CaptureValues {
       case 'private':
         throw SurfaceCaptureSourceException(
           '${at == name ? 'its widget' : 'its host data type'} `$name` is '
-          'private to its library',
+          'private to its library. Try making `$name` public to draw the image',
         );
       default:
         throw SurfaceCaptureSourceException(

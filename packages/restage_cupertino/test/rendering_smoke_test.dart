@@ -57,8 +57,10 @@ const LibraryName _rootLibrary = LibraryName(<String>['restage', 'paywall']);
 /// SingleChildScrollView.
 const Map<String, String> _rootOnlyPaywallBodies = <String, String>{
   'CupertinoPageScaffold': 'CupertinoPageScaffold(child: Text(text: "smoke"))',
-  'CupertinoDatePicker': 'CupertinoDatePicker()',
-  'CupertinoTimerPicker': 'CupertinoTimerPicker()',
+  'CupertinoDatePicker':
+      'CupertinoDatePicker(onDateTimeChanged: event "changed" {})',
+  'CupertinoTimerPicker':
+      'CupertinoTimerPicker(onTimerDurationChanged: event "changed" {})',
   'CupertinoPicker':
       'CupertinoPicker(itemExtent: 32.0, children: [Text(text: "smoke")])',
 };

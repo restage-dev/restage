@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:build/build.dart';
+import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
@@ -10,8 +11,9 @@ import 'helpers.dart';
 import 'support/intl_format_authoring.dart';
 
 void main() {
+  // The app evaluates a lookup where its build does; the payload never does.
   test(
-    'wrapped lookup effects cannot enter any eager host value shape',
+    'wrapped lookup effects are evaluated in the app',
     () async {
       for (final modifier in ['const', 'final']) {
         for (final metadata in ['', ", desc: throw StateError('metadata')"]) {
@@ -31,12 +33,7 @@ EdgeInsets wrapInsets(String name) => EdgeInsets.all(name.length.toDouble());
 List<String> wrapList(String name) => [name];
 ''',
             );
-            expect(
-              result.issues.where((issue) => !issue.code.isBuildNotice),
-              isNotEmpty,
-              reason: '$modifier $body',
-            );
-            expect(result.hoisted, isEmpty, reason: '$modifier $body');
+            _expectEvaluatedInApp(result, lookup, '$modifier $body');
           }
         }
       }
@@ -77,7 +74,7 @@ EdgeInsets wrapInsets(int count) => EdgeInsets.all(count.toDouble());
   );
 
   test(
-    'publication refuses wrapped lookup errors and preserves non-scalar capabilities',
+    'publication records wrapped lookups and preserves non-scalar capabilities',
     () async {
       for (final (declaration, fields, body, accepted) in [
         for (final modifier in ['const', 'final'])
@@ -85,7 +82,7 @@ EdgeInsets wrapInsets(int count) => EdgeInsets.all(count.toDouble());
             "$modifier lookup = i.Intl.message;",
             '',
             "f.Text('label', style: wrap(lookup('fallback', name: 'fixed', desc: throw StateError('metadata'))))",
-            false,
+            true,
           ),
         ('', '', "f.Text('label', style: wrap('native'))", true),
         (
@@ -138,10 +135,21 @@ class Probe extends f.StatelessWidget {
             bundle
                 .ownedOutputs['lib/restage.generated/callable_hoist.restage.g.dart']!,
           );
-          expect(generated, contains('restageHostValues('));
+          expect(generated, contains('_restageRecording.value('));
+          // The generated build is formatted, so compare without whitespace
+          // and trailing commas.
           expect(
-            generated,
-            contains(fields.isEmpty ? "wrap('native')" : 'wrap(lookup())'),
+            generated
+                .replaceAll(RegExp(r'\s'), '')
+                .replaceAll(RegExp(r',(?=\))'), ''),
+            contains(
+              (declaration.isNotEmpty
+                      ? "wrap(lookup('fallback', name: 'fixed', desc: throw StateError('metadata')))"
+                      : fields.isEmpty
+                      ? "wrap('native')"
+                      : 'wrap(_restageArgument1())')
+                  .replaceAll(' ', ''),
+            ),
           );
         } else {
           expect(bundle.errors, isNotEmpty);
@@ -192,13 +200,16 @@ class Probe extends f.StatelessWidget {
         bundle
             .ownedOutputs['lib/restage.generated/callable_hoist.restage.g.dart']!,
       );
-      expect(generated, contains('restageHostValues('));
-      expect(generated, contains('lookup()'));
+      expect(
+        generated,
+        contains("_restageRecording.value('_h"),
+      );
+      expect(generated, contains('_restageArgument1()'));
     },
   );
 
   test(
-    'root callable aliases cannot use scalar hoists for native lookup effects',
+    'root callable aliases are evaluated in the app',
     () async {
       for (final declaration in [
         'const lookup = i.Intl.message;',
@@ -207,23 +218,19 @@ class Probe extends f.StatelessWidget {
         'class Alias { static final lookup = i.Intl.message; } final lookup = Alias.lookup;',
       ]) {
         for (final metadata in ['', ", desc: throw StateError('metadata')"]) {
+          final lookup = "lookup('fallback', name: 'fixed'$metadata)";
           final result = await translateFormatting(
-            "Text(lookup('fallback', name: 'fixed'$metadata))",
+            'Text($lookup)',
             extraSource: declaration,
           );
-          expect(
-            result.issues.where((issue) => !issue.code.isBuildNotice),
-            isNotEmpty,
-            reason: '$declaration $metadata',
-          );
-          expect(result.hoisted, isEmpty);
+          _expectEvaluatedInApp(result, lookup, '$declaration $metadata');
         }
       }
     },
   );
 
   test(
-    'staged constant lookup aliases install exact metadata and final aliases refuse',
+    'staged constant lookup aliases install exact metadata',
     () async {
       for (final modifier in ['const', 'final']) {
         final result = await translateFormatting(
@@ -233,21 +240,23 @@ class Probe extends f.StatelessWidget {
           extraSource:
               '$modifier lookup = i.Intl.message; String fail() => throw StateError("metadata");',
         );
+        expect(
+          result.issues.where((issue) => !issue.code.isBuildNotice),
+          isEmpty,
+        );
+        expect(result.dsl, isNot(contains('fallback')));
         if (modifier == 'const') {
-          expect(
-            result.issues.where((issue) => !issue.code.isBuildNotice),
-            isEmpty,
-          );
           final adapter = result.hoisted.single.nativeCall!;
           expect(adapter.source, contains('lookup('));
           expect(adapter.source, contains('desc: fail()'));
           expect(adapter.source, contains('name: "fixed"'));
         } else {
-          expect(
-            result.issues.where((issue) => !issue.code.isBuildNotice),
-            isNotEmpty,
-          );
+          // A non-constant alias renders the builder from the app.
           expect(result.hoisted, isEmpty);
+          expect(result.islands.map((island) => island.widget), [
+            'LayoutBuilder',
+          ]);
+          expect(result.islands.single.node.toSource(), contains('lookup('));
         }
       }
     },
@@ -272,7 +281,7 @@ class Probe extends f.StatelessWidget {
   );
 
   test(
-    'production publication refuses root aliases and stages constant aliases',
+    'production publication records root aliases and stages constant aliases',
     () async {
       for (final (modifier, staged) in [
         ('const', false),
@@ -319,26 +328,49 @@ class Probe extends f.StatelessWidget {
             ),
           ),
         );
-        final accepted = modifier == 'const' && staged;
-        expect(result.succeeded, accepted, reason: result.errors.join('\n'));
-        expect(bundle.valid, accepted, reason: bundle.errors.join('\n'));
-        if (accepted) {
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+        {
           final generated = utf8.decode(
             bundle
                 .ownedOutputs['lib/restage.generated/callable_hoist.restage.g.dart']!,
           );
-          expect(generated, contains('NativeCallAdapter('));
+          if (modifier == 'const' && staged) {
+            expect(generated, contains('NativeCallAdapter('));
+          }
           expect(generated, contains('throw StateError'));
-          expect(generated, isNot(contains('restageHostValues(')));
           expect(
             bundle.artifacts.keys,
             contains('assets/general/screens/callable_hoist.rfw'),
           );
-        } else {
-          expect(bundle.errors, isNotEmpty);
-          expect(bundle.ownedOutputs, isEmpty);
         }
       }
     },
+  );
+}
+
+// [lookup] runs in the app as written; the payload never computes it.
+void _expectEvaluatedInApp(
+  TranslationResult result,
+  String lookup,
+  String reason,
+) {
+  expect(
+    result.issues.where((issue) => !issue.code.isBuildNotice),
+    isEmpty,
+    reason: reason,
+  );
+  expect(result.dsl, isNot(contains('fallback')), reason: reason);
+  // The app runs the lookup: as a mount value, inside an island, or in a
+  // wrapper the mount keeps.
+  expect(
+    [
+      for (final value in result.hoisted) value.mountSource((name) => name),
+      for (final island in result.islands) island.node.toSource(),
+      for (final kept in result.split?.kept ?? const <Never>[])
+        kept.node.toSource(),
+    ].where((source) => source.contains(lookup)),
+    isNotEmpty,
+    reason: reason,
   );
 }

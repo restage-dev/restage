@@ -2958,7 +2958,38 @@ void main() {
     });
   });
 
-  testWidgets('a screen keeps its fallback after the user touches it',
+  testWidgets('a screen keeps its fallback after the user drags it',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final channel = _PlacementPushChannel();
+    var hosted = false;
+    _configure(requests,
+        liveRefresh: {SurfaceRefreshTrigger.updateChannel},
+        updateChannel: channel,
+        respond: (request) => hosted
+            ? placementFixtureResponse(request,
+                requirement: screenRequirement(),
+                family:
+                    DeliveryFamilySelectorV1.screenContract(contractVersion: 1))
+            : _watchedFallback(request));
+    try {
+      await tester.pumpWidget(const MaterialApp(
+          home: native.NativeNoticeSurface.atPlacement(
+              'notice_slot', 'Notice original', 3)));
+      await _finish(tester);
+      await tester.drag(find.text('Notice original'), const Offset(0, 80));
+      final scope = channel.controllers.keys.single;
+      hosted = true;
+      channel.controllers[scope]!.add(scope);
+      await _finish(tester);
+      expect(find.text('Notice original'), findsOneWidget);
+      expect(find.text('Welcome'), findsNothing);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  testWidgets('a plain tap does not hold a screen on its fallback',
       (tester) async {
     final requests = <PlacementBatchRequestV1>[];
     final channel = _PlacementPushChannel();
@@ -2982,8 +3013,8 @@ void main() {
       hosted = true;
       channel.controllers[scope]!.add(scope);
       await _finish(tester);
-      expect(find.text('Notice original'), findsOneWidget);
-      expect(find.text('Welcome'), findsNothing);
+      expect(find.text('Notice original'), findsNothing);
+      expect(find.text('Welcome'), findsOneWidget);
     } finally {
       await tester.pumpWidget(const SizedBox());
     }
@@ -3021,6 +3052,84 @@ void main() {
     } finally {
       await tester.pumpWidget(const SizedBox());
     }
+  });
+
+  testWidgets(
+      'after an app update a published design reading a value where the new '
+      'build no longer computes it shows the original', (tester) async {
+    final base = (readPlacementDeliveryFixture().response.decisions.first
+            as PlacementBatchAvailableV1)
+        .publicDelivery
+        .fitRequirement;
+    // The design reads `_hT` in the arm of return 1.
+    final requirement = SurfaceFitRequirementV1.fromJson({
+      ...base.toJson(),
+      'layoutReads': SurfaceLayoutReadsV1(values: {
+        '_hT': [
+          {
+            '_hB': SurfaceLayoutArmV1.oneOf({1})
+          },
+        ],
+      }).toJson(),
+    });
+    final fixtureHost = readPlacementDeliveryFixture()
+        .request
+        .buildContract
+        .contractsByHash
+        .values
+        .first;
+    // The build computes `_hT` in the return [index] takes.
+    SurfaceHostContractV1 build(int index) => SurfaceHostContractV1.fromJson({
+          ...fixtureHost.toJson(),
+          'layouts': SurfaceLayoutsV1(domains: {
+            '_hB': {0, 1},
+          }, values: {
+            '_hT': {
+              '_hB': {index},
+            },
+          }).toJson(),
+        });
+    final lines = <String>[];
+    final print = debugPrint;
+    debugPrint = (message, {wrapWidth}) => lines.add(message ?? '');
+    Future<String> mount(SurfaceHostContractV1 host) async {
+      final definition = _paywallDefinition('original', host);
+      await tester.pumpWidget(MaterialApp(
+          home: RestagePaywall(
+        id: 'original',
+        placementBinding: PlacementMountBinding(
+            definition: () => definition, name: 'home_card'),
+        fallbackBuilder: (_) => const Text('Original'),
+      )));
+      await _finish(tester);
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      final shown = find.text('Welcome').evaluate().isNotEmpty
+          ? 'Welcome'
+          : find.text('Original').evaluate().isNotEmpty
+              ? 'Original'
+              : 'nothing';
+      await tester.pumpWidget(const SizedBox());
+      return shown;
+    }
+
+    final requests = <PlacementBatchRequestV1>[];
+    _configure(requests,
+        respond: (request) =>
+            placementFixtureResponse(request, requirement: requirement));
+    expect(await mount(build(1)), 'Welcome');
+    // The updated app computes `_hT` only in return 0. Its new host contract
+    // keys a new stored decision, so the design is fetched and checked again.
+    resetPlacementFallbackLog();
+    _configure(requests,
+        respond: (request) =>
+            placementFixtureResponse(request, requirement: requirement));
+    final updated = await mount(build(0));
+    debugPrint = print;
+    expect(updated, 'Original');
+    expect(lines.where((line) => line.contains('unproducedHostField:_hT')),
+        isNotEmpty,
+        reason: lines.join('\n'));
   });
 
   testWidgets('a decision this build cannot render names what it lacks',

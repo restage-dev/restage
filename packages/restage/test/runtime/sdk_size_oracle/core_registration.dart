@@ -8,6 +8,7 @@
 
 import 'package:flutter/widgets.dart';
 import 'package:restage_core/restage_core.dart';
+import 'theme_binding_resolver.dart';
 import 'dart:ui' show ImageFilter;
 import 'package:rfw/rfw.dart' hide Switch;
 

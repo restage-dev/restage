@@ -1,6 +1,6 @@
 part of '../plan_board_showcase.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const planBoardShowcaseScreenRef = NeutralFlowScreenRef(
   id: 'plan_board_showcase',

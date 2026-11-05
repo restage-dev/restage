@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage_cli/api.dart' show decodeByteDataWire;
+import 'package:restage_cli/src/api/component_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_publication_api.dart';
 import 'package:restage_cli/src/commands/publication_upload.dart';
@@ -34,20 +35,19 @@ void main() {
     expect(assembled.measurementUpload, isNotNull);
 
     final sent = <Map<String, dynamic>>[];
-    final api = SurfacePublicationApi(
-      RestageApi(
-        endpoint: Uri.parse('http://localhost:8080/'),
-        httpClient: MockClient((request) async {
-          sent.add(jsonDecode(request.body) as Map<String, dynamic>);
-          return http.Response('{}', 500);
-        }),
-        credential: const Credential(
-          endpoint: 'http://localhost:8080/',
-          kind: CredentialKind.authKey,
-          authToken: 'kid:secret',
-        ),
+    final restage = RestageApi(
+      endpoint: Uri.parse('http://localhost:8080/'),
+      httpClient: MockClient((request) async {
+        sent.add(jsonDecode(request.body) as Map<String, dynamic>);
+        return http.Response('{}', 500);
+      }),
+      credential: const Credential(
+        endpoint: 'http://localhost:8080/',
+        kind: CredentialKind.authKey,
+        authToken: 'kid:secret',
       ),
     );
+    final api = SurfacePublicationApi(restage);
     final state = Uint8List.fromList(utf8.encode('{"meta":{}}'));
 
     await expectLater(
@@ -58,6 +58,7 @@ void main() {
         project: 'demo',
         app: 'mobile',
         environment: 'staging',
+        components: (api: ComponentApi(restage), organizationId: 1),
         editorStateOf: (_) async => state,
       ),
       throwsA(anything),

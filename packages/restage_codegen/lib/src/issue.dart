@@ -265,6 +265,14 @@ enum IssueCode {
   /// factory because local RFW output was unavailable.
   customWidgetAppFactoryUsed,
 
+  /// A `@RestageWidget` no `@RestageLibrary` exports; it has no catalog entry
+  /// and is used like any app widget. A warning.
+  customWidgetUnexported,
+
+  /// A custom widget that could be split renders whole from the app, because
+  /// its library declares no generated part. A note.
+  customWidgetNotSplit,
+
   /// Two custom widgets would emit under the same RFW widget name, or a
   /// custom widget's name shadows a catalog widget — either makes a
   /// reference in the emitted blob ambiguous.
@@ -511,6 +519,11 @@ enum IssueCode {
   /// A user-authored declaration collides with a generated descriptor symbol.
   generatedSymbolCollision,
 
+  /// An import's `show` or `hide` list leaves out a name Restage generates
+  /// beside a widget the surface places, so the widget's State couldn't move
+  /// between the design and the app's build.
+  generatedNameHidden,
+
   /// A flow graph references a generated screen descriptor that codegen cannot
   /// read from the screen builder output.
   missingScreenDescriptor,
@@ -528,7 +541,60 @@ enum IssueCode {
 
   /// Taps in a repeated element share one count because the element has no
   /// identity to record.
-  interactionItemUnavailable;
+  interactionItemUnavailable,
+
+  /// An app widget placed at several spots through a value the build's copy
+  /// can't mark at each, so its State resets when a new design is shown.
+  islandSpotsIndistinct,
+
+  /// A widget library uses the namespace the compiler keeps for the
+  /// package's app-rendered widgets.
+  islandNamespaceTaken,
+
+  /// Two different app-rendered widgets compiled under one generated name: a
+  /// Restage bug.
+  islandNameConflict,
+
+  /// The developer asked to keep a widget as the app builds it.
+  keptByOptOut,
+
+  /// A widget the developer asked to keep as the app builds it that the
+  /// generated widget can't run.
+  optOutUnkept;
+
+  /// Whether this code reports a bug in Restage itself.
+  bool get isRestageBug => this == IssueCode.islandNameConflict;
+
+  /// Whether this code means the node runs app code the design can't
+  /// express, so the app renders it as a kept wrapper or an app-rendered
+  /// widget. Every other refusal is reported where it occurs.
+  bool get needsAppCode => switch (this) {
+    IssueCode.unrecognizedMethodCall ||
+    IssueCode.unresolvedIdentifier ||
+    IssueCode.unknownWidget ||
+    IssueCode.unknownProperty ||
+    IssueCode.propertyValueTypeMismatch ||
+    IssueCode.namedConstructorUnsupported ||
+    IssueCode.unsupportedInterpolation ||
+    IssueCode.unsupportedCollectionFlow ||
+    IssueCode.unsupportedHelperPosition ||
+    IssueCode.constObjectFieldUnresolved ||
+    IssueCode.customWidgetImperative ||
+    IssueCode.customWidgetUnclassified ||
+    IssueCode.customWidgetInliningDeferred ||
+    IssueCode.customWidgetUnsupportedReducible ||
+    IssueCode.pageViewFormUnsupported ||
+    IssueCode.shaderMaskFormUnsupported ||
+    IssueCode.modalSheetFormUnsupported ||
+    IssueCode.navigationFormUnsupported ||
+    IssueCode.draggableSheetFormUnsupported ||
+    IssueCode.singleSelectFormUnsupported ||
+    IssueCode.toggleButtonsFormUnsupported ||
+    IssueCode.segmentedButtonFormUnsupported ||
+    // A kept widget below a node makes that node render from the app.
+    IssueCode.optOutUnkept => true,
+    _ => false,
+  };
 
   /// Whether this code annotates a complete, correct translation without
   /// blocking its output.
@@ -542,7 +608,8 @@ enum IssueCode {
     IssueCode.idiomAutoSubstituted ||
     IssueCode.navigationStandaloneArtifactSkipped ||
     IssueCode.customWidgetAppFactoryUsed ||
-    IssueCode.interactionItemUnavailable => true,
+    IssueCode.interactionItemUnavailable ||
+    IssueCode.islandSpotsIndistinct => true,
     _ => false,
   };
 
@@ -567,6 +634,7 @@ enum IssueCode {
     IssueCode.denylistedWidget ||
     IssueCode.denylistedProperty ||
     IssueCode.rfwIncompatibleAnnotated ||
+    IssueCode.keptByOptOut ||
     // A structured-type walk boundary (a cycle or a depth cap) — the walker
     // stops and records, it does not fail.
     IssueCode.structuredCycle ||
@@ -589,8 +657,14 @@ enum IssueCode {
     IssueCode.idiomAutoSubstituted ||
     IssueCode.navigationStandaloneArtifactSkipped ||
     IssueCode.customWidgetAppFactoryUsed ||
-    IssueCode.interactionItemUnavailable => true,
+    IssueCode.customWidgetUnexported ||
+    IssueCode.customWidgetNotSplit ||
+    IssueCode.interactionItemUnavailable ||
+    IssueCode.islandSpotsIndistinct => true,
     // Everything below is a real codegen error the author must resolve.
+    IssueCode.islandNameConflict ||
+    IssueCode.islandNamespaceTaken ||
+    IssueCode.optOutUnkept ||
     IssueCode.annotationEvaluationFailed ||
     IssueCode.runtimeWidgetUsedAsAnnotation ||
     IssueCode.duplicateId ||
@@ -668,6 +742,7 @@ enum IssueCode {
     IssueCode.invalidScreenSourceCount ||
     IssueCode.missingPartDirective ||
     IssueCode.generatedSymbolCollision ||
+    IssueCode.generatedNameHidden ||
     IssueCode.missingScreenDescriptor ||
     IssueCode.unsupportedFlowRuntimeFeature ||
     IssueCode.generalAnalyticsSinkStateRef ||
@@ -760,26 +835,29 @@ final class Issue {
         : '${code.name}\u0000$identity';
   }
 
-  /// Formats this issue for build logs, optionally appending a pre-filled
-  /// GitHub issue link for capability-gap diagnostics.
+  /// Formats this issue for build logs, appending a pre-filled GitHub issue
+  /// link for a capability gap or a Restage bug.
   String toLogString({
     String issueRepositoryUrl = kRestageCodegenGapIssueRepositoryUrl,
     String sdkVersion = _restageSdkVersion,
   }) {
     final base = toString();
-    final link = _capabilityGapIssueUri(
+    final link = _issueUri(
       issueRepositoryUrl: issueRepositoryUrl,
       sdkVersion: sdkVersion,
     );
     if (link == null) return base;
-    return '$base\nRequest support for this Restage gap: $link';
+    return code.isRestageBug
+        ? '$base\nReport this Restage bug: $link'
+        : '$base\nRequest support for this Restage gap: $link';
   }
 
-  Uri? _capabilityGapIssueUri({
+  Uri? _issueUri({
     required String issueRepositoryUrl,
     required String sdkVersion,
   }) {
-    if (!code.isCapabilityGap) return null;
+    final bug = code.isRestageBug;
+    if (!bug && !code.isCapabilityGap) return null;
 
     final trimmed = issueRepositoryUrl.trim();
     if (trimmed.isEmpty) return null;
@@ -796,24 +874,32 @@ final class Issue {
     return repository.replace(
       path: '$path/issues/new',
       queryParameters: {
-        'title': '[restage_codegen] Capability gap: ${code.name}',
-        'body': _capabilityGapIssueBody(sdkVersion),
-        'labels': [
-          'codegen-gap',
-          'codegen-gap-${code.name}',
-          if (subjectLabel != null) subjectLabel,
-        ].join(','),
+        'title': bug
+            ? '[restage_codegen] Bug: ${code.name}'
+            : '[restage_codegen] Capability gap: ${code.name}',
+        'body': _issueBody(sdkVersion),
+        'labels':
+            (bug
+                    ? const ['codegen-bug']
+                    : [
+                        'codegen-gap',
+                        'codegen-gap-${code.name}',
+                        if (subjectLabel != null) subjectLabel,
+                      ])
+                .join(','),
       },
     );
   }
 
-  String _capabilityGapIssueBody(String sdkVersion) {
+  String _issueBody(String sdkVersion) {
     const reproductionPrompt =
         'Add any minimal reproduction details you are '
         'comfortable sharing before submitting.';
     final detail = _trimCapabilityGapDetail(message);
     final payload = <String, String>{
-      'schema': 'restage.codegen.capability_gap.v1',
+      'schema': code.isRestageBug
+          ? 'restage.codegen.bug.v1'
+          : 'restage.codegen.capability_gap.v1',
       'code': code.name,
       if (capabilityGapSubject != null) 'subject': capabilityGapSubject!,
       'sdkVersion': sdkVersion,
@@ -852,8 +938,10 @@ void logBuildNoticeOnce(
 ) {
   if (!seenKeys.add(issue.buildNoticeKey)) return;
   final message = issue.toLogString();
-  if (issue.buildNoticeIdentity?.startsWith(kEventClosureNoticePrefix) ??
-      false) {
+  // A notice that State resets is a warning the developer sees.
+  if ((issue.buildNoticeIdentity?.startsWith(kEventClosureNoticePrefix) ??
+          false) ||
+      issue.code == IssueCode.islandSpotsIndistinct) {
     logger.warning(message);
     return;
   }

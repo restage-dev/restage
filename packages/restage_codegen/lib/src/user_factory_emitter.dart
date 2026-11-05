@@ -1,3 +1,5 @@
+import 'package:restage_codegen/src/surface_publication/split_widgets.dart'
+    show SplitRegistration;
 import 'package:restage_codegen/src/custom_map_plan.dart';
 import 'package:restage_codegen/src/custom_preview_reservation.dart';
 import 'package:restage_codegen/src/custom_record_plan.dart';
@@ -57,6 +59,7 @@ String? emitUserFactoriesDart(
   bool installWholeCatalog = false,
   AppWidgetRegistrationSource? dependencyFactories,
   NativeCatalogIndex? builtInIndex,
+  List<SplitRegistration> splitRegistrations = const [],
   bool declaresSurfaces = false,
 }) {
   validateCustomPreviewReservations(widgets);
@@ -77,21 +80,15 @@ String? emitUserFactoriesDart(
   // The build-time context for inline app-widget reconstruction: admitted
   // structured types, slot-keyed map and record plans, nominal slot targets,
   // and import aliases. No allocated wire IDs are needed.
-  final custom =
-      structuredTypes.isEmpty && mapPlans.isEmpty && recordPlans.isEmpty
-      ? null
-      : (
-          structuredBySourceType: {
-            for (final structured in structuredTypes)
-              structured.sourceType: structured,
-          },
-          plansBySourceType: reconstructionPlans,
-          mapPlans: mapPlans,
-          recordPlans: recordPlans,
-          slotTargets: slotTargets,
-          nullableStructuredSlots: nullableStructuredSlots,
-          aliases: aliasByUri,
-        );
+  final custom = customReconstructionFor(
+    structuredTypes: structuredTypes,
+    reconstructionPlans: reconstructionPlans,
+    mapPlans: mapPlans,
+    recordPlans: recordPlans,
+    slotTargets: slotTargets,
+    nullableStructuredSlots: nullableStructuredSlots,
+    aliases: aliasByUri,
+  );
 
   final emittable = <(WidgetEntry, String)>[];
   for (final entry in widgets) {
@@ -101,6 +98,7 @@ String? emitUserFactoriesDart(
       custom: custom,
       aliases: aliasByUri,
       customChildProperties: true,
+      appWidget: true,
     );
     if (body == null) {
       onSkip?.call(entry);
@@ -160,11 +158,21 @@ String? emitUserFactoriesDart(
     // so no direct rfw import is needed (and the app package
     // isn't required to depend on rfw).
     ..writeln();
+  // Split widgets' wrappers, registered beside their widget's factory.
+  final splitLibraries = {
+    for (final registration in splitRegistrations) registration.library,
+  }.toList()..sort();
+  final splitPrefixes = {
+    for (final (index, library) in splitLibraries.indexed)
+      library: 'split$index',
+  };
   <String>{
     ...imports.importDirectivesFor(referencedUris),
     "import 'package:restage/restage.dart';",
     if (declaresSurfaces) "import '$_kSurfaceListImport';",
     ...?dependencyFactories?.imports,
+    for (final library in splitLibraries)
+      'import ${dartStringLiteral(library)} as ${splitPrefixes[library]};',
   }.forEach(buf.writeln);
   buf.writeln();
   _writeAppVocabulary(buf, appVocabulary);
@@ -195,6 +203,11 @@ String? emitUserFactoriesDart(
       },
       capabilityVersion: stampedCapabilityVersions[library.namespace],
       compatibleSince: compatibleSinceVersions[library.namespace],
+      spreads: [
+        for (final registration in splitRegistrations)
+          if (registration.namespace == library.namespace)
+            '${splitPrefixes[registration.library]}.${registration.name}.widgets',
+      ],
     );
   }
   buf
@@ -258,13 +271,6 @@ String emitEmptyUserFactoriesDart({
   }
   return formatGeneratedDart(buf.toString());
 }
-
-/// The generated surface list, beside this file in `lib/`.
-const String _kSurfaceListImport = 'restage_surfaces.g.dart';
-
-/// Declares every placement the build can mount, so the first request
-/// describes the whole build.
-const String _kDeclareSurfaces = '  Restage.declareSurfaces(restageSurfaces);';
 
 /// Documents the matching configuration entrypoint on the registration helper.
 void _writeCatalogConfigurationDoc(StringBuffer buf, bool installWholeCatalog) {
@@ -446,3 +452,10 @@ String _libraryFieldRef(WidgetLibrary lib) {
       return "WidgetLibrary.custom('$escaped')";
   }
 }
+
+/// The generated surface list, beside this file in `lib/`.
+const String _kSurfaceListImport = 'restage_surfaces.g.dart';
+
+/// Declares every placement the build can mount, so the first request
+/// describes the whole build.
+const String _kDeclareSurfaces = '  Restage.declareSurfaces(restageSurfaces);';

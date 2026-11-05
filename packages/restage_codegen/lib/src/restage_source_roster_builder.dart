@@ -5,6 +5,7 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
+import 'package:restage_codegen/src/authored_library_predicate.dart';
 import 'package:restage_codegen/src/dart_source_parsing.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
@@ -173,6 +174,7 @@ RestageSourceRoster _withFixedPublicationManifest({
   required String packageName,
   required RestageSourceRoster roster,
   required RestageOutputLocationPlan plan,
+  List<({String path, String library})> widgetParts = const [],
 }) {
   RestageOwnedOutput fixedOutput({
     required String path,
@@ -206,6 +208,24 @@ RestageSourceRoster _withFixedPublicationManifest({
         path: plan.outputIndexPath,
         role: 'restage-output-index',
       ),
+      for (final part in widgetParts)
+        RestageOwnedOutput(
+          path: part.path,
+          role: 'widget-descriptor',
+          builder: _canonicalGeneratedDartOwner,
+          owner: 'canonical-library:${part.library}',
+          declarationIdentity: part.library,
+          identities: [
+            RestageIdentityClaim(namespace: 'fixed-output', key: part.path),
+          ],
+          span: RestageSourceSpan(
+            path: part.path,
+            startLine: 1,
+            startColumn: 1,
+            endLine: 1,
+            endColumn: 1,
+          ),
+        ),
     ],
   );
 }
@@ -407,7 +427,56 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
     packageName: buildStep.inputId.package,
     roster: roster,
     plan: effectivePlan,
+    widgetParts: await _splitWidgetParts(
+      buildStep,
+      plan: effectivePlan,
+      claimed: {
+        for (final output in roster.outputs) output.path,
+      },
+    ),
   );
+}
+
+// The generated part of each custom widget library that declares one and
+// holds no surface: the part its split widgets' wrappers go in.
+Future<List<({String path, String library})>> _splitWidgetParts(
+  BuildStep buildStep, {
+  required RestageOutputLocationPlan plan,
+  required Set<String> claimed,
+}) async {
+  final parts = <({String path, String library})>[];
+  final candidates = await selectRestageWidgetCandidates(
+    buildStep,
+    resolvable: isAuthoredDartLibraryAsset,
+  );
+  for (final assetId in candidates) {
+    final path = neutralPartPath(plan, assetId.path);
+    if (claimed.contains(path)) continue;
+    final LibraryElement library;
+    try {
+      library = await buildStep.resolver.libraryFor(assetId);
+    } on NonLibraryAssetException {
+      continue;
+    }
+    if (!library.classes.any(
+      (cls) => firstAnnotation(cls, 'RestageWidget') != null,
+    )) {
+      continue;
+    }
+    final unit = parseUnresolvedDart(
+      await buildStep.readAsString(assetId),
+      path: assetId.path,
+    );
+    if (neutralPartDirectiveIssues(
+      unit: unit,
+      libraryPath: assetId.path,
+      plan: plan,
+    ).isNotEmpty) {
+      continue;
+    }
+    parts.add((path: path, library: library.identifier));
+  }
+  return parts;
 }
 
 List<Issue> _runtimeWidgetAnnotationIssues(

@@ -111,7 +111,8 @@ Map<String, ValueOperation> nativeCallOperations(
   final declarations = {
     for (final entry in schema.inputs.entries)
       if (entry.value
-          case SurfaceScreenHostDataNativeBindingShapeV1(:final contract))
+          case SurfaceScreenHostDataNativeBindingShapeV1(:final contract)
+          when contract.call != null)
         entry.key: contract,
   };
   return {...base, 'native.call': NativeCallValueOperation(declarations)};

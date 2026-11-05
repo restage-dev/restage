@@ -38,6 +38,8 @@ final class LiveVersionRequirements {
     this.armId,
     this.armLabel,
     this.requiredGenerated = const {},
+    this.requiredIslands,
+    this.islandLabels = const {},
   });
 
   /// Decode one wire item.
@@ -66,6 +68,14 @@ final class LiveVersionRequirements {
             in (libraries ?? const []).cast<Map<String, dynamic>>())
           if (entry['minGenerated'] case final int generated)
             entry['namespace'] as String: generated,
+      },
+      requiredIslands: switch (json['requiredIslands']) {
+        final Map<String, dynamic> islands => islands.cast<String, String>(),
+        _ => null,
+      },
+      islandLabels: switch (json['islandLabels']) {
+        final Map<String, dynamic> labels => labels.cast<String, String>(),
+        _ => const {},
       },
     );
   }
@@ -103,13 +113,20 @@ final class LiveVersionRequirements {
   /// That arm's name.
   final String? armLabel;
 
-  /// Minimum version per library namespace; null when the payload could not
-  /// be read.
+  /// Minimum version per library namespace; null when the version has no
+  /// readable fit requirement.
   final Map<String, int>? requiredLibraries;
 
   /// Generated widget code version per library namespace, for libraries that
   /// need more than the first.
   final Map<String, int> requiredGenerated;
+
+  /// Fit token per island it renders; null when its requirement could not be
+  /// read.
+  final Map<String, String>? requiredIslands;
+
+  /// A readable label per island, `<widget> in <screen>`.
+  final Map<String, String> islandLabels;
 }
 
 /// Reads which libraries an app's live versions need.

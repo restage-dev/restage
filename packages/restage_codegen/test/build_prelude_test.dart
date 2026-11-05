@@ -15,9 +15,19 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 ''';
 
-String _stateless(String name, String body, {String extraImports = ''}) =>
-    '''
-$_imports$extraImports
+String _snake(String name) => name
+    .replaceAllMapped(RegExp('(?<=.)[A-Z]'), (m) => '_${m[0]}')
+    .toLowerCase();
+
+String _part(String slug) => "part 'restage.generated/$slug.restage.g.dart';\n";
+
+// Imports precede the part directive; other extra declarations follow it.
+String _stateless(String name, String body, {String extraImports = ''}) {
+  final lines = extraImports.split('\n').where((line) => line.isNotEmpty);
+  final imports = lines.where((line) => line.startsWith('import '));
+  final declarations = lines.where((line) => !line.startsWith('import '));
+  return '''
+$_imports${imports.map((line) => '$line\n').join()}${_part(_snake(name))}${declarations.join('\n')}
 @Paywall()
 class $name extends StatelessWidget {
   const $name({super.key});
@@ -28,10 +38,11 @@ $body
   }
 }
 ''';
+}
 
 String _stateful(String name, {required String members, required String body}) {
   return '''
-$_imports
+$_imports${_part(_snake(name))}
 @Paywall()
 class $name extends StatefulWidget {
   const $name({super.key});
@@ -77,6 +88,31 @@ final String _themeInlined = _stateless('InlinedTheme', '''
           height: 16,
         ),
       ],
+    );''');
+
+final String _gradientPrelude = _stateless('PreludeGradient', '''
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      height: 24,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: dark
+              ? const [Color(0xFF000000), Color(0xFF111111)]
+              : const [Color(0xFFFFFFFF), Color(0xFFEEEEEE)],
+        ),
+      ),
+    );''');
+
+final String _gradientInlined = _stateless('InlinedGradient', '''
+    return Container(
+      height: 24,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: Theme.of(context).brightness == Brightness.dark
+              ? const [Color(0xFF000000), Color(0xFF111111)]
+              : const [Color(0xFFFFFFFF), Color(0xFFEEEEEE)],
+        ),
+      ),
     );''');
 
 final String _chainPrelude = _stateless('PreludeChain', '''
@@ -154,6 +190,8 @@ final String _statefulInlined = _stateful(
 final Map<String, String> _fixtures = {
   'prelude_theme': _themePrelude,
   'inlined_theme': _themeInlined,
+  'prelude_gradient': _gradientPrelude,
+  'inlined_gradient': _gradientInlined,
   'prelude_chain': _chainPrelude,
   'inlined_chain': _chainInlined,
   'prelude_shadow': _shadowPrelude,
@@ -238,7 +276,7 @@ final String _navPrelude = _stateless('PreludeNav', r'''
       context,
       MaterialPageRoute<void>(builder: (_) => const SizedBox()),
     );
-    return Text('$route');''');
+    return Column(children: [Text('$route'), Text('at $route')]);''');
 
 final String _literalWidgetKey = _stateless(
   'LiteralWidgetKey',
@@ -263,6 +301,8 @@ final String _sourceNestedInnocuousWidgetKey = _stateless(
 const String _sourceEffectfulWidgetKey =
     '''
 $_imports
+part 'restage.generated/source_effectful_widget_key.restage.g.dart';
+
 Key auditedKey(BuildContext context) {
   Navigator.push<void>(
     context,
@@ -286,6 +326,8 @@ class SourceEffectfulWidgetKey extends StatelessWidget {
 const String _sourceNestedEffectfulWidgetKey =
     '''
 $_imports
+part 'restage.generated/source_nested_effectful_widget_key.restage.g.dart';
+
 Key auditedKey(BuildContext context) {
   Navigator.push<void>(
     context,
@@ -310,6 +352,8 @@ class SourceNestedEffectfulWidgetKey extends StatelessWidget {
 const String _valueKeyTypedWidgetKey =
     '''
 $_imports
+part 'restage.generated/value_key_typed_widget_key.restage.g.dart';
+
 class ValueKeyHost extends StatelessWidget {
   const ValueKeyHost({ValueKey<String>? key}) : super(key: key);
 
@@ -332,6 +376,8 @@ class ValueKeyTypedWidgetKey extends StatelessWidget {
 const String _boundedGenericWidgetKey =
     '''
 $_imports
+part 'restage.generated/bounded_generic_widget_key.restage.g.dart';
+
 class GenericKeyHost<T extends Key> extends StatelessWidget {
   const GenericKeyHost({T? key}) : super(key: key);
 
@@ -390,7 +436,7 @@ $body
       '''
 $_imports
 import '../widgets/$slug.dart';
-
+${_part(slug)}
 @Paywall()
 class ${name}Surface extends StatelessWidget {
   const ${name}Surface({super.key});
@@ -470,40 +516,6 @@ Key auditedKey(BuildContext context) {
   return const ValueKey<String>('effect');
 }
 ''',
-);
-
-final _CustomWidgetFixture _customDirectCycle = _customWidgetFixture(
-  'custom_direct_cycle',
-  'CustomDirectCycle',
-  '''
-    final Widget child = child;
-    return child;''',
-);
-
-final _CustomWidgetFixture _customTransitiveCycle = _customWidgetFixture(
-  'custom_transitive_cycle',
-  'CustomTransitiveCycle',
-  '''
-    final Widget first = second;
-    final Widget second = first;
-    return first;''',
-);
-
-final _CustomWidgetFixture _customKeyDirectCycle = _customWidgetFixture(
-  'custom_key_direct_cycle',
-  'CustomKeyDirectCycle',
-  '''
-    final dynamic child = Text('Ready', key: child);
-    return child;''',
-);
-
-final _CustomWidgetFixture _customKeyTransitiveCycle = _customWidgetFixture(
-  'custom_key_transitive_cycle',
-  'CustomKeyTransitiveCycle',
-  '''
-    final dynamic first = second;
-    final dynamic second = Text('Ready', key: first);
-    return second;''',
 );
 
 final _CustomWidgetFixture _customGroupedFinal = _customWidgetFixture(
@@ -587,27 +599,22 @@ String _withoutMeasurementIdentity(String source) => source
       '__restage_measurement_route_v1: ...',
     );
 
-Future<String> _refusalLog(
+Future<String> _compiledText(
   String slug,
   String source, {
-  String? customWidgetSource,
+  List<String>? logs,
 }) async {
-  final asset = '$_package|lib/paywalls/$slug.dart';
-  final sources = {
-    asset: source,
-    if (customWidgetSource != null)
-      '$_package|lib/widgets/$slug.dart': customWidgetSource,
-  };
-  final logs = <String>[];
-  await testBuilder(
-    restageCodegenBuilder(BuilderOptions.empty),
+  final sources = {'$_package|lib/paywalls/$slug.dart': source};
+  final compiled = await testBuilders(
+    [restageCodegenBuilder(BuilderOptions.empty)],
     sources,
     rootPackage: _package,
     readerWriter: await _seeded(sources),
-    outputs: const {},
-    onLog: (record) => logs.add(record.message),
+    flattenOutput: true,
+    onLog: (record) => logs?.add(record.message),
   );
-  return logs.join('\n');
+  expect(compiled.succeeded, isTrue, reason: compiled.errors.join('\n'));
+  return _text(compiled, slug);
 }
 
 void main() {
@@ -641,6 +648,14 @@ void main() {
     _expectTwins(result, 'prelude_theme', 'inlined_theme');
   });
 
+  test('a light and dark list chosen through a local lowers flat', () {
+    expect(
+      _text(result, 'prelude_gradient'),
+      contains('colors: switch data.theme.brightness {'),
+    );
+    _expectTwins(result, 'prelude_gradient', 'inlined_gradient');
+  });
+
   test('a local initialized from another local resolves through the chain', () {
     expect(
       _text(result, 'prelude_chain'),
@@ -670,260 +685,227 @@ void main() {
     _expectTwins(result, 'prelude_stateful', 'inlined_stateful');
   });
 
-  test('a literal widget key remains compile-time inert', () {
+  test('a literal widget key is carried', () {
     expect(
       _text(result, 'literal_widget_key'),
-      contains('Text(text: "Ready")'),
+      contains('Text(text: "Ready", key: data.context._h'),
     );
-    expect(_text(result, 'literal_widget_key'), isNot(contains('key:')));
   });
 
-  test('a read local holding an imperative call emits nothing', () async {
-    final log = await _refusalLog('prelude_nav', _navPrelude);
-    expect(log, contains('route'));
+  test('an imperative local read by two values is read by name', () async {
+    final logs = <String>[];
+    await _compiledText('prelude_nav', _navPrelude, logs: logs);
+    // The mount pushes once and both values read the result.
+    expect(
+      logs.join('\n'),
+      contains("Evaluated in the app:\n  '\$route'\n  'at \$route'"),
+    );
+    expect(logs.join('\n'), isNot(contains('Navigator.push')));
   });
 
-  test(
-    'an innocuous source local used only as widget key emits nothing',
-    () async {
-      final log = await _refusalLog(
-        'source_innocuous_widget_key',
-        _sourceInnocuousWidgetKey,
-      );
-      expect(log, contains("local 'key'"));
-      expect(log, contains('read only as a widget key'));
-      expect(log, contains('discards key operands'));
-    },
-  );
-
-  test(
-    'an effectful source local used only as widget key emits nothing',
-    () async {
-      final log = await _refusalLog(
-        'source_effectful_widget_key',
-        _sourceEffectfulWidgetKey,
-      );
-      expect(log, contains("local 'key'"));
-      expect(log, contains('read only as a widget key'));
-      expect(log, contains('discards key operands'));
-    },
-  );
-
-  test('a nested source widget-key local remains unread', () async {
-    final log = await _refusalLog(
+  // A key is carried when it compares by value, read through any local;
+  // otherwise the widget holding it renders from the app.
+  for (final (name, slug, source, holder) in [
+    (
+      'a constant key read through a local is carried',
+      'source_innocuous_widget_key',
+      _sourceInnocuousWidgetKey,
+      null,
+    ),
+    (
+      'a constant key read through a nested local is carried',
       'source_nested_innocuous_widget_key',
       _sourceNestedInnocuousWidgetKey,
-    );
-    expect(log, contains("local 'key'"));
-    expect(log, contains('read only as a widget key'));
-    expect(log, contains('discards key operands'));
-  });
-
-  test('an effectful nested source widget-key local remains unread', () async {
-    final log = await _refusalLog(
+      null,
+    ),
+    (
+      'a local constant key is carried',
+      'local_const_key',
+      _stateless('LocalConstKey', '''
+    const key = ValueKey<String>('plan');
+    return Text('Ready', key: key);'''),
+      null,
+    ),
+    (
+      'a top-level constant key is carried',
+      'top_const_key',
+      _stateless(
+        'TopConstKey',
+        "    return Text('Ready', key: _plan);",
+        extraImports: "const _plan = ValueKey<String>('plan');\n",
+      ),
+      null,
+    ),
+    (
+      'a static constant key is carried',
+      'static_const_key',
+      _stateless(
+        'StaticConstKey',
+        "    return Text('Ready', key: Keys.plan);",
+        extraImports:
+            "class Keys { static const plan = ValueKey<String>('plan'); }\n",
+      ),
+      null,
+    ),
+    (
+      'a top-level constant key read through a local is carried',
+      'top_const_key_local',
+      _stateless(
+        'TopConstKeyLocal',
+        '''
+    final key = _plan;
+    return Text('Ready', key: key);''',
+        extraImports: "const _plan = ValueKey<String>('plan');\n",
+      ),
+      null,
+    ),
+    (
+      'a Key factory key is carried',
+      'factory_key',
+      _stateless(
+        'FactoryKey',
+        "    return Text('Ready', key: const Key('title'));",
+      ),
+      null,
+    ),
+    (
+      'a static constant Key factory key is carried',
+      'static_factory_key',
+      _stateless(
+        'StaticFactoryKey',
+        "    return Text('Ready', key: Keys.title);",
+        extraImports: "class Keys { static const title = Key('title'); }\n",
+      ),
+      null,
+    ),
+    (
+      'a local constant Key factory key is carried',
+      'local_factory_key',
+      _stateless('LocalFactoryKey', '''
+    const key = Key('title');
+    return Text('Ready', key: key);'''),
+      null,
+    ),
+    (
+      'a value key built in a local is carried',
+      'built_value_key',
+      _stateless('BuiltValueKey', '''
+    final key = ValueKey<String>('built');
+    return Text('Ready', key: key);'''),
+      null,
+    ),
+    (
+      'an identity value key built in a local keeps its holder in the app',
+      'identity_value_key',
+      _stateless('IdentityValueKey', '''
+    final key = ValueKey<Object>(Object());
+    return Text('Ready', key: key);'''),
+      'Text',
+    ),
+    (
+      'a computed key read through a local keeps its holder in the app',
+      'source_effectful_widget_key',
+      _sourceEffectfulWidgetKey,
+      'Text',
+    ),
+    (
+      'a computed key read through a nested local keeps its holder in the app',
       'source_nested_effectful_widget_key',
       _sourceNestedEffectfulWidgetKey,
-    );
-    expect(log, contains("local 'key'"));
-    expect(log, contains('read only as a widget key'));
-    expect(log, contains('discards key operands'));
-  });
-
-  test('a ValueKey-typed widget formal discards its key operand', () async {
-    final log = await _refusalLog(
+      'Text',
+    ),
+    (
+      'a ValueKey formal given a local key keeps its holder in the app',
       'value_key_typed_widget_key',
       _valueKeyTypedWidgetKey,
-    );
-    expect(log, contains("local 'key'"));
-    expect(log, contains('read only as a widget key'));
-    expect(log, contains('discards key operands'));
-  });
-
-  test('a Key-bounded widget formal discards its key operand', () async {
-    final log = await _refusalLog(
+      'ValueKeyHost',
+    ),
+    (
+      'a Key-bounded formal given a local key keeps its holder in the app',
       'bounded_generic_widget_key',
       _boundedGenericWidgetKey,
-    );
-    expect(log, contains("local 'key'"));
-    expect(log, contains('read only as a widget key'));
-    expect(log, contains('discards key operands'));
-  });
-
-  test(
-    'a custom widget with an innocuous unread local emits nothing',
-    () async {
-      final log = await _refusalLog(
-        'custom_unread_innocuous',
-        _customUnreadInnocuous.root,
-        customWidgetSource: _customUnreadInnocuous.widget,
+      'GenericKeyHost',
+    ),
+  ]) {
+    test(name, () async {
+      final island = '${slug.replaceAll('_', '__')}_${holder}_0';
+      expect(
+        await _compiledText(slug, source),
+        contains(
+          holder == null
+              ? 'widget Paywall = Text(text: "Ready", key: data.context._h'
+              : 'widget Paywall = $island();',
+        ),
       );
-      expect(log, contains("local 'label'"));
-      expect(log, contains('never read'));
-    },
-  );
+    });
+  }
 
-  test(
-    'a custom widget with an effectful unread local emits nothing',
-    () async {
-      final log = await _refusalLog(
-        'custom_unread_effectful',
-        _customUnreadEffectful.root,
-        customWidgetSource: _customUnreadEffectful.widget,
-      );
-      expect(log, contains("local 'pushed'"));
-      expect(log, contains('never read'));
-    },
-  );
-
-  test(
-    'an innocuous custom local used only as widget key emits nothing',
-    () async {
-      final log = await _refusalLog(
-        'custom_key_innocuous',
-        _customKeyInnocuous.root,
-        customWidgetSource: _customKeyInnocuous.widget,
-      );
-      expect(log, contains("local 'key'"));
-      expect(log, contains('read only as a widget key'));
-      expect(log, contains('discards key operands'));
-    },
-  );
-
-  test(
-    'an effectful custom local used only as widget key emits nothing',
-    () async {
-      final log = await _refusalLog(
-        'custom_key_effectful',
-        _customKeyEffectful.root,
-        customWidgetSource: _customKeyEffectful.widget,
-      );
-      expect(log, contains("local 'key'"));
-      expect(log, contains('read only as a widget key'));
-      expect(log, contains('discards key operands'));
-    },
-  );
-
-  test('a nested custom widget-key local remains unread', () async {
-    final log = await _refusalLog(
+  // A custom widget whose build the payload can't inline renders through its
+  // registered factory, which runs its locals exactly as written.
+  for (final (slug, name, fixture) in [
+    (
+      'custom_unread_innocuous',
+      'CustomUnreadInnocuous',
+      _customUnreadInnocuous,
+    ),
+    (
+      'custom_unread_effectful',
+      'CustomUnreadEffectful',
+      _customUnreadEffectful,
+    ),
+    ('custom_key_innocuous', 'CustomKeyInnocuous', _customKeyInnocuous),
+    ('custom_key_effectful', 'CustomKeyEffectful', _customKeyEffectful),
+    (
       'custom_nested_key_innocuous',
-      _customNestedKeyInnocuous.root,
-      customWidgetSource: _customNestedKeyInnocuous.widget,
-    );
-    expect(log, contains("local 'key'"));
-    expect(log, contains('read only as a widget key'));
-    expect(log, contains('discards key operands'));
-  });
-
-  test('an effectful nested custom widget-key local remains unread', () async {
-    final log = await _refusalLog(
+      'CustomNestedKeyInnocuous',
+      _customNestedKeyInnocuous,
+    ),
+    (
       'custom_nested_key_effectful',
-      _customNestedKeyEffectful.root,
-      customWidgetSource: _customNestedKeyEffectful.widget,
-    );
-    expect(log, contains("local 'key'"));
-    expect(log, contains('read only as a widget key'));
-    expect(log, contains('discards key operands'));
-  });
-
-  test('a custom widget direct binding cycle emits nothing', () async {
-    final log = await _refusalLog(
-      'custom_direct_cycle',
-      _customDirectCycle.root,
-      customWidgetSource: _customDirectCycle.widget,
-    );
-    expect(log, contains("local 'child'"));
-    expect(log, contains('cyclic build() binding'));
-  });
-
-  test('a custom widget transitive binding cycle emits nothing', () async {
-    final log = await _refusalLog(
-      'custom_transitive_cycle',
-      _customTransitiveCycle.root,
-      customWidgetSource: _customTransitiveCycle.widget,
-    );
-    expect(log, contains('cyclic build() binding'));
-  });
-
-  test('a custom widget rejects a direct cycle through a widget key', () async {
-    final log = await _refusalLog(
-      'custom_key_direct_cycle',
-      _customKeyDirectCycle.root,
-      customWidgetSource: _customKeyDirectCycle.widget,
-    );
-    expect(log, contains('cyclic build() binding'));
-  });
-
-  test(
-    'a custom widget rejects a transitive cycle through a widget key',
-    () async {
-      final log = await _refusalLog(
-        'custom_key_transitive_cycle',
-        _customKeyTransitiveCycle.root,
-        customWidgetSource: _customKeyTransitiveCycle.widget,
-      );
-      expect(log, contains('cyclic build() binding'));
-    },
-  );
-
-  test('a custom widget rejects grouped final declarations', () async {
-    final log = await _refusalLog(
-      'custom_grouped_final',
-      _customGroupedFinal.root,
-      customWidgetSource: _customGroupedFinal.widget,
-    );
-    expect(log, contains("grouped declaration 'first, second'"));
-    expect(log, contains('split it'));
-  });
-
-  test('a custom widget rejects grouped const declarations', () async {
-    final log = await _refusalLog(
-      'custom_grouped_const',
-      _customGroupedConst.root,
-      customWidgetSource: _customGroupedConst.widget,
-    );
-    expect(log, contains("grouped declaration 'first, second'"));
-    expect(log, contains('split it'));
-  });
-
-  test('a custom widget rejects a final without an initializer', () async {
-    final log = await _refusalLog(
+      'CustomNestedKeyEffectful',
+      _customNestedKeyEffectful,
+    ),
+    ('custom_grouped_final', 'CustomGroupedFinal', _customGroupedFinal),
+    ('custom_grouped_const', 'CustomGroupedConst', _customGroupedConst),
+    (
       'custom_missing_initializer',
-      _customMissingInitializer.root,
-      customWidgetSource: _customMissingInitializer.widget,
-    );
-    expect(log, contains('no resolved declaration or initializer'));
-  });
-
-  test('a custom widget late final prelude emits nothing', () async {
-    final log = await _refusalLog(
-      'custom_late_final',
-      _customLateFinal.root,
-      customWidgetSource: _customLateFinal.widget,
-    );
-    expect(log, contains('body is not a single returned expression'));
-  });
-
-  test('a custom widget literal key remains compile-time inert', () async {
-    const slug = 'custom_literal_widget_key';
-    const asset = '$_package|lib/paywalls/$slug.dart';
-    final sources = {
-      asset: _customLiteralWidgetKey.root,
-      '$_package|lib/widgets/$slug.dart': _customLiteralWidgetKey.widget,
-    };
-    final literal = await testBuilders(
-      [
-        const UserCatalogJsonBuilder(BuilderOptions.empty),
-        restageCodegenBuilder(BuilderOptions.empty),
-      ],
-      sources,
-      rootPackage: _package,
-      readerWriter: await _seeded(sources),
-      flattenOutput: true,
-    );
-    expect(literal.succeeded, isTrue, reason: literal.errors.join('\n'));
-    expect(_text(literal, slug), contains('Text(text: "Ready")'));
-    expect(_text(literal, slug), isNot(contains('key:')));
-  });
+      'CustomMissingInitializer',
+      _customMissingInitializer,
+    ),
+    ('custom_late_final', 'CustomLateFinal', _customLateFinal),
+    (
+      'custom_literal_widget_key',
+      'CustomLiteralWidgetKey',
+      _customLiteralWidgetKey,
+    ),
+  ]) {
+    test('$name renders through its registered factory', () async {
+      final sources = {
+        '$_package|lib/paywalls/$slug.dart': fixture.root,
+        '$_package|lib/widgets/$slug.dart': fixture.widget,
+      };
+      final built = await testBuilders(
+        [
+          const UserCatalogJsonBuilder(BuilderOptions.empty),
+          restageCodegenBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: _package,
+        readerWriter: await _seeded(sources),
+        flattenOutput: true,
+      );
+      expect(built.succeeded, isTrue, reason: built.errors.join('\n'));
+      // Placed by name, so its State moves between the design and the app.
+      expect(
+        _text(built, slug),
+        matches(
+          RegExp(
+            'widget Paywall = $name\\(restageIsland: "[^"]+_${name}_0"\\);',
+          ),
+        ),
+      );
+    });
+  }
 
   group('custom widget constructed in a prelude local', () {
     late TestBuilderResult twins;
@@ -982,11 +964,10 @@ void main() {
       );
     });
 
-    test('drops the custom widget call-site key', () {
+    test('carries the custom widget call-site key', () {
       expect(twins.succeeded, isTrue, reason: twins.errors.join('\n'));
       final dsl = _text(twins, 'promo_keyed');
-      expect(dsl, contains('PromoCard(title: "Keyed")'));
-      expect(dsl, isNot(contains('key:')));
+      expect(dsl, contains('PromoCard(title: "Keyed", key: data.context._h'));
     });
   });
 }

@@ -1,9 +1,13 @@
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
     show widgetBuilderContractFor;
+import 'dart:io';
+import 'dart:isolate';
+
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
+import 'package:package_config/package_config.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/collection_unroll.dart';
@@ -51,6 +55,59 @@ Iterable<InterfaceElement> _supertypeChain(ClassElement cls) sync* {
   }
 }
 
+/// Whether [cls] is a widget Restage inlines or splits: annotated with
+/// `@RestageWidget`, or a widget class from the app's own source, which is
+/// [package] (the package that reaches it) and every path dependency.
+bool isAppWidgetClass(ClassElement cls, {String? package}) {
+  if (firstAnnotation(cls, 'RestageWidget') != null) return true;
+  if (!_supertypeChain(cls).any(
+    (e) =>
+        (e.name == 'StatelessWidget' || e.name == 'StatefulWidget') &&
+        e.library.identifier.startsWith('package:flutter/'),
+  )) {
+    return false;
+  }
+  final own = _packageName(cls.library.identifier);
+  return own != null &&
+      !_restagePackages.contains(own) &&
+      (own == package || _pathPackages.contains(own));
+}
+
+String? _packageName(String libraryUri) {
+  final uri = Uri.tryParse(libraryUri);
+  return uri == null || uri.scheme != 'package' || uri.pathSegments.isEmpty
+      ? null
+      : uri.pathSegments.first;
+}
+
+// Restage's own packages are never the app's source.
+const _restagePackages = {
+  'restage',
+  'restage_core',
+  'restage_material',
+  'restage_cupertino',
+  'restage_render_host',
+  'restage_preview_host',
+  'restage_revenuecat',
+};
+
+// Packages the build's package config roots relatively: path and workspace
+// dependencies. Hosted, git and SDK packages have absolute roots.
+final Set<String> _pathPackages = () {
+  try {
+    final uri = Isolate.packageConfigSync;
+    if (uri == null || uri.scheme != 'file') return const <String>{};
+    final file = File.fromUri(uri);
+    final config = PackageConfig.parseBytes(file.readAsBytesSync(), file.uri);
+    return {
+      for (final package in config.packages)
+        if (package.relativeRoot) package.name,
+    };
+  } on Object {
+    return const <String>{};
+  }
+}();
+
 /// Unwraps an implicit getter/setter to the variable it backs, so a bare
 /// field reference and a field-getter reference resolve alike.
 Element? _unwrapAccessor(Element? element) =>
@@ -65,10 +122,27 @@ Element? _unwrapAccessor(Element? element) =>
 /// faithfully (an omitted argument could not reproduce the Dart default).
 List<CustomWidgetParam>? _constructorParams(
   ConstructorElement constructor,
-  Map<String, Expression> coalescedFallbacks,
-) {
+  Map<String, Expression> coalescedFallbacks, {
+  bool forwardsKey = false,
+}) {
   final params = <CustomWidgetParam>[];
   for (final parameter in constructor.formalParameters) {
+    // A `super.key` the build reads is the parameter for the caller's key.
+    if (forwardsKey && parameter == superKeyFormal(constructor)) {
+      final field = _superField(parameter);
+      if (field == null) return null;
+      params.add(
+        CustomWidgetParam(
+          name: 'key',
+          isNumeric: false,
+          type: parameter.type,
+          defaultValue: null,
+          sourceField: field,
+          sourceParameter: parameter,
+        ),
+      );
+      continue;
+    }
     if (parameter is! FieldFormalParameterElement) continue;
     final name = parameter.name;
     if (name == null) continue;
@@ -93,6 +167,15 @@ List<CustomWidgetParam>? _constructorParams(
   }
   return params;
 }
+
+/// The field a chain of `super.` formals from [parameter] initializes.
+FieldElement? _superField(FormalParameterElement? parameter) =>
+    switch (parameter) {
+      FieldFormalParameterElement(:final field) => field,
+      SuperFormalParameterElement(:final superConstructorParameter) =>
+        _superField(superConstructorParameter),
+      _ => null,
+    };
 
 /// Whether [type] is `double` or `num` — a numeric parameter whose call-site
 /// value is coerced to a double literal for emission.
@@ -314,6 +397,7 @@ final class WidgetClassifier {
   };
 
   final Map<String, WidgetClassification> _results = {};
+  final Map<String, ClassElement> _classes = {};
   final Map<String, CustomWidgetBlueprint> _blueprints = {};
   final Map<String, String> _collectionRefusals = {};
   final Set<String> _inProgress = {};
@@ -330,11 +414,21 @@ final class WidgetClassifier {
   Map<String, CustomWidgetBlueprint> get blueprints =>
       Map.unmodifiable(_blueprints);
 
+  // Each classified widget's build method, where its source was read.
+  final Map<String, MethodDeclaration> _buildNodes = {};
+
+  bool _firesEvents(ClassDeclaration declaration) => reachesEvents(
+    declaration,
+    _results,
+    own: declaration.declaredFragment?.element,
+  );
+
   /// Classifies [widgetClass] (a resolved `@RestageWidget` class), recursing
   /// into every custom widget it composes. Memoized; a composition cycle
   /// resolves to [UnclassifiableWidget].
   Future<WidgetClassification> classify(ClassElement widgetClass) async {
     final key = customWidgetKey(widgetClass);
+    _classes[key] = widgetClass;
     final cached = _results[key];
     if (cached != null) return cached;
     final ownsSession = _classificationDepth == 0;
@@ -350,11 +444,15 @@ final class WidgetClassifier {
         );
       }
       _inProgress.add(key);
-      final WidgetClassification result;
+      WidgetClassification result;
       try {
         result = await _classify(widgetClass, key);
       } finally {
         _inProgress.remove(key);
+      }
+      if (_buildNodes[key]?.thisOrAncestorOfType<ClassDeclaration>()
+          case final declaration?) {
+        result = result.withFiresEvents(_firesEvents(declaration));
       }
       _results[key] = result;
       return result;
@@ -402,6 +500,7 @@ final class WidgetClassifier {
         reason: "the widget's build() source was not available",
       );
     }
+    _buildNodes[key] = node;
     final extracted = extractInlinableBuildBody(node.body);
     if (extracted == null) {
       return UnclassifiableWidget(
@@ -454,6 +553,7 @@ final class WidgetClassifier {
     final params = _constructorParams(
       constructors.single,
       walk.coalescedParams,
+      forwardsKey: walk.readsForwardedKey,
     );
     if (params == null) {
       return UnclassifiableWidget(
@@ -553,9 +653,13 @@ final class WidgetClassifier {
     return _catalogFlutterTypes.contains(fullKey);
   }
 
-  /// Whether [cls] carries an `@RestageWidget` annotation.
-  bool isCustomWidget(ClassElement cls) =>
-      firstAnnotation(cls, 'RestageWidget') != null;
+  /// Whether [cls], composed from [composer], is a custom widget to
+  /// classify.
+  bool isCustomWidget(ClassElement cls, {ClassElement? composer}) =>
+      isAppWidgetClass(
+        cls,
+        package: _packageName((composer ?? cls).library.identifier),
+      );
 }
 
 /// Mutable per-classification accumulator: walks one widget's `build()`
@@ -589,6 +693,12 @@ class _Walk {
   final Set<MethodElement> _eventHandlerMethods = {};
   final List<RecognisedModalSheet> _modalSheets = [];
   String? _unclassifiableReason;
+
+  // The key source, when a key the build creates is the unclassifiable reason.
+  String? _ownKey;
+
+  static String _ownKeyReason(String source) =>
+      'its build() creates its own key (`$source`)';
   IssueCode? _unclassifiableDiagnosticCode;
   String? _collectionRefusal;
 
@@ -995,7 +1105,7 @@ class _Walk {
         );
         if (arguments == null) {
           _unclassifiable(
-            reason!,
+            "a `${type.name}` Restage can't deliver, because $reason",
             diagnosticCode: IssueCode.shaderMaskFormUnsupported,
           );
           return;
@@ -1024,7 +1134,7 @@ class _Walk {
         await _classifyArguments(expr);
         return;
       }
-      if (_classifier.isCustomWidget(type)) {
+      if (_classifier.isCustomWidget(type, composer: _widgetClass)) {
         await _composeCustomWidget(type, expr);
         return;
       }
@@ -1062,6 +1172,14 @@ class _Walk {
         );
     for (final arg in expr.argumentList.arguments) {
       if (arg is NamedArgument && isDiscardedWidgetKeyArgument(arg)) {
+        // A key the widget is given crosses through its args; a key its own
+        // build creates exists only where the app runs that build.
+        if (_coalesceLeftParam(arg.argumentExpression) == null &&
+            !_readsForwardedKey(arg.argumentExpression)) {
+          final source = _shortSource(arg.argumentExpression);
+          if (_unclassifiableReason == null) _ownKey = source;
+          _unclassifiable(_ownKeyReason(source));
+        }
         continue;
       }
       if (isCatalogWidget && _tryClassifyNavigationTrigger(arg)) {
@@ -1631,6 +1749,29 @@ class _Walk {
     return null;
   }
 
+  /// Whether [expr] reads the widget's own key, `key` or `widget.key`, which
+  /// its constructor takes from the caller with `super.key`.
+  bool _readsForwardedKey(Expression expr) {
+    final inner = expr is ParenthesizedExpression ? expr.expression : expr;
+    final element = switch (inner) {
+      SimpleIdentifier(:final element) => element,
+      PrefixedIdentifier(
+        prefix: SimpleIdentifier(name: 'widget'),
+        :final identifier,
+      ) =>
+        identifier.element,
+      _ => null,
+    };
+    final forwarded =
+        isWidgetKeyField(element) &&
+        superKeyFormal(_widgetClass.unnamedConstructor) != null;
+    if (forwarded) readsForwardedKey = true;
+    return forwarded;
+  }
+
+  /// Whether the build reads the key its constructor takes with `super.key`.
+  bool readsForwardedKey = false;
+
   /// The constructor-property name [element] reads, or null when [element] is
   /// not an own `this.x` constructor-formal field of the widget class.
   String? _ownParamName(Element? element) {
@@ -1960,7 +2101,7 @@ class _Walk {
     BinaryExpression(:final leftOperand) => _idiomSubjectOf(leftOperand),
     PrefixExpression(:final operand) => _idiomSubjectOf(operand),
     ParenthesizedExpression(:final expression) => _idiomSubjectOf(expression),
-    _ => _truncateSource(node),
+    _ => _shortSource(node),
   };
 
   /// The `Type` or `Type.namedCtor` subject of a construction, from the
@@ -2022,6 +2163,9 @@ class _Walk {
     }
     final reason = _unclassifiableReason;
     final diagnosticCode = _unclassifiableDiagnosticCode;
+    if (_ownKey case final ownKey? when reason == _ownKeyReason(ownKey)) {
+      return UnclassifiableWidget(key, reason: reason!, ownKey: ownKey);
+    }
     if (reason != null) {
       if (diagnosticCode != null &&
           diagnosticCode != IssueCode.customWidgetUnclassified) {
@@ -2043,7 +2187,10 @@ class _Walk {
 
 /// Collapses [node]'s source to one line and caps its length, for quoting the
 /// offending construct into a diagnostic message.
-String _truncateSource(AstNode node) {
+// [node]'s source as a message quotes it: shortened, in backticks.
+String _truncateSource(AstNode node) => '`${_shortSource(node)}`';
+
+String _shortSource(AstNode node) {
   final collapsed = node.toSource().replaceAll(RegExp(r'\s+'), ' ').trim();
   if (collapsed.length <= 60) return collapsed;
   return '${collapsed.substring(0, 59)}...';
@@ -2114,6 +2261,14 @@ Future<ClassificationResult> classifyReferencedCustomWidgets({
       ),
     );
   }
+  // App widgets the build places under its statements, too.
+  for (final body in {
+    for (final expression in rootExpressions)
+      if (expression.thisOrAncestorOfType<FunctionBody>() case final body?)
+        body,
+  }) {
+    body.accept(_AppWidgetConstructions(entryPoints));
+  }
   for (final widgetClass in entryPoints) {
     await classifier.classify(widgetClass);
   }
@@ -2121,16 +2276,132 @@ Future<ClassificationResult> classifyReferencedCustomWidgets({
     classifications: classifier.results,
     blueprints: classifier.blueprints,
     collectionRefusals: classifier._collectionRefusals,
+    classes: classifier._classes,
   );
 }
 
-/// Finds the annotated widget classes reached from [expression].
+// The SDK helpers that fire an authored event from where they are called.
+const _eventHelperNames = {
+  'paywallEvent',
+  'surfaceEvent',
+  'onboardingEvent',
+  'surfaceEventWithContext',
+  'activeDispatcher',
+  'activeSurfaceEventDispatcher',
+};
+
+/// Whether [node] calls an SDK event helper; a call that does not resolve
+/// counts when its name matches.
+bool callsEventHelper(MethodInvocation node) {
+  if (!_eventHelperNames.contains(node.methodName.name)) return false;
+  final element = node.methodName.element;
+  return element == null ||
+      libraryUriMatchesOrigin(
+        element.library?.identifier ?? '',
+        'package:restage',
+      );
+}
+
+/// Whether code below [node] can fire an authored event: it calls an event
+/// helper (unless [helpers] is false), a function of its own package that
+/// builds a widget or callback, or an app widget [results] doesn't show to
+/// fire none. Members of [own] are read where they are.
+bool reachesEvents(
+  AstNode node,
+  Map<String, WidgetClassification> results, {
+  Element? own,
+  bool helpers = true,
+}) {
+  final package = _packageOfNode(node);
+  var fires = false;
+  node.accept(
+    _EventReach(
+      onCall: (call) {
+        if (callsEventHelper(call)) {
+          if (helpers) fires = true;
+          return;
+        }
+        final element = call.methodName.element;
+        final type = call.staticType;
+        if (package != null &&
+            element != null &&
+            !identical(element.enclosingElement, own) &&
+            _packageName(element.library?.identifier ?? '') == package &&
+            (type is FunctionType ||
+                type is DynamicType ||
+                type is InterfaceType &&
+                    [
+                      type,
+                      ...type.allSupertypes,
+                    ].any((t) => t.element.name == 'Widget'))) {
+          fires = true;
+        }
+      },
+      onWidget: (type) {
+        if (identical(type, own) || !isAppWidgetClass(type, package: package)) {
+          return;
+        }
+        if (results[customWidgetKey(type)]?.firesEvents ?? true) fires = true;
+      },
+    ),
+  );
+  return fires;
+}
+
+// Reports each call and widget construction below a node.
+final class _EventReach extends RecursiveAstVisitor<void> {
+  _EventReach({required this.onCall, required this.onWidget});
+
+  final void Function(MethodInvocation call) onCall;
+  final void Function(ClassElement type) onWidget;
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    onCall(node);
+    super.visitMethodInvocation(node);
+  }
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    if (node.constructorName.type.element case final ClassElement type) {
+      onWidget(type);
+    }
+    super.visitInstanceCreationExpression(node);
+  }
+}
+
+final class _AppWidgetConstructions extends RecursiveAstVisitor<void> {
+  _AppWidgetConstructions(this.classes);
+
+  final Set<ClassElement> classes;
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    final type = node.constructorName.type.element;
+    if (type is ClassElement &&
+        isAppWidgetClass(type, package: _packageOfNode(node))) {
+      classes.add(type);
+    }
+    super.visitInstanceCreationExpression(node);
+  }
+}
+
+String? _packageOfNode(AstNode node) => switch (node.root) {
+  CompilationUnit(:final declaredFragment?) => _packageName(
+    declaredFragment.element.identifier,
+  ),
+  _ => null,
+};
+
+/// Finds the custom widget classes reached from [expression]; see
+/// [isAppWidgetClass].
 Set<ClassElement> customWidgetClassesIn(
   Expression expression, {
   InlinedDefinitions inlined = const InlinedDefinitions.empty(),
   Set<String> admittedHelperPackages = const {},
 }) {
   final classes = <ClassElement>{};
+  final package = _packageOfNode(expression);
   visitStaticallyAdmittedExpressions(
     expression,
     inlined: inlined,
@@ -2138,8 +2409,7 @@ Set<ClassElement> customWidgetClassesIn(
     visit: (expression, _) {
       if (expression is! InstanceCreationExpression) return;
       final type = expression.constructorName.type.element;
-      if (type is ClassElement &&
-          firstAnnotation(type, 'RestageWidget') != null) {
+      if (type is ClassElement && isAppWidgetClass(type, package: package)) {
         classes.add(type);
       }
     },

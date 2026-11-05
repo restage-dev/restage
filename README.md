@@ -121,9 +121,10 @@ flow. If a file produced more than one surface, the CLI lists them and asks;
 - **Use it anywhere in the app.** An onboarding flow, a survey, a paywall, a
   whole screen, or one card inside your own `Scaffold`. One runtime renders
   all of them.
-- **It has a catalog of 121 widgets** across `restage_core`,
+- **It has a catalog of 136 widgets** across `restage_core`,
   `restage_material`, and `restage_cupertino`. Add your own widgets with
-  `@RestageWidget`.
+  `@RestageWidget`. Widgets that need app code can also render alongside the
+  delivered layout; `@RenderInApp` keeps a widget in app code explicitly.
 - **Your app owns the implementation.** What ships is a description your app's
   widgets draw, in a small closed language the compiler checks. It can carry
   simple logic, like conditions over data your app supplies. Gestures, drawing,

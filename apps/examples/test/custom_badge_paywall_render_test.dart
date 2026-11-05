@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/user_factories.g.dart';
-import 'package:restage_example/widgets/streak_badge.dart';
+import 'package:restage_example/paywalls/custom_badge.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
 import '_support/bundled_artifacts.dart';
@@ -28,9 +28,8 @@ void main() {
   });
 
   testWidgets(
-      'the codegen-generated custom_badge blob references StreakBadge and the '
-      'runtime resolves + renders it (codegen -> runtime, end to end)',
-      (tester) async {
+      'the delivered custom_badge renders the split StreakBadge as the app '
+      'does', (tester) async {
     // The committed rfwtxt is the canonical codegen output; encode it exactly
     // as the runtime decodes a delivered blob.
     final bytes = Uint8List.fromList(
@@ -45,27 +44,35 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final failures = <PaywallLoadFailed>[];
-    await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
-      home: Scaffold(
-        body: RestagePaywall(
-          id: 'custom_badge',
-          resolver: _StaticResolver(bytes),
-          onEvent: (e) {
-            if (e is PaywallLoadFailed) failures.add(e);
-          },
-        ),
-      ),
-    ));
-    await tester.pumpAndSettle();
+    // The app's own paywall, then the delivered design.
+    Future<List<String?>> run(Widget body) async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(MaterialApp(
+        theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.indigo),
+        home: Scaffold(body: body),
+      ));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      return [
+        for (final element in find.byType(Text).evaluate())
+          (element.widget as Text).data ??
+              (element.widget as Text).textSpan?.toPlainText(),
+      ];
+    }
 
+    final app = await run(const CustomBadgePaywall());
+    final failures = <PaywallLoadFailed>[];
+    final delivered = await run(RestagePaywall(
+      id: 'custom_badge',
+      resolver: _StaticResolver(bytes),
+      onEvent: (e) {
+        if (e is PaywallLoadFailed) failures.add(e);
+      },
+    ));
     expect(
         failures.map((f) => '${f.errorCode}: ${f.message}').toList(), isEmpty);
-    // The real StreakBadge widget mounts (resolved via the registered factory)
-    // — proving it was REFERENCED, not inlined, and the reference resolves.
-    expect(find.byType(StreakBadge), findsNWidgets(2));
     expect(find.text('Streak: 9'), findsOneWidget);
     expect(find.text('Saved: 3'), findsOneWidget);
+    expect(delivered, app);
   });
 }

@@ -1,6 +1,6 @@
 part of '../crave_location.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const craveLocationScreenRef = NeutralFlowScreenRef(
   id: 'crave_location',

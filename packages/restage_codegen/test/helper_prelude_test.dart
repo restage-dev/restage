@@ -8,10 +8,16 @@ import 'helpers.dart';
 
 const String _package = 'apps_examples';
 
+String _snake(String name) => name
+    .replaceAllMapped(RegExp('(?<=.)[A-Z]'), (m) => '_${m[0]}')
+    .toLowerCase();
+
 String _paywall(String name, String build, {String helper = ''}) =>
     '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
+
+part 'restage.generated/${_snake(name)}.restage.g.dart';
 
 @Paywall()
 class $name extends StatelessWidget {
@@ -89,28 +95,6 @@ Future<TestReaderWriter> _seeded(Map<String, String> sources) async {
 String _text(TestBuilderResult result, String id) => result.readerWriter.testing
     .readString(AssetId(_package, 'assets/paywalls/$id.rfwtxt'));
 
-Future<String> _log(
-  String slug,
-  String source, {
-  Map<String, String> parts = const {},
-}) async {
-  final sources = {
-    '$_package|lib/paywalls/$slug.dart': source,
-    for (final entry in parts.entries)
-      '$_package|lib/paywalls/${entry.key}': entry.value,
-  };
-  final logs = <String>[];
-  await testBuilder(
-    restageCodegenBuilder(BuilderOptions.empty),
-    sources,
-    rootPackage: _package,
-    readerWriter: await _seeded(sources),
-    outputs: const {},
-    onLog: (record) => logs.add(record.message),
-  );
-  return logs.join('\n');
-}
-
 void main() {
   late TestBuilderResult result;
 
@@ -147,60 +131,64 @@ void main() {
     );
   });
 
-  test('an unread helper local is refused by name', () async {
-    final log = await _log(
+  // A helper the payload cannot carry is read from an instance of the
+  // surface.
+  for (final (slug, name, call, helper) in [
+    (
       'helper_unused_local',
-      _paywall(
-        'HelperUnusedLocal',
-        '    return Column(children: [_card()]);',
-        helper: '''
+      'HelperUnusedLocal',
+      '_card()',
+      '''
   Widget _card() {
     final unused = 'x';
     return const Text('A');
   }''',
-      ),
-    );
-    expect(
-      log,
-      contains(
-        "The helper '_card' cannot be inlined: the local 'unused' is declared "
-        "in the helper '_card' but never read",
-      ),
-    );
-    expect(log, isNot(contains('unknownWidget')));
-  });
-
-  test('an unsupported helper statement is refused by name', () async {
-    final log = await _log(
+    ),
+    (
       'helper_statement',
-      _paywall(
-        'HelperStatement',
-        '    return Column(children: [_card(true)]);',
-        helper: '''
+      'HelperStatement',
+      '_card(true)',
+      '''
   Widget _card(bool wide) {
     if (wide) return const Text('Wide');
     return const Text('Narrow');
   }''',
-      ),
+    ),
+  ]) {
+    test(
+      '$slug: an instance helper that does not inline is an island',
+      () async {
+        final sources = {
+          '$_package|lib/paywalls/$slug.dart': _paywall(
+            name,
+            '    return Column(children: [$call]);',
+            helper: helper,
+          ),
+        };
+        final built = await testBuilders(
+          [restageCodegenBuilder(BuilderOptions.empty)],
+          sources,
+          rootPackage: _package,
+          readerWriter: await _seeded(sources),
+          flattenOutput: true,
+        );
+        expect(built.succeeded, isTrue, reason: built.errors.join('\n'));
+        expect(
+          _text(built, slug),
+          contains('${slug.replaceAll('_', '__')}__card_0()'),
+        );
+      },
     );
-    expect(
-      log,
-      contains(
-        "The helper '_card' cannot be inlined: its body must be one returned "
-        'expression',
-      ),
-    );
-    expect(log, isNot(contains('unknownWidget')));
-  });
+  }
 
-  test('a refused helper in a part file is refused by name', () async {
-    final log = await _log(
-      'helper_part',
-      '''
+  test('a helper in a part file that does not inline is an island', () async {
+    final sources = {
+      '$_package|lib/paywalls/helper_part.dart': '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
 part 'helper_part_cards.dart';
+part 'restage.generated/helper_part.restage.g.dart';
 
 @Paywall()
 class HelperPart extends StatelessWidget {
@@ -210,8 +198,7 @@ class HelperPart extends StatelessWidget {
   Widget build(BuildContext context) => Column(children: [_card(true)]);
 }
 ''',
-      parts: {
-        'helper_part_cards.dart': '''
+      '$_package|lib/paywalls/helper_part_cards.dart': '''
 part of 'helper_part.dart';
 
 Widget _card(bool wide) {
@@ -219,16 +206,16 @@ Widget _card(bool wide) {
   return const Text('Narrow');
 }
 ''',
-      },
+    };
+    final built = await testBuilders(
+      [restageCodegenBuilder(BuilderOptions.empty)],
+      sources,
+      rootPackage: _package,
+      readerWriter: await _seeded(sources),
+      flattenOutput: true,
     );
-    expect(
-      log,
-      contains(
-        "The helper '_card' cannot be inlined: its body must be one returned "
-        'expression',
-      ),
-    );
-    expect(log, isNot(contains('unknownWidget')));
+    expect(built.succeeded, isTrue);
+    expect(_text(built, 'helper_part'), contains('helper__part__card_0()'));
   });
 
   group('helpers from another file in the package', () {
@@ -393,7 +380,7 @@ $body
       expect(events, contains(endsWith('FilledButton.onPressed')));
     });
 
-    Future<String> refusalLog(Map<String, String> files) async {
+    Future<String> islandText(String slug, Map<String, String> files) async {
       final sources = {
         for (final entry in files.entries)
           '$_package|${entry.key}': entry.value,
@@ -407,8 +394,8 @@ $body
         flattenOutput: true,
         onLog: (record) => logs.add(record.message),
       );
-      expect(result.succeeded, isFalse);
-      return logs.join('\n');
+      expect(result.succeeded, isTrue, reason: logs.join('\n'));
+      return _text(result, slug);
     }
 
     test('that compute a value are evaluated in the app', () async {
@@ -423,6 +410,8 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
 import '../style/values.dart';
+
+part 'restage.generated/generic_helper.restage.g.dart';
 
 @Paywall()
 class GenericHelper extends StatelessWidget {
@@ -449,8 +438,8 @@ class GenericHelper extends StatelessWidget {
       );
     });
 
-    test('report errors in their own file', () async {
-      final log = await refusalLog({
+    test('become islands where they do not lower', () async {
+      final log = await islandText('fancy_helper', {
         'lib/widgets/fancy.dart': '''
 import 'package:flutter/material.dart';
 
@@ -465,6 +454,8 @@ import 'package:restage/restage.dart';
 
 import '../widgets/fancy.dart';
 
+part 'restage.generated/fancy_helper.restage.g.dart';
+
 @Paywall()
 class FancyHelper extends StatelessWidget {
   const FancyHelper({super.key});
@@ -474,8 +465,7 @@ class FancyHelper extends StatelessWidget {
 }
 ''',
       });
-      expect(log, contains('lib/widgets/fancy.dart:5:'));
-      expect(log, contains("'CustomPaint'"));
+      expect(log, contains('fancy__helper_fancy0_CustomPaint_0()'));
     });
 
     test('inline into an onboarding screen', () async {
@@ -535,11 +525,13 @@ final class WelcomeScreen extends StatelessWidget {
       expect(called, inlined);
     });
 
-    test('from an unadmitted package are refused by name', () async {
+    test('from an unadmitted package are islands', () async {
       const surface = '''
 import 'package:acme_kit/kit.dart';
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
+
+part 'restage.generated/other_package.restage.g.dart';
 
 @Paywall()
 class OtherPackage extends StatelessWidget {
@@ -570,14 +562,10 @@ abstract final class Kit {
         flattenOutput: true,
         onLog: (record) => logs.add(record.message),
       );
-      expect(result.succeeded, isFalse);
+      expect(result.succeeded, isTrue, reason: logs.join('\n'));
       expect(
-        logs.join('\n'),
-        contains(
-          "The helper 'Kit.badge' cannot be inlined: it is declared outside "
-          'this package and the dependency packages that publish custom '
-          'Restage widgets.',
-        ),
+        _text(result, 'other_package'),
+        contains('other__package_badge_0()'),
       );
     });
   });

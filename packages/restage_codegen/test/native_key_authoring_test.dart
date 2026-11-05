@@ -11,7 +11,6 @@ import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
-import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
@@ -152,6 +151,13 @@ class P extends StatelessWidget {
           isEmpty,
           reason: result.issues.map((issue) => issue.message).join('\n'),
         );
+        // A global key keeps the widget that holds it in the app, with the
+        // app's own instance.
+        if (type == 'GlobalKey') {
+          expect(result.islands, isNotEmpty);
+          expect(result.dsl, isNot(contains('key: data.context.')));
+          return;
+        }
         expect(result.dsl, contains('key: data.context.'));
         expect(result.hoisted, isNotEmpty);
         for (final value in result.hoisted) {
@@ -507,11 +513,21 @@ class P extends StatelessWidget {
         );
         expect(result.dsl, contains('nativeKey'));
       } else {
-        expect(result.issues, hasLength(1));
-        expect(result.issues.single.code, IssueCode.propertyValueTypeMismatch);
+        // The widget with the spread renders from the app when the mount
+        // can build it; a receiver only the surface has still refuses.
         expect(
-          result.issues.single.message,
-          'Widget spreads require an analyzable list expression: ${call.key}',
+          [
+            for (final island in result.islands) island.id,
+            for (final issue in result.issues)
+              if (!issue.code.isBuildNotice) issue.code.name,
+          ],
+          {
+            '(null as Other).items()': ['P.build/Column#0'],
+            'Other().items()': ['P.build/Column#0'],
+            // `this` reads the surface instance, so the list renders from
+            // the app.
+            'this.items()': ['P.build/Column#0'],
+          }[call.key],
         );
         expect(result.dsl, isNot(contains('Text(text: "other")')));
       }

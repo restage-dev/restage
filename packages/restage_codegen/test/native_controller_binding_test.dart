@@ -223,13 +223,17 @@ void main() {
       'flutter.ScrollController',
     );
   });
-  test('native construction is refused without copying ownership', () async {
+  test('a native construction is the one the build makes', () async {
     final result = await _translate('ListView(controller: ScrollController())');
+    // The mount records the controller the build constructs, and the design
+    // binds that one.
+    expect(result.issues.where((issue) => !issue.code.isBuildNotice), isEmpty);
+    expect(result.islands, isEmpty);
     expect(
-      result.issues.where((issue) => !issue.code.isBuildNotice),
-      isNotEmpty,
+      [for (final value in result.hoisted) value.label],
+      ['ScrollController()'],
     );
-    expect(result.hoisted, isEmpty);
+    expect(result.dsl, contains('controller: data.context.'));
   });
   test('optional native null remains null', () async {
     final result = await _translate('ListView(controller: null)');

@@ -37,6 +37,7 @@ final class _Host extends StatefulWidget {
 final class _HostState extends State<_Host> {
   var value = 0;
   var showDependent = true;
+  var valueInside = false;
 
   void update({required int value, required bool showDependent}) =>
       setState(() {
@@ -45,15 +46,31 @@ final class _HostState extends State<_Host> {
       });
 
   @override
-  Widget build(BuildContext context) => _Value(
-        value: value,
-        child: RestagePaywallEventDispatcher(
-          onEvent: widget.onEvent,
-          child: showDependent
-              ? _Dependent(onBuilt: widget.onBuilt)
-              : const SizedBox.shrink(),
-        ),
-      );
+  Widget build(BuildContext context) {
+    Widget content(Widget child) => _Value(value: value, child: child);
+    final dependent = showDependent
+        ? _Dependent(onBuilt: widget.onBuilt)
+        : const SizedBox.shrink();
+    return valueInside
+        ? RestagePaywallEventDispatcher(
+            onEvent: widget.onEvent,
+            child: content(_Keep(child: dependent)),
+          )
+        : content(RestagePaywallEventDispatcher(
+            onEvent: widget.onEvent,
+            child: dependent,
+          ));
+  }
+}
+
+// Rebuilds its child only when its parent does.
+final class _Keep extends StatelessWidget {
+  const _Keep({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
 }
 
 void main() {
@@ -93,6 +110,46 @@ void main() {
       ),
     );
 
+    tester
+        .state<_HostState>(find.byType(_Host, skipOffstage: false))
+        .update(value: 1, showDependent: false);
+    await tester.pump();
+    await tester.pump();
+    cover.remove();
+    await tester.pump();
+    await tester.idle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(_Dependent), findsNothing);
+    cover.dispose();
+  });
+
+  testWidgets(
+      'a dependent inside the scope removed while covered does not throw',
+      (tester) async {
+    final cover = OverlayEntry(
+      opaque: true,
+      builder: (_) => const SizedBox.expand(),
+    );
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Overlay(
+          initialEntries: [
+            OverlayEntry(
+              maintainState: true,
+              builder: (_) => _Host(onEvent: (_, __) {}, onBuilt: (_) {}),
+            ),
+            cover,
+          ],
+        ),
+      ),
+    );
+
+    tester.state<_HostState>(find.byType(_Host, skipOffstage: false))
+      ..valueInside = true
+      ..update(value: 0, showDependent: true);
+    await tester.pump();
     tester
         .state<_HostState>(find.byType(_Host, skipOffstage: false))
         .update(value: 1, showDependent: false);

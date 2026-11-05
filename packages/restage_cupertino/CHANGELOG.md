@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `CupertinoButton`, `CupertinoTextField`, `CupertinoSearchTextField`, `CupertinoSlider`, `CupertinoSwitch` and `CupertinoDatePicker` take their remaining callbacks at capability 26, passed through as the app's own closure.
+- `CupertinoTimerPicker` defaults `alignment` to `Alignment.center`, as Flutter does. An omitted required picker callback is refused rather than replaced with a no-op.
+
 ## 2.0.0
 
 - Breaking: the registry and catalog use catalog schema v5 from

@@ -21,6 +21,8 @@ import 'package:restage_codegen/src/dsl_parse_diagnostic.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/hoisting.dart';
+import 'package:restage_codegen/src/islands/islands.dart';
+import 'package:restage_codegen/src/frozen_occurrence_rebinding.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/library_visitor.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
@@ -28,6 +30,7 @@ import 'package:restage_codegen/src/measurement/measurement_route_emission.dart'
 import 'package:restage_codegen/src/production_helpers.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
+import 'package:restage_codegen/src/surface_publication/split_widgets.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
@@ -68,8 +71,13 @@ final class CompiledPaywallArtifacts {
     Map<String, Object> standaloneLocalSeeds = const {},
     Map<String, Object> adapterLocalSeeds = const {},
     Iterable<HoistedValue> hoisted = const [],
+    Iterable<Island> islands = const [],
+    this.split,
+    Iterable<SplitWidgetInput> splitWidgets = const [],
   }) : navigationPushedIds = List.unmodifiable(navigationPushedIds),
+       splitWidgets = List.unmodifiable(splitWidgets),
        hoisted = List.unmodifiable(hoisted),
+       islands = List.unmodifiable(islands),
        standaloneLocalSeeds = Map.unmodifiable(standaloneLocalSeeds),
        adapterLocalSeeds = Map.unmodifiable(adapterLocalSeeds),
        standaloneBlob = standaloneBlob == null
@@ -126,6 +134,16 @@ final class CompiledPaywallArtifacts {
 
   /// Values the paywall's mount computes for either form, ordered by key.
   final List<HoistedValue> hoisted;
+
+  /// Islands of either form, ordered by ID.
+  final List<Island> islands;
+
+  /// How the mount takes over the paywall's shell and `State`.
+  final MountSplit? split;
+
+  /// The custom widgets its library splits: each one's delivered definition
+  /// and the build its generated wrapper records.
+  final List<SplitWidgetInput> splitWidgets;
 }
 
 @immutable
@@ -220,6 +238,26 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
     astNodeFor: (fragment) =>
         resolvedNodeInLongForm(buildStep.resolver, fragment),
   );
+  // Each custom widget that doesn't fully inline, split as its own root.
+  final splits = await splitWidgetsOf(
+    noticeKeys: noticeKeys,
+    custom: () => packageReconstruction(buildStep),
+    classification: classification,
+    catalog: catalog,
+    surfaceLibrary: library,
+    astNodeFor: (fragment) =>
+        resolvedNodeInLongForm(buildStep.resolver, fragment),
+    translator: ExpressionTranslator(
+      catalog: catalog,
+      helpers: helpers,
+      customWidgetClassifications: classification.classifications,
+      customWidgetBlueprints: classification.blueprints,
+      canonicalPaywallIdFor: canonicalPaywallIdFor,
+    ),
+  );
+  final splitDefinitions = splitWidgetDefinitionsOf(splits);
+  Catalog formCatalog(Iterable<Island> islands) =>
+      withSplits(catalog, islands, splits);
   ExpressionTranslator translatorFor(
     PaywallSourceFound source,
     MeasurementRouteEmissionPlan? routePlan,
@@ -228,28 +266,44 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
     helpers: helpers,
     customWidgetClassifications: classification.classifications,
     customWidgetBlueprints: classification.blueprints,
+    splitWidgetDefinitions: splitDefinitions,
     canonicalPaywallIdFor: canonicalPaywallIdFor,
     measurementRouteEmissionPlan: routePlan,
   );
   final compiled = <CompiledPaywallArtifacts>[];
-  for (final source in sources) {
+  for (var source in sources) {
     final sourceIsRetained = retainSource?.call(source) ?? true;
     final declarationIdentity = '${library.identifier}#${source.className}';
     final routePlan = measurementRoutePlans[declarationIdentity];
     final routeOwnership = measurementRouteOwnership[declarationIdentity];
-    final probe = translatorFor(source, null).translate(
-      source.rootExpression,
-      entryId: source.id,
-      sourcePath: assetId.path,
-      lineInfo: lineInfo,
-      rootState: source.build.state,
-      rootParams: source.build.rootParams,
-      rootEventHandlers: source.build.eventHandlers,
-      buildContextParameter: source.build.buildContextParameter,
-      rootInlined: source.build.inlined,
-      hoistInMount: true,
-      rootBuildArguments: source.build.buildArguments,
-    );
+    TranslationResult probeOf(PaywallSourceFound source) =>
+        translatorFor(source, null).translate(
+          source.rootExpression,
+          entryId: source.id,
+          sourcePath: assetId.path,
+          lineInfo: lineInfo,
+          rootState: source.build.state,
+          rootParams: source.build.rootParams,
+          rootEventHandlers: source.build.eventHandlers,
+          buildContextParameter: source.build.buildContextParameter,
+          rootInlined: source.build.inlined,
+          hoistInMount: true,
+          liftedState: source.build.liftedState,
+          contentFree: source.build.contentFree,
+          rootBuildArguments: source.build.buildArguments,
+        );
+    var probe = probeOf(source);
+    // An island that needs a lowerable State's members moves the State into
+    // the mount.
+    if (source.build.liftable case final lifted?
+        when (probe.issues.any((issue) => !issue.code.isBuildNotice) ||
+                probe.split?.recordProblem != null) &&
+            probe.blocked.any(
+              (element) => isInstanceMemberOf(lifted.liftedState!, element),
+            )) {
+      source = source.withBuild(lifted);
+      probe = probeOf(source);
+    }
     final usesFlowForm = probe.navigation != null || probe.suppressed;
     final emitStandalone = routeOwnership?.standalone ?? !usesFlowForm;
     final emitAdapter = routeOwnership?.adapter ?? usesFlowForm;
@@ -268,6 +322,8 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             buildContextParameter: source.build.buildContextParameter,
             rootInlined: source.build.inlined,
             hoistInMount: true,
+            liftedState: source.build.liftedState,
+            contentFree: source.build.contentFree,
             rootBuildArguments: source.build.buildArguments,
           )
         : probe;
@@ -284,6 +340,8 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             flowScreenContext: true,
             rootInlined: source.build.inlined,
             hoistInMount: true,
+            liftedState: source.build.liftedState,
+            contentFree: source.build.contentFree,
             rootBuildArguments: source.build.buildArguments,
           )
         : routePlan != null && emitAdapter
@@ -299,6 +357,8 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             flowScreenContext: true,
             rootInlined: source.build.inlined,
             hoistInMount: true,
+            liftedState: source.build.liftedState,
+            contentFree: source.build.contentFree,
             rootBuildArguments: source.build.buildArguments,
           )
         : probe;
@@ -333,7 +393,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             standaloneRfwCatalogOccurrenceSetsByDeclarationIdentity[declarationIdentity],
         requireFrozenOccurrenceSet: requireStandaloneFrozenOccurrenceSet,
         formName: 'standalone',
-        catalog: catalog,
+        catalog: formCatalog(standalone.islands),
         issues: issues,
       );
     }
@@ -348,7 +408,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
           adapterRfwCatalogOccurrenceSetsByDeclarationIdentity[declarationIdentity],
       requireFrozenOccurrenceSet: requireAdapterFrozenOccurrenceSet,
       formName: 'adapter',
-      catalog: catalog,
+      catalog: formCatalog(adapter.islands),
       issues: issues,
     );
     if (adapterForm == null || issues.isNotEmpty) continue;
@@ -381,6 +441,9 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
           for (final value in [...standalone.hoisted, ...adapter.hoisted])
             value.key: value,
         }.values.toList()..sort((left, right) => left.key.compareTo(right.key)),
+        islands: standalone.islands,
+        split: standalone.split ?? adapter.split,
+        splitWidgets: splits,
         navigationPlan: standalone.navigation == null
             ? null
             : utf8.encode(
@@ -474,9 +537,15 @@ _CompiledPaywallForm? _compilePaywallForm({
           renderEntryNames: [rootWidgetName],
         ),
       );
-  final occurrenceRebinding = frozenOccurrenceSet?.rebindFinalLibrary(
+  final rebound = rebindFrozenOccurrences(
+    frozenOccurrenceSet,
     parsedLibrary,
+    name: source.className,
+    location: '${source.assetId.path}#${source.className}',
+    issues: issues,
   );
+  if (rebound == null) return null;
+  final occurrenceRebinding = rebound.rebinding;
   final lowering = lowerAnalyticsIds(
     text: text,
     library: parsedLibrary,

@@ -18,15 +18,18 @@ import 'owning_library_namespace.dart';
 /// Validation uses the same installed declarations emitted into the mount.
 Map<String, ValueOperation> installedNativeCallOperations(
   Iterable<HoistedValue> hoisted,
-) => {
-  ...kCollectionValueOperations,
-  ...kGridValueOperations,
-  ...kIntlValueOperations,
-  'native.call': NativeCallValueOperation({
+) => nativeCallOperations(
+  SurfaceScreenHostDataSchema({
     for (final value in hoisted)
-      if (value.nativeContract?.call != null) value.key: value.nativeContract!,
+      if (value.nativeContract case final contract?)
+        value.key: SurfaceScreenHostDataNativeBindingShapeV1(contract),
   }),
-};
+  {
+    ...kCollectionValueOperations,
+    ...kGridValueOperations,
+    ...kIntlValueOperations,
+  },
+);
 
 /// An existing lexical cell retained by an installed closure.
 final class InstalledNativeCapture {
@@ -60,7 +63,8 @@ final class InstalledNativeCallPlan {
         .convert(
           utf8.encode(
             jsonEncode({
-              'source': source,
+              // Comments and layout do not change what the call is.
+              'source': canonicalHoistSource(source),
               'result': resultDartType,
               'inputs': _inputTypes,
               'captures': _captureTypes,
@@ -112,8 +116,13 @@ final class InstalledNativeCallPlan {
   );
 
   /// Creates only the adapter; its body executes at the expression node.
-  String adapterSource({required String core, required String shared}) {
-    final declaration = nativeContractSource(contract, shared);
+  /// [declaration] names an already-declared contract to share.
+  String adapterSource({
+    required String core,
+    required String shared,
+    String? declaration,
+  }) {
+    declaration ??= nativeContractSource(contract, shared);
     final buffer = StringBuffer(
       '${core}NativeCallAdapter($declaration, '
       '(${_prefix}Inputs, ${_prefix}Cells) {',
@@ -155,7 +164,8 @@ final class InstalledNativeCallPlan {
     return '$buffer})';
   }
 
-  HoistedValue get binding => HoistedValue(
+  /// The value this plan installs, first written at [location].
+  HoistedValue bindingAt(String? location) => HoistedValue(
     key: key,
     label: source,
     kind: HoistValueKind.nativeBinding,
@@ -163,6 +173,7 @@ final class InstalledNativeCallPlan {
     template: '',
     nativeContract: contract,
     nativeCall: this,
+    location: location,
   );
 }
 
@@ -262,6 +273,7 @@ HoistedValue installedNativeConstant(
   Expression expression, {
   required String type,
   LibraryElement? emissionLibrary,
+  String? location,
 }) {
   final constant = installedNativeConstantValue(expression);
   if (constant == null) {
@@ -291,6 +303,7 @@ HoistedValue installedNativeConstant(
     template: source,
     nativeContract: contract,
     nativeConstant: plan,
+    location: location,
   );
 }
 
@@ -807,6 +820,25 @@ String installedNativeTypeId(DartType type) => switch (type) {
         '${type.nullabilitySuffix.name == 'question' ? '?' : ''}',
   VoidType() => 'void',
   _ => throw ArgumentError('Unsupported nominal native type $type'),
+};
+
+/// The id of callback [type] without the slot's own nullability, or null when
+/// it is not a function type every part of which has a nominal id.
+String? callbackTypeId(DartType type) {
+  if (type is! FunctionType || !_hasNominalId(type)) return null;
+  final id = installedNativeTypeId(type);
+  return type.nullabilitySuffix == NullabilitySuffix.question
+      ? id.substring(0, id.length - 1)
+      : id;
+}
+
+bool _hasNominalId(DartType type) => switch (type) {
+  InterfaceType() => type.typeArguments.every(_hasNominalId),
+  FunctionType() =>
+    _hasNominalId(type.returnType) &&
+        type.formalParameters.every((p) => _hasNominalId(p.type)),
+  VoidType() => true,
+  _ => false,
 };
 
 final class _LocalNames extends GeneralizingAstVisitor<void> {

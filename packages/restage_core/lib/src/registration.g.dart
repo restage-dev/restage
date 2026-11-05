@@ -7,7 +7,8 @@
 // catalog, and this file).
 
 import 'package:flutter/widgets.dart';
-import 'package:flutter/gestures.dart' show DragStartBehavior;
+import 'package:flutter/gestures.dart'
+    show DragStartBehavior, LongPressDownDetails, TapMoveDetails;
 import 'package:restage_core/restage_core.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
     show
@@ -181,7 +182,7 @@ Widget buildAlign(BuildContext context, DataSource source) {
               type: 'flutter.Key'),
           'Align'),
       alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-          AlignmentDirectional.center,
+          Alignment.center,
       widthFactor:
           RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
       heightFactor:
@@ -201,7 +202,7 @@ Widget buildAnimatedAlign(BuildContext context, DataSource source) {
               type: 'flutter.Key'),
           'AnimatedAlign'),
       alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-          AlignmentDirectional.center,
+          (throw ArgumentError('AnimatedAlign.alignment is required.')),
       heightFactor:
           RestageDecoders.layoutFactor(source, <Object>['heightFactor']),
       widthFactor:
@@ -315,7 +316,7 @@ Widget buildAnimatedDefaultTextStyle(BuildContext context, DataSource source) {
           fontFamily: RestageDecoders.string(source, <Object>['fontFamily'], context: context),
           fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
           package: RestageDecoders.string(source, <Object>['fontPackage'], context: context),
-          overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip)),
+          overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['styleOverflow']))),
       key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
           type: 'flutter.Key'),
       textAlign: RestageDecoders.enumByName<TextAlign>(
@@ -323,6 +324,9 @@ Widget buildAnimatedDefaultTextStyle(BuildContext context, DataSource source) {
       softWrap: RestageValueBinding.read<bool>(
               source, const <Object>['softWrap'], context) ??
           true,
+      overflow: RestageDecoders.enumByName<TextOverflow>(
+              TextOverflow.values, source, <Object>['overflow']) ??
+          TextOverflow.clip,
       maxLines: RestageValueBinding.read<int>(
           source, const <Object>['maxLines'], context),
       textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
@@ -454,7 +458,7 @@ Widget buildAnimatedSize(BuildContext context, DataSource source) {
               type: 'flutter.Key'),
           'AnimatedSize'),
       alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-          AlignmentDirectional.center,
+          Alignment.center,
       curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
       duration: RestageDecoders.duration(source, <Object>['duration']) ??
           (throw ArgumentError('AnimatedSize.duration is required.')),
@@ -476,7 +480,8 @@ Widget buildAnimatedSlide(BuildContext context, DataSource source) {
     return AnimatedSlide(
       key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
           type: 'flutter.Key'),
-      offset: RestageDecoders.offset(source, <Object>['offset']) ?? Offset.zero,
+      offset: RestageDecoders.offset(source, <Object>['offset']) ??
+          (throw ArgumentError('AnimatedSlide.offset is required.')),
       curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
       duration: RestageDecoders.duration(source, <Object>['duration']) ??
           (throw ArgumentError('AnimatedSlide.duration is required.')),
@@ -841,7 +846,7 @@ Widget buildDefaultTextStyle(BuildContext context, DataSource source) {
           fontFamily: RestageDecoders.string(source, <Object>['fontFamily'], context: context),
           fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
           package: RestageDecoders.string(source, <Object>['fontPackage'], context: context),
-          overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip)),
+          overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['styleOverflow']))),
       key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
           type: 'flutter.Key'),
       textAlign: RestageDecoders.enumByName<TextAlign>(
@@ -849,6 +854,9 @@ Widget buildDefaultTextStyle(BuildContext context, DataSource source) {
       softWrap: RestageValueBinding.read<bool>(
               source, const <Object>['softWrap'], context) ??
           true,
+      overflow: RestageDecoders.enumByName<TextOverflow>(
+              TextOverflow.values, source, <Object>['overflow']) ??
+          TextOverflow.clip,
       maxLines: RestageValueBinding.read<int>(
           source, const <Object>['maxLines'], context),
       textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
@@ -918,7 +926,7 @@ Widget buildFittedBox(BuildContext context, DataSource source) {
               BoxFit.values, source, <Object>['fit']) ??
           BoxFit.contain,
       alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-          AlignmentDirectional.center,
+          Alignment.center,
       clipBehavior: RestageDecoders.enumByName<Clip>(
               Clip.values, source, <Object>['clipBehavior']) ??
           Clip.none,
@@ -955,7 +963,7 @@ Widget buildFractionallySizedBox(BuildContext context, DataSource source) {
               type: 'flutter.Key'),
           'FractionallySizedBox'),
       alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-          AlignmentDirectional.center,
+          Alignment.center,
       widthFactor:
           RestageDecoders.layoutFactor(source, <Object>['widthFactor']),
       heightFactor:
@@ -972,9 +980,215 @@ Widget buildGestureDetector(BuildContext context, DataSource source) {
     return GestureDetector(
       key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
           type: 'flutter.Key'),
+      onTapDown: RestageDecoders.nativeCallback<void Function(TapDownDetails)>(
+          source, const <Object>['onTapDown'], 'GestureDetector.onTapDown'),
+      onTapUp: RestageDecoders.nativeCallback<void Function(TapUpDetails)>(
+          source, const <Object>['onTapUp'], 'GestureDetector.onTapUp'),
       onTap: source.voidHandler(const <Object>['onTap']),
+      onTapMove: RestageDecoders.nativeCallback<void Function(TapMoveDetails)>(
+          source, const <Object>['onTapMove'], 'GestureDetector.onTapMove'),
+      onTapCancel: source.voidHandler(const <Object>['onTapCancel']),
+      onSecondaryTap: source.voidHandler(const <Object>['onSecondaryTap']),
+      onSecondaryTapDown:
+          RestageDecoders.nativeCallback<void Function(TapDownDetails)>(
+              source,
+              const <Object>['onSecondaryTapDown'],
+              'GestureDetector.onSecondaryTapDown'),
+      onSecondaryTapUp:
+          RestageDecoders.nativeCallback<void Function(TapUpDetails)>(
+              source,
+              const <Object>['onSecondaryTapUp'],
+              'GestureDetector.onSecondaryTapUp'),
+      onSecondaryTapCancel:
+          source.voidHandler(const <Object>['onSecondaryTapCancel']),
+      onTertiaryTapDown:
+          RestageDecoders.nativeCallback<void Function(TapDownDetails)>(
+              source,
+              const <Object>['onTertiaryTapDown'],
+              'GestureDetector.onTertiaryTapDown'),
+      onTertiaryTapUp:
+          RestageDecoders.nativeCallback<void Function(TapUpDetails)>(
+              source,
+              const <Object>['onTertiaryTapUp'],
+              'GestureDetector.onTertiaryTapUp'),
+      onTertiaryTapCancel:
+          source.voidHandler(const <Object>['onTertiaryTapCancel']),
+      onDoubleTapDown:
+          RestageDecoders.nativeCallback<void Function(TapDownDetails)>(
+              source,
+              const <Object>['onDoubleTapDown'],
+              'GestureDetector.onDoubleTapDown'),
       onDoubleTap: source.voidHandler(const <Object>['onDoubleTap']),
+      onDoubleTapCancel:
+          source.voidHandler(const <Object>['onDoubleTapCancel']),
+      onLongPressDown:
+          RestageDecoders.nativeCallback<void Function(LongPressDownDetails)>(
+              source,
+              const <Object>['onLongPressDown'],
+              'GestureDetector.onLongPressDown'),
+      onLongPressCancel:
+          source.voidHandler(const <Object>['onLongPressCancel']),
       onLongPress: source.voidHandler(const <Object>['onLongPress']),
+      onLongPressStart:
+          RestageDecoders.nativeCallback<void Function(LongPressStartDetails)>(
+              source,
+              const <Object>['onLongPressStart'],
+              'GestureDetector.onLongPressStart'),
+      onLongPressMoveUpdate: RestageDecoders.nativeCallback<
+              void Function(LongPressMoveUpdateDetails)>(
+          source,
+          const <Object>['onLongPressMoveUpdate'],
+          'GestureDetector.onLongPressMoveUpdate'),
+      onLongPressUp: source.voidHandler(const <Object>['onLongPressUp']),
+      onLongPressEnd:
+          RestageDecoders.nativeCallback<void Function(LongPressEndDetails)>(
+              source,
+              const <Object>['onLongPressEnd'],
+              'GestureDetector.onLongPressEnd'),
+      onSecondaryLongPressDown:
+          RestageDecoders.nativeCallback<void Function(LongPressDownDetails)>(
+              source,
+              const <Object>['onSecondaryLongPressDown'],
+              'GestureDetector.onSecondaryLongPressDown'),
+      onSecondaryLongPressCancel:
+          source.voidHandler(const <Object>['onSecondaryLongPressCancel']),
+      onSecondaryLongPress:
+          source.voidHandler(const <Object>['onSecondaryLongPress']),
+      onSecondaryLongPressStart:
+          RestageDecoders.nativeCallback<void Function(LongPressStartDetails)>(
+              source,
+              const <Object>['onSecondaryLongPressStart'],
+              'GestureDetector.onSecondaryLongPressStart'),
+      onSecondaryLongPressMoveUpdate: RestageDecoders.nativeCallback<
+              void Function(LongPressMoveUpdateDetails)>(
+          source,
+          const <Object>['onSecondaryLongPressMoveUpdate'],
+          'GestureDetector.onSecondaryLongPressMoveUpdate'),
+      onSecondaryLongPressUp:
+          source.voidHandler(const <Object>['onSecondaryLongPressUp']),
+      onSecondaryLongPressEnd:
+          RestageDecoders.nativeCallback<void Function(LongPressEndDetails)>(
+              source,
+              const <Object>['onSecondaryLongPressEnd'],
+              'GestureDetector.onSecondaryLongPressEnd'),
+      onTertiaryLongPressDown:
+          RestageDecoders.nativeCallback<void Function(LongPressDownDetails)>(
+              source,
+              const <Object>['onTertiaryLongPressDown'],
+              'GestureDetector.onTertiaryLongPressDown'),
+      onTertiaryLongPressCancel:
+          source.voidHandler(const <Object>['onTertiaryLongPressCancel']),
+      onTertiaryLongPress:
+          source.voidHandler(const <Object>['onTertiaryLongPress']),
+      onTertiaryLongPressStart:
+          RestageDecoders.nativeCallback<void Function(LongPressStartDetails)>(
+              source,
+              const <Object>['onTertiaryLongPressStart'],
+              'GestureDetector.onTertiaryLongPressStart'),
+      onTertiaryLongPressMoveUpdate: RestageDecoders.nativeCallback<
+              void Function(LongPressMoveUpdateDetails)>(
+          source,
+          const <Object>['onTertiaryLongPressMoveUpdate'],
+          'GestureDetector.onTertiaryLongPressMoveUpdate'),
+      onTertiaryLongPressUp:
+          source.voidHandler(const <Object>['onTertiaryLongPressUp']),
+      onTertiaryLongPressEnd:
+          RestageDecoders.nativeCallback<void Function(LongPressEndDetails)>(
+              source,
+              const <Object>['onTertiaryLongPressEnd'],
+              'GestureDetector.onTertiaryLongPressEnd'),
+      onVerticalDragDown:
+          RestageDecoders.nativeCallback<void Function(DragDownDetails)>(
+              source,
+              const <Object>['onVerticalDragDown'],
+              'GestureDetector.onVerticalDragDown'),
+      onVerticalDragStart:
+          RestageDecoders.nativeCallback<void Function(DragStartDetails)>(
+              source,
+              const <Object>['onVerticalDragStart'],
+              'GestureDetector.onVerticalDragStart'),
+      onVerticalDragUpdate:
+          RestageDecoders.nativeCallback<void Function(DragUpdateDetails)>(
+              source,
+              const <Object>['onVerticalDragUpdate'],
+              'GestureDetector.onVerticalDragUpdate'),
+      onVerticalDragEnd:
+          RestageDecoders.nativeCallback<void Function(DragEndDetails)>(
+              source,
+              const <Object>['onVerticalDragEnd'],
+              'GestureDetector.onVerticalDragEnd'),
+      onVerticalDragCancel:
+          source.voidHandler(const <Object>['onVerticalDragCancel']),
+      onHorizontalDragDown:
+          RestageDecoders.nativeCallback<void Function(DragDownDetails)>(
+              source,
+              const <Object>['onHorizontalDragDown'],
+              'GestureDetector.onHorizontalDragDown'),
+      onHorizontalDragStart:
+          RestageDecoders.nativeCallback<void Function(DragStartDetails)>(
+              source,
+              const <Object>['onHorizontalDragStart'],
+              'GestureDetector.onHorizontalDragStart'),
+      onHorizontalDragUpdate:
+          RestageDecoders.nativeCallback<void Function(DragUpdateDetails)>(
+              source,
+              const <Object>['onHorizontalDragUpdate'],
+              'GestureDetector.onHorizontalDragUpdate'),
+      onHorizontalDragEnd:
+          RestageDecoders.nativeCallback<void Function(DragEndDetails)>(
+              source,
+              const <Object>['onHorizontalDragEnd'],
+              'GestureDetector.onHorizontalDragEnd'),
+      onHorizontalDragCancel:
+          source.voidHandler(const <Object>['onHorizontalDragCancel']),
+      onForcePressStart:
+          RestageDecoders.nativeCallback<void Function(ForcePressDetails)>(
+              source,
+              const <Object>['onForcePressStart'],
+              'GestureDetector.onForcePressStart'),
+      onForcePressPeak:
+          RestageDecoders.nativeCallback<void Function(ForcePressDetails)>(
+              source,
+              const <Object>['onForcePressPeak'],
+              'GestureDetector.onForcePressPeak'),
+      onForcePressUpdate:
+          RestageDecoders.nativeCallback<void Function(ForcePressDetails)>(
+              source,
+              const <Object>['onForcePressUpdate'],
+              'GestureDetector.onForcePressUpdate'),
+      onForcePressEnd:
+          RestageDecoders.nativeCallback<void Function(ForcePressDetails)>(
+              source,
+              const <Object>['onForcePressEnd'],
+              'GestureDetector.onForcePressEnd'),
+      onPanDown: RestageDecoders.nativeCallback<void Function(DragDownDetails)>(
+          source, const <Object>['onPanDown'], 'GestureDetector.onPanDown'),
+      onPanStart:
+          RestageDecoders.nativeCallback<void Function(DragStartDetails)>(
+              source,
+              const <Object>['onPanStart'],
+              'GestureDetector.onPanStart'),
+      onPanUpdate:
+          RestageDecoders.nativeCallback<void Function(DragUpdateDetails)>(
+              source,
+              const <Object>['onPanUpdate'],
+              'GestureDetector.onPanUpdate'),
+      onPanEnd: RestageDecoders.nativeCallback<void Function(DragEndDetails)>(
+          source, const <Object>['onPanEnd'], 'GestureDetector.onPanEnd'),
+      onPanCancel: source.voidHandler(const <Object>['onPanCancel']),
+      onScaleStart:
+          RestageDecoders.nativeCallback<void Function(ScaleStartDetails)>(
+              source,
+              const <Object>['onScaleStart'],
+              'GestureDetector.onScaleStart'),
+      onScaleUpdate:
+          RestageDecoders.nativeCallback<void Function(ScaleUpdateDetails)>(
+              source,
+              const <Object>['onScaleUpdate'],
+              'GestureDetector.onScaleUpdate'),
+      onScaleEnd:
+          RestageDecoders.nativeCallback<void Function(ScaleEndDetails)>(source,
+              const <Object>['onScaleEnd'], 'GestureDetector.onScaleEnd'),
       behavior: RestageDecoders.enumByName<HitTestBehavior>(
           HitTestBehavior.values, source, <Object>['behavior']),
       child: source.optionalChild(const <Object>['child']),
@@ -1993,6 +2207,40 @@ Widget buildSemantics(BuildContext context, DataSource source) {
           RestageDecoders.string(source, <Object>['tooltip'], context: context),
       textDirection: RestageDecoders.enumByName<TextDirection>(
           TextDirection.values, source, <Object>['textDirection']),
+      onTap: source.voidHandler(const <Object>['onTap']),
+      onLongPress: source.voidHandler(const <Object>['onLongPress']),
+      onScrollLeft: source.voidHandler(const <Object>['onScrollLeft']),
+      onScrollRight: source.voidHandler(const <Object>['onScrollRight']),
+      onScrollUp: source.voidHandler(const <Object>['onScrollUp']),
+      onScrollDown: source.voidHandler(const <Object>['onScrollDown']),
+      onIncrease: source.voidHandler(const <Object>['onIncrease']),
+      onDecrease: source.voidHandler(const <Object>['onDecrease']),
+      onCopy: source.voidHandler(const <Object>['onCopy']),
+      onCut: source.voidHandler(const <Object>['onCut']),
+      onPaste: source.voidHandler(const <Object>['onPaste']),
+      onDismiss: source.voidHandler(const <Object>['onDismiss']),
+      onMoveCursorForwardByCharacter:
+          RestageDecoders.nativeCallback<void Function(bool)>(
+              source,
+              const <Object>['onMoveCursorForwardByCharacter'],
+              'Semantics.onMoveCursorForwardByCharacter'),
+      onMoveCursorBackwardByCharacter:
+          RestageDecoders.nativeCallback<void Function(bool)>(
+              source,
+              const <Object>['onMoveCursorBackwardByCharacter'],
+              'Semantics.onMoveCursorBackwardByCharacter'),
+      onSetSelection:
+          RestageDecoders.nativeCallback<void Function(TextSelection)>(source,
+              const <Object>['onSetSelection'], 'Semantics.onSetSelection'),
+      onSetText: RestageDecoders.nativeCallback<void Function(String)>(
+          source, const <Object>['onSetText'], 'Semantics.onSetText'),
+      onDidGainAccessibilityFocus:
+          source.voidHandler(const <Object>['onDidGainAccessibilityFocus']),
+      onDidLoseAccessibilityFocus:
+          source.voidHandler(const <Object>['onDidLoseAccessibilityFocus']),
+      onFocus: source.voidHandler(const <Object>['onFocus']),
+      onExpand: source.voidHandler(const <Object>['onExpand']),
+      onCollapse: source.voidHandler(const <Object>['onCollapse']),
       child: source.optionalChild(const <Object>['child']),
     );
   });
@@ -2059,33 +2307,35 @@ Widget buildText(BuildContext context, DataSource source) {
       RestageDecoders.string(source, <Object>['text'], context: context) ??
           (throw ArgumentError('Text.text is required.')),
       style: RestageDecoders.packagedFont(TextStyle(
-          inherit: RestageValueBinding.read<bool>(
-                  source, const <Object>['inherit'], context) ??
+          inherit: RestageValueBinding.read<bool>(source, const <Object>['inherit'], context) ??
               true,
           color: RestageDecoders.color(source, <Object>['color']),
           backgroundColor:
               RestageDecoders.color(source, <Object>['backgroundColor']),
-          fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
-              resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
-                  as double?,
-          fontWeight: RestageDecoders.fontWeight(source, <Object>['fontWeight']) ??
-              resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
-                  as FontWeight?,
+          fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
+          fontWeight:
+              RestageDecoders.fontWeight(source, <Object>['fontWeight']),
           fontStyle: RestageDecoders.enumByName<FontStyle>(
               FontStyle.values, source, <Object>['fontStyle']),
           letterSpacing:
               RestageDecoders.textMetric(source, <Object>['letterSpacing']),
           wordSpacing:
               RestageDecoders.textMetric(source, <Object>['wordSpacing']),
-          textBaseline: RestageDecoders.enumByName<TextBaseline>(TextBaseline.values, source, <Object>['textBaseline']),
+          textBaseline: RestageDecoders.enumByName<TextBaseline>(
+              TextBaseline.values, source, <Object>['textBaseline']),
           height: RestageDecoders.textMetric(source, <Object>['height']),
-          leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
+          leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
+              TextLeadingDistribution.values,
+              source,
+              <Object>['leadingDistribution']),
           locale: ArgumentDecoders.locale(source, <Object>['locale']),
           foreground: RestageDecoders.paint(source, <Object>['foreground']),
           background: RestageDecoders.paint(source, <Object>['background']),
           shadows: RestageDecoders.shadows(source, <Object>['shadows']),
-          fontFeatures: RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
-          fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
+          fontFeatures:
+              RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
+          fontVariations:
+              RestageDecoders.fontVariations(source, <Object>['fontVariations']),
           decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
           decorationColor: RestageDecoders.color(source, <Object>['decorationColor']),
           decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
@@ -2133,18 +2383,18 @@ Widget buildTextRich(BuildContext context, DataSource source) {
                   color: RestageDecoders.color(source, <Object>['color']),
                   backgroundColor: RestageDecoders.color(
                       source, <Object>['backgroundColor']),
-                  fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
-                      resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
-                          as double?,
-                  fontWeight: RestageDecoders.fontWeight(source, <Object>['fontWeight']) ??
-                      resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
-                          as FontWeight?,
+                  fontSize:
+                      RestageDecoders.textMetric(source, <Object>['fontSize']),
+                  fontWeight: RestageDecoders.fontWeight(
+                      source, <Object>['fontWeight']),
                   fontStyle: RestageDecoders.enumByName<FontStyle>(
                       FontStyle.values, source, <Object>['fontStyle']),
-                  letterSpacing:
-                      RestageDecoders.textMetric(source, <Object>['letterSpacing']),
-                  wordSpacing: RestageDecoders.textMetric(source, <Object>['wordSpacing']),
-                  textBaseline: RestageDecoders.enumByName<TextBaseline>(TextBaseline.values, source, <Object>['textBaseline']),
+                  letterSpacing: RestageDecoders.textMetric(
+                      source, <Object>['letterSpacing']),
+                  wordSpacing: RestageDecoders.textMetric(
+                      source, <Object>['wordSpacing']),
+                  textBaseline: RestageDecoders.enumByName<TextBaseline>(
+                      TextBaseline.values, source, <Object>['textBaseline']),
                   height: RestageDecoders.textMetric(source, <Object>['height']),
                   leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
                   locale: ArgumentDecoders.locale(source, <Object>['locale']),
@@ -2190,22 +2440,33 @@ Widget buildTextRich(BuildContext context, DataSource source) {
 Widget buildTransformRotate(BuildContext context, DataSource source) {
   source = RestageValueBinding.dataSource(source, context);
   return RestageBuilderBinding.construct((builderBindings) {
-    return Transform.rotate(
-      key: RestageDecoders.nativeBinding<Key>(context, source, <Object>['key'],
-          type: 'flutter.Key'),
-      angle: RestageValueBinding.read<double>(
-              source, const <Object>['angle'], context) ??
-          (throw ArgumentError('TransformRotate.angle is required.')),
-      origin: RestageDecoders.offset(source, <Object>['origin']),
-      alignment: RestageDecoders.alignment(source, <Object>['alignment']) ??
-          AlignmentDirectional.center,
-      transformHitTests: RestageValueBinding.read<bool>(
-              source, const <Object>['transformHitTests'], context) ??
-          true,
-      filterQuality: RestageDecoders.enumByName<FilterQuality>(
-          FilterQuality.values, source, <Object>['filterQuality']),
-      child: source.optionalChild(const <Object>['child']),
+    final restagePresenceAlignment = RestageRfwConstructorPresence.read(
+      source,
+      <Object>['alignment'],
     );
+
+    return Function.apply(
+      Transform.rotate,
+      <Object?>[],
+      <Symbol, Object?>{
+        #key: RestageDecoders.nativeBinding<Key>(
+            context, source, <Object>['key'],
+            type: 'flutter.Key'),
+        #angle: RestageValueBinding.read<double>(
+                source, const <Object>['angle'], context) ??
+            (throw ArgumentError('TransformRotate.angle is required.')),
+        #origin: RestageDecoders.offset(source, <Object>['origin']),
+        if (restagePresenceAlignment.supplied)
+          #alignment: RestageDecoders.alignment(
+              source, restagePresenceAlignment.valuePath),
+        #transformHitTests: RestageValueBinding.read<bool>(
+                source, const <Object>['transformHitTests'], context) ??
+            true,
+        #filterQuality: RestageDecoders.enumByName<FilterQuality>(
+            FilterQuality.values, source, <Object>['filterQuality']),
+        #child: source.optionalChild(const <Object>['child']),
+      },
+    ) as Widget;
   });
 }
 

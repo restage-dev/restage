@@ -5,6 +5,11 @@ import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
+import 'package:restage_codegen/src/widget_builder_lowering.dart';
+import 'package:restage_codegen/src/surface_publication/recorded_layouts.dart';
+import 'package:restage_codegen/src/surface_publication/split_widgets.dart';
+import 'package:restage_codegen/src/widget_library_registration.dart'
+    show widgetLibraryVersionArguments;
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
@@ -14,6 +19,16 @@ import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/installed_native_call.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/factory_emitter.dart'
+    show
+        CustomReconstruction,
+        customFactoryValue,
+        customFactoryValueIsNullable,
+        decoderCallFor;
+import 'package:restage_codegen/src/islands/context_reach.dart'
+    show isFlutterFrameworkType;
+import 'package:restage_codegen/src/islands/island_registration.dart';
+import 'package:restage_codegen/src/islands/islands.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
@@ -70,13 +85,15 @@ class ResolvedWidgetMountInput {
     required this.assetId,
     required this.screen,
     required this.rootParams,
-    List<RootContextParam>? constructorParams,
+    required this.constructorParams,
     this.mountConstructorProblem,
     this.plan,
     this.partPath,
     this.hoisted = const [],
+    this.islands = const [],
+    this.split,
     this.buildArguments = const [],
-  }) : constructorParams = constructorParams ?? rootParams;
+  });
 
   /// Owning library asset used for diagnostics and part output location.
   final AssetId assetId;
@@ -101,6 +118,12 @@ class ResolvedWidgetMountInput {
 
   /// Values the mount computes for the surface, ordered by key.
   final List<HoistedValue> hoisted;
+
+  /// Widget expressions the mount renders from the app.
+  final List<Island> islands;
+
+  /// How the mount takes over the surface's shell and `State`.
+  final MountSplit? split;
 
   /// The parameters the screen's build takes after its context; the mount
   /// extends the screen's base class and receives the same ones.
@@ -134,10 +157,12 @@ final class ResolvedStandaloneScreenContractInput
     required this.contractVersion,
     required this.capabilities,
     required super.rootParams,
-    super.constructorParams,
+    required super.constructorParams,
     super.mountConstructorProblem,
     super.plan,
     super.hoisted,
+    super.islands,
+    super.split,
     super.buildArguments,
     this.bundleEntryMetadata,
     this.vocabulary = SurfaceVocabularyReferences.empty,
@@ -180,6 +205,8 @@ final class ResolvedStandaloneScreenContractInput
     mountConstructorProblem: mountConstructorProblem,
     plan: plan,
     hoisted: hoisted,
+    islands: islands,
+    split: split,
     buildArguments: buildArguments,
     bundleEntryMetadata: bundleEntryMetadata,
     vocabulary: vocabulary,
@@ -187,24 +214,94 @@ final class ResolvedStandaloneScreenContractInput
 }
 
 /// Refuses each value [input] hoists when its mount is omitted for [reason].
+///
+/// [missing] says what was not generated; a screen's mount by default.
+///
+/// [fix] is a sentence each message ends with; [value] words the message for
+/// one value's source text instead.
 List<Issue> hoistedWithoutMountIssues(
   ResolvedWidgetMountInput input,
-  String reason,
-) => [
-  for (final value in input.hoisted)
-    _issue(
-      input,
-      IssueCode.unrecognizedMethodCall,
-      "'${value.label}' is evaluated in the app, and this screen has no "
-      'generated mount: $reason.',
-    ),
+  String reason, {
+  String? mount,
+  String? fix,
+  String Function(String source)? value,
+}) => [
+  // A build the mount can't record is refused as itself.
+  if (input.split?.recordProblem case final problem?)
+    problem
+  else
+    for (final (code, message) in withoutMountMessages(
+      hoisted: input.hoisted,
+      islands: input.islands,
+      split: input.split,
+      mount: mount ?? _mountNameOf(input),
+      location: input.location,
+      reason: reason,
+      fix: fix,
+      value: value,
+    ))
+      _issue(input, code, message),
 ];
+
+/// What a surface without its mount loses: each value it computes, each
+/// widget it renders from the app, each wrapper the mount would keep and the
+/// State it would hold. [reason] and [fix] say why [mount] wasn't generated.
+List<(IssueCode, String)> withoutMountMessages({
+  required List<HoistedValue> hoisted,
+  required List<Island> islands,
+  required MountSplit? split,
+  required String mount,
+  required String location,
+  required String reason,
+  String? fix,
+  String Function(String source)? value,
+}) {
+  final because =
+      'which needs the generated `$mount`, and Restage didn\'t '
+      'generate it because $reason.${fix == null ? '' : ' $fix'}';
+  return [
+    for (final hoistedValue in hoisted)
+      if (hoistedValue.kind != HoistValueKind.itemIndex)
+        (
+          IssueCode.unrecognizedMethodCall,
+          value?.call(readableSource(hoistedValue.label)) ??
+              '`${readableSource(hoistedValue.label)}` '
+                  '(${hoistedValue.location ?? location}) runs app code, '
+                  '$because',
+        ),
+    for (final (widget, at) in [
+      for (final island in islands)
+        (readableSource(island.node.toSource()), island.location),
+      for (final node in split?.shell ?? const []) (node.widget, node.location),
+    ])
+      (
+        IssueCode.unknownWidget,
+        '`$widget` ($at) runs app code, $because',
+      ),
+    if (split?.state case final state?)
+      (
+        IssueCode.stateShapeUnsupported,
+        "`${state.name}` (${state.location}) holds the screen's state in app "
+            'code, $because',
+      ),
+  ];
+}
+
+String _mountNameOf(ResolvedWidgetMountInput input) => generatedSurfaceName(
+  input.screen.name ?? '',
+  fallback: 'SurfaceScreen',
+);
 
 /// Emits a typed paywall mount using the same constructor contract as screens.
 ///
 /// [appWidgetLibraries] returns the app widget registrations the mount
 /// installs, given the SDK prefix the part spells.
-({String? source, String? omissionMessage, String? omissionReason})
+({
+  String? source,
+  String? omissionMessage,
+  String? omissionReason,
+  String? omissionFix,
+})
 emitPaywallMount(
   ResolvedWidgetMountInput input, {
   required String id,
@@ -223,9 +320,13 @@ emitPaywallMount(
       source: null,
       omissionMessage: result.message,
       omissionReason: result.reason,
+      omissionFix: result.fix,
     );
   }
-  final librarySource = appWidgetLibraries?.call(mount.sdk);
+  final librarySource = _withIslandLibrary(
+    appWidgetLibraries?.call(mount.sdk),
+    mount,
+  );
   final buffer = StringBuffer()
     ..writeln(
       emitPlacementDefinition(
@@ -242,6 +343,8 @@ emitPaywallMount(
           ),
           providedContext: input.hostDataContract,
           handledEvents: SurfaceScreenEventSchema(events: const []),
+          islands: islandHostFacet(mount.islands),
+          layouts: recordedLayoutsOf(input.split?.recordedBuild),
           flowBoundary: navigationFlow == null
               ? null
               : FlowHostBoundaryV1.fromDocument(
@@ -272,6 +375,121 @@ emitPaywallMount(
     source: buffer.toString(),
     omissionMessage: null,
     omissionReason: null,
+    omissionFix: null,
+  );
+}
+
+/// The sentence that tells a step to keep its [input] in a field.
+String stepFieldFix(String input, String step) =>
+    'Try storing `$input` in a final field of `$step`.';
+
+/// The message for a step value [source] that needs an [input] the step
+/// keeps in no field.
+String stepUnstoredValue(
+  String source,
+  String input,
+  String step,
+  String flow,
+) =>
+    "`'$source'` needs the app's code to compute. Restage couldn't generate "
+    'that code for step `$step` in `$flow`. The step\'s input `$input` '
+    "isn't stored in a field. ${stepFieldFix(input, step)}";
+
+/// The function a flow step's mount is generated as.
+String stepMountName(String id) => 'restageStepMount\$${_stepIdentifier(id)}';
+
+// [id] as part of a Dart identifier.
+String _stepIdentifier(String id) =>
+    id.replaceAll(RegExp('[^a-zA-Z0-9_]'), '_');
+
+/// What a step's build messages say was not generated.
+String stepMountMissing(String step, String flow) =>
+    "The code for step `$step` in `$flow` wasn't generated";
+
+/// The object that keeps a step's islands across versions of its content.
+String stepMountOwnerName(String id) =>
+    '_restageStepOwner\$${_stepIdentifier(id)}';
+
+/// Emits the mount of the flow step [id] when it renders with the app's code;
+/// [unstored] names a constructor input the step keeps in no field.
+({
+  String? source,
+  String? omissionMessage,
+  String? omissionReason,
+  String? omissionFix,
+  String? unstored,
+})
+emitStepMount(
+  ResolvedWidgetMountInput input, {
+  required String id,
+  required String flow,
+  bool ownSurface = false,
+}) {
+  if (input.hoisted.isEmpty && input.islands.isEmpty) {
+    return (
+      source: null,
+      omissionMessage: null,
+      omissionReason: null,
+      omissionFix: null,
+      unstored: null,
+    );
+  }
+  final missing = stepMountMissing(input.screen.name!, flow);
+  final result = _resolveScreenMount(
+    input,
+    reservedGeneratedSymbols: const {},
+    missing: missing,
+  );
+  final mount = result.mount;
+  final unstored = mount == null
+      ? null
+      : [
+          for (final parameter in mount.constructor.values)
+            if (parameter.root.field == null &&
+                input.screen.lookUpGetter(
+                      name: parameter.name,
+                      library: input.screen.library,
+                    ) ==
+                    null)
+              parameter.name,
+        ].firstOrNull;
+  final problem = mount == null
+      ? null
+      : unstored == null
+      ? null
+      : "its input $unstored isn't stored in a field";
+  if (mount == null || problem != null) {
+    return (
+      source: null,
+      omissionMessage:
+          result.message ??
+          '$missing because $problem.'
+              '${unstored == null ? '' : ' ${stepFieldFix(unstored, input.screen.name!)}'}',
+      omissionReason: result.reason ?? problem,
+      omissionFix: result.reason != null
+          ? result.fix
+          : unstored == null
+          ? null
+          : stepFieldFix(unstored, input.screen.name!),
+      unstored: unstored,
+    );
+  }
+  final buffer = StringBuffer();
+  _emitScreenMount(
+    buffer,
+    screenName: input.screen.name!,
+    mount: mount,
+    eventType: '${mount.sdk}RestageEvent',
+    stepId: id,
+    flow: flow,
+    declaresIslands: !ownSurface,
+  );
+  return (
+    source: buffer.toString(),
+    omissionMessage: null,
+    omissionReason: null,
+    omissionFix: null,
+    unstored: null,
   );
 }
 
@@ -373,6 +591,27 @@ final class ResolvedStandaloneScreenContract {
     measurementPublicationDraftDigest: measurementPublicationDraftDigest,
     appWidgetLibraries: appWidgetLibraries?.call(_sdkPrefix),
   );
+
+  /// The `package:restage` names [emitReferenceDart] writes that the
+  /// screen library's SDK import doesn't show, sorted.
+  List<String> hiddenSdkNames({
+    String? measurementPublicationDraftDigest,
+    String? Function(String sdkPrefix)? appWidgetLibraries,
+  }) {
+    const marker = '\u0007';
+    final written = _emitReferenceDart(
+      this,
+      measurementPublicationDraftDigest: measurementPublicationDraftDigest,
+      appWidgetLibraries: appWidgetLibraries?.call(marker),
+      sdkOverride: marker,
+    );
+    return {
+      for (final match in RegExp('$marker(\\w+)').allMatches(written))
+        if (_prefixForOrigin(screen.library, _restageSdkOrigin, {match[1]!}) !=
+            _sdkPrefix)
+          match[1]!,
+    }.toList()..sort();
+  }
 }
 
 /// Inspects one analyzer-resolved categorized `@Screen` declaration.
@@ -497,7 +736,7 @@ StandaloneScreenContractInspection inspectStandaloneScreenContract(
 
   final events = _inspectScreenEvents(input, issues);
   final mountResolution = screen.name == null || screen.name!.isEmpty
-      ? (mount: null, message: null, reason: null)
+      ? (mount: null, message: null, reason: null, fix: null)
       : _resolveScreenMount(
           input,
           reservedGeneratedSymbols: _referenceGeneratedTopLevelSymbols(
@@ -506,7 +745,9 @@ StandaloneScreenContractInspection inspectStandaloneScreenContract(
           ).toSet(),
         );
   if (mountResolution.reason case final reason? when issues.isEmpty) {
-    issues.addAll(hoistedWithoutMountIssues(input, reason));
+    issues.addAll(
+      hoistedWithoutMountIssues(input, reason, fix: mountResolution.fix),
+    );
   }
   _reportGeneratedSymbolCollisions(
     input,
@@ -917,11 +1158,13 @@ void _reportGeneratedSymbolCollisions(
   _ResolvedScreenMount? mount,
   String? message,
   String? reason,
+  String? fix,
 })
 _resolveScreenMount(
   ResolvedWidgetMountInput input, {
   required Set<String> reservedGeneratedSymbols,
   bool paywall = false,
+  String? missing,
 }) {
   final screen = input.screen;
   final screenName = screen.name!;
@@ -930,11 +1173,22 @@ _resolveScreenMount(
     fallback: 'SurfaceScreen',
   );
   String? omittedReason;
-  String omitted(String reason) {
+  String? omittedFix;
+  String omitted(String reason, {String? fix}) {
     omittedReason = reason;
-    return 'Generated screen mount $mountName was omitted because $reason.';
+    omittedFix = fix;
+    return '${missing ?? "`$mountName` wasn't generated"} because $reason.'
+        '${fix == null ? '' : ' $fix'}';
   }
 
+  if (input.split?.recordProblem case final problem?) {
+    return (
+      mount: null,
+      message: problem.message,
+      reason: problem.message,
+      fix: null,
+    );
+  }
   final namespace = OwningLibraryNamespace(screen.library);
   final sourceNames = _owningLibrarySourceNames(input, namespace);
   for (final value in input.hoisted) {
@@ -945,8 +1199,10 @@ _resolveScreenMount(
         mount: null,
         message: omitted(
           'a native expression was planned for a different emission library',
+          fix: 'Please report this as a Restage bug.',
         ),
         reason: omittedReason,
+        fix: omittedFix,
       );
     }
   }
@@ -964,8 +1220,9 @@ _resolveScreenMount(
   if (mountConstructor == null) {
     return (
       mount: null,
-      message: omitted(constructorResult.reason!),
+      message: omitted(constructorResult.reason!, fix: constructorResult.fix),
       reason: omittedReason,
+      fix: omittedFix,
     );
   }
 
@@ -983,47 +1240,73 @@ _resolveScreenMount(
   if (collision != null) {
     return (
       mount: null,
-      message: omitted('$collision already exists in ${input.assetId.path}'),
+      message: omitted(
+        '`$collision` already exists in ${input.assetId.path}',
+        fix: 'Try renaming `$collision` in ${input.assetId.path}.',
+      ),
       reason: omittedReason,
+      fix: omittedFix,
     );
   }
 
-  final sdk = namespace.prefixForOrigin(
-    _restageSdkOrigin,
-    paywall
-        ? const {
-            'RestagePaywall',
-            'VariantResolver',
-            'RestageEvent',
-            'RestagePaywallError',
-          }
-        : const {
-            'RestageScreen',
-            'SurfaceScreenUnavailablePolicy',
-            'SurfaceScreenResolver',
-            'SurfaceScreenUnavailableError',
-          },
-  );
-  if (sdk != null &&
-      input.hoisted.isNotEmpty &&
-      namespace.prefixForOrigin(
-            _restageSdkOrigin,
-            {
-              'restageHostValues',
-              if (input.hoisted.any(
-                (v) => v.computed || v.kind == HoistValueKind.textScaler,
-              ))
-                'restageNativeObjects',
-            },
-          ) !=
-          sdk) {
+  final entrySymbols = paywall
+      ? const {
+          'RestagePaywall',
+          'VariantResolver',
+          'RestageEvent',
+          'RestagePaywallError',
+        }
+      : const {
+          'RestageScreen',
+          'SurfaceScreenUnavailablePolicy',
+          'SurfaceScreenResolver',
+          'SurfaceScreenUnavailableError',
+        };
+  // Every name the mount writes through the SDK import is spelled through one
+  // import that shows them all; a part can't add an import of its own.
+  final islandsDeclared = input.islands.isNotEmpty;
+  final sdkMountSymbols = {
+    'RestageRecording',
+    if (islandsDeclared ||
+        paywall && input.split?.recorded != null ||
+        (input.split?.recordedBuild?.placesAppWidgets ?? false))
+      'RestageIslandScope',
+    if (islandsDeclared) ...{
+      'RestageWidgetLibraryRegistration',
+      'RestageWidgetFactory',
+    },
+  };
+  final entrySdk = namespace.prefixForOrigin(_restageSdkOrigin, entrySymbols);
+  final sdk = entrySdk == null
+      ? null
+      : namespace.prefixForOrigin(_restageSdkOrigin, {
+          ...entrySymbols,
+          ...sdkMountSymbols,
+        });
+  final hidden = entrySdk == null || sdk != null
+      ? null
+      : sdkMountSymbols.firstWhere(
+          (name) =>
+              namespace.prefixForOrigin(_restageSdkOrigin, {
+                ...entrySymbols,
+                name,
+              }) ==
+              null,
+          orElse: () => sdkMountSymbols.first,
+        );
+  if (hidden != null) {
     return (
       mount: null,
       message: omitted(
-        'the owning library does not expose restageHostValues next to the '
-        'Restage widget symbols',
+        '${input.assetId.path} imports `package:restage/restage.dart` with a '
+        '`show` or `hide` list that leaves out `$hidden`, which the '
+        'generated code uses',
+        fix:
+            'Try importing `package:restage/restage.dart` without `show` or '
+            '`hide`, or adding `$hidden` to its `show` list.',
       ),
       reason: omittedReason,
+      fix: omittedFix,
     );
   }
   final needsNativeValues = input.hoisted.any(
@@ -1054,19 +1337,26 @@ _resolveScreenMount(
     return (
       mount: null,
       message: omitted(
-        'the owning library does not expose RestageNativeValues',
+        "${input.assetId.path} doesn't import "
+        '`package:restage_core/restage_core.dart`',
+        fix: 'Try importing it without `show` or `hide`.',
       ),
       reason: omittedReason,
+      fix: omittedFix,
     );
   }
   if (sdk == null) {
     return (
       mount: null,
       message: omitted(
-        'the owning library does not expose the required Restage widget '
-        'symbols in one namespace',
+        '${input.assetId.path} doesn\'t import '
+        '`package:restage/restage.dart` under one prefix',
+        fix:
+            'Try importing `package:restage/restage.dart` once, without '
+            '`show` or `hide`.',
       ),
       reason: omittedReason,
+      fix: omittedFix,
     );
   }
 
@@ -1079,41 +1369,111 @@ _resolveScreenMount(
       'ValueChanged',
       'WidgetBuilder',
       if (mountConstructor.requiresKeyType) 'Key',
+      if (input.split?.state != null) ...{'State', 'StatefulWidget'},
     },
   );
+  if (input.islands.isNotEmpty &&
+      _kIslandSdkSymbols.entries.any(
+        (entry) => namespace.prefixForOrigin(entry.value, {entry.key}) != sdk,
+      )) {
+    return (
+      mount: null,
+      message: omitted(
+        '${input.assetId.path} doesn\'t import '
+        '`package:restage/restage.dart` under one prefix',
+        fix:
+            'Try importing `package:restage/restage.dart` once, without '
+            '`show` or `hide`.',
+      ),
+      reason: omittedReason,
+      fix: omittedFix,
+    );
+  }
   if (flutter == null) {
     return (
       mount: null,
       message: omitted(
-        'the owning library does not expose the required Flutter widget '
-        'symbols in one namespace',
+        "${input.assetId.path} doesn't import Flutter's widgets under one "
+        'prefix',
+        fix:
+            'Try importing `package:flutter/widgets.dart` without `show` or '
+            '`hide`.',
       ),
       reason: omittedReason,
+      fix: omittedFix,
     );
   }
 
+  // A mount that builds the way its surface does, from the surface's build
+  // or from its State moved in, takes the surface's base kind and mixins.
   String? base;
   final buildParameters = <String>[];
-  if (input.buildArguments.isNotEmpty) {
-    final superclass = screen.supertype?.element;
-    base = superclass == null ? null : namespace.elementName(superclass);
-    if (base == null) {
+  // It needs that kind when the kind builds its own element, when build
+  // takes more than a context, or when the lifted State's base needs it.
+  final supertype = screen.supertype;
+  final ownElement =
+      [
+        if (supertype != null) supertype,
+        ...?supertype?.allSupertypes,
+        ...screen.mixins,
+      ].any(
+        (type) =>
+            !_isFrameworkWidgetBase(type.element) &&
+            !type.element.library.isInSdk &&
+            type.element.library.identifier !=
+                'package:flutter/src/widgets/framework.dart' &&
+            type.element.getMethod('createElement') != null,
+      );
+  final mirrors =
+      input.buildArguments.isNotEmpty ||
+      (input.split?.state != null ||
+              !isFlutterFrameworkType(screen, 'StatefulWidget')) &&
+          (ownElement || (input.split?.state?.customBase ?? false));
+  if (mirrors &&
+      supertype != null &&
+      !(_isFrameworkWidgetBase(supertype.element) && screen.mixins.isEmpty)) {
+    final bases = [supertype, ...screen.mixins];
+    final spelled = [for (final type in bases) namespace.typeCode(type)];
+    if (spelled.indexOf(null) case final unnamed when unnamed >= 0) {
+      final name = bases[unnamed].element.name;
       return (
         mount: null,
-        message: omitted('its base class has no spelling in its library'),
+        message: omitted(
+          "${input.assetId.path} can't name its base class `$name`",
+          fix: 'Try importing the library that declares `$name`.',
+        ),
         reason: omittedReason,
+        fix: omittedFix,
       );
     }
+    if (_baseProblem(supertype) case final problem?) {
+      final kind = isFlutterFrameworkType(screen, 'StatefulWidget')
+          ? 'StatefulWidget'
+          : 'StatelessWidget';
+      return (
+        mount: null,
+        message: omitted(problem, fix: 'Try extending `$kind` directly.'),
+        reason: omittedReason,
+        fix: omittedFix,
+      );
+    }
+    base =
+        '${spelled.first}'
+        '${spelled.length > 1 ? ' with ${spelled.skip(1).join(', ')}' : ''}';
+  }
+  if (input.buildArguments.isNotEmpty) {
     for (final argument in input.buildArguments) {
       final type = namespace.typeCode(argument.type);
       if (type == null) {
         return (
           mount: null,
           message: omitted(
-            'the type of build argument ${argument.name} has no spelling in '
-            'its library',
+            "${input.assetId.path} can't name the type of the build argument "
+            '`${argument.name}`',
+            fix: 'Try importing the library that declares it.',
           ),
           reason: omittedReason,
+          fix: omittedFix,
         );
       }
       buildParameters.add('$type ${argument.name}');
@@ -1127,10 +1487,12 @@ _resolveScreenMount(
     return (
       mount: null,
       message: omitted(
-        'import prefix ${dartStringLiteral(prefixCollision)} conflicts with '
-        'a generated mount control',
+        'the import prefix `$prefixCollision` clashes with a name the '
+        'generated `$mountName` uses',
+        fix: 'Try renaming the prefix.',
       ),
       reason: omittedReason,
+      fix: omittedFix,
     );
   }
 
@@ -1154,6 +1516,8 @@ _resolveScreenMount(
       },
       constructor: mountConstructor,
       hoisted: input.hoisted,
+      islands: input.islands,
+      split: input.split,
       nativeContractType: nativeContractPrefix == null
           ? null
           : '${nativeContractPrefix}NativeBindingContract',
@@ -1165,12 +1529,14 @@ _resolveScreenMount(
     ),
     message: null,
     reason: null,
+    fix: null,
   );
 }
 
 ({
   _ResolvedMountConstructorContract? constructor,
   String? reason,
+  String? fix,
 })
 _resolveMountConstructorContract(
   ResolvedWidgetMountInput input, {
@@ -1190,9 +1556,8 @@ _resolveMountConstructorContract(
             ).hasMatch(typeCode)) {
           return (
             constructor: null,
-            reason:
-                '${dartStringLiteral(parameter.name)} depends on the screen '
-                'type parameter ${dartStringLiteral(name)}',
+            reason: '`${screen.name}` declares the type parameter `$name`',
+            fix: 'Try removing the type parameter from `${screen.name}`.',
           );
         }
       }
@@ -1200,9 +1565,8 @@ _resolveMountConstructorContract(
     final name = screen.typeParameters.first.name ?? '<unnamed>';
     return (
       constructor: null,
-      reason:
-          '${screen.name} declares the screen type parameter '
-          '${dartStringLiteral(name)}',
+      reason: '`${screen.name}` declares the type parameter `$name`',
+      fix: 'Try removing the type parameter from `${screen.name}`.',
     );
   }
 
@@ -1210,24 +1574,31 @@ _resolveMountConstructorContract(
   if (constructor == null) {
     return (
       constructor: null,
-      reason: '${screen.name} has no unnamed constructor',
+      reason: '`${screen.name}` has no unnamed constructor',
+      fix: 'Try adding an unnamed constructor to `${screen.name}`.',
     );
   }
   if (constructor.isFactory &&
       !_redirectsToGenerativeConstructor(constructor)) {
     return (
       constructor: null,
-      reason: '${screen.name} has a non-redirecting unnamed factory',
+      reason: "`${screen.name}`'s unnamed constructor is a factory",
+      fix: 'Try making it a generative constructor.',
     );
   }
   if (screen.isAbstract && !constructor.isFactory) {
     return (
       constructor: null,
-      reason: '${screen.name} cannot be constructed',
+      reason: '`${screen.name}` is abstract',
+      fix: 'Try making `${screen.name}` a concrete class.',
     );
   }
-  if (input.mountConstructorProblem case final problem?) {
-    return (constructor: null, reason: problem);
+  if (input.mountConstructorProblem != null) {
+    return (
+      constructor: null,
+      reason: '`${screen.name}` changes its key before passing it on',
+      fix: 'Try passing `key` straight to `super.key`.',
+    );
   }
 
   final controls = _mountControlNames(paywall: paywall);
@@ -1236,47 +1607,33 @@ _resolveMountConstructorContract(
     'build',
     for (final parameter in constructor.formalParameters)
       if (parameter.name case final name? when name.isNotEmpty) name,
-    for (var index = 0; index < constructor.formalParameters.length; index++)
-      '_restageArgument$index',
+    for (
+      var index = 0;
+      index < constructor.formalParameters.length;
+      index++
+    ) ...['_restageArgument$index', '_restageStored$index'],
   };
   final parameters = <_ResolvedMountParameter>[];
-  if (constructor.formalParameters.length != input.constructorParams.length) {
-    return (
-      constructor: null,
-      reason: 'its constructor description is unavailable',
-    );
-  }
-  for (var index = 0; index < constructor.formalParameters.length; index++) {
-    final formal = constructor.formalParameters[index];
-    final name = formal.name;
-    if (name == null || name.isEmpty) {
-      return (
-        constructor: null,
-        reason: 'its constructor description is unavailable',
-      );
-    }
-    final kind = _mountParameterKind(formal);
+  // The build read [constructorParams] from this constructor, one per formal.
+  for (var index = 0; index < input.constructorParams.length; index++) {
     final root = input.constructorParams[index];
-    if (root.name != name || root.kind != kind) {
-      return (
-        constructor: null,
-        reason: 'its constructor description is unavailable',
-      );
-    }
+    final name = root.name;
     if (controls.contains(name) || isHoistedKey(name)) {
       return (
         constructor: null,
         reason:
-            '${screen.name} declares the reserved constructor parameter '
-            '${dartStringLiteral(name)}',
+            "`${screen.name}`'s constructor parameter `$name` uses a "
+            'name the generated code needs',
+        fix: 'Try renaming `$name`.',
       );
     }
     if (root.mountDefaultProblem != null) {
       return (
         constructor: null,
         reason:
-            'the default for ${dartStringLiteral(name)} has no visible '
-            'spelling',
+            "${input.assetId.path} can't name the default value of "
+            '`$name`',
+        fix: 'Try importing the library that declares it.',
       );
     }
     final typeCode = root.typeCode;
@@ -1289,9 +1646,8 @@ _resolveMountConstructorContract(
             root.kind == RootContextParamKind.optionalPositional)) {
       return (
         constructor: null,
-        reason:
-            'its required non-nullable key cannot reach both the surface '
-            'and its fallback widget; declare the key type as nullable',
+        reason: "`${screen.name}`'s required key isn't nullable",
+        fix: 'Try declaring it as `Key?`.',
       );
     }
     final implicitSuperKey =
@@ -1301,7 +1657,10 @@ _resolveMountConstructorContract(
     if ((typeCode == null || typeCode.trim().isEmpty) && !implicitSuperKey) {
       return (
         constructor: null,
-        reason: '${dartStringLiteral(name)} has no reusable Dart type spelling',
+        reason: "${input.assetId.path} can't name the type of `$name`",
+        fix:
+            'Try giving `$name` an explicit type that '
+            '${input.assetId.path} imports.',
       );
     }
     _ResolvedMountDefaultBinding? defaultBinding;
@@ -1309,9 +1668,10 @@ _resolveMountConstructorContract(
       if (typeCode == null || typeCode.trim().isEmpty) {
         return (
           constructor: null,
-          reason:
-              'the default for ${dartStringLiteral(name)} has no reusable Dart '
-              'type spelling',
+          reason: "${input.assetId.path} can't name the type of `$name`",
+          fix:
+              'Try giving `$name` an explicit type that '
+              '${input.assetId.path} imports.',
         );
       }
       final bindingName = _mountDefaultBindingName(screen.name!, index);
@@ -1322,6 +1682,7 @@ _resolveMountConstructorContract(
           reason:
               'the generated default binding $bindingName is already '
               'visible in ${input.assetId.path}',
+          fix: 'Please report this as a Restage bug.',
         );
       }
       reservedNames.add(bindingName);
@@ -1335,7 +1696,13 @@ _resolveMountConstructorContract(
       _ResolvedMountParameter.value(
         root: root,
         typeCode: typeCode ?? '',
-        slotName: _requiresMountStorage(root) ? '_restageArgument$index' : '',
+        // A field the app's reads promote is read as one; others through a
+        // getter, so a null check promotes exactly where it does in the app.
+        slotName: !_requiresMountStorage(root)
+            ? ''
+            : (root.field?.isPromotable ?? false)
+            ? '_restageStored$index'
+            : '_restageArgument$index',
         defaultBinding: defaultBinding,
       ),
     );
@@ -1351,11 +1718,13 @@ _resolveMountConstructorContract(
     return (
       constructor: null,
       reason: 'its constructor description is unavailable',
+      fix: 'Please report this as a Restage bug.',
     );
   }
   return (
     constructor: _ResolvedMountConstructorContract(parameters),
     reason: null,
+    fix: null,
   );
 }
 
@@ -1371,17 +1740,12 @@ bool _redirectsToGenerativeConstructor(ConstructorElement constructor) {
   return true;
 }
 
-RootContextParamKind _mountParameterKind(FormalParameterElement parameter) =>
-    parameter.isOptionalPositional
-    ? RootContextParamKind.optionalPositional
-    : parameter.isNamed
-    ? RootContextParamKind.named
-    : RootContextParamKind.requiredPositional;
-
 String _emitReferenceDart(
   ResolvedStandaloneScreenContract contract, {
   String? measurementPublicationDraftDigest,
   String? appWidgetLibraries,
+  // Spells every SDK name with this prefix, unformatted.
+  String? sdkOverride,
 }) {
   final screenName = contract.screen.name!;
   final screenStem = _pascalIdentifier(screenName, fallback: 'SurfaceScreen');
@@ -1392,7 +1756,11 @@ String _emitReferenceDart(
   final provenanceName = '_${refStem}Provenance';
   final decoderName = '_decodeValidated$eventBase';
   final refName = generatedHandleName(screenName, fallback: 'surfaceScreen');
-  final sdk = contract._sdkPrefix;
+  final sdk = sdkOverride ?? contract._sdkPrefix;
+  final mount = switch (contract._mount) {
+    final mount? when sdkOverride != null => mount.withSdk(sdkOverride),
+    final mount => mount,
+  };
   final sourceFile = _fileName(contract.input.assetId.path);
   final buffer = StringBuffer()
     ..writeln('part of ${dartStringLiteral(sourceFile)};')
@@ -1485,13 +1853,16 @@ String _emitReferenceDart(
   // The provenance value is not const, so the vocabulary carries its own
   // keyword; it is emitted only when it names something installable, so the
   // source is always a constructor invocation.
-  if (contract.input.vocabulary.namesInstallable ||
-      appWidgetLibraries != null) {
+  final libraries = switch (mount) {
+    final mount? => _withIslandLibrary(appWidgetLibraries, mount),
+    null => appWidgetLibraries,
+  };
+  if (contract.input.vocabulary.namesInstallable || libraries != null) {
     buffer.writeln(
       '  vocabulary: const ${emitSurfaceVocabulary(
         contract.input.vocabulary,
         sdkPrefix: sdk,
-        libraries: appWidgetLibraries,
+        libraries: libraries,
       )},',
     );
   }
@@ -1543,7 +1914,6 @@ String _emitReferenceDart(
       ..writeln('}');
   }
 
-  final mount = contract._mount;
   if (mount != null) {
     buffer
       ..writeln()
@@ -1561,6 +1931,8 @@ String _emitReferenceDart(
             ),
             providedContext: contract.hostDataContract,
             handledEvents: contract.eventSchema,
+            islands: islandHostFacet(mount.islands),
+            layouts: recordedLayoutsOf(mount.split?.recordedBuild),
           ),
           vocabulary: '$refName.provenance.vocabulary',
           sdkHost: '${mount.sdk}RestageScreen',
@@ -1574,6 +1946,7 @@ String _emitReferenceDart(
     );
   }
 
+  if (sdkOverride != null) return buffer.toString();
   return '${formatGeneratedDart(buffer.toString()).trimRight()}\n';
 }
 
@@ -1586,14 +1959,37 @@ Set<String> _mountControlNames({required bool paywall}) => {
 };
 
 void _emitScreenMount(
-  StringBuffer buffer, {
+  StringBuffer out, {
   required String screenName,
   required _ResolvedScreenMount mount,
   required String eventType,
   String? paywallId,
+  String? stepId,
+  String? flow,
   SurfaceVocabularyReferences vocabulary = SurfaceVocabularyReferences.empty,
   String? appWidgetLibraries,
+  bool declaresIslands = true,
 }) {
+  var buffer = out;
+  final mountStart = out.length;
+  // A mount runs the build once, recording what the design reads. With
+  // nothing to record, the design's fallback is the surface itself.
+  final bare = mount.split?.recorded == null;
+  final state = mount.split?.state;
+  final stateful = state != null;
+  // A step mount reads its step's inputs from the widget the app built.
+  final step = stepId != null;
+  // Every read of the mount's own fields; a lifted State reads them through
+  // `widget`.
+  String read(String member) => stateful ? 'widget.$member' : member;
+  final slots = {
+    for (final parameter in mount.constructor.values)
+      // A step's input is read from the field the step keeps it in.
+      parameter.name: step
+          ? '${stateful ? '_restageWidget' : kSurfaceInstance}.'
+                '${parameter.root.field?.name ?? parameter.name}'
+          : read(parameter.slotName),
+  };
   final paywall = paywallId != null;
   final unavailableControl = paywall ? 'errorBuilder' : 'onUnavailable';
   final mountName = generatedSurfaceName(
@@ -1635,8 +2031,25 @@ void _emitScreenMount(
     return name;
   }
 
-  final nativeValues = allocate('restageNativeValues');
-  final computedNatives = allocate('restageNativeObjects');
+  final islands = mount.islands.isEmpty ? null : mount.islands;
+  // A recorded paywall build dispatches its own events through its mount.
+  final explicitEvents = paywall && !bare;
+  // A split widget the build places keys its wrapper under the mount.
+  final placesAppWidgets =
+      mount.split?.recordedBuild?.placesAppWidgets ?? false;
+  final scoped = islands != null || explicitEvents || placesAppWidgets;
+  final content = allocate('restageContent');
+  final lead = scoped ? 'final $content = ' : 'return ';
+  final owner = step ? allocate(stepMountOwnerName(stepId)) : null;
+  // A step with its own surface shares that surface's island declarations.
+  if (islands != null && declaresIslands) {
+    _writeIslandDeclarations(
+      buffer,
+      mount,
+      step ? flow! : mountName,
+      step: step,
+    );
+  }
   final nativeHoisted = [
     for (final value in mount.hoisted)
       if (value.kind == HoistValueKind.textScaler) value,
@@ -1653,13 +2066,33 @@ void _emitScreenMount(
       !parameters.any((parameter) => parameter.name == 'placement');
   final provider = placementDefinitionProviderName(screenName);
 
+  // Call contracts are decoded once, not on every build.
+  final nativeContracts = <String, String>{};
+  for (final value in nativeBindings) {
+    final contract = value.nativeContract;
+    if (contract?.call == null || nativeContracts.containsKey(value.key)) {
+      continue;
+    }
+    final name = allocate('_restage${mountName}${value.key}Contract');
+    nativeContracts[value.key] = name;
+    final sharedPrefix = mount.nativeContractType!.replaceFirst(
+      RegExp(r'NativeBindingContract$'),
+      '',
+    );
+    buffer.writeln(
+      'final $name = ${nativeContractSource(contract!, sharedPrefix)};',
+    );
+  }
+  String contractSource(HoistedValue value, String sharedPrefix) =>
+      nativeContracts[value.key] ??
+      nativeContractSource(value.nativeContract!, sharedPrefix);
+
   final nativeFactories = <String, String>{};
   for (final value in nativeBindings) {
     final call = value.nativeCall;
     final constant = value.nativeConstant;
     if (call == null && constant == null) continue;
     final name = allocate('_restage${mountName}${value.key}Native');
-    nativeFactories[value.key] = name;
     final nativePrefix = mount.nativeScopeType!.replaceFirst(
       RegExp(r'RestageNativeValues$'),
       '',
@@ -1668,145 +2101,275 @@ void _emitScreenMount(
       RegExp(r'NativeBindingContract$'),
       '',
     );
-    final body =
-        call?.adapterSource(core: nativePrefix, shared: sharedPrefix) ??
-        constant!.source;
-    final type = call == null
-        ? constant!.resultDartType
-        : '${nativePrefix}NativeCallAdapter';
-    buffer.writeln('$type $name() => $body;');
+    if (call != null) {
+      // An adapter holds no state, so every build installs the same one.
+      nativeFactories[value.key] = name;
+      buffer.writeln(
+        'final ${nativePrefix}NativeCallAdapter $name = '
+        '${call.adapterSource(core: nativePrefix, shared: sharedPrefix, declaration: nativeContracts[value.key])};',
+      );
+      continue;
+    }
+    nativeFactories[value.key] = '$name()';
+    buffer.writeln(
+      '${constant!.resultDartType} $name() => ${constant.source};',
+    );
   }
 
-  for (final binding in constructor.defaultBindings) {
-    buffer
-      ..writeln()
-      ..writeln(
-        'const ${binding.typeCode} ${binding.name} = '
-        '${binding.expressionCode};',
-      );
-  }
-  buffer
-    ..writeln()
-    ..writeln(
-      'final class $mountName extends '
-      '${mount.base ?? '${flutter}StatelessWidget'} {',
-    );
-  for (final atPlacement in [false, true]) {
-    buffer
-      ..writeln(
-        atPlacement
-            ? '  /// Overrides the implicit placement with an explicit name.'
-            : '  /// Mounts this surface at its implicit placement by default.',
-      )
-      ..writeln('  ///')
-      ..writeln(
-        atPlacement
-            ? '  /// Use [$mountName] for the default placement; no name is needed.'
-            : '  /// Use this constructor for ordinary mounts; no placement name is needed.',
-      );
-    buffer.writeln(
-      '  const $mountName${atPlacement ? '.atPlacement' : ''}(',
-    );
-    if (atPlacement) {
-      buffer.writeln('    String $placementArgument,');
-    }
-    for (final parameter in requiredPositional) {
-      buffer.writeln('    ${parameter.declarationSource},');
-    }
-    if (optionalPositional.isNotEmpty) {
-      buffer.writeln('    [');
-      for (final parameter in optionalPositional) {
-        buffer.writeln('    ${parameter.declarationSource},');
-      }
-      if (!constructor.hasKeyParameter) {
-        buffer.writeln('    ${flutter}Key? key,');
-      }
-    } else {
-      buffer.writeln('    {');
-      for (final parameter in named) {
-        buffer.writeln('    ${parameter.declarationSource},');
-      }
-      if (!constructor.hasKeyParameter) {
-        buffer.writeln('    super.key,');
-      }
-      if (!atPlacement && namedPlacement) {
-        buffer.writeln('    String? placement,');
-      }
-    }
-    buffer
-      ..writeln('    this.onEvent,')
-      ..writeln('    this.resolver,')
-      ..writeln('    this.$unavailableControl,')
-      ..writeln('    this.loadingBuilder,');
-    if (!paywall) {
-      buffer.writeln('    this.unavailable,');
-    }
-    buffer.writeln(optionalPositional.isNotEmpty ? '    ]' : '    }');
-    final placementValue = atPlacement
-        ? placementArgument
-        : namedPlacement
-        ? 'placement'
-        : 'null';
-    final initializers = <String>[
-      for (final parameter in constructor.parameters.where(
-        (parameter) => parameter.requiresStorage,
-      ))
-        '${parameter.slotName} = ${parameter.name}',
-      '$placementSlot = $placementValue',
-      if (constructor.explicitSuperKeySource case final source?)
-        'super(key: $source)',
-      if (optionalPositional.isNotEmpty && !constructor.hasKeyParameter)
-        'super(key: key)',
-    ];
-    buffer.write('  ) : ');
-    for (var index = 0; index < initializers.length; index++) {
-      if (index > 0) buffer.write('       ');
+  int? stateBodyAt;
+  // A step's mount reads the step the app built and the delivered content;
+  // a stateful step's mount is a widget that holds the step's State.
+  final stepChild = stateful ? 'widget.child' : '_restageChild';
+  final stepOriginal = stateful ? 'widget.original' : '_restageOriginal';
+  if (step && stateful) {
+    final widgetClass = '_restageStepWidget\$${_stepIdentifier(stepId)}';
+    slots[kStateWidget] = '_restageWidget';
+    slots['restageDidUpdateWidget'] = allocate('_restageDidUpdateWidget');
+    if (islands != null) {
       buffer
-        ..write(initializers[index])
-        ..writeln(index == initializers.length - 1 ? ';' : ',');
+        ..writeln()
+        ..writeln('final $owner = Object();');
     }
-    buffer.writeln();
-  }
-  for (final parameter in constructor.parameters.where(
-    (parameter) => parameter.requiresStorage,
-  )) {
     buffer
       ..writeln()
-      ..writeln('  final ${parameter.typeCode} ${parameter.slotName};');
-  }
-  buffer
-    ..writeln('  final String? $placementSlot;')
-    ..writeln()
-    ..writeln('  final ${flutter}ValueChanged<$eventType>? onEvent;')
-    ..writeln()
-    ..writeln(
-      '  final $sdk${paywall ? 'VariantResolver' : 'SurfaceScreenResolver'}'
-      '? resolver;',
-    )
-    ..writeln()
-    ..writeln(
-      paywall
-          ? '  final ${flutter}Widget Function(${flutter}BuildContext, '
-                '${sdk}RestagePaywallError)? errorBuilder;'
-          : '  final ${flutter}ValueChanged<'
-                '${sdk}SurfaceScreenUnavailableError>? onUnavailable;',
-    )
-    ..writeln()
-    ..writeln('  final ${flutter}WidgetBuilder? loadingBuilder;');
-  if (!paywall) {
+      ..writeln(
+        '/// Renders the $stepId step with what the app computes for it.',
+      )
+      ..writeln(
+        '${flutter}Widget ${stepMountName(stepId)}('
+        '${flutter}BuildContext context, ${flutter}Widget _restageChild, '
+        '${flutter}Widget _restageOriginal) =>',
+      )
+      ..writeln(
+        '    $widgetClass(original: _restageOriginal as $screenName, '
+        'child: _restageChild);',
+      )
+      ..writeln()
+      ..writeln('final class $widgetClass extends ${flutter}StatefulWidget {')
+      ..writeln(
+        '  const $widgetClass({required this.original, '
+        'required this.child});',
+      )
+      ..writeln()
+      ..writeln('  final $screenName original;')
+      ..writeln()
+      ..writeln('  final ${flutter}Widget child;')
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln(
+        '  _${widgetClass}State createState() => '
+        '_${widgetClass}State();',
+      )
+      ..writeln('}')
+      ..writeln()
+      ..writeln(
+        'final class _${widgetClass}State '
+        '${state.header(widgetClass)} {',
+      )
+      ..writeln('  // ignore: unused_element')
+      ..writeln('  $screenName get _restageWidget => widget.original;');
+    for (final member in state.members(widgetClass, (name) => slots[name]!)) {
+      // The copied build may call its own copy of a helper member instead.
+      buffer
+        ..writeln()
+        ..writeln('  // ignore: unused_element')
+        ..writeln('  $member');
+    }
+    if (state.updates) {
+      buffer
+        ..writeln()
+        ..writeln('  @override')
+        // The State's own didUpdateWidget calls super.
+        ..writeln('  // ignore: must_call_super')
+        ..writeln('  void didUpdateWidget(covariant $widgetClass oldWidget) =>')
+        ..writeln(
+          '      ${slots['restageDidUpdateWidget']}'
+          '(oldWidget.original, oldWidget);',
+        );
+    }
     buffer
       ..writeln()
-      ..writeln('  final ${sdk}SurfaceScreenUnavailablePolicy? unavailable;');
+      ..writeln('  @override')
+      ..writeln('  ${flutter}Widget build(${flutter}BuildContext context) {');
+  } else if (step) {
+    if (islands != null) {
+      buffer
+        ..writeln()
+        ..writeln('final $owner = Object();');
+    }
+    buffer
+      ..writeln()
+      ..writeln(
+        '/// Renders the $stepId step with what the app computes for it.',
+      )
+      ..writeln(
+        '${flutter}Widget ${stepMountName(stepId)}('
+        '${flutter}BuildContext context, ${flutter}Widget _restageChild, '
+        '${flutter}Widget _restageOriginal) {',
+      );
+  } else {
+    for (final binding in constructor.defaultBindings) {
+      buffer
+        ..writeln()
+        ..writeln(
+          'const ${binding.typeCode} ${binding.name} = '
+          '${binding.expressionCode};',
+        );
+    }
+    buffer
+      ..writeln()
+      ..writeln(
+        'final class $mountName extends '
+        '${mount.base ?? (stateful ? '${flutter}StatefulWidget' : '${flutter}StatelessWidget')} {',
+      );
+    for (final atPlacement in [false, true]) {
+      buffer
+        ..writeln(
+          atPlacement
+              ? '  /// Overrides the implicit placement with an explicit name.'
+              : '  /// Mounts this surface at its implicit placement by default.',
+        )
+        ..writeln('  ///')
+        ..writeln(
+          atPlacement
+              ? '  /// Use [$mountName] for the default placement; no name is needed.'
+              : '  /// Use this constructor for ordinary mounts; no placement name is needed.',
+        );
+      buffer.writeln(
+        '  const $mountName${atPlacement ? '.atPlacement' : ''}(',
+      );
+      if (atPlacement) {
+        buffer.writeln('    String $placementArgument,');
+      }
+      for (final parameter in requiredPositional) {
+        buffer.writeln('    ${parameter.declarationSource},');
+      }
+      if (optionalPositional.isNotEmpty) {
+        buffer.writeln('    [');
+        for (final parameter in optionalPositional) {
+          buffer.writeln('    ${parameter.declarationSource},');
+        }
+        if (!constructor.hasKeyParameter) {
+          buffer.writeln('    ${flutter}Key? key,');
+        }
+      } else {
+        buffer.writeln('    {');
+        for (final parameter in named) {
+          buffer.writeln('    ${parameter.declarationSource},');
+        }
+        if (!constructor.hasKeyParameter) {
+          buffer.writeln('    super.key,');
+        }
+        if (!atPlacement && namedPlacement) {
+          buffer.writeln('    String? placement,');
+        }
+      }
+      buffer
+        ..writeln('    this.onEvent,')
+        ..writeln('    this.resolver,')
+        ..writeln('    this.$unavailableControl,')
+        ..writeln('    this.loadingBuilder,');
+      if (!paywall) {
+        buffer.writeln('    this.unavailable,');
+      }
+      buffer.writeln(optionalPositional.isNotEmpty ? '    ]' : '    }');
+      final placementValue = atPlacement
+          ? placementArgument
+          : namedPlacement
+          ? 'placement'
+          : 'null';
+      final initializers = <String>[
+        for (final parameter in constructor.parameters.where(
+          (parameter) => parameter.requiresStorage,
+        ))
+          '${parameter.storageName} = ${parameter.name}',
+        '$placementSlot = $placementValue',
+        if (constructor.explicitSuperKeySource case final source?)
+          'super(key: $source)',
+        if (optionalPositional.isNotEmpty && !constructor.hasKeyParameter)
+          'super(key: key)',
+      ];
+      buffer.write('  ) : ');
+      for (var index = 0; index < initializers.length; index++) {
+        if (index > 0) buffer.write('       ');
+        buffer
+          ..write(initializers[index])
+          ..writeln(index == initializers.length - 1 ? ';' : ',');
+      }
+      buffer.writeln();
+    }
+    for (final parameter in constructor.parameters.where(
+      (parameter) => parameter.requiresStorage,
+    )) {
+      // A getter keeps an unpromotable field unpromoted, as in the app.
+      buffer
+        ..writeln()
+        ..writeln('  final ${parameter.typeCode} ${parameter.storageName};');
+      if (parameter.slotName != parameter.storageName) {
+        buffer.writeln(
+          '  ${parameter.typeCode} get ${parameter.slotName} => '
+          '${parameter.storageName};',
+        );
+      }
+    }
+    buffer
+      ..writeln('  final String? $placementSlot;')
+      ..writeln()
+      ..writeln('  final ${flutter}ValueChanged<$eventType>? onEvent;')
+      ..writeln()
+      ..writeln(
+        '  final $sdk${paywall ? 'VariantResolver' : 'SurfaceScreenResolver'}'
+        '? resolver;',
+      )
+      ..writeln()
+      ..writeln(
+        paywall
+            ? '  final ${flutter}Widget Function(${flutter}BuildContext, '
+                  '${sdk}RestagePaywallError)? errorBuilder;'
+            : '  final ${flutter}ValueChanged<'
+                  '${sdk}SurfaceScreenUnavailableError>? onUnavailable;',
+      )
+      ..writeln()
+      ..writeln('  final ${flutter}WidgetBuilder? loadingBuilder;');
+    if (!paywall) {
+      buffer
+        ..writeln()
+        ..writeln('  final ${sdk}SurfaceScreenUnavailablePolicy? unavailable;');
+    }
+    if (stateful) {
+      buffer
+        ..writeln()
+        ..writeln('  @override')
+        ..writeln('  _${mountName}State createState() => _${mountName}State();')
+        ..writeln('}')
+        ..writeln()
+        ..writeln(
+          'final class _${mountName}State '
+          '${state.header(mountName)} {',
+        );
+      slots[kStateWidget] = allocate('_restageWidget');
+      slots['restageDidUpdateWidget'] = allocate('_restageDidUpdateWidget');
+      stateBodyAt = buffer.length;
+      for (final member in state.members(mountName, (name) => slots[name]!)) {
+        // The copied build may call its own copy of a helper member instead.
+        buffer
+          ..writeln()
+          ..writeln('  // ignore: unused_element')
+          ..writeln('  $member');
+      }
+    }
+    buffer
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln(
+        '  ${flutter}Widget build(${[
+          '${flutter}BuildContext context',
+          ...mount.buildParameters,
+        ].join(', ')}) {',
+      );
   }
-  buffer
-    ..writeln()
-    ..writeln('  @override')
-    ..writeln(
-      '  ${flutter}Widget build(${[
-        '${flutter}BuildContext context',
-        ...mount.buildParameters,
-      ].join(', ')}) {',
-    );
+  slots[kRootContext] = 'context';
+  final recordStart = out.length;
   // A screen mount installs through the vocabulary its reference carries. A
   // paywall mount names no reference, so it installs here instead.
   if (paywall && (vocabulary.namesInstallable || appWidgetLibraries != null)) {
@@ -1821,85 +2384,72 @@ void _emitScreenMount(
   }
   final fallbackArguments = <(_ResolvedMountParameter, String)>[
     for (final parameter in parameters)
-      if (parameter.fallbackArgumentSource case final source?)
+      if (parameter.fallbackArgumentSource(read) case final source?)
         (parameter, source),
   ];
-  for (final parameter in parameters) {
-    if (parameter.isKey &&
-        parameter.requiresStorage &&
-        parameter.name == 'key' &&
-        fallbackArguments.any((entry) => entry.$2 == 'key')) {
-      buffer.writeln('    final key = ${parameter.slotName};');
-    }
-  }
+  // A stateless surface's own members are read from one instance of it per
+  // mount widget, as Flutter keeps the widget across rebuilds, declared at
+  // the top of the build once the body reads it.
+  final surfaces = allocate('_restageSurfaces');
+  final surfaceInstance = step
+      ? stateful
+            ? null
+            : '    final $kSurfaceInstance = _restageOriginal as $screenName;\n'
+      : stateful
+      ? null
+      : '    final $kSurfaceInstance = $surfaces[this] ??= $screenName(${[
+          for (final (parameter, source) in fallbackArguments)
+            if (!parameter.isKey) parameter.kind == RootContextParamKind.named ? '${parameter.name}: $source' : source,
+        ].join(', ')});\n';
+  if (surfaceInstance != null) slots[kSurfaceInstance] = kSurfaceInstance;
+  // A stored `key` is a local of the whole build, which the fallback widget
+  // and the design both read.
+  final keyLocal = [
+    for (final parameter in parameters)
+      if (parameter.isKey &&
+          parameter.requiresStorage &&
+          parameter.name == 'key' &&
+          fallbackArguments.any((entry) => entry.$2 == 'key'))
+        '    final key = ${read(parameter.slotName)};\n',
+  ].join();
   if (hasNativeScope) {
-    final slots = {
-      for (final parameter in constructor.values)
-        parameter.name: parameter.slotName,
-    };
+    buffer.writeln('    $lead${mount.nativeScopeType}(');
     if (nativeHoisted.isNotEmpty) {
-      buffer.writeln('    final $nativeValues = ${sdk}restageNativeObjects({');
-      for (final value in nativeHoisted) {
-        buffer.writeln(
-          '${dartStringLiteral(value.key)}: '
-          '(${_debugLabel(value)}, () => '
-          '${value.mountSource((name) => slots[name]!)}),',
-        );
-      }
-      buffer.writeln('    });');
-    }
-    final computed = [
-      for (final value in nativeBindings)
-        if (value.computed) value,
-    ];
-    if (computed.isNotEmpty) {
-      buffer.writeln(
-        '    final $computedNatives = ${sdk}restageNativeObjects({',
-      );
-      for (final value in computed) {
-        final entry =
-            '(${_debugLabel(value)}, () => '
-            '${value.mountSource((name) => slots[name]!, itemSource: 'restageItem')})';
-        buffer.writeln(
-          value.item == null
-              ? '${dartStringLiteral(value.key)}: $entry,'
-              : 'for (final (restageIndex, restageItem) in '
-                    '${slots[value.item]}.indexed) '
-                    '${_itemNativeKey(value)}: $entry,',
-        );
-      }
-      buffer.writeln('    });');
-    }
-    buffer.writeln('    return ${mount.nativeScopeType}(');
-    if (nativeHoisted.isNotEmpty) {
-      buffer.writeln('      textScalers: $nativeValues,');
+      buffer.writeln('      textScalers: _restageRecording.scalers,');
     }
     if (nativeBindings.isNotEmpty) {
       final nativePrefix = mount.nativeScopeType!.replaceFirst(
         RegExp(r'RestageNativeValues$'),
         '',
       );
-      buffer.writeln('      bindings: {');
+      final sharedPrefix = mount.nativeContractType!.replaceFirst(
+        RegExp(r'NativeBindingContract$'),
+        '',
+      );
+      // What a builder records when it runs later joins the bindings live.
+      final contracts = [
+        for (final value in nativeBindings)
+          if (value.computed)
+            '${dartStringLiteral(value.key)} => '
+                '${contractSource(value, sharedPrefix)}',
+        '_ => throw StateError(key)',
+      ].join(', ');
+      buffer.writeln(
+        '      bindings: _restageRecording.bindings('
+        "(key) => switch (key.split('#').first) {$contracts}, {",
+      );
+      // A borrowed binding is passed as the mount holds it.
       for (final value in nativeBindings) {
-        final contract = value.nativeContract!;
-        final sharedPrefix = mount.nativeContractType!.replaceFirst(
-          RegExp(r'NativeBindingContract$'),
-          '',
-        );
-        final factory = nativeFactories[value.key];
-        final installed = factory == null ? null : '$factory()';
-        final key = value.item == null
-            ? dartStringLiteral(value.key)
-            : _itemNativeKey(value);
+        if (value.computed) continue;
+        final installed = nativeFactories[value.key];
         buffer.writeln(
-          '${value.item == null ? '' : 'for (final (restageIndex, _) in ${slots[value.item]}.indexed) '}'
-          '${value.computed ? 'if ($computedNatives.containsKey($key)) ' : ''}'
-          '$key: ${nativePrefix}NativeBinding('
-          'contract: ${nativeContractSource(contract, sharedPrefix)}, '
-          'value: ${value.computed ? '$computedNatives[$key]' : installed ?? value.mountSource((name) => slots[name]!)}),',
+          '${dartStringLiteral(value.key)}: '
+          '${nativePrefix}NativeBinding('
+          'contract: ${contractSource(value, sharedPrefix)}, '
+          'value: ${installed ?? _borrowedSource(value.mountSource((name) => slots[name]!))}),',
         );
       }
-      buffer.writeln('      },');
+      buffer.writeln('      }),');
     }
     // Names each native value in debug builds' missing-value messages.
     buffer.writeln(
@@ -1915,61 +2465,66 @@ void _emitScreenMount(
     buffer.writeln('      },');
     buffer.write('      child: ');
   } else {
-    buffer.write('    return ');
+    buffer.write('    $lead');
   }
-  buffer
-    ..writeln(
-      paywall ? '${sdk}RestagePaywall(' : '${sdk}RestageScreen<$eventType>(',
-    )
-    ..writeln(
-      paywall
-          ? '      id: ${dartStringLiteral(paywallId)},'
-          : '      screen: $refName,',
-    )
-    ..writeln(
-      '      placementBinding: '
-      '$sdk${paywall ? 'RestagePaywall' : 'RestageScreen'}'
-      '.generatedPlacementBinding(',
-    )
-    ..writeln('        definition: $provider,')
-    ..writeln('        name: $placementSlot,')
-    ..writeln('      ),');
+  if (step) {
+    buffer.writeln('${sdk}RestageStepValues(built: _restageBuilt,');
+  } else {
+    buffer
+      ..writeln(
+        paywall ? '${sdk}RestagePaywall(' : '${sdk}RestageScreen<$eventType>(',
+      )
+      ..writeln(
+        paywall
+            ? '      id: ${dartStringLiteral(paywallId)},'
+            : '      screen: $refName,',
+      )
+      ..writeln(
+        '      placementBinding: '
+        '$sdk${paywall ? 'RestagePaywall' : 'RestageScreen'}'
+        '.generatedPlacementBinding(',
+      )
+      ..writeln('        definition: $provider,')
+      ..writeln('        name: ${read(placementSlot)},')
+      ..writeln('      ),');
+  }
   final hostParameters = constructor.values.where(
     (parameter) => parameter.root.isHostData,
   );
   final hoisted = mount.hoisted;
+  if (step && hostParameters.isEmpty && hoisted.isEmpty) {
+    buffer.writeln('      values: const <String, Object?>{},');
+  }
   if (hostParameters.isNotEmpty || hoisted.isNotEmpty) {
-    buffer.writeln('      context: <String, Object?>{');
-    final slots = {
-      for (final parameter in constructor.values)
-        parameter.name: parameter.slotName,
-    };
-    // Each value is computed under a guard, so one that throws is left out.
-    String thunk(HoistedValue value, String? item) {
-      final source = value.mountSource(
-        (name) => slots[name]!,
-        itemSource: item,
-      );
-      // Release builds fold the label away.
-      return '${dartStringLiteral(value.key)}: '
-          "(const bool.fromEnvironment('dart.vm.product') ? '' : "
-          '${dartStringLiteral(value.label)}, () => $source)';
-    }
-
-    String hostValues(Iterable<HoistedValue> values, {String? item}) =>
-        '...${sdk}restageHostValues(<String, (String, Object? Function())>{'
-        '${[for (final value in values) thunk(value, item)].join(', ')}})';
+    buffer.writeln('      ${step ? 'values' : 'context'}: <String, Object?>{');
+    buffer.writeln('        ..._restageRecording.values,');
     for (final parameter in hostParameters) {
-      final source = parameter.slotName;
+      final source = slots[parameter.name]!;
       final itemValues = [
         for (final value in hoisted)
           if (value.item == parameter.name &&
-              value.kind != HoistValueKind.nativeBinding)
+              !const {
+                HoistValueKind.nativeBinding,
+                HoistValueKind.itemIndex,
+                HoistValueKind.items,
+              }.contains(value.kind))
             value,
       ];
       final itemNatives = [
         for (final value in nativeBindings)
           if (value.item == parameter.name) value,
+      ];
+      final itemIndexes = [
+        for (final value in hoisted)
+          if (value.item == parameter.name &&
+              value.kind == HoistValueKind.itemIndex)
+            value,
+      ];
+      final nestedItems = [
+        for (final value in hoisted)
+          if (value.item == parameter.name &&
+              value.kind == HoistValueKind.items)
+            value,
       ];
       buffer.writeln(
         '        ${dartStringLiteral(parameter.name)}: '
@@ -1977,79 +2532,354 @@ void _emitScreenMount(
           parameter.root.hostDataShape!,
           source,
           0,
-          itemValues.isEmpty && itemNatives.isEmpty ? null : _ItemEntries(
-                  (item, index) => [
-                    if (itemValues.isNotEmpty) hostValues(itemValues, item: item),
-                    for (final value in itemNatives) '${dartStringLiteral(value.key)}: '
-                          '${_nativeReference(value, _itemNativeKey(value, index))}',
-                  ].join(', '),
-                  indexed: itemNatives.isNotEmpty,
+          itemValues.isEmpty && itemNatives.isEmpty && itemIndexes.isEmpty && nestedItems.isEmpty ? null : _ItemEntries(
+                  (item, index) => '..._restageRecording.itemAt('
+                      '${dartStringLiteral(parameter.name)}, $index)',
+                  indexed: true,
                 ),
         )},',
       );
     }
-    final topLevel = [
-      for (final value in hoisted)
-        if (value.item == null &&
-            value.kind != HoistValueKind.textScaler &&
-            value.kind != HoistValueKind.nativeBinding)
-          value,
-    ];
-    if (topLevel.isNotEmpty) {
-      buffer.writeln('        ${hostValues(topLevel)},');
-    }
-    for (final value in nativeHoisted) {
-      buffer.writeln(
-        '        ${dartStringLiteral(value.key)}: <String, Object?>{'
-        '"kind": "native", "key": ${dartStringLiteral(value.key)}},',
-      );
-    }
-    for (final value in nativeBindings) {
-      if (value.item != null) continue;
-      buffer.writeln(
-        '        ${dartStringLiteral(value.key)}: '
-        '${_nativeReference(value, dartStringLiteral(value.key))},',
-      );
+    for (final entry in _nativeContextEntries(nativeHoisted, nativeBindings)) {
+      buffer.writeln('        $entry,');
     }
     buffer.writeln('      },');
   }
-  buffer
-    ..writeln(
-      paywall
-          ? '      fallbackBuilder: (context) => $screenName('
-          : '      unavailable: unavailable ?? '
-                '${sdk}SurfaceScreenUnavailablePolicy.fallback(',
-    )
-    ..write(
-      paywall ? '' : '        builder: (context, error) => $screenName(\n',
-    );
-  for (final (parameter, source) in fallbackArguments) {
-    buffer.writeln(
-      parameter.kind == RootContextParamKind.named
-          ? '          ${parameter.name}: $source,'
-          : '          $source,',
-    );
+  if (step) {
+    buffer
+      ..writeln('      child: $stepChild,')
+      ..writeln(!hasNativeScope ? '    );' : '      ),\n    );');
+  } else {
+    // The fallback is the widget the build returned.
+    buffer
+      ..writeln(
+        paywall
+            ? '      fallbackBuilder: (_) => _restageBuilt,'
+            : '      unavailable: ${read('unavailable')} ?? '
+                  '${sdk}SurfaceScreenUnavailablePolicy.fallback(',
+      )
+      ..write(
+        paywall ? '' : '        builder: (_, error) => _restageBuilt,\n',
+      );
+    buffer
+      ..write(paywall ? '' : '      ),\n')
+      ..writeln('      onEvent: ${read('onEvent')},')
+      ..writeln('      resolver: ${read('resolver')},')
+      ..writeln('      $unavailableControl: ${read(unavailableControl)},')
+      ..writeln('      loadingBuilder: ${read('loadingBuilder')},')
+      ..writeln(!hasNativeScope ? '    );' : '      ),\n    );');
   }
-  buffer
-    ..writeln('        ),')
-    ..write(paywall ? '' : '      ),\n')
-    ..writeln('      onEvent: onEvent,')
-    ..writeln('      resolver: resolver,')
-    ..writeln('      $unavailableControl: $unavailableControl,')
-    ..writeln('      loadingBuilder: loadingBuilder,')
-    ..writeln(!hasNativeScope ? '    );' : '      ),\n    );')
-    ..writeln('  }')
-    ..writeln('}');
+  if (scoped) {
+    // Each island is the one the build recorded at its place.
+    buffer
+      ..writeln(
+        '    return ${sdk}RestageIslandScope('
+        'owner: ${owner == null ? slots[kRootContext] : '${sdk}RestageIslandScope.hostOf(${slots[kRootContext]}) ?? $owner'}, '
+        '${explicitEvents ? 'explicitEvents: true, ' : ''}builders: {',
+      )
+      ..writeAll([
+        for (final island in islands ?? const <Island>[])
+          '      ${dartStringLiteral(island.name)}: (_restageContext, _restageSource) => '
+              '_restageRecording.islandAt(${dartStringLiteral(island.name)}, [${[
+                for (final (level, _) in island.items.indexed) '_restageSource.v<int>(const <Object>'
+                      "['$kPlacementItemsArgument', $level])!",
+              ].join(', ')}], _restageContext, _restageSource),\n',
+      ])
+      ..writeln('    }, child: $content);');
+  }
+  {
+    // The design is built where the copied build returns it, once the build
+    // has recorded what it reads.
+    final design = out.toString().substring(recordStart);
+    final recorded =
+        (bare
+                ? '() => _restageDesign(${step ? stepOriginal : '$screenName(${[
+                          for (final (parameter, source) in fallbackArguments) parameter.kind == RootContextParamKind.named ? '${parameter.name}: $source' : source,
+                        ].join(', ')})'})'
+                : mount.split!.recordedSource((name) => slots[name]!)!)
+            .replaceAllMapped(
+              RegExp('\u0002([A-Za-z0-9_\$]+)\\|([A-Za-z0-9_\$]+)\u0002'),
+              (match) {
+                final island = mount.islands.firstWhere(
+                  (island) => island.name == match[1],
+                );
+                final argument = match[2]!;
+                final path = "const <Object>[${dartStringLiteral(argument)}]";
+                for (final value in island.slots) {
+                  if (value.name == argument) {
+                    if (value.builder case final builder?) {
+                      return builder.callback(
+                        AppValueSlot.bindingName(argument),
+                        sdk: mount.sdk,
+                      );
+                    }
+                    return '_restageSource.${value.list ? 'childList' : 'child'}($path)';
+                  }
+                }
+                return decoderCallFor(
+                  islandWidgetEntry(
+                    island,
+                  ).properties.firstWhere((entry) => entry.name == argument),
+                  source: '_restageSource',
+                  context: '_restageContext',
+                  sdk: mount.sdk,
+                );
+              },
+            )
+            .replaceAll(kSdkPrefixMarker, mount.sdk);
+    final head = out.toString().substring(0, recordStart);
+    out
+      ..clear()
+      ..write(head)
+      ..writeln('    // ignore: unused_local_variable')
+      ..writeln(
+        '    final _restageRecording = ${sdk}RestageRecording('
+        '${scoped ? 'owner: ${owner == null ? slots[kRootContext] : '${sdk}RestageIslandScope.hostOf(${slots[kRootContext]}) ?? $owner'}' : ''});',
+      )
+      ..write(keyLocal);
+    if (surfaceInstance != null &&
+        RegExp('\\b$kSurfaceInstance\\b').hasMatch('$design$recorded')) {
+      out.write(surfaceInstance);
+      if (!step) {
+        // The one instance per mount widget.
+        final mount = out.toString();
+        final at = mount.lastIndexOf('  final String? $placementSlot;\n');
+        if (at < 0) throw StateError('The mount declares no placement field.');
+        out
+          ..clear()
+          ..write(mount.substring(0, at))
+          ..writeln('  static final $surfaces = Expando<$screenName>();')
+          ..write(mount.substring(at));
+      }
+    }
+    out
+      ..writeln(
+        '    ${flutter}Widget _restageDesign(${flutter}Widget _restageBuilt) {',
+      )
+      ..write(design)
+      ..writeln('    }')
+      ..writeln('    return ($recorded)();');
+  }
+  // A lifted State reads `widget` as an instance of the surface, rebuilt
+  // whenever the mount updates.
+  final widgetName = slots[kStateWidget];
+  if (!step &&
+      state != null &&
+      stateBodyAt != null &&
+      widgetName != null &&
+      (state.updates || RegExp('\\b$widgetName\\b').hasMatch(out.toString()))) {
+    final surface =
+        '$screenName(${[
+          for (final (parameter, source) in fallbackArguments)
+            if (!parameter.isKey) parameter.kind == RootContextParamKind.named ? '${parameter.name}: $source' : source,
+        ].join(', ')})';
+    final text = out.toString();
+    out
+      ..clear()
+      ..write(text.substring(0, stateBodyAt))
+      ..writeln()
+      ..writeln('  late $screenName $widgetName = $surface;')
+      ..writeln()
+      ..writeln('  @override')
+      // The State's own didUpdateWidget calls super.
+      ..writeln(state.updates ? '  // ignore: must_call_super' : '')
+      ..writeln('  void didUpdateWidget(covariant $mountName oldWidget) {')
+      ..writeln(
+        state.updates
+            ? '    final _restagePrevious = $widgetName;\n'
+                  '    $widgetName = $surface;\n'
+                  '    ${slots['restageDidUpdateWidget']}(_restagePrevious, oldWidget);'
+            : '    super.didUpdateWidget(oldWidget);\n'
+                  '    $widgetName = $surface;',
+      )
+      ..writeln('  }')
+      ..write(text.substring(stateBodyAt));
+  }
+  out.writeln(step && !stateful ? '}' : '  }\n}');
+  _dropUnreadStorage(out, mountStart, mount.constructor.parameters);
 }
 
-/// [value]'s source expression, folded away in release builds.
-String _debugLabel(HoistedValue value) =>
-    "const bool.fromEnvironment('dart.vm.product') ? '' : "
-    '${dartStringLiteral(value.label)}';
+/// Removes each stored argument the mount at [start] of [out] never reads.
+void _dropUnreadStorage(
+  StringBuffer out,
+  int start,
+  Iterable<_ResolvedMountParameter> parameters,
+) {
+  final text = out.toString();
+  var mount = text.substring(start);
+  for (final parameter in parameters) {
+    if (!parameter.requiresStorage || parameter.isKey) continue;
+    final slot = parameter.slotName;
+    final storage = parameter.storageName;
+    final direct = slot == storage;
+    // Reads besides its declaration, its getter and its initializers.
+    final reads = mount
+        .replaceAll('$storage = ', '')
+        .replaceAll('final ${parameter.typeCode} $storage;', '');
+    if (RegExp('\\b$slot\\b').allMatches(reads).length > (direct ? 0 : 1)) {
+      continue;
+    }
+    mount = mount
+        // Both constructors store it.
+        .replaceAll('$storage = ${parameter.name},\n       ', '')
+        .replaceFirst(
+          '\n  final ${parameter.typeCode} $storage;\n'
+              '${direct ? '' : '  ${parameter.typeCode} get $slot => $storage;\n'}',
+          '',
+        );
+  }
+  out
+    ..clear()
+    ..write(text.substring(0, start))
+    ..write(mount);
+}
+
+/// [libraries], a list source or null, with the registration of the mount's
+/// own islands, so the mount renders them without an app-wide registration.
+String? _withIslandLibrary(String? libraries, _ResolvedScreenMount mount) {
+  if (mount.islands.isEmpty) return libraries;
+  final islands = islandRegistrationName([
+    for (final island in mount.islands) island.name,
+  ]);
+  return libraries == null ? '[$islands]' : '[...$libraries, $islands]';
+}
+
+// What island factories spell through the Restage import, by origin.
+const _kIslandSdkSymbols = {
+  'DataSource': 'package:rfw',
+  'ArgumentDecoders': 'package:rfw',
+  'RestageDecoders': 'package:restage_core',
+  'RestageValueBinding': 'package:restage_core',
+  'RestageIslandScope': _restageSdkOrigin,
+  'RestageIslandPlaceholder': _restageSdkOrigin,
+  'RestageWidgetFactory': _restageSdkOrigin,
+  'RestageWidgetLibraryRegistration': _restageSdkOrigin,
+  'WidgetLibrary': 'package:rfw_catalog_schema',
+};
+
+/// Each island's factory, which the mount registers, and its mount-free
+/// builder, which previews supply to the island scope.
+void _writeIslandDeclarations(
+  StringBuffer buffer,
+  _ResolvedScreenMount mount,
+  String mountName, {
+  bool step = false,
+}) {
+  final sdk = mount.sdk;
+  final flutter = mount.flutter;
+  buffer
+    ..writeln()
+    ..writeln(
+      'const ${islandRegistrationName([for (final island in mount.islands) island.name])} = '
+      '${islandLibraryRegistrationSource(mount.islands.first.library, [for (final island in mount.islands) island.name], sdk)};',
+    );
+  for (final island in mount.islands) {
+    buffer
+      ..writeln()
+      ..writeln(
+        islandFactorySource(
+          island.name,
+          widget: island.widget,
+          location: island.location,
+          mount: mountName,
+          step: step,
+          sdk: sdk,
+          flutter: flutter,
+        ),
+      );
+    final hole = _islandHole(
+      island,
+      mount,
+      (name) => name == kRootContext ? 'restageContext' : name,
+    );
+    final preview =
+        _owningBuilders(
+          island,
+          island.previewSource(hole),
+          source: 'restageSource',
+          context: 'restageContext',
+          sdk: sdk,
+        ) ??
+        '${sdk}RestageIslandPlaceholder(label: '
+            '${dartStringLiteral(island.widget)}, children: [${[
+              for (final slot in island.slots)
+                if (slot.builder == null) '${slot.list ? '...' : ''}${hole(slot.name)}',
+            ].join(', ')}])';
+    buffer
+      ..writeln()
+      ..writeln(
+        '${flutter}Widget ${islandPreviewName(island)}('
+        '${flutter}BuildContext restageContext, '
+        '${sdk}DataSource restageSource) =>',
+      )
+      ..writeln('    $preview;');
+  }
+}
+
+/// [template], an island's build, owning a binding for each of its app
+/// builders.
+String? _owningBuilders(
+  Island island,
+  String? template, {
+  required String source,
+  required String context,
+  required String sdk,
+}) {
+  final builders = {
+    for (final slot in island.slots)
+      if (slot.builder case final builder?) slot.name: builder,
+  };
+  return template == null || builders.isEmpty
+      ? template
+      : AppValueSlot.owning(
+          template,
+          builders,
+          source: source,
+          context: context,
+          sdk: sdk,
+        );
+}
+
+/// How an island's source reads its slot or property [argument] from the
+/// payload, falling back to the property as written.
+String Function(String argument) _islandHole(
+  Island island,
+  _ResolvedScreenMount mount,
+  String Function(String) slot,
+) => (argument) {
+  final path = "const <Object>[${dartStringLiteral(argument)}]";
+  for (final value in island.slots) {
+    if (value.name == argument) {
+      if (value.builder case final builder?) {
+        return builder.callback(
+          AppValueSlot.bindingName(argument),
+          sdk: mount.sdk,
+        );
+      }
+      return 'restageSource.${value.list ? 'childList' : 'child'}($path)';
+    }
+  }
+  final property = island.properties.firstWhere(
+    (value) => value.name == argument,
+  );
+  final decoded = decoderCallFor(
+    islandWidgetEntry(
+      island,
+    ).properties.firstWhere((entry) => entry.name == argument),
+    source: 'restageSource',
+    context: 'restageContext',
+    sdk: mount.sdk,
+  );
+  return property.previewSource(decoded, slot);
+};
 
 /// Extra entries the mount adds to one list item, given that item's source.
 final class _ItemEntries {
-  const _ItemEntries(this.entries, {this.indexed = false});
+  const _ItemEntries(this.entries, {this.indexed = false, this.wrap});
+
+  /// One item's whole map, given its source and the map; the map itself
+  /// when absent.
+  final String Function(String item, String map)? wrap;
 
   /// The entries for one item, given its source and its list position.
   final String Function(String item, String index) entries;
@@ -2058,9 +2888,20 @@ final class _ItemEntries {
   final bool indexed;
 }
 
-/// The binding key of [value] for the list item at [index].
-String _itemNativeKey(HoistedValue value, [String index = 'restageIndex']) =>
-    "'${value.key}#\$$index'";
+/// The context entries naming each recorded text scaler, and each native
+/// binding outside a loop, by its inert reference.
+List<String> _nativeContextEntries(
+  Iterable<HoistedValue> scalers,
+  Iterable<HoistedValue> bindings,
+) => [
+  for (final value in scalers)
+    '${dartStringLiteral(value.key)}: <String, Object?>{'
+        '"kind": "native", "key": ${dartStringLiteral(value.key)}}',
+  for (final value in bindings)
+    if (value.item == null)
+      '${dartStringLiteral(value.key)}: '
+          '${_nativeReference(value, dartStringLiteral(value.key))}',
+];
 
 /// The inert reference a surface reads for a native binding.
 String _nativeReference(HoistedValue value, String key) {
@@ -2112,7 +2953,7 @@ String _mountNonNullHostDataValue(
                   elementShape,
                   value,
                   depth + 1,
-                  _ItemEntries((item, _) => itemEntries!.entries(item, 'restageIndex$depth')),
+                  _ItemEntries((item, _) => itemEntries!.entries(item, 'restageIndex$depth'), wrap: itemEntries?.wrap),
                 )}]'
           : '<Object?>[for (final $value in $source) '
                 '${_mountHostDataValue(
@@ -2145,7 +2986,8 @@ String _mountObjectValue(
     for (final field in shape.fields) fieldValue(field),
     if (itemEntries != null) itemEntries.entries(source, ''),
   ];
-  return '<String, Object?>{${fields.join(', ')}}';
+  final map = '<String, Object?>{${fields.join(', ')}}';
+  return itemEntries?.wrap?.call(source, map) ?? map;
 }
 
 Iterable<_ResolvedScreenEvent> _eventsInSchemaOrder(
@@ -2391,6 +3233,40 @@ Surface? _surfaceFromValue(DartObject? value) {
   return null;
 }
 
+// Flutter's own StatelessWidget or StatefulWidget.
+bool _isFrameworkWidgetBase(InterfaceElement element) =>
+    (element.name == 'StatelessWidget' || element.name == 'StatefulWidget') &&
+    element.library.identifier == 'package:flutter/src/widgets/framework.dart';
+
+/// Why a mount cannot extend [base] the way its surface does: a constructor
+/// that needs more than a key, or members it leaves for the surface to write
+/// besides its build.
+String? _baseProblem(InterfaceType base) {
+  final constructor = base.element.unnamedConstructor;
+  if (constructor == null ||
+      constructor.isFactory ||
+      constructor.formalParameters.any(
+        (parameter) => parameter.isRequired && parameter.name != 'key',
+      )) {
+    return '`${base.element.name}` requires constructor arguments';
+  }
+  for (final owner in [base, ...base.allSupertypes]) {
+    for (final member in [...owner.element.methods, ...owner.element.getters]) {
+      final name = member.name ?? '';
+      if (!member.isAbstract || name == 'build' || name == 'createState') {
+        continue;
+      }
+      final concrete = member is GetterElement
+          ? base.lookUpGetter(name, base.element.library, concrete: true)
+          : base.lookUpMethod(name, base.element.library, concrete: true);
+      if (concrete == null) {
+        return '`${base.element.name}` leaves `$name` without a body';
+      }
+    }
+  }
+  return null;
+}
+
 bool _isSupportedFlutterWidget(ClassElement element) {
   for (var current = element.supertype; current != null;) {
     final superElement = current.element;
@@ -2465,6 +3341,8 @@ final class _ResolvedScreenMount {
     required this.reservedNativeNames,
     required this.constructor,
     required this.hoisted,
+    required this.islands,
+    required this.split,
     required this.nativeScopeType,
     required this.nativeContractType,
     required this.base,
@@ -2475,6 +3353,12 @@ final class _ResolvedScreenMount {
   final String flutter;
   final Set<String> reservedNativeNames;
   final List<HoistedValue> hoisted;
+
+  /// Widget expressions the mount renders from the app.
+  final List<Island> islands;
+
+  /// How the mount takes over the surface's shell and `State`.
+  final MountSplit? split;
   final String? nativeScopeType;
   final String? nativeContractType;
 
@@ -2484,6 +3368,21 @@ final class _ResolvedScreenMount {
   /// The build parameters after the context, as `Type name`.
   final List<String> buildParameters;
   final _ResolvedMountConstructorContract constructor;
+
+  /// This mount spelling SDK names with [sdk].
+  _ResolvedScreenMount withSdk(String sdk) => _ResolvedScreenMount(
+    sdk: sdk,
+    flutter: flutter,
+    reservedNativeNames: reservedNativeNames,
+    constructor: constructor,
+    hoisted: hoisted,
+    islands: islands,
+    split: split,
+    nativeScopeType: nativeScopeType,
+    nativeContractType: nativeContractType,
+    base: base,
+    buildParameters: buildParameters,
+  );
 }
 
 final class _ResolvedMountConstructorContract {
@@ -2543,6 +3442,10 @@ final class _ResolvedMountParameter {
       root.usesStatelessWidgetSuperFormal;
   bool get requiresStorage => slotName.isNotEmpty;
 
+  /// The field behind [slotName], which reads it through a getter.
+  String get storageName =>
+      slotName.replaceFirst('_restageArgument', '_restageStored');
+
   String? get defaultValueCode => defaultBinding?.name;
 
   String get declarationSource {
@@ -2562,9 +3465,12 @@ final class _ResolvedMountParameter {
     return '$required$typeCode $name$defaultSource';
   }
 
-  String get fallbackSource {
-    if (isKey && (!requiresStorage || name == 'key')) return name;
-    return slotName;
+  /// This parameter's value in the mount's build, read through [read].
+  String fallbackSource(String Function(String member) read) {
+    // A stored `key` is the build's own local.
+    if (isKey && name == 'key' && requiresStorage) return name;
+    if (isKey && !requiresStorage) return read(name);
+    return read(slotName);
   }
 
   /// An optional named `key` the mount passes straight to its own super key.
@@ -2582,8 +3488,8 @@ final class _ResolvedMountParameter {
 
   /// This parameter's fallback-widget argument, or null to omit it; a key the
   /// mount forwards to `super` never also reaches the fallback widget.
-  String? get fallbackArgumentSource {
-    if (!isKey || !isNullableKey) return fallbackSource;
+  String? fallbackArgumentSource(String Function(String member) read) {
+    if (!isKey || !isNullableKey) return fallbackSource(read);
     if (kind == RootContextParamKind.named && !isRequired) return null;
     return 'null';
   }
@@ -2732,3 +3638,326 @@ final class _MapDartEventShape extends _DartEventShape {
     ')',
   ].join();
 }
+
+/// Emits the wrapper of [split]; see [emitSplitWidgetWrapper].
+({String? source, String? registration, String? omissionMessage})
+emitSplitWidget(SplitWidgetInput split) => emitSplitWidgetWrapper(
+  split.mount,
+  entry: split.entry,
+  custom: split.custom,
+);
+
+/// Emits the wrapper of the split widget [input] with catalog [entry]: a
+/// factory for `<entry>__split` and a widget that holds the widget's State,
+/// records its build and renders the delivered body with what it recorded.
+({String? source, String? registration, String? omissionMessage})
+emitSplitWidgetWrapper(
+  ResolvedWidgetMountInput input, {
+  required WidgetEntry entry,
+  CustomReconstruction? custom,
+}) {
+  final screenName = input.screen.name!;
+  final wrapper = splitFactoryName(entry.name);
+  final result = _resolveScreenMount(
+    input,
+    reservedGeneratedSymbols: const {},
+    missing: "`$wrapper` wasn't generated",
+  );
+  final mount = result.mount;
+  final recordedTemplate = mount?.split?.recorded;
+  final placesAppWidgets =
+      mount?.split?.recordedBuild?.placesAppWidgets ?? false;
+  if (mount == null || recordedTemplate == null) {
+    return (
+      source: null,
+      registration: null,
+      omissionMessage:
+          result.message ??
+          "`$wrapper` wasn't generated because `$screenName`'s build can't "
+              'be recorded. Please report this as a Restage bug.',
+    );
+  }
+  final sdk = mount.sdk;
+  final flutter = mount.flutter;
+  final state = mount.split?.state;
+  final widgetClass = '_restageWidget\$${_identifierOf(entry.name)}';
+  final factory = '_restageBuild\$${_identifierOf(wrapper)}';
+  final slots = <String, String>{
+    for (final parameter in mount.constructor.values)
+      parameter.name: '_restageWidget.${parameter.name}',
+    kSurfaceInstance: '_restageWidget',
+    kRootContext: 'context',
+    kStateWidget: '_restageWidget',
+    'restageDidUpdateWidget': '_restageDidUpdateWidget',
+  };
+  // The widget the delivered design placed, from its arguments.
+  String surfaceFrom(String source) =>
+      '$screenName(${[
+        for (final parameter in mount.constructor.parameters)
+          if (!parameter.isKey)
+            if (_splitArgument(entry, parameter, source, sdk, custom) case final value) parameter.kind == RootContextParamKind.named ? '${parameter.name}: $value' : value,
+      ].join(', ')})';
+  final buffer = StringBuffer();
+  final islands = mount.islands;
+  if (islands.isNotEmpty) {
+    _writeIslandDeclarations(buffer, mount, wrapper);
+  }
+  buffer
+    ..writeln()
+    // Keyed as the fallback keys its placement, the wrapper keeps its State
+    // between the design and the fallback.
+    ..writeln(
+      '${flutter}Widget $factory(${flutter}BuildContext context, '
+      '${sdk}DataSource source) =>',
+    )
+    ..writeln(
+      '    ${sdk}RestageIslandScope.split(context, source, '
+      '() => $widgetClass(source: source));',
+    )
+    ..writeln()
+    ..writeln('/// [widget], placed by the app, as the design places it.')
+    ..writeln(
+      '${flutter}Widget ${splitAppName(entry.name)}($screenName widget) => '
+      '$widgetClass.app(widget);',
+    )
+    ..writeln()
+    ..writeln('final class $widgetClass extends ${flutter}StatefulWidget {')
+    ..writeln(
+      '  const $widgetClass({required ${sdk}DataSource this.source}) '
+      ': app = null;',
+    )
+    ..writeln('  const $widgetClass.app($screenName this.app) : source = null;')
+    ..writeln()
+    ..writeln('  final ${sdk}DataSource? source;')
+    ..writeln('  final $screenName? app;')
+    ..writeln()
+    ..writeln('  @override')
+    ..writeln('  _${widgetClass}State createState() => _${widgetClass}State();')
+    ..writeln('}')
+    ..writeln()
+    ..writeln(
+      'final class _${widgetClass}State '
+      '${state?.header(widgetClass) ?? 'extends ${flutter}State<$widgetClass>'} {',
+    )
+    ..writeln(
+      '  $screenName get _restageWidget => '
+      "widget.app ?? ${surfaceFrom('widget.source!')};",
+    );
+  for (final member
+      in state?.members(widgetClass, (name) => slots[name]!) ??
+          const <String>[]) {
+    buffer
+      ..writeln()
+      ..writeln('  // ignore: unused_element')
+      ..writeln('  $member');
+  }
+  if (state?.updates ?? false) {
+    buffer
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln('  // ignore: must_call_super')
+      ..writeln('  void didUpdateWidget(covariant $widgetClass oldWidget) =>')
+      ..writeln(
+        '      _restageDidUpdateWidget(oldWidget.app ?? '
+        "${surfaceFrom('oldWidget.source!')}, oldWidget);",
+      );
+  }
+  // The build decodes the widget once and reads it from there.
+  final buildSlots = <String, String>{
+    for (final MapEntry(:key, :value) in slots.entries)
+      key: value.replaceFirst(RegExp(r'^_restageWidget\b'), '_restageSurface'),
+  };
+  final recorded = _withIslandSlots(
+    mount.split!.recordedSource((name) => buildSlots[name]!)!,
+    mount,
+  ).replaceAll(kSdkPrefixMarker, sdk);
+  final scope = islands.isEmpty
+      ? null
+      : '${sdk}RestageIslandScope(owner: context, builders: {${[
+          for (final island in islands) '${dartStringLiteral(island.name)}: (_restageContext, _restageSource) => '
+                '_restageRecording.islandAt(${dartStringLiteral(island.name)}, [${[
+                  for (final (level, _) in island.items.indexed) '_restageSource.v<int>(const <Object>'
+                        "['$kPlacementItemsArgument', $level])!",
+                ].join(', ')}], _restageContext, _restageSource)',
+        ].join(', ')}}, child: ';
+  final nativeBindings = [
+    for (final value in mount.hoisted)
+      if (value.kind == HoistValueKind.nativeBinding && value.computed) value,
+  ];
+  final scalers = [
+    for (final value in mount.hoisted)
+      if (value.kind == HoistValueKind.textScaler) value,
+  ];
+  String? natives;
+  if ((nativeBindings.isNotEmpty || scalers.isNotEmpty) &&
+      mount.nativeScopeType != null) {
+    final scopeType = mount.nativeScopeType!;
+    var bindings = '';
+    if (nativeBindings.isNotEmpty) {
+      final sharedPrefix = mount.nativeContractType!.replaceFirst(
+        RegExp(r'NativeBindingContract$'),
+        '',
+      );
+      final contracts = [
+        for (final value in nativeBindings)
+          '${dartStringLiteral(value.key)} => '
+              '${nativeContractSource(value.nativeContract!, sharedPrefix)}',
+      ].join(', ');
+      bindings =
+          'bindings: _restageRecording.bindings((key) => '
+          "switch (key.split('#').first) {$contracts, "
+          '_ => throw StateError(key)}), ';
+    }
+    natives =
+        '$scopeType(${scalers.isEmpty ? '' : 'textScalers: '
+                  '_restageRecording.scalers, '}${bindings}child: ';
+  }
+  // The body reads each native through its inert reference, as a surface does.
+  final topNatives = _nativeContextEntries(scalers, nativeBindings);
+  final recordedValues = topNatives.isEmpty
+      ? '_restageRecording.values'
+      : '{..._restageRecording.values, ${topNatives.join(', ')}}';
+  buffer
+    ..writeln()
+    ..writeln('  @override')
+    ..writeln('  ${flutter}Widget build(${flutter}BuildContext context) {')
+    ..writeln('    // ignore: unused_local_variable')
+    ..writeln(
+      '    final _restageRecording = ${sdk}RestageRecording('
+      '${islands.isEmpty && !placesAppWidgets ? '' : 'owner: context'});',
+    )
+    ..writeln('    // ignore: unused_local_variable')
+    ..writeln('    final _restageSurface = _restageWidget;')
+    // The delivered body renders with what the build recorded; without one
+    // the widget is the build's own.
+    ..writeln(
+      '    ${flutter}Widget _restageDesign(${flutter}Widget _restageBuilt) =>',
+    )
+    // The body binds below the native scope, so it reads its values.
+    ..writeln(
+      '        ${natives ?? ''}${scope ?? ''}'
+      '${natives == null ? '' : '${flutter}Builder(builder: (context) => '}'
+      '${sdk}RestageBuilderBinding.construct((_restageBindings) {',
+    )
+    ..writeln('          final _restageSource = widget.source;')
+    ..writeln('          if (_restageSource == null) return _restageBuilt;')
+    ..writeln(
+      '          final _restageBody = ${sdk}RestageBuilderBinding.optional('
+      '_restageSource, const <Object>[${dartStringLiteral(kSplitWidgetScope)}], '
+      'context: context);',
+    )
+    ..writeln('          if (_restageBody == null) return _restageBuilt;')
+    ..writeln('          _restageBindings.add(_restageBody);')
+    ..writeln(
+      '          return _restageBody.buildNullable(context, const {}, '
+      'recorded: $recordedValues) ?? const ${flutter}SizedBox.shrink();',
+    )
+    ..writeln(
+      '        })${scope == null ? '' : ')'}${natives == null ? '' : '))'};',
+    )
+    ..writeln('    return ($recorded)();')
+    ..writeln('  }')
+    ..writeln('}');
+  // The wrapper registers in the widget's own library, beside its factory.
+  final registration = splitRegistrationName(entry.name);
+  buffer
+    ..writeln()
+    ..writeln(
+      'const $registration = ${sdk}RestageWidgetLibraryRegistration'
+      '.constant(library: ${sdk}WidgetLibrary.custom('
+      '${dartStringLiteral(entry.library.namespace)}), '
+      '${widgetLibraryVersionArguments().join(' ')} widgets: ['
+      '${sdk}RestageWidgetFactory(name: ${dartStringLiteral(wrapper)}, '
+      'builder: $factory)]);',
+    );
+  return (
+    source: buffer.toString(),
+    registration: registration,
+    omissionMessage: null,
+  );
+}
+
+/// The registration constant of the wrapper of the split widget [name].
+String splitRegistrationName(String name) =>
+    'restageSplit\$${_identifierOf(name)}';
+
+// A borrowed input read inside an interpolation is written as `{x}`; the
+// binding passes the input itself.
+String _borrowedSource(String source) =>
+    RegExp(r'^\{([^{}:,]+)\}$').firstMatch(source)?.group(1) ?? source;
+
+String _identifierOf(String name) =>
+    name.replaceAll(RegExp(r'[^A-Za-z0-9_$]'), '_');
+
+// How the wrapper reads the argument [parameter] the delivered design passed.
+String _splitArgument(
+  WidgetEntry entry,
+  _ResolvedMountParameter parameter,
+  String source,
+  String sdk,
+  CustomReconstruction? custom,
+) {
+  PropertyEntry? property;
+  for (final candidate in entry.properties) {
+    if (candidate.name == parameter.name) property = candidate;
+  }
+  final path = "const <Object>[${dartStringLiteral(parameter.name)}]";
+  final nullable = parameter.typeCode.endsWith('?');
+  // A custom value decodes as the package's own factory decodes it.
+  final reconstructed = property == null
+      ? null
+      : customFactoryValue(entry, property, custom);
+  final read = switch (property?.type) {
+    _ when reconstructed != null =>
+      '((${sdk}DataSource source) => $reconstructed)($source)',
+    PropertyType.widget =>
+      '$source.${nullable ? 'optionalChild' : 'child'}($path)',
+    PropertyType.widgetList => '$source.childList($path)',
+    _ when property != null => decoderCallFor(
+      property,
+      source: source,
+      context: 'context',
+      sdk: sdk,
+    ),
+    _ => 'null',
+  };
+  // A reconstructed value that can't be null takes no `!`.
+  final nonNull =
+      reconstructed != null &&
+      !customFactoryValueIsNullable(entry, property!, custom);
+  return nullable ||
+          nonNull ||
+          property?.type == PropertyType.widget ||
+          property?.type == PropertyType.widgetList
+      ? read
+      : '($read)!';
+}
+
+// [recorded] with each island's slot and property marker read from the
+// payload the delivered design passes the island.
+String _withIslandSlots(
+  String recorded,
+  _ResolvedScreenMount mount,
+) => recorded.replaceAllMapped(
+  RegExp('\u0002([A-Za-z0-9_\$]+)\\|([A-Za-z0-9_\$]+)\u0002'),
+  (match) {
+    final island = mount.islands.firstWhere(
+      (island) => island.name == match[1],
+    );
+    final argument = match[2]!;
+    final path = "const <Object>[${dartStringLiteral(argument)}]";
+    for (final value in island.slots) {
+      if (value.name == argument) {
+        return '_restageSource.${value.list ? 'childList' : 'child'}($path)';
+      }
+    }
+    return decoderCallFor(
+      islandWidgetEntry(
+        island,
+      ).properties.firstWhere((entry) => entry.name == argument),
+      source: '_restageSource',
+      context: '_restageContext',
+      sdk: mount.sdk,
+    );
+  },
+);

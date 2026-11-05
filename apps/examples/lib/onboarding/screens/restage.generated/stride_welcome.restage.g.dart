@@ -1,6 +1,6 @@
 part of '../stride_welcome.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const strideWelcomeScreenRef = NeutralFlowScreenRef(
   id: 'stride_welcome',

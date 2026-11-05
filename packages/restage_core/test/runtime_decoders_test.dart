@@ -827,6 +827,26 @@ void main() {
     });
   });
 
+  group('RestageDecoders.fontWeight', () {
+    // Decoded by table: release builds strip `FontWeight.toString`.
+    for (final weight in FontWeight.values) {
+      test('w${weight.value} decodes to its FontWeight', () {
+        final source = _MapDataSource({'weight': 'w${weight.value}'});
+        expect(RestageDecoders.fontWeight(source, const ['weight']), weight);
+      });
+    }
+
+    test('an exact native weight and an unknown token', () {
+      expect(
+          RestageDecoders.fontWeight(_MapDataSource({'w': 650}), const ['w']),
+          const FontWeight(650));
+      expect(
+          RestageDecoders.fontWeight(
+              _MapDataSource({'w': 'bold'}), const ['w']),
+          isNull);
+    });
+  });
+
   group('RestageDecoders.textStyle', () {
     test('decodes a flat map to a TextStyle (value-asserted)', () {
       // The same {fontSize, fontWeight: "w700", ...} shape the codegen emits

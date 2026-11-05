@@ -13,6 +13,8 @@ import 'package:restage_codegen/src/custom_structured_admissibility.dart'
 import 'package:restage_codegen/src/custom_structured_discovery.dart';
 import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/installed_native_call.dart'
+    show callbackTypeId;
 import 'package:restage_codegen/src/json_scalar_type.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
 import 'package:restage_codegen/src/rfw_callback_signature.dart';
@@ -740,13 +742,15 @@ _ResolvedWidgetMetadata? _resolveWidgetMetadata(
     );
     return null;
   } else if (candidates.isEmpty) {
+    // Not catalogued; surfaces still inline it or render it from the app.
     issues.add(
       Issue(
-        code: IssueCode.missingAnnotationField,
+        code: IssueCode.customWidgetUnexported,
         message:
-            '@RestageWidget on $className has no owning @RestageLibrary '
-            'export. Export the class from exactly one annotated barrel or '
-            'provide an explicit `library` override.',
+            '`$className` (${_declarationLocation(cls, assetId)}) is '
+            'annotated with `@RestageWidget`, and no `@RestageLibrary` library '
+            "exports it. Designers can't place or edit it as a widget of its "
+            'own. Try exporting it from your `@RestageLibrary` library.',
         location: widgetLocation,
       ),
     );
@@ -1154,6 +1158,9 @@ PropertyEntry? _readPropertyInput(
     validationRule: validationRule,
     constraints: constraints,
     callbackSignature: callback.signature,
+    callbackTypeId: type == PropertyType.event
+        ? callbackTypeId(input.type)
+        : null,
     builderContract: widgetBuilderContractFor(input.type),
     scalarContract: scalarCallbackContractFor(input.type),
   );
@@ -1711,4 +1718,12 @@ ThemeBindingPath? _decodeThemeBindingPath(
   return path != null
       ? ThemeBindingPath.path(path)
       : ThemeBindingPath.resolver(resolverName!);
+}
+
+// `lib/x.dart:line:col` of [cls]'s name.
+String _declarationLocation(ClassElement cls, AssetId assetId) {
+  final fragment = cls.firstFragment;
+  final offset = fragment.nameOffset ?? fragment.offset;
+  final location = fragment.libraryFragment.lineInfo.getLocation(offset);
+  return '${assetId.path}:${location.lineNumber}:${location.columnNumber}';
 }

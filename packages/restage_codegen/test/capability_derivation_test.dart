@@ -642,6 +642,41 @@ widget Paywall = ColoredBox(color: 0xFF000000);
       expect(result.manifest!.builtInFloor, kBaselineCatalogVersion);
     });
 
+    // Only the compiler's flag marks an island library, never its name.
+    for (final (name, islands, required) in [
+      ('a library named like islands', false, true),
+      ('a compiler-minted island library', true, false),
+    ]) {
+      test('$name ${required ? 'is' : 'is not'} a library requirement', () {
+        const travel = WidgetLibrary.custom('travel.islands');
+        final result = deriveCapabilityManifest(
+          parseLibraryFile('import travel.islands; widget Paywall = Card();'),
+          Catalog(
+            schemaVersion: kSupportedSchemaVersion,
+            generatedAt: '1970-01-01T00:00:00Z',
+            libraries: {
+              travel: LibraryInfo(
+                version: '1.0.0',
+                capabilityVersion: 2,
+                islands: islands,
+              ),
+            },
+            widgets: [
+              entry(name: 'Card', properties: const [], library: travel),
+            ],
+          ),
+        );
+        expect(result.issues, isEmpty);
+        expect(result.manifest!.requiredLibraries, [
+          if (required)
+            const LibraryRequirement(
+              namespace: 'travel.islands',
+              minVersion: 2,
+            ),
+        ]);
+      });
+    }
+
     test('a referenced custom library contributes its capabilityVersion', () {
       const dsl = '''
         import restage.core;

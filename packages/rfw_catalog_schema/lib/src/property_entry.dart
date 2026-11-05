@@ -45,6 +45,7 @@ final class PropertyEntry {
     this.enumType,
     this.widgetType,
     this.callbackSignature,
+    this.callbackTypeId,
     this.builderContract,
     this.scalarContract,
     this.defaultSource,
@@ -188,6 +189,10 @@ final class PropertyEntry {
   /// `null` (the default) means the slot is a `VoidCallback?` and the
   /// codegen emits the `source.voidHandler(...)` shortcut.
   final String? callbackSignature;
+
+  /// The event parameter's exact Flutter function type, as a nominal type id
+  /// such as `(dart:core#int,dart:core#int)->void`.
+  final String? callbackTypeId;
 
   /// Structural signature for a deferred widget callback.
   final WidgetBuilderContract? builderContract;

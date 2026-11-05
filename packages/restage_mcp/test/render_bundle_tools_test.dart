@@ -54,6 +54,138 @@ void main() {
         'uploadedAt': '2030-01-01T00:00:00.000Z',
       };
 
+  test('the build report tool reads the last local build', () async {
+    final connection = await connectServer(
+      store: store,
+      httpClient: MockClient((_) async => http.Response('null', 500)),
+    );
+    final project = Directory('${tempDir.path}/app')..createSync();
+    File('${project.path}/pubspec.yaml').writeAsStringSync('name: app\n');
+    Future<CallToolResult> report([Map<String, Object?> more = const {}]) =>
+        connection.callTool(
+          CallToolRequest(
+            name: 'restage_build_report',
+            arguments: {'projectDirectory': project.path, ...more},
+          ),
+        );
+    expect((await report()).isError, isTrue);
+    File(
+        '${project.path}/.dart_tool/build/generated/app/lib/src/'
+        'surface_publication/surface_publication.compiler.json',
+      )
+      ..createSync(recursive: true)
+      ..writeAsStringSync(
+        jsonEncode({
+          'splitSites': [
+            {
+              'surface': 'lib/a.dart#A',
+              'mount': 'ASurface',
+              'name': 'app.islands:A_ListView_0',
+              'widget': 'ListView',
+              'location': 'lib/a.dart:3:5',
+              'kind': 'island',
+              'token': 'w0001',
+            },
+          ],
+        }),
+      );
+    final first = await report();
+    expect(first.structuredContent!['mounts'], [
+      {
+        'mount': 'ASurface',
+        'delivered': 0,
+        'app': 1,
+        'parts': [
+          {
+            'kind': 'island',
+            'name': 'app.islands:A_ListView_0',
+            'widget': 'ListView',
+            'location': 'lib/a.dart:3:5',
+            'token': 'w0001',
+          },
+        ],
+      },
+    ]);
+    expect(first.structuredContent!.containsKey('changes'), isFalse);
+    expect(
+      (await report({'accept': true})).structuredContent!['changes'],
+      <Object?>[],
+    );
+    expect((await report()).structuredContent!['changes'], <Object?>[]);
+  });
+
+  test('the widget promote tool moves a widget into a class', () async {
+    final connection = await connectServer(
+      store: store,
+      httpClient: MockClient((_) async => http.Response('null', 500)),
+    );
+    final project = Directory('${tempDir.path}/app')..createSync();
+    File('${project.path}/pubspec.yaml').writeAsStringSync('name: app\n');
+    Future<CallToolResult> promote() => connection.callTool(
+      CallToolRequest(
+        name: 'restage_widget_promote',
+        arguments: {
+          'projectDirectory': project.path,
+          'at': 'lib/a.dart:2',
+          'name': 'ATint',
+        },
+      ),
+    );
+    final missing = await promote();
+    expect(missing.isError, isTrue);
+    expect(
+      (missing.content.single as TextContent).text,
+      contains(
+        'There is no build to report on. Try running `dart run build_runner '
+        'build` first.',
+      ),
+    );
+    const source = "import 'x.dart';\nfinal w = Tinted(tint: 1);\n";
+    const original = 'Tinted(tint: 1)';
+    File('${project.path}/lib/a.dart')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(source);
+    File('${project.path}/lib/widgets.dart').writeAsStringSync(
+      '@RestageLibrary(capabilityVersion: 1)\nconst restageLibrary = 0;\n',
+    );
+    File(
+        '${project.path}/.dart_tool/build/generated/app/lib/src/'
+        'surface_publication/surface_publication.compiler.json',
+      )
+      ..createSync(recursive: true)
+      ..writeAsStringSync(
+        jsonEncode({
+          'splitSites': [
+            {
+              'surface': 'lib/a.dart#A',
+              'mount': 'ASurface',
+              'name': 'app.islands:A_Tinted_0',
+              'widget': 'Tinted',
+              'location': 'lib/a.dart:2:11',
+              'kind': 'island',
+              'promotion': {
+                'file': 'lib/a.dart',
+                'offset': source.indexOf(original),
+                'original': original,
+                'class': 'class {{name}} {}',
+                'call': '{{name}}()',
+              },
+            },
+          ],
+        }),
+      );
+    final promoted = await promote();
+    expect(promoted.isError, isNot(true));
+    expect(
+      File('${project.path}/lib/a.dart').readAsStringSync(),
+      "import 'x.dart';\nfinal w = ATint();\n\nclass ATint {}\n",
+    );
+    expect(
+      File('${project.path}/lib/widgets.dart').readAsStringSync(),
+      startsWith("export 'a.dart' show ATint;\n"),
+    );
+  });
+
   test('the build tools are listed with their required inputs', () async {
     final connection = await connectServer(
       store: store,

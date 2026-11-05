@@ -1,0 +1,2 @@
+# Samples for `dart fix --compare-to-golden test_fixes`. They use removed
+# names on purpose, so the package's own analysis excludes them.

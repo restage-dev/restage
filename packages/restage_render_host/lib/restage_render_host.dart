@@ -25,7 +25,7 @@ Future<void> runRestageRenderBundle({
   required VoidCallback registerWidgets,
   required String parentOrigin,
   required String flutterVersion,
-  Widget Function(Widget child)? wrap,
+  Widget Function(String? surface, Widget child)? wrap,
 }) async {
   await initializeDateFormatting();
   final manifest = await loadRenderBundleManifest();

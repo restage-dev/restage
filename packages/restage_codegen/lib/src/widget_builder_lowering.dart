@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:restage_codegen/src/closed_callback_lowering.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
+import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
@@ -88,21 +90,7 @@ final class WidgetBuilderLowering {
         'Malformed pure widget callback signature',
       );
     for (var i = 0; i < parameters.length; i++) {
-      final kind = contract.parameters[i];
-      if (kind == WidgetBuilderParameter.buildContext) {
-        expressions.nativeContexts.add(parameters[i]);
-        continue;
-      }
-      expressions.parameter(
-        parameters[i],
-        callbackParameterName(i),
-        switch (kind) {
-          WidgetBuilderParameter.boxConstraints => constraintsValueType,
-          WidgetBuilderParameter.orientation => ValueType.string,
-          WidgetBuilderParameter.itemIndex => ValueType.integer,
-          _ => throw StateError('Native context is not a value'),
-        },
-      );
+      _bind(parameters[i], i, body);
     }
     final result = switch (body) {
       ExpressionFunctionBody() => _result(body.expression),
@@ -110,6 +98,34 @@ final class WidgetBuilderLowering {
       _ => throw BuilderLoweringException(body, 'Unsupported callback body'),
     };
     return encodeResult(result);
+  }
+
+  // Binds parameter [i] of a callback whose body is [body].
+  void _bind(FormalParameterElement parameter, int i, AstNode body) {
+    final kind = contract.parameters[i];
+    if (kind == WidgetBuilderParameter.buildContext) {
+      expressions.nativeContexts.add(parameter);
+      return;
+    }
+    if (kind == WidgetBuilderParameter.child) {
+      final read = _ReadOf(parameter);
+      body.accept(read);
+      if (read.found case final found?) {
+        throw BuilderLoweringException(
+          found,
+          'A builder passes its child through in the app',
+        );
+      }
+      return;
+    }
+    expressions.parameter(parameter, callbackParameterName(i), switch (kind) {
+      WidgetBuilderParameter.boxConstraints => constraintsValueType,
+      WidgetBuilderParameter.orientation => ValueType.string,
+      WidgetBuilderParameter.itemIndex => ValueType.integer,
+      WidgetBuilderParameter.data => valueTypeFor(parameter.type, body),
+      WidgetBuilderParameter.buildContext || WidgetBuilderParameter.child =>
+        throw StateError('Native context is not a value'),
+    });
   }
 
   /// Lowers a resolved pure helper used directly as a native callback.
@@ -121,21 +137,7 @@ final class WidgetBuilderLowering {
         'Callback helper signature differs',
       );
     for (var i = 0; i < helper.params.length; i++) {
-      final kind = contract.parameters[i];
-      if (kind == WidgetBuilderParameter.buildContext) {
-        expressions.nativeContexts.add(helper.params[i]);
-      } else {
-        expressions.parameter(
-          helper.params[i],
-          callbackParameterName(i),
-          switch (kind) {
-            WidgetBuilderParameter.boxConstraints => constraintsValueType,
-            WidgetBuilderParameter.orientation => ValueType.string,
-            WidgetBuilderParameter.itemIndex => ValueType.integer,
-            _ => throw StateError('Invalid native parameter'),
-          },
-        );
-      }
+      _bind(helper.params[i], i, helper.functionBody ?? helper.body);
     }
     final locals = <int>[];
     for (final local in helper.localBindings.entries) {
@@ -151,6 +153,25 @@ final class WidgetBuilderLowering {
       result = BuilderResult.let(local, result);
     }
     return encodeResult(result);
+  }
+
+  /// Reads the value the app's builder records under [key] as a parameter of
+  /// the delivered body; `null` for a [type] a recording can't carry.
+  int? recordedValue(String key, ValueType type) {
+    if (!contract.isAppValueSignature ||
+        !const {
+          'bool',
+          'int',
+          'double',
+          'num',
+          'String',
+          'Null',
+        }.contains(type.kind)) {
+      return null;
+    }
+    final name = '$kRecordedBuilderParameterPrefix$key';
+    expressions.parameters[name] = type;
+    return expressions.add(ValueNode('parameter', type, name: name));
   }
 
   /// Lowers one widget result using the same body frame and expression graph.
@@ -701,4 +722,260 @@ final class WidgetBuilderLowering {
       );
   BuilderResult _statements(List<Statement> statements) =>
       _closed.statements(statements);
+}
+
+final class _ReadOf extends RecursiveAstVisitor<void> {
+  _ReadOf(this.element);
+  final Element element;
+  SimpleIdentifier? found;
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    if (node.element?.baseElement == element.baseElement) found ??= node;
+  }
+}
+
+/// An app builder whose body is delivered while Flutter's builder stays in
+/// the app, passing each app value as data.
+final class AppValueSlot {
+  const AppValueSlot._(this.contract, this.data, this._types);
+
+  /// The callback's signature.
+  final WidgetBuilderContract contract;
+
+  /// The shape of each app value parameter, by parameter name.
+  final Map<String, ValueType> data;
+
+  final List<DartType> _types;
+
+  /// The slot for [callback], or `null` when its signature is not the
+  /// context, app values the app can project, then at most one child.
+  static AppValueSlot? of(FunctionExpression callback) {
+    final parameters = callback.parameters?.parameters;
+    final type = callback.staticType;
+    if (parameters == null ||
+        parameters.any((p) => !p.isRequiredPositional) ||
+        type is! FunctionType ||
+        !_isFlutter(type.returnType, 'Widget', subtype: true) ||
+        type.returnType.nullabilitySuffix != NullabilitySuffix.none) {
+      return null;
+    }
+    final kinds = <WidgetBuilderParameter>[];
+    final data = <String, ValueType>{};
+    final types = [
+      for (final parameter in parameters)
+        if (parameter.declaredFragment?.element.type case final type?) type,
+    ];
+    if (types.length != parameters.length) return null;
+    for (final (i, parameter) in types.indexed) {
+      if (i == 0) {
+        if (!_isFlutter(parameter, 'BuildContext')) return null;
+        kinds.add(WidgetBuilderParameter.buildContext);
+      } else if (i == types.length - 1 && _isFlutter(parameter, 'Widget')) {
+        kinds.add(WidgetBuilderParameter.child);
+      } else {
+        if (appValueProjection(parameter, '') == null) return null;
+        try {
+          data[callbackParameterName(i)] = valueTypeFor(parameter, callback);
+        } on BuilderLoweringException {
+          return null;
+        }
+        kinds.add(WidgetBuilderParameter.data);
+      }
+    }
+    final contract = WidgetBuilderContract(parameters: kinds);
+    return contract.isAppValueSignature
+        ? AppValueSlot._(contract, data, types)
+        : null;
+  }
+
+  /// The signature as fit compares it: each parameter's kind and shape.
+  String get signature =>
+      '(${[
+        for (final (i, kind) in contract.parameters.indexed) switch (data[callbackParameterName(i)]) {
+            final shape? => jsonEncode(_sorted(shape.toJson())),
+            null => kind.name,
+          },
+      ].join(', ')})';
+
+  /// The island-build local holding the binding of the builder argument
+  /// [argument].
+  static String bindingName(String argument) => '_restageBinding\$$argument';
+
+  /// Source constructing the slot's binding for the payload argument at
+  /// [path] of the island's [source] in [context].
+  String binding(
+    String source,
+    String context,
+    String path, {
+    String sdk = '',
+  }) =>
+      '${sdk}RestageBuilderBinding('
+      '${sdk}RestageValueBinding.dataSource($source, $context), '
+      'const <Object>[${dartStringLiteral(path)}], '
+      'contract: const ${sdk}WidgetBuilderContract(parameters: [${contract.parameters.map((p) => '${sdk}WidgetBuilderParameter.${p.name}').join(', ')}]), '
+      'data: const <String, ${sdk}ValueType>{${data.entries.map((e) => '${dartStringLiteral(e.key)}: ${valueTypeSource(e.value, sdk: sdk)}').join(', ')}})';
+
+  /// Source of an island's build [template] that owns a binding, named by
+  /// [bindingName], for each of [slots], its app builders by argument.
+  static String owning(
+    String template,
+    Map<String, AppValueSlot> slots, {
+    required String source,
+    required String context,
+    String sdk = '',
+  }) =>
+      '${sdk}RestageBuilderBinding.construct((_restageBindings) { ${[
+        for (final MapEntry(key: argument, value: slot) in slots.entries) ...[
+          'final ${bindingName(argument)} = '
+              '${slot.binding(source, context, argument, sdk: sdk)};',
+          '_restageBindings.add(${bindingName(argument)});',
+        ],
+      ].join(' ')} return $template; })';
+
+  /// The names a callback for [callback] declares: its own parameter names,
+  /// so a copy of its body resolves, with a fresh name for each wildcard.
+  static List<String> parameterNames(FunctionExpression callback) => [
+    for (final (i, parameter)
+        in (callback.parameters?.parameters ?? const <FormalParameter>[])
+            .indexed)
+      switch (parameter.name?.lexeme) {
+        final name? when name != '_' => name,
+        _ => '_restageArg$i',
+      },
+  ];
+
+  /// Source of Flutter's builder, rendering the delivered body through
+  /// [binding] with each app value projected; [sdk] prefixes runtime names.
+  ///
+  /// With [body], the builder declares [names] and runs [body]: a copy of
+  /// the app's closure body that records into [kSlotRecordingName] and
+  /// returns `[kSlotRenderName](<the app's value>)` at each return.
+  String callback(
+    String binding, {
+    String sdk = '',
+    List<String>? names,
+    String? body,
+  }) {
+    names ??= [
+      for (var i = 0; i < _types.length; i++) '_restageArg$i',
+    ];
+    final values = [
+      for (final (i, kind) in contract.parameters.indexed)
+        if (kind == WidgetBuilderParameter.data)
+          '${dartStringLiteral(callbackParameterName(i))}: '
+              '${appValueProjection(_types[i], names[i], sdk: sdk)}',
+    ];
+    final build =
+        '$binding.build(${names.first}, '
+        '<String, Object?>{${values.join(', ')}}';
+    if (body == null) return '(${names.join(', ')}) => $build)';
+    return '(${names.join(', ')}) { '
+        'final $kSlotRecordingName = ${sdk}RestageRecording(); '
+        '$kSlotRenderName(Object? _) => '
+        '$build, recorded: $kSlotRecordingName.values); '
+        '$body }';
+  }
+}
+
+/// The recording a copied builder body records into.
+const String kSlotRecordingName = '_restageSlotRecording';
+
+/// The function a copied builder body returns through, given the app's own
+/// value, which it evaluates as the app does.
+const String kSlotRenderName = '_restageRender';
+
+// [json] with every map's keys in order, so field order is no change.
+Object? _sorted(Object? json) => switch (json) {
+  final Map<String, Object?> map => {
+    for (final key in map.keys.toList()..sort()) key: _sorted(map[key]),
+  },
+  _ => json,
+};
+
+bool _isColor(InterfaceType type) => [type, ...type.allSupertypes].any(
+  (t) => t.element.name == 'Color' && t.element.library.identifier == 'dart:ui',
+);
+
+bool _isFlutter(DartType type, String name, {bool subtype = false}) =>
+    type is InterfaceType &&
+    [type, if (subtype) ...type.allSupertypes].any(
+      (type) =>
+          type.element.name == name &&
+          type.element.library.identifier.startsWith('package:flutter/'),
+    );
+
+/// Dart source projecting [source], an app value of [type], into the data
+/// [valueTypeFor] describes; `null` for a shape with no projection yet.
+String? appValueProjection(
+  DartType type,
+  String source, {
+  int depth = 0,
+  String sdk = '',
+}) {
+  if (type is! InterfaceType) return null;
+  final element = type.element;
+  final name = element.name;
+  final library = element.library.identifier;
+  final core = library == 'dart:core';
+  if (core && const {'int', 'double', 'num', 'bool', 'String'}.contains(name)) {
+    return source;
+  }
+  final nullable = type.nullabilitySuffix != NullabilitySuffix.none;
+  final v = nullable ? '_restagePresent$depth' : source;
+  String? projected;
+  if (core && name == 'DateTime') {
+    projected =
+        "<String, Object?>{'microsecondsSinceEpoch': "
+        "$v.microsecondsSinceEpoch, 'isUtc': $v.isUtc}";
+  } else if (core && name == 'Duration') {
+    projected = "<String, Object?>{'microseconds': $v.inMicroseconds}";
+  } else if (core && name == 'List') {
+    final item = '_restageItem$depth';
+    final each = appValueProjection(
+      type.typeArguments.single,
+      item,
+      depth: depth + 1,
+      sdk: sdk,
+    );
+    if (each != null) projected = '<Object?>[for (final $item in $v) $each]';
+  } else if (_isColor(type)) {
+    projected = '${sdk}RestageBuilderBinding.color($v)';
+  } else if (element is EnumElement) {
+    projected = '$v.name';
+  } else if (!library.startsWith('dart:') &&
+      !library.startsWith('package:flutter/') &&
+      element.typeParameters.isEmpty) {
+    final fields = <String>[];
+    for (final field in element.fields) {
+      final fieldName = field.name;
+      if (field.isStatic || fieldName == null || fieldName.startsWith('_')) {
+        continue;
+      }
+      final value = field.isFinal && !field.isLate && field.isOriginDeclaration
+          ? appValueProjection(
+              field.type,
+              '$v.$fieldName',
+              depth: depth + 1,
+              sdk: sdk,
+            )
+          : null;
+      if (value == null) return null;
+      fields.add('${dartStringLiteral(fieldName)}: $value');
+    }
+    if (fields.isNotEmpty)
+      projected = '<String, Object?>{${fields.join(', ')}}';
+  }
+  if (projected == null) return null;
+  return nullable
+      ? 'switch ($source) { final $v? => $projected, null => null }'
+      : projected;
+}
+
+/// Dart source of a const [type].
+String valueTypeSource(ValueType type, {String sdk = ''}) {
+  if (type.kind == 'native') throw StateError('A native value has no data');
+  return '${sdk}ValueType(${dartStringLiteral(type.kind)}'
+      '${type.nullable ? ', nullable: true' : ''}'
+      '${type.item == null ? '' : ', item: ${valueTypeSource(type.item!, sdk: sdk)}'}'
+      '${type.fields.isEmpty ? '' : ', fields: {${type.fields.entries.map((e) => '${dartStringLiteral(e.key)}: ${valueTypeSource(e.value, sdk: sdk)}').join(', ')}}'})';
 }

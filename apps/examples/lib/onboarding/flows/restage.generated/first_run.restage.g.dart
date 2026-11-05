@@ -1,6 +1,6 @@
 part of '../first_run.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _firstRunFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -51,6 +51,7 @@ const firstRunFlowRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'FirstRunFlowSurface',
   measurementPublicationDraftDigest:
       'cad28ee72785f051e84ae303de19fc0bef0d14ea8f4603f227f951ebd4d4eba8',
   vocabulary: _firstRunFlowRefVocabulary,
@@ -133,8 +134,8 @@ final _firstRunFlowPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

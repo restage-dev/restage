@@ -523,4 +523,43 @@ void main() {
       isFalse,
     );
   });
+
+  group('island libraries', () {
+    const library = WidgetLibrary.custom('app.islands');
+    Widget a(BuildContext context, DataSource source) => const SizedBox();
+    RestageWidgetLibraryRegistration registration(String name,
+            {bool islands = false}) =>
+        RestageWidgetLibraryRegistration(
+          library: library,
+          widgets: [RestageWidgetFactory(name: name, builder: a)],
+          islands: islands,
+        );
+    for (final (name, steps, expected) in [
+      ('one marked install', [registration('A', islands: true)], true),
+      (
+        'a plain install merged after a marked one',
+        [registration('A', islands: true), registration('B')],
+        true
+      ),
+      (
+        'a marked install merged after a plain one',
+        [registration('A'), registration('B', islands: true)],
+        true
+      ),
+      ('a plain install', [registration('A')], false),
+    ]) {
+      test('$name: ${expected ? 'islands' : 'ordinary'}', () {
+        LibraryRuntimeRegistry.clear();
+        steps.forEach(LibraryRuntimeRegistry.install);
+        expect(LibraryRuntimeRegistry.isIslandLibrary('app.islands'), expected);
+      });
+    }
+
+    test('a replacing registration is ordinary', () {
+      LibraryRuntimeRegistry.clear();
+      LibraryRuntimeRegistry.install(registration('A', islands: true));
+      LibraryRuntimeRegistry.register(library, registration('B').widgets);
+      expect(LibraryRuntimeRegistry.isIslandLibrary('app.islands'), isFalse);
+    });
+  });
 }

@@ -228,6 +228,286 @@ class Probe extends StatelessWidget {
     },
   );
 
+  test('app value builders deliver their body and project their values', () async {
+    Future<(Expression, TranslationResult)> translate(
+      String body, {
+      String value = 'Tally',
+    }) async {
+      final expression = await parseExpressionFromSourceForTest("""
+import 'package:flutter/widgets.dart';
+enum Tier { free, pro }
+class Tally {
+  const Tally(this.count, this.label, this.tier, this.tags, this.accent);
+  final int count;
+  final String? label;
+  final Tier tier;
+  final List<String> tags;
+  final Color accent;
+}
+class Ordered { const Ordered(this.name, this.size); final String name; final int size; }
+class Swapped { const Swapped(this.size, this.name); final int size; final String name; }
+Widget x() => Probe(builder: $body);
+class Probe extends StatelessWidget {
+  const Probe({required this.builder});
+  final Widget Function(BuildContext, $value, Widget?) builder;
+  Widget build(BuildContext context) => const SizedBox();
+}
+""", rootPackage: 'apps_examples');
+      final property = PropertyEntry(
+        wireId: WireId('p9001'),
+        name: 'builder',
+        type: PropertyType.widgetBuilder,
+        description: '',
+        required: true,
+        builderContract: const WidgetBuilderContract(
+          parameters: [
+            WidgetBuilderParameter.buildContext,
+            WidgetBuilderParameter.data,
+            WidgetBuilderParameter.child,
+          ],
+        ),
+      );
+      final uri = await Isolate.resolvePackageUri(
+        Uri.parse('package:restage_core/src/widget_catalog/catalog.json'),
+      );
+      final core = decodeCatalog(File.fromUri(uri!).readAsStringSync());
+      // The core catalog with the probe, which needs an allocated identity.
+      final catalog = Catalog(
+        schemaVersion: core.schemaVersion,
+        generatedAt: core.generatedAt,
+        libraries: core.libraries,
+        structuredTypes: core.structuredTypes,
+        unions: core.unions,
+        designTokens: core.designTokens,
+        exclusions: core.exclusions,
+        flutterVersion: core.flutterVersion,
+        compatRules: core.compatRules,
+        widgets: [
+          ...core.widgets,
+          WidgetEntry(
+            wireId: WireId('w9001'),
+            name: 'Probe',
+            library: WidgetLibrary.core,
+            category: WidgetCategory.layout,
+            description: '',
+            flutterType: 'package:apps_examples/_expr_probe.dart#Probe',
+            childrenSlot: ChildrenSlot.none,
+            properties: [property],
+          ),
+        ],
+      );
+      return (
+        expression,
+        ExpressionTranslator(
+          catalog: catalog,
+          helpers: HelperRegistry(),
+        ).translate(expression),
+      );
+    }
+
+    final (expression, result) = await translate(
+      r"(context, t, child) => Text('${t.label ?? 'none'} ${t.count} ${t.tier.name}')",
+    );
+    expect(
+      result.issues,
+      isEmpty,
+      reason: result.issues.map((i) => i.message).join('\n'),
+    );
+    final callback =
+        ((expression as InstanceCreationExpression)
+                        .argumentList
+                        .arguments
+                        .single
+                    as NamedArgument)
+                .argumentExpression
+            as FunctionExpression;
+    final slot = AppValueSlot.of(callback)!;
+    const tally = ValueType(
+      'record',
+      fields: {
+        'count': ValueType.integer,
+        'label': ValueType('String', nullable: true),
+        'tier': ValueType.string,
+        'tags': ValueType('list', item: ValueType.string),
+        'accent': colorValueType,
+      },
+    );
+    expect(slot.contract.parameters, [
+      WidgetBuilderParameter.buildContext,
+      WidgetBuilderParameter.data,
+      WidgetBuilderParameter.child,
+    ]);
+    expect(slot.data.map((k, v) => MapEntry(k, v.toJson())), {
+      'arg1': tally.toJson(),
+    });
+    final root =
+        rfw
+                .parseLibraryFile(
+                  'import restage.core;widget Root=${result.dsl};',
+                )
+                .widgets
+                .single
+                .root
+            as rfw.ConstructorCall;
+    final program = BuilderProgram.decode(
+      (root.arguments['builder']! as rfw.ConstructorCall).arguments['program']!
+          as String,
+    );
+    validateBuilderProgramContract(program, slot.contract, data: slot.data);
+    expect(
+      program
+          .invoke(
+            captures: _EmptyReader(),
+            parameters: {
+              'arg1': {
+                'count': 3,
+                'label': null,
+                'tier': 'pro',
+                'tags': <String>[],
+              },
+            },
+          )
+          .values
+          .values,
+      contains('none 3 pro'),
+    );
+    expect(
+      slot.callback('b'),
+      "(_restageArg0, _restageArg1, _restageArg2) => b.build(_restageArg0, "
+      "<String, Object?>{'arg1': <String, Object?>{'count': _restageArg1.count, "
+      "'label': _restageArg1.label, 'tier': _restageArg1.tier.name, "
+      "'tags': <Object?>[for (final _restageItem1 in _restageArg1.tags) "
+      "_restageItem1], 'accent': RestageBuilderBinding.color(_restageArg1.accent)}})",
+    );
+    expect(
+      slot.binding('s', 'c', 'builder'),
+      contains("data: const <String, ValueType>{'arg1': ValueType('record', "),
+    );
+
+    final (counter, _) = await translate(
+      r"(context, n, child) => Text('$n')",
+      value: 'int',
+    );
+    final counted = AppValueSlot.of(
+      ((counter as InstanceCreationExpression).argumentList.arguments.single
+                  as NamedArgument)
+              .argumentExpression
+          as FunctionExpression,
+    )!;
+    expect(
+      AppValueSlot.owning(
+        'P(builder: ${counted.callback(AppValueSlot.bindingName('builder'))})',
+        {'builder': counted},
+        source: 's',
+        context: 'c',
+        sdk: 'r.',
+      ),
+      r"r.RestageBuilderBinding.construct((_restageBindings) { "
+      r"final _restageBinding$builder = r.RestageBuilderBinding("
+      r"r.RestageValueBinding.dataSource(s, c), const <Object>['builder'], "
+      r"contract: const r.WidgetBuilderContract(parameters: "
+      r"[r.WidgetBuilderParameter.buildContext, r.WidgetBuilderParameter.data, "
+      r"r.WidgetBuilderParameter.child]), data: const <String, r.ValueType>"
+      r"{'arg1': r.ValueType('int')}); "
+      r"_restageBindings.add(_restageBinding$builder); "
+      r"return P(builder: (_restageArg0, _restageArg1, _restageArg2) => "
+      r"_restageBinding$builder.build(_restageArg0, "
+      r"<String, Object?>{'arg1': _restageArg1})); })",
+    );
+    expect(counted.signature, isNot(slot.signature));
+    // A copied body records into its own recording and returns through
+    // the delivered body.
+    final counterCallback =
+        (counter.argumentList.arguments.single as NamedArgument)
+                .argumentExpression
+            as FunctionExpression;
+    expect(AppValueSlot.parameterNames(counterCallback), [
+      'context',
+      'n',
+      'child',
+    ]);
+    expect(
+      counted.callback(
+        'b',
+        names: AppValueSlot.parameterNames(counterCallback),
+        body: "return _restageRender(Text(n.toString()));",
+      ),
+      "(context, n, child) { final _restageSlotRecording = "
+      "RestageRecording(); _restageRender(Object? _) => b.build(context, "
+      "<String, Object?>{'arg1': n}, recorded: "
+      "_restageSlotRecording.values); return _restageRender(Text(n.toString())); }",
+    );
+    BuilderProgram recordedProgram(ValueType type) => BuilderProgram(
+      values: ValueProgram(
+        nodes: [ValueNode('parameter', type, name: 'recorded:k')],
+        root: 0,
+        parameters: {'recorded:k': type},
+      ),
+      result: const BuilderResult.body(0, values: {'v0': 0}),
+      bodyCount: 1,
+    );
+    validateBuilderProgramContract(
+      recordedProgram(ValueType.string),
+      counted.contract,
+      data: counted.data,
+    );
+    for (final (program, contract) in [
+      (
+        recordedProgram(ValueType.string),
+        const WidgetBuilderContract(
+          parameters: [
+            WidgetBuilderParameter.buildContext,
+            WidgetBuilderParameter.boxConstraints,
+          ],
+        ),
+      ),
+      (recordedProgram(colorValueType), counted.contract),
+    ]) {
+      expect(
+        () => validateBuilderProgramContract(program, contract),
+        throwsFormatException,
+      );
+    }
+
+    // Reordering a value's fields keeps the signature.
+    Future<String> signatureOf(String value) async {
+      final (expression, _) = await translate(
+        r"(context, t, child) => Text(t.name)",
+        value: value,
+      );
+      final argument =
+          (expression as InstanceCreationExpression)
+                  .argumentList
+                  .arguments
+                  .single
+              as NamedArgument;
+      return AppValueSlot.of(
+        argument.argumentExpression as FunctionExpression,
+      )!.signature;
+    }
+
+    expect(await signatureOf('Swapped'), await signatureOf('Ordered'));
+
+    // A nested child list reads the value's fields.
+    final (_, nested) = await translate(
+      r"(context, t, child) => "
+      r"Column(children: [Text('${t.count} ${t.tier.name}', "
+      r"style: TextStyle(color: t.accent)), Text('y')])",
+    );
+    expect(
+      nested.issues,
+      isEmpty,
+      reason: nested.issues.map((i) => i.message).join('\n'),
+    );
+
+    final (_, passthrough) = await translate(
+      '(context, t, child) => child ?? Text(t.label!)',
+    );
+    expect(passthrough.issues.map((i) => i.message), [
+      contains('passes its child through'),
+    ]);
+  });
+
   test(
     'nullable builder values emit a parseable false-arm discriminator',
     () async {

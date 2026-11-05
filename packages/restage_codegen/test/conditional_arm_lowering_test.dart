@@ -12,10 +12,12 @@ import 'helpers.dart';
 
 const String _package = 'apps_examples';
 
-String _paywall(String name, String body) =>
+String _paywall(String file, String name, String body) =>
     '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
+
+part 'restage.generated/$file.restage.g.dart';
 
 @Paywall()
 class $name extends StatelessWidget {
@@ -46,7 +48,7 @@ class $name extends StatelessWidget {
 Future<TestBuilderResult> _build(Map<String, String> bodies) async {
   final sources = {
     for (final MapEntry(:key, :value) in bodies.entries)
-      '$_package|lib/paywalls/$key.dart': _paywall('P$key', value),
+      '$_package|lib/paywalls/$key.dart': _paywall(key, 'P$key', value),
   };
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: _package,
@@ -209,12 +211,26 @@ void main() {
       (e) => e.contains('[${code.name}] lib/paywalls/$id.dart'),
     );
 
-    test('an interpolation inside a structured value is refused', () {
-      expect(
-        errorFor('label', IssueCode.unsupportedInterpolation),
-        contains('Here, pass the finished string in as one value'),
-      );
-    });
+    // The app computes the interpolated string, and the payload reads it.
+    test(
+      'an interpolation inside a structured value is computed in the app',
+      () async {
+        expect(
+          result.errors.where((e) => e.contains('lib/paywalls/label.dart')),
+          isEmpty,
+        );
+        final label = await _build({
+          'label': r"Text('x', style: TextStyle(fontFamily: 'Brand ${days}'))",
+        });
+        expect(label.errors, isEmpty, reason: label.errors.join('\n'));
+        expect(
+          label.readerWriter.testing.readString(
+            AssetId(_package, 'assets/paywalls/label.rfwtxt'),
+          ),
+          contains('fontFamily: data.context._h'),
+        );
+      },
+    );
 
     test('a recursive String helper in Text is refused', () {
       expect(
@@ -231,6 +247,25 @@ void main() {
         isEmpty,
       );
     });
+  });
+
+  test('a measured callback with a handler in each arm is refused below the '
+      'root', () async {
+    final result = await _build({
+      'nested_handlers':
+          "Column(children: [const Text('x'), FilledButton("
+          "onPressed: busy ? paywallEvent('a') : paywallEvent('b'), "
+          "child: const Text('Go'))])",
+    });
+    expect(
+      result.errors.join('\n'),
+      allOf(
+        contains(
+          '[invalidEventConfiguration] lib/paywalls/nested_handlers.dart:',
+        ),
+        contains('can run only one handler'),
+      ),
+    );
   });
 
   test('a measured callback with a handler in each arm is refused', () async {

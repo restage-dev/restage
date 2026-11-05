@@ -56,6 +56,7 @@ final Catalog _coreCatalog = requireNativeCatalog(
 Future<TranslationResult> _translate(
   String body, {
   bool hoist = true,
+  String parameters = '',
 }) async {
   final expr = await parseExpressionFromSourceForTest(
     '''
@@ -68,7 +69,7 @@ Future<TranslationResult> _translate(
       final String font = 'Serif';
       @override
       Widget build(BuildContext context) => const SizedBox();
-      Object x(BuildContext context) => $body;
+      Object x(BuildContext context$parameters) => $body;
     }
     ''',
     rootPackage: 'apps_examples',
@@ -90,11 +91,6 @@ Future<TranslationResult> _translate(
 const _inkTitle =
     "Text('Hi', style: Styles.title.copyWith(color: Palette.of(context).ink))";
 
-/// The error messages one translation reports.
-Future<List<String>> _messages(String body) async => [
-  for (final issue in (await _translate(body)).issues) issue.message,
-];
-
 void main() {
   group('device scalar root computations', () {
     for (final source in [
@@ -107,10 +103,7 @@ void main() {
         final result = await _translate(source);
         expect(result.issues, isEmpty, reason: '${result.issues}');
         expect(result.hoisted, hasLength(1));
-        expect(
-          result.hoisted.single.mountSource((name) => name),
-          contains('context'),
-        );
+        expect(result.hoisted.single.mountSource(_slot), contains('context'));
       });
     }
   });
@@ -126,21 +119,24 @@ void main() {
     });
 
     const scalar = 'MediaQuery.viewInsetsOf(context).bottom';
-    test('the same expression shares one key', () async {
+    // The app evaluates each occurrence, so each is recorded under its own key.
+    test('each occurrence of an expression has its own key', () async {
       final result = await _translate(
         'Column(children: [SizedBox(height: $scalar), SizedBox(height: $scalar)])',
       );
       expect(result.issues, isEmpty, reason: '${result.issues}');
-      expect(result.hoisted, hasLength(1));
-      final value = result.hoisted.single;
-      expect(value.kind, HoistValueKind.scalar);
-      expect(value.label, scalar);
-      expect(value.shape.toJson(), {'kind': 'double', 'label': scalar});
-      expect(value.mountSource((name) => name), scalar);
-      expect(
-        'SizedBox(height: data.context.${value.key})'.allMatches(result.dsl),
-        hasLength(2),
-      );
+      expect(result.hoisted, hasLength(2));
+      expect(result.hoisted.map((value) => value.key).toSet(), hasLength(2));
+      for (final value in result.hoisted) {
+        expect(value.kind, HoistValueKind.scalar);
+        expect(value.label, scalar);
+        expect(value.shape.toJson(), {'kind': 'double', 'label': scalar});
+        expect(value.mountSource(_slot), scalar);
+        expect(
+          'SizedBox(height: data.context.${value.key})'.allMatches(result.dsl),
+          hasLength(1),
+        );
+      }
     });
 
     test('keys are stable across builds', () async {
@@ -201,9 +197,11 @@ void main() {
       'a copyWith argument over an app style is never dropped silently',
       () async {
         final result = await _translate(
-          "Text('Hi', style: Styles.title.copyWith(package: font, height: 2))",
+          "Text('Hi', style: Styles.title.copyWith(package: super.toString(), "
+          'height: 2))',
         );
-        expect(result.hoisted.single.label, 'Styles.title');
+        // `super` exists only in the surface, so not even an island can carry it.
+        expect(result.islands, isEmpty);
         const message =
             "copyWith argument 'package' has no flat property on "
             "'Text' to carry it.";
@@ -251,38 +249,38 @@ Text('Hi', style: Styles.title.copyWith(
   });
 
   group('what the mount cannot compute', () {
-    test('a lookup that returns a widget', () async {
-      const message =
-          "'Palette.of(context).badge()' returns a widget. "
-          'Register that widget as a custom widget to use it here.';
-      expect(
-        await _messages('Center(child: Palette.of(context).badge())'),
-        [message],
-      );
-    });
-
-    test('a value only the surface has', () async {
-      const message =
-          "'tint.withAlpha(Palette.of(context).ink.alpha)' "
-          "depends on 'tint', which exists only inside this surface. Pass the "
-          'value in as a constructor input.';
-      expect(
-        await _messages(
-          'ColoredBox(color: tint.withAlpha(Palette.of(context).ink.alpha))',
-        ),
-        [message],
-      );
-    });
-
-    test('a ref the build does not receive', () async {
-      const message =
-          "'ref' needs this screen to extend a widget whose "
-          'build receives it, such as ConsumerWidget.';
-      expect(
-        await _messages('ColoredBox(color: ref.watch(Color(0xFF000000)))'),
-        [message],
-      );
-    });
+    // A widget the mount can build becomes an island, and the surface's own
+    // fields are read from an instance of it; `super` still refuses.
+    for (final (body, island, refusal) in [
+      ('Center(child: Palette.of(context).badge())', 'Probe.x/badge#0', null),
+      ('SizedBox(width: Spacing.of(context))', 'Probe.x/SizedBox#0', null),
+      (
+        'ColoredBox(color: tint.withAlpha(Palette.of(context).ink.alpha))',
+        null,
+        null,
+      ),
+      ('ColoredBox(color: ref.watch(Color(0xFF000000)))', null, null),
+      (
+        'ColoredBox(color: tint.withAlpha(super.hashCode))',
+        null,
+        '`ColoredBox(color: tint.withAlpha(super.hashCode))` '
+            '(lib/_expr_probe.dart:10:41): uses `super`, which only exists '
+            "inside `Probe`. Try passing it in through the screen's "
+            'constructor.',
+      ),
+    ]) {
+      test(body, () async {
+        final result = await _translate(body);
+        expect(
+          [for (final i in result.islands) i.id],
+          [if (island != null) island],
+        );
+        expect(
+          [for (final issue in result.issues) issue.message],
+          refusal == null ? isEmpty : [refusal],
+        );
+      });
+    }
 
     test('a widget built in place is not a lookup', () async {
       final result = await _translate(
@@ -293,14 +291,8 @@ Text('Hi', style: Styles.title.copyWith(
         isNot(contains(startsWith("'Center("))),
       );
     });
-
-    test('a value of a type that cannot cross', () async {
-      const message =
-          "'Spacing.of(context)' is a Spacing, which a surface "
-          "can't receive. Pass a color, number, string, text style or enum.";
-      expect(await _messages('SizedBox(width: Spacing.of(context))'), [
-        message,
-      ]);
-    });
   });
 }
+
+// Reads each mount slot by its name, and the build context as `context`.
+String _slot(String name) => name == kRootContext ? 'context' : name;

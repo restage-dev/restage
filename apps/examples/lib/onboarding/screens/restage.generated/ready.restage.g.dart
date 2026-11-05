@@ -1,6 +1,6 @@
 part of '../ready.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const readyScreenRef = NeutralFlowScreenRef(
   id: 'ready',

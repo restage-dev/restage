@@ -1,6 +1,6 @@
 part of '../reel_kept.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const reelKeptScreenRef = NeutralFlowScreenRef(
   id: 'reel_kept',

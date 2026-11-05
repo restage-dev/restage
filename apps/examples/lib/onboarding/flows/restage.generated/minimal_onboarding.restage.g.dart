@@ -1,6 +1,6 @@
 part of '../minimal_onboarding.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 const _minimalOnboardingFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
@@ -55,6 +55,7 @@ const minimalOnboardingFlowRef = SurfaceFlowRef<
     },
     children: {},
   ),
+  surfaceWidget: 'MinimalOnboardingFlowSurface',
   measurementPublicationDraftDigest:
       '60ae6b67bcabff15a1413829ea1e877c9faf9a6881285b0c9a52cf925779b13b',
   vocabulary: _minimalOnboardingFlowRefVocabulary,
@@ -99,8 +100,8 @@ final _minimalOnboardingFlowPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

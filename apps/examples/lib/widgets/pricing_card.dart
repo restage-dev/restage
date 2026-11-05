@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+part 'restage.generated/pricing_card.restage.g.dart';
+
 /// Declares the example widget library's capability version.
 ///
 /// A library with a widget that takes a data-class property (here

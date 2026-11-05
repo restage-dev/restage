@@ -5,15 +5,15 @@ import 'package:restage_shared/restage_shared.dart';
 /// The returned [StateFlowValueSource] is usable directly as a value source —
 /// a comparison right-hand side, a `stateWrites` value, or a `subFlow` input —
 /// and the comparison operators in [StateRefPredicates] hang off it to build
-/// branch predicates: `state('goal').equals('sleep')`.
-StateFlowValueSource state(String key) => StateFlowValueSource(key: key);
+/// branch predicates: `flowState('goal').equals('sleep')`.
+StateFlowValueSource flowState(String key) => StateFlowValueSource(key: key);
 
-/// Fluent comparison operators that desugar a [state] reference into a
+/// Fluent comparison operators that desugar a [flowState] reference into a
 /// single-field [FlowBranchPredicate].
 ///
 /// Each operator returns a predicate over exactly the [StateFlowValueSource.key]
 /// field. Combine several with [allOf]. A right-hand side is either another value
-/// source (passed through, e.g. `state('preferred')`) or a raw `bool`/`int`/
+/// source (passed through, e.g. `flowState('preferred')`) or a raw `bool`/`int`/
 /// `String` literal (auto-wrapped as a [LiteralFlowValueSource]); a non-scalar
 /// literal is a loud [ArgumentError]. The numeric operators (`greaterThan`/
 /// `atLeast`/`lessThan`/`atMost`) compare integers, so a non-int literal to them
@@ -95,7 +95,7 @@ FlowValueSource _coerce(FlowPredicateOperator operator, Object value) {
         value,
         'value',
         '${operator.methodName} compares integers; pass an int literal or a '
-            'state(...) reference',
+            'flowState(...) reference',
       );
     }
     return value;
@@ -106,7 +106,7 @@ FlowValueSource _coerce(FlowPredicateOperator operator, Object value) {
       value,
       'value',
       'flow predicate literals must be a bool, int, or String '
-          '(or a value source such as state(...))',
+          '(or a value source such as flowState(...))',
     );
   }
   if (operator.intOnly && type != FlowDataType.int) {
@@ -114,7 +114,7 @@ FlowValueSource _coerce(FlowPredicateOperator operator, Object value) {
       value,
       'value',
       '${operator.methodName} compares integers; pass an int literal or a '
-          'state(...) reference',
+          'flowState(...) reference',
     );
   }
   return LiteralFlowValueSource(type: type, value: value);
@@ -124,7 +124,7 @@ FlowValueSource _coerce(FlowPredicateOperator operator, Object value) {
 ///
 /// Throws [ArgumentError] if two predicates target the same field — the wire
 /// allows at most one condition per field, so a same-field range
-/// (`allOf([state('age').atLeast(18), state('age').atMost(65)])`) is not
+/// (`allOf([flowState('age').atLeast(18), flowState('age').atMost(65)])`) is not
 /// representable and must be authored as separate branches.
 ///
 /// Note: `package:matcher` (re-exported by `package:flutter_test`) also exports

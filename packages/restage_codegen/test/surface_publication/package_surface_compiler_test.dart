@@ -275,15 +275,14 @@ final foreignGeneratedRef = Object();
             entry.publication.slug: entry.publication.mountName,
         };
         expect(mountNames, {
-          'announcement': null,
+          'announcement': 'AnnouncementSurface',
           'follow_up': 'FollowUpSurface',
           'general_flow': 'GeneralFlowSurface',
           'premium': null,
         });
         final generated = bundle.generatedParts.values.join('\n');
         expect(generated, contains('final class GeneralFlowSurface '));
-        // This fixture's screen omits its mount, so it names none.
-        expect(generated, isNot(matches(RegExp(r'\bAnnouncementSurface\b'))));
+        expect(generated, contains('final class AnnouncementSurface '));
 
         await _assertGeneratedPartsAnalyze(
           scenario.source,
@@ -1526,6 +1525,7 @@ _Scenario _scenarioFromLibrary(LibraryElement library, AssetId assetId) {
       contractVersion: 1,
       capabilities: capabilities,
       rootParams: const [],
+      constructorParams: const [],
     ),
   );
   expect(

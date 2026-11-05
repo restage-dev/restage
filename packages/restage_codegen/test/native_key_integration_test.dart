@@ -520,10 +520,12 @@ void main() {
         );
       }
     }
-    for (final (argument, prelude) in [
-      ("const ValueKey<String>('override')", ''),
-      ("(const ValueKey<String>('override'))", ''),
-      ('alias', "const alias=ValueKey<String>('override');"),
+    // A mounted surface carries a key that compares by value, so the widget
+    // stays delivered with that key.
+    for (final (argument, prelude, verdict) in [
+      ("const ValueKey<String>('override')", '', null),
+      ("(const ValueKey<String>('override'))", '', null),
+      ('alias', "const alias=ValueKey<String>('override');", null),
     ]) {
       final override = await resolveKeySource(
         '$widgetSource\n'
@@ -531,18 +533,26 @@ void main() {
       );
       final translated = translateKeyProbe(override, catalog);
       expect(
-        translated.issues.map((issue) => issue.message),
-        anyOf(
-          contains(contains('constructor default')),
-          contains('This constant Key family has no installed native route.'),
-        ),
+        [
+          for (final island in translated.islands) island.id,
+          for (final issue in translated.issues)
+            if (!issue.code.isBuildNotice) issue.code.name,
+        ],
+        [if (verdict != null) verdict],
         reason: argument,
       );
+      if (verdict == null) {
+        expect(
+          translated.dsl,
+          startsWith('DefaultNativeKeyWidget(key: '),
+          reason: argument,
+        );
+      }
     }
-    final presence = defaults['explicitNull']!.substring(
-      'DefaultNativeKeyWidget(key: '.length,
-      defaults['explicitNull']!.length - 1,
-    );
+    // The key's value, without the placement the widget is named by.
+    final presence = RegExp(
+      r'key: (\{[^}]*\})',
+    ).firstMatch(defaults['explicitNull']!)!.group(1)!;
     for (final (source, generated) in [
       (
         'widget Forward=DefaultNativeKeyWidget(key:args.key); widget Root=Forward();',
@@ -609,13 +619,15 @@ void main() {
   for (final guarded in [false, true]) {
     test(
       guarded
-          ? 'production compiler refuses an original key on a guarded owner'
+          ? 'production compiler renders a guarded owner of an original key '
+                'from the app'
           : 'production codegen builder emits a borrowed key through its catalog gate',
       () async {
         final source =
             '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
+part 'restage.generated/key_probe.restage.g.dart';
 @Paywall(id: 'key_probe')
 class KeyProbe extends StatelessWidget {
   const KeyProbe({required this.itemKey});
@@ -642,7 +654,7 @@ class KeyProbe extends StatelessWidget {
           readerWriter: rw,
           flattenOutput: true,
         );
-        expect(result.succeeded, !guarded);
+        expect(result.succeeded, isTrue);
         final bundle = RestageSurfacePublicationBundle.fromJson(
           jsonDecode(
             rw.testing.readString(
@@ -653,22 +665,15 @@ class KeyProbe extends StatelessWidget {
             ),
           ),
         );
-        if (guarded) {
-          expect(bundle.valid, isFalse);
-          expect(bundle.errors.join('\n'), contains('original Row owner'));
-          expect(
-            bundle.ownedOutputs.containsKey(
-              'assets/paywalls/screens/paywall_key_probe.rfw',
-            ),
-            isFalse,
-          );
-          return;
-        }
         expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
         final bytes = bundle
             .ownedOutputs['assets/paywalls/screens/paywall_key_probe.rfw']!;
         final library = rfw.decodeLibraryBlob(Uint8List.fromList(bytes));
         final root = library.widgets.single.root as rfw.ConstructorCall;
+        if (guarded) {
+          expect(root.name, 'key__probe_Row_0');
+          return;
+        }
         expect(root.arguments['key'], isA<rfw.DataReference>());
         final sidecar = jsonDecode(
           utf8.decode(

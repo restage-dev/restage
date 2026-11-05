@@ -11,44 +11,37 @@ void main() {
     expect(getStartedScreenRef.provenance.bundle, isNull);
   });
 
-  test(
-    'native sibling authoring leaves the canonical Screen RFW baseline exact',
-    () {
-      // Pin the generated handle separately from its unchanged RFW payload.
-      expect(
-        sha256
-            .convert(
-              File(
-                'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
-              ).readAsBytesSync(),
-            )
-            .toString(),
-        'fa2af2c7f6a6053ab789ef20b0d825dc7c18c2264dfda2cc251e59788f4412e3',
-        reason:
-            'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
-      );
+  test('the canonical Screen RFW baseline is exact', () {
+    // Pin the generated handle separately from its unchanged RFW payload.
+    expect(
+      sha256
+          .convert(
+            File(
+              'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
+            ).readAsBytesSync(),
+          )
+          .toString(),
+      '7960796653a119c816370462e790bb204c2f62991cb5fe6dc579d83fcbb7c06c',
+      reason:
+          'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
+    );
 
-      const delivery = <String, String>{
-        'assets/onboarding/screens/get_started_screen.rfwtxt':
-            '12f5157042be9f5670451f4b338a9cb1404f7ea70b24412845e383e64261d670',
-        'assets/onboarding/screens/get_started_screen.rfw':
-            'd8c256759a2c5e01f503bb92d90c93bd2f1b2c235886b5f197cc76faed2ad16e',
-        'assets/onboarding/screens/get_started_screen.capability.json':
-            '7291c40340caaf90a06d1b59a8dcc9c5eced0b8796ab706e0bb3aa249deae689',
-      };
+    const delivery = <String, String>{
+      'assets/onboarding/screens/get_started_screen.rfwtxt':
+          '8f43f76ea7cb03006a11c39443fe1ddee214f28908a831af4e6a07b36148b4cf',
+      'assets/onboarding/screens/get_started_screen.rfw':
+          'c30e041e83424425c6b6b0e11149a1914fa39db740176ebd215d43dc6860f835',
+      'assets/onboarding/screens/get_started_screen.capability.json':
+          '1d665af326f747af65a9cf58e090d4df9a01038835cf21ee77e1c8a66c38fe86',
+    };
 
-      final packaged = _packagedArtifacts();
-      for (final entry in delivery.entries) {
-        final bytes = packaged[entry.key];
-        expect(bytes, isNotNull, reason: entry.key);
-        expect(
-          sha256.convert(bytes!).toString(),
-          entry.value,
-          reason: entry.key,
-        );
-      }
-    },
-  );
+    final packaged = _packagedArtifacts();
+    for (final entry in delivery.entries) {
+      final bytes = packaged[entry.key];
+      expect(bytes, isNotNull, reason: entry.key);
+      expect(sha256.convert(bytes!).toString(), entry.value, reason: entry.key);
+    }
+  });
 
   test('RFW text, capability, and generated handle stay exact', () {
     expect(
@@ -60,13 +53,15 @@ void main() {
       'import restage.material;\n'
       'import restage.cupertino;\n'
       '\n'
+      // The button's value key reaches the design as a native binding.
       'widget OnboardingScreen = Center(child: ElevatedButton('
+      'key: data.context._hb227fda92b, '
       'onPressed: event "continue" {value: "preview"}, child: '
       'Text(text: "Get started")));\n',
     );
     expect(getStartedScreenRef.id, 'get_started_screen');
     expect(getStartedScreenRef.version, 1);
-    expect(getStartedScreenRef.capabilities.builtInFloor, 1);
+    expect(getStartedScreenRef.capabilities.builtInFloor, 24);
     expect(getStartedScreenRef.surface, Surface.onboarding);
     expect(
       utf8.decode(
@@ -74,8 +69,8 @@ void main() {
             'get_started_screen.capability.json']!,
       ),
       '{"blobSha256":'
-      '"sha256:d8c256759a2c5e01f503bb92d90c93bd2f1b2c235886b5f197cc76faed2ad16e",'
-      '"manifest":{"builtInFloor":1,"requiredLibraries":[]}}',
+      '"sha256:c30e041e83424425c6b6b0e11149a1914fa39db740176ebd215d43dc6860f835",'
+      '"manifest":{"builtInFloor":24,"requiredLibraries":[]}}',
     );
   });
 }

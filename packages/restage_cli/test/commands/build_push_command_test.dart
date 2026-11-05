@@ -91,7 +91,7 @@ void main() {
       renderBundleSource: sourceStep.call,
     ).run(<String>['build', 'push', '-C', root.path, '--env', 'staging']);
     expect(exit, 0, reason: stderr.toString());
-    expect(calls, <String>['prepare', 'commit']);
+    expect(calls, <String>['prepare', 'commit', 'liveLibraryRequirements']);
     // Only --record-git holds dependencies outside the repository to account.
     expect(sourceStep.recordGit, isFalse);
     expect(builder.projectRoot?.path, root.path);
@@ -102,6 +102,14 @@ void main() {
     expect(builder.catalogJson, '{"libraries":{},"widgets":[],"merged":true}');
     expect(stdout.toString(), contains('mobile staging version 4'));
     expect(stdout.toString(), contains('Every file was already stored'));
+    // The fake server has no live-version read; the push still succeeds.
+    expect(
+      stdout.toString(),
+      contains(
+        "Restage couldn't check which live versions this build changes. "
+        'The push itself succeeded.',
+      ),
+    );
     expect(stderr.toString(), isEmpty);
   });
 
@@ -151,7 +159,7 @@ void main() {
           );
         } else {
           expect(exit, 0, reason: stderr.toString());
-          expect(calls, ['prepare', 'commit']);
+          expect(calls, ['prepare', 'commit', 'liveLibraryRequirements']);
         }
       },
     );
@@ -449,6 +457,7 @@ void main() {
       expect(rpcBodies.map((body) => body['method']), <String>[
         'prepare',
         'commit',
+        'liveLibraryRequirements',
       ]);
       expect(rpcBodies.first['projectSlug'], 'demo');
       expect(rpcBodies.first['appSlug'], 'mobile');

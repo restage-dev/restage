@@ -1,17 +1,24 @@
+import 'package:restage_codegen/src/surface_publication/recorded_layouts.dart';
+import 'package:restage_compiler_core/src/rfw_scalar_callback_contract.dart'
+    show eventNativeType;
 import 'package:restage_codegen/src/scalar_callback_lowering.dart';
 import 'package:restage_codegen/src/grid_value_recipes.dart';
 import 'package:restage_codegen/src/builder_expression_lowering.dart';
 import 'package:restage_codegen/src/widget_builder_lowering.dart';
 import 'package:restage_codegen/src/widget_collection_lowering.dart';
+import 'dart:collection';
+import 'dart:convert' show jsonEncode, utf8;
 import 'dart:math' as math;
 
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/token.dart' show TokenType;
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:collection/collection.dart';
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/build_body.dart';
@@ -36,6 +43,16 @@ import 'package:restage_codegen/src/framework_const_values.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
+import 'package:restage_codegen/src/islands/islands.dart';
+import 'package:restage_codegen/src/islands/opt_outs.dart';
+import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart'
+    show spellBesideClass;
+import 'package:restage_codegen/src/surface_publication/split_widgets.dart'
+    show
+        SplitWidgetDefinitions,
+        kPlacementNameArgument,
+        kPlacementItemsArgument,
+        splitAppName;
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/installed_native_call.dart';
 import 'package:restage_codegen/src/installed_native_provenance.dart'
@@ -62,7 +79,12 @@ import 'package:restage_codegen/src/segmented_button_recognition.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
 import 'package:restage_codegen/src/shader_mask_recognition.dart';
 import 'package:restage_codegen/src/single_select_recognition.dart';
+import 'package:restage_codegen/src/islands/context_reach.dart'
+    show isFlutterFrameworkType;
+import 'package:restage_codegen/src/source_state.dart' show ContentFreeBuilders;
 import 'package:restage_codegen/src/structured_value_emitter.dart';
+import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart'
+    show generatedSurfaceName;
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/synthetic_property.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
@@ -76,6 +98,8 @@ import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
         BuilderResult,
+        WidgetVocabulary,
+        islandLibraryNamespace,
         NativeBindingContract,
         kNativeVoidCallbackType,
         kTextSpanRecognizerDetailCallbacks,
@@ -243,9 +267,14 @@ final class TranslationResult {
     this.completesSurface = false,
     Iterable<DslEmissionSource> emissionSources = const [],
     Iterable<HoistedValue> hoisted = const [],
+    Iterable<Island> islands = const [],
+    this.split,
+    Set<Element> blocked = const {},
   }) : issues = List.unmodifiable(issues),
+       blocked = Set.unmodifiable(blocked),
        emissionSources = List.unmodifiable(emissionSources),
        hoisted = List.unmodifiable(hoisted),
+       islands = List.unmodifiable(islands),
        localSeeds = Map.unmodifiable(localSeeds),
        iconReferences = List.unmodifiable(iconReferences),
        widgetDefinitions = Map.unmodifiable(widgetDefinitions),
@@ -259,6 +288,9 @@ final class TranslationResult {
   /// The DSL fragment, e.g. `"42"` or `'event "name" {}'`. Empty string if
   /// translation failed and one or more [issues] were collected.
   final String dsl;
+
+  /// Surface declarations the mount could not see where an island failed.
+  final Set<Element> blocked;
 
   /// Issues collected during this translation (unmodifiable).
   final List<Issue> issues;
@@ -319,6 +351,22 @@ final class TranslationResult {
 
   /// Values the generated mount computes, ordered by key.
   final List<HoistedValue> hoisted;
+
+  /// Widget expressions that render from the app, ordered by ID.
+  final List<Island> islands;
+
+  /// Where [value] is first read: the innermost emission that reads it.
+  String? locationOf(HoistedValue value) {
+    final read = RegExp(
+      '(?<![A-Za-z0-9_])${RegExp.escape(value.key)}(?![A-Za-z0-9_])',
+    );
+    return emissionSources
+        .firstWhereOrNull((source) => read.hasMatch(source.dsl))
+        ?.location;
+  }
+
+  /// How the mount takes over the surface's shell and `State`, if it does.
+  final MountSplit? split;
 
   /// The validation registry for this translation's installed declarations.
   Map<String, ValueOperation> get valueOperations =>
@@ -444,6 +492,7 @@ final class ExpressionTranslator {
     required this.helpers,
     this.customWidgetClassifications = const <String, WidgetClassification>{},
     this.customWidgetBlueprints = const <String, CustomWidgetBlueprint>{},
+    this.splitWidgetDefinitions = const {},
     this.canonicalPaywallIdFor,
     this.measurementRouteEmissionPlan,
   }) : _isFrameworkValueType = isFrameworkValueTypeLibrary;
@@ -466,6 +515,7 @@ final class ExpressionTranslator {
     required bool Function(Element?) frameworkLibraryPredicate,
     this.customWidgetClassifications = const <String, WidgetClassification>{},
     this.customWidgetBlueprints = const <String, CustomWidgetBlueprint>{},
+    this.splitWidgetDefinitions = const {},
     this.canonicalPaywallIdFor,
     this.measurementRouteEmissionPlan,
   }) : _isFrameworkValueType = frameworkLibraryPredicate;
@@ -607,11 +657,21 @@ final class ExpressionTranslator {
   /// emitting an RFW remote-widget definition — rather than deferring it.
   final Map<String, CustomWidgetBlueprint> customWidgetBlueprints;
 
+  /// The delivered declarations of each split custom widget, by class key:
+  /// its own definition and the definitions and states it inlines.
+  final Map<String, SplitWidgetDefinitions> splitWidgetDefinitions;
+
   /// Walk-scoped state replaced atomically around nested translations.
   _WalkContext _walk = _WalkContext.initial();
 
   /// Mount-computed values of the current translation, when it has a mount.
   _HoistSession? _hoist;
+
+  // Whether build locals resolve to what they hold, while delivering.
+  bool _seesThroughPreludes = false;
+
+  /// Islands of the current translation, when it has a mount.
+  _IslandSession? _islands;
 
   Map<Element, HelperDef> _collectionHelpers = const {};
   CollectionSemanticTraversalSession _collectionSession =
@@ -629,6 +689,11 @@ final class ExpressionTranslator {
   // translating (rfwName → body DSL), set at the start of each [translate]
   // call and surfaced on the result. Null outside a translate() call.
   Map<String, String>? _currentWidgetDefinitions;
+
+  // Per definitions map: each custom widget whose build returns one of its own
+  // widget parameters, by RFW name, and that parameter. It inlines as the
+  // argument, as Flutter renders it, with no declaration.
+  final Expando<Map<String, String>> _passThroughs = Expando();
 
   // Per-call accumulator for the stateful-definition initial-state maps
   // emitted while translating (rfwName → field-name → literal-DSL). Null
@@ -789,7 +854,11 @@ final class ExpressionTranslator {
     bool flowScreenContext = false,
     InlinedDefinitions rootInlined = const InlinedDefinitions.empty(),
     bool hoistInMount = false,
+    bool islands = true,
+    ClassElement? liftedState,
     List<FormalParameterElement> rootBuildArguments = const [],
+    ContentFreeBuilders contentFree = ContentFreeBuilders.none,
+    String? surfaceId,
   }) {
     final first = _translateArtifact(
       expr,
@@ -803,7 +872,11 @@ final class ExpressionTranslator {
       flowScreenContext: flowScreenContext,
       rootInlined: rootInlined,
       hoistInMount: hoistInMount,
+      islands: islands,
+      liftedState: liftedState,
       rootBuildArguments: rootBuildArguments,
+      contentFree: contentFree,
+      surfaceId: surfaceId ?? entryId,
       forcedCustomWidgetFactoryRoutes: const {},
     );
     final mixed = first.inlineClaims.intersection(first.references);
@@ -820,7 +893,11 @@ final class ExpressionTranslator {
       flowScreenContext: flowScreenContext,
       rootInlined: rootInlined,
       hoistInMount: hoistInMount,
+      islands: islands,
+      liftedState: liftedState,
       rootBuildArguments: rootBuildArguments,
+      contentFree: contentFree,
+      surfaceId: surfaceId ?? entryId,
       forcedCustomWidgetFactoryRoutes: Map.unmodifiable({
         for (final identity in mixed) identity: first.factoryRoutes[identity],
       }),
@@ -845,12 +922,17 @@ final class ExpressionTranslator {
     required bool flowScreenContext,
     required InlinedDefinitions rootInlined,
     required bool hoistInMount,
+    required bool islands,
+    required ClassElement? liftedState,
     required List<FormalParameterElement> rootBuildArguments,
+    required ContentFreeBuilders contentFree,
+    required String? surfaceId,
     required Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute>
     forcedCustomWidgetFactoryRoutes,
   }) {
     final saved = _walk;
     _builderScopeCounter = 0;
+    _keptClosures.clear();
     final savedHoist = _hoist;
     final hoistLibrary = switch (expr.root) {
       CompilationUnit(:final declaredFragment?) => declaredFragment.element,
@@ -863,6 +945,32 @@ final class ExpressionTranslator {
               rootContext: buildContextParameter,
               isStateWidget: _isStateWidgetGetter,
               rootParamFor: _rootParamForElement,
+              isMountScope: (element) =>
+                  _islands?.inMountScope(element) ?? false,
+              mountNameOf: (element) =>
+                  _islands?.mountNames.containsKey(element.baseElement) ?? false
+                  ? '\u0000${_islands!.heldSlot(element.baseElement)}\u0000'
+                  : null,
+              recordedLocalOf: (element) {
+                if (element is FormalParameterElement && !_recordingSlot) {
+                  return null;
+                }
+                final body = _islands?.buildBody;
+                final offset = element.firstFragment.offset;
+                return body != null &&
+                        element.firstFragment.libraryFragment?.source ==
+                            (body.root as CompilationUnit)
+                                .declaredFragment
+                                ?.source &&
+                        offset >= body.offset &&
+                        offset < body.end
+                    ? heldLocalSlot(element.name ?? '', inner: true)
+                    : null;
+              },
+              isSurfaceMember: (element) =>
+                  _islands?.isSurfaceMember(element) ?? false,
+              forwardsWidget: () => _islands?.liftedState != null,
+              thisFor: (type) => _islands?.thisFor(type),
               isDeclaredCallable: (reference) =>
                   _borrowedNativeRoot(
                         _resolveBoundIdentifier(_stripParens(reference)),
@@ -880,17 +988,57 @@ final class ExpressionTranslator {
                   ?.name,
               itemLoopFor: (element) {
                 for (final loop in _walk.runtimeLoops.reversed) {
-                  if (!identical(loop.element, element)) continue;
-                  return loop.shape is HostDataObjectShape
-                      ? loop.root?.name
-                      : null;
+                  if (!loop.binds(element)) continue;
+                  return loop.items ??
+                      (loop.shape is HostDataObjectShape
+                          ? loop.root?.name
+                          : null);
                 }
                 return null;
               },
+              keepsItemNames: (item) =>
+                  _hoist?.values[item]?.kind == HoistValueKind.items,
+              outerItem: (item) => _hoist?.values[item]?.item,
             ),
           )
         : null;
+    _hoist?.onAdd = _recordValueSite;
+    _hoist?.occurrence = _keyedByOccurrence;
     final hoist = _hoist;
+    final savedIslands = _islands;
+    final islandPackage = hoistLibrary?.uri.pathSegments.firstOrNull;
+    final islandNamespace = islandPackage == null
+        ? null
+        : islandLibraryNamespace(islandPackage);
+    final islandNamespaceTaken =
+        islandNamespace != null &&
+        !(catalog.libraries[WidgetLibrary.custom(islandNamespace)]?.islands ??
+            true);
+    _islands =
+        islands &&
+            hoist != null &&
+            islandNamespace != null &&
+            !islandNamespaceTaken
+        ? _IslandSession(
+            islandNamespace,
+            hoistLibrary!,
+            liftedState,
+            islandSurface(expr, id: surfaceId),
+            contentFree: contentFree,
+            stateless: liftedState == null
+                ? switch (expr
+                      .thisOrAncestorOfType<ClassDeclaration>()
+                      ?.declaredFragment
+                      ?.element) {
+                    final ClassElement owner
+                        when stateWidgetOf(owner) == null =>
+                      owner,
+                    _ => null,
+                  }
+                : null,
+          )
+        : null;
+    final islandSession = _islands;
     final savedNavigation = _currentNavigation;
     final savedFlowScreenContext = _flowScreenContext;
     final savedSuppressed = _currentTranslationSuppressed;
@@ -932,7 +1080,10 @@ final class ExpressionTranslator {
     _currentNavigation = null;
     _flowScreenContext = flowScreenContext;
     _currentTranslationSuppressed = false;
-    final issues = <Issue>[];
+    final issues = <Issue>[
+      if (islands && islandNamespaceTaken)
+        islandNamespaceTakenIssue(islandNamespace),
+    ];
     final emissionSources = <DslEmissionSource>[];
     final savedEmissionSources = _emissionSources;
     _emissionSources = emissionSources;
@@ -969,23 +1120,39 @@ final class ExpressionTranslator {
     var suppressed = false;
     NavigationLowering? navigationLowering;
     try {
-      final modalSheet = _findSingleRootModalSheetTrigger(expr, issues);
-      final navigationTriggers = entryId == null || issues.isNotEmpty
+      // The mount keeps the root shell; the rest is the design.
+      final design = islandSession == null
+          ? expr
+          : _splitRoot(expr, islandSession, liftedState);
+      if (islandSession?.problem case final problem?) issues.add(problem);
+      final rootIssues = <Issue>[];
+      bool clean() => issues.isEmpty && rootIssues.isEmpty;
+      var modalSheet = _findSingleRootModalSheetTrigger(design, rootIssues);
+      final navigationTriggers = entryId == null || !clean()
           ? const <RecognisedNavigation>[]
           : _findRootNavigationTriggers(
-              expr,
-              issues,
+              design,
+              rootIssues,
               buildContextParameter: buildContextParameter,
             );
-      final navigationContext = issues.isEmpty && entryId != null
+      var navigationContext = clean() && entryId != null
           ? _createNavigationContext(
               entryId: entryId,
-              expr: expr,
+              expr: design,
               triggers: navigationTriggers,
-              issues: issues,
+              issues: rootIssues,
               buildContextParameter: buildContextParameter,
             )
           : null;
+      // Under a split, a root sheet or navigation that cannot lower leaves
+      // its closures to the mount as actions.
+      if (islandSession != null &&
+          rootIssues.any((issue) => !issue.code.isBuildNotice)) {
+        modalSheet = null;
+        navigationContext = null;
+      } else {
+        issues.addAll(rootIssues);
+      }
       final rootShapeIssue = issues.isEmpty
           ? _validateRootStateShape(rootState, rootEventHandlers, expr)
           : null;
@@ -1030,8 +1197,10 @@ final class ExpressionTranslator {
         if (navigationContext != null && navigationContext.hasTransitions) {
           navigationLowering = navigationContext.toLowering();
         }
-        if (_admitOrdinaryLeaf(expr, issues)) {
-          dsl = _translate(expr, issues);
+        if (_branches(issues) case final branches?) {
+          dsl = branches;
+        } else if (_admitOrdinaryLeaf(design, issues)) {
+          dsl = _translate(design, issues);
         }
         final context = _walk.modalSheet;
         if (context != null && issues.isEmpty) {
@@ -1082,6 +1251,20 @@ final class ExpressionTranslator {
       _currentLineInfo = null;
       _currentSourceUnit = null;
       _hoist = savedHoist;
+      _islands = savedIslands;
+    }
+    // Island tokens need the surface's whole island set.
+    if (islandSession != null) {
+      assignIslandTokens(islandSession.islands.values);
+      for (final island in islandSession.islands.values) {
+        final entry = islandWidgetEntry(island);
+        rfwCatalogConstructorOrigins[entry.name] =
+            fmt.RfwCatalogConstructorProvenance(
+              constructorName: entry.name,
+              catalogLibraryNamespace: entry.library.namespace,
+              catalogWidgetWireId: entry.wireId,
+            );
+      }
     }
     if (dsl.isNotEmpty &&
         !suppressed &&
@@ -1092,6 +1275,7 @@ final class ExpressionTranslator {
         eventClosureNotices.where((notice) => seen.add(notice.buildNoticeKey)),
       );
     }
+    final recordedSplit = _recorded(islandSession?.split, islandSession, hoist);
     return (
       result: TranslationResult(
         dsl: dsl,
@@ -1108,8 +1292,26 @@ final class ExpressionTranslator {
         emissionSources: emissionSources,
         hoisted: hoist == null
             ? const []
-            : (hoist.values.values.toList()
-                ..sort((left, right) => left.key.compareTo(right.key))),
+            : ([
+                for (final value in hoist.values.values)
+                  // A value only a slot records is the slot's own, never
+                  // the mount's.
+                  if (!_slotOnly(hoist, value.key))
+                    switch (hoist.records
+                        .where((record) => record.key == value.key)
+                        .firstOrNull) {
+                      final record? when value.location == null => value.at(
+                        _locationOf(record.site),
+                      ),
+                      _ => value,
+                    },
+              ]..sort((left, right) => left.key.compareTo(right.key))),
+        split: recordedSplit,
+        blocked: islandSession?.blocked ?? const {},
+        islands: islandSession == null
+            ? const []
+            : (islandSession.islands.values.toList()
+                ..sort((left, right) => left.id.compareTo(right.id))),
         localSeeds: localSeeds,
         usesLocalValues: localFields.isNotEmpty,
         rfwCatalogConstructorOrigins:
@@ -1133,8 +1335,8 @@ final class ExpressionTranslator {
   /// definition body is measured. The widget is **emit-confirmed inlinable**
   /// exactly when the returned result has no issues AND carries a definition
   /// (`widgetDefinitions` non-empty). Any other outcome — an unimplemented
-  /// required mechanism, a name collision with the paywall root or a catalog
-  /// widget, a non-foldable State shape, or an unrecognised body expression —
+  /// required mechanism, a non-foldable State shape, or an unrecognised body
+  /// expression —
   /// means it does not inline today.
   ///
   /// Note this measures *whether* the translator emits, not whether the
@@ -1201,16 +1403,8 @@ final class ExpressionTranslator {
       return resultWith(issues);
     }
 
-    final name = blueprint.rfwName;
-    // A name that shadows a surface root or a DIFFERENT catalog widget would
-    // make a reference in the blob ambiguous — the same diagnostic the inline
-    // path raises. The widget's OWN catalog entry (same name AND same source)
-    // is not a collision: a registered inlinable widget inlines itself.
-    final conflict = _inlineNameConflict(name, blueprint.classKey);
-    if (conflict != null) {
-      issues.add(_nameCollisionIssue(blueprint.classKey, name, conflict));
-      return resultWith(issues);
-    }
+    // The same name the production inline path emits under.
+    final name = _definitionName(blueprint);
 
     // State-shape validation (non-foldable initialiser / unrecognised
     // setState body) — surfaced before body translation, as the inline path
@@ -1274,8 +1468,19 @@ final class ExpressionTranslator {
   }
 
   String _translate(Expression expr, List<Issue> issues) {
-    final before = issues.length;
+    final site = _valueSite;
+    _valueSite = expr;
+    try {
+      return _translateAt(expr, issues);
+    } finally {
+      _valueSite = site;
+    }
+  }
+
+  String _translateAt(Expression expr, List<Issue> issues) {
+    if (_islands?.stubs.contains(expr) ?? false) return 'SizedBox()';
     final dsl =
+        _islandAttempt(expr, issues) ??
         (_activeWidgetBuilder == null
             ? _hoisted(
                 expr,
@@ -1284,57 +1489,3068 @@ final class ExpressionTranslator {
               )
             : null) ??
         _translateExpression(expr, issues);
-    _explainAppOnlyFailure(expr, issues, before);
     _recordEmission(expr, dsl);
     return dsl;
   }
 
-  /// Replaces the failures [expr] added after [before] with the reason the
-  /// mount cannot compute it, when it is an app-only value.
-  void _explainAppOnlyFailure(
-    Expression expr,
+  /// Translates a widget expression of a mounted surface, or emits it as an
+  /// island when it does not lower; `null` when [expr] is no candidate.
+  String? _islandAttempt(Expression expr, List<Issue> issues) {
+    final session = _islands;
+    final node = _stripParens(expr);
+    if (session == null ||
+        (node is! InstanceCreationExpression && node is! MethodInvocation) ||
+        classifyHoistType(node.staticType) is! HoistIsWidget) {
+      return null;
+    }
+    if (_hoist!.speculating ||
+        _activeWidgetBuilder != null ||
+        _walk.classKey != null) {
+      // No island forms here, so a widget kept as the app builds it is
+      // refused, never lowered; the refusal also ends a speculation.
+      if (optOutOf(node, _locationOf(node)) case final kept?) {
+        issues.add(optOutUnkept(node, kept.location, null));
+        return '';
+      }
+      return null;
+    }
+    if (!session.attempting.add(node)) return null;
+    try {
+      // A widget the developer keeps as the app builds it is an island.
+      if (optOutOf(node, _locationOf(node)) case final kept?) {
+        if (_emitIsland(node, [kept], issues) case final island?) {
+          return island;
+        }
+        issues.add(
+          optOutUnkept(
+            node,
+            kept.location,
+            session.blockedBy.remove(node)?.name,
+          ),
+        );
+        return '';
+      }
+      // A helper that reads an argument that runs code more than once
+      // renders in the app as written, so the argument runs once.
+      if (_repeatsCode(node)) {
+        if (_emitIsland(node, const [], issues) case final island?) {
+          return island;
+        }
+      }
+      final attempt = _attempt(node);
+      if (attempt.lowers) {
+        issues.addAll(attempt.issues);
+        return attempt.dsl;
+      }
+      // Only a node that needs app code renders from the app.
+      final island =
+          attempt.issues.every(
+            (issue) => issue.code.isBuildNotice || issue.code.needsAppCode,
+          )
+          ? _emitIsland(node, attempt.issues, issues)
+          : null;
+      if (island != null) return island;
+      issues.addAll(switch (session.blockedBy.remove(node)) {
+        final blocked? => _surfaceOnlyIssues(node, blocked, attempt.issues),
+        null => attempt.issues,
+      });
+      return '';
+    } finally {
+      session.attempting.remove(node);
+    }
+  }
+
+  // [issues] with a generic first refusal replaced by the surface value [node]
+  // needs; a refusal that names its own cause stays.
+  List<Issue> _surfaceOnlyIssues(
+    Expression node,
+    HoistNeedsSurfaceValue blocked,
     List<Issue> issues,
-    int before,
   ) {
-    final hoist = _hoist;
-    if (hoist == null || hoist.speculating || issues.length == before) return;
-    final added = issues.sublist(before);
-    final fatal = added.where((issue) => !issue.code.isBuildNotice).toList();
-    if (fatal.isEmpty || fatal.any(hoist.refusals.contains)) return;
-    if (!fatal.every(
-      (issue) =>
-          hoist.replaceable.contains(issue) ||
-          issue.code == IssueCode.customWidgetInliningDeferred,
-    )) {
-      return;
+    final first = issues.indexWhere((issue) => !issue.code.isBuildNotice);
+    // A custom widget's gap is replaced too: an app widget that doesn't lower
+    // is an island, so the surface value is why it didn't form.
+    if (first < 0 ||
+        !const {
+          IssueCode.unknownWidget,
+          IssueCode.unrecognizedMethodCall,
+          IssueCode.customWidgetInliningDeferred,
+          IssueCode.customWidgetImperative,
+          IssueCode.customWidgetUnsupportedReducible,
+          IssueCode.customWidgetUnclassified,
+        }.contains(issues[first].code)) {
+      return issues;
     }
-    // A failure inside the expression already names its own cause.
-    final location = _locationOf(expr);
-    if (fatal.any((issue) => issue.location != location)) return;
-    final stripped = _stripParens(expr);
-    if (stripped is SimpleIdentifier) return;
-    // A helper that builds a widget already says why it cannot inline.
-    if (classifyHoistType(stripped.staticType) is HoistIsWidget &&
-        fatal.any(
-          (issue) => issue.code == IssueCode.customWidgetInliningDeferred,
-        )) {
-      return;
-    }
-    final message = _hoistRefusal(expr);
-    if (message == null) return;
-    final refusal = Issue(
-      code: IssueCode.unrecognizedMethodCall,
-      message: message,
-      location: _locationOf(expr),
+    final screen = _islands!.surface.screen;
+    final place = '`${readableSource(node.toSource())}` (${_locationOf(node)})';
+    final message = _declaredByIfCase(node, blocked)
+        ? "$place: Restage can't use `${blocked.name}` because an `if case` "
+              'pattern declares it. Try testing the value with `!= null` and '
+              'using it with `!` instead.'
+        : '$place: uses `${blocked.name}`, which only exists inside '
+              "`$screen`. Try passing it in through the screen's constructor.";
+    return [
+      ...issues.take(first),
+      // The message names its place, so the issue names the declaration.
+      Issue(
+        code: IssueCode.unrecognizedMethodCall,
+        message: message,
+        location: _declarationOf(node),
+      ),
+      ...issues.skip(first + 1),
+    ];
+  }
+
+  // Whether the surface-only name [blocked] reads is a variable an `if case`
+  // pattern declares.
+  static bool _declaredByIfCase(AstNode node, HoistNeedsSurfaceValue blocked) {
+    final elements = {
+      if (blocked.node case SimpleIdentifier(:final element?))
+        element.baseElement,
+      for (final element in blocked.elements)
+        if (element.name == blocked.name) element.baseElement,
+    };
+    if (elements.isEmpty) return false;
+    var found = false;
+    node.root.accept(
+      _PatternVariables((pattern) {
+        if (!elements.contains(pattern.declaredFragment?.element.baseElement)) {
+          return;
+        }
+        final clause = pattern.thisOrAncestorOfType<CaseClause>();
+        found =
+            found ||
+            clause?.parent is IfStatement ||
+            clause?.parent is IfElement;
+      }),
     );
-    hoist.refusals.add(refusal);
-    issues
-      ..removeRange(before, issues.length)
-      ..addAll([
-        for (final issue in added)
-          if (issue.code.isBuildNotice) issue,
-        refusal,
+    return found;
+  }
+
+  /// Emits [node] as an island: widget arguments that lower become slots and
+  /// literal ones properties. `null` when the mount cannot evaluate the rest.
+  ///
+  /// With [shared], [node] is the initializer of a local the mount computes
+  /// once, and the island is that local's placement at [shared].
+  String? _emitIsland(
+    Expression node,
+    List<Issue> failure,
+    List<Issue> issues, {
+    SimpleIdentifier? shared,
+  }) {
+    final session = _islands!;
+    final restore = _checkpoint();
+    // The ordinal is the order the surface uses its islands, an enclosing
+    // island before those nested in it.
+    final scope = _walk.islandScope.join('>');
+    final widget = islandWidgetType(node);
+    final key = '$scope/$widget';
+    final peers = [
+      for (final entry in session.order)
+        if (entry.key == key) entry.node,
+    ];
+    final ordinal = switch (peers.indexWhere((peer) => identical(peer, node))) {
+      -1 => peers.length,
+      final index => index,
+    };
+    if (ordinal == peers.length) session.order.add((key: key, node: node));
+    final slots = <IslandSlot>[];
+    final properties = <IslandProperty>[];
+    final holes = <AstNode, String>{};
+    final kept = <Issue>[];
+    final arguments = node is InstanceCreationExpression && shared == null
+        ? node.argumentList.arguments
+        : const <Argument>[];
+    // Slots are children of the island's own measured occurrence.
+    final walk = _walk;
+    final widgetClass = node is InstanceCreationExpression
+        ? node.constructorName.type.element
+        : null;
+    if (_walk.measurementScope case final scope?
+        when widgetClass is InterfaceElement) {
+      _walk = _walk.copyWith(
+        measurementScope: null,
+        measurementWidget: scope.widget(widgetClass),
+        measurementWidgetList: null,
+      );
+    }
+    for (final argument in arguments.whereType<NamedArgument>()) {
+      final name = argument.name.lexeme;
+      final value = argument.argumentExpression;
+      // An app builder whose body lowers stays in the island; its body is
+      // delivered as a slot.
+      if (_stripParens(value) case final FunctionExpression callback) {
+        final builder = AppValueSlot.of(callback);
+        if (builder == null) continue;
+        final undo = _checkpoint();
+        final misses = _hoist!.closureMisses.length;
+        final scratch = <Issue>[];
+        // The slot runs its own closure, recording what its body reads.
+        _keptClosures.add(callback);
+        final dsl = _translateWidgetBuilder(
+          callback,
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: name,
+            type: PropertyType.widgetBuilder,
+            description: '',
+            builderContract: builder.contract,
+          ),
+          scratch,
+        );
+        if (dsl.isEmpty ||
+            scratch.any((issue) => !issue.code.isBuildNotice) ||
+            _hoist!.closureMisses.length != misses) {
+          _keptClosures.remove(callback);
+          undo();
+          continue;
+        }
+        kept.addAll(scratch);
+        holes[value] = islandHole(name);
+        slots.add(
+          IslandSlot(
+            name,
+            list: false,
+            dsl: dsl,
+            node: value,
+            builder: builder,
+          ),
+        );
+        continue;
+      }
+      final type = argument.correspondingParameter?.type ?? value.staticType;
+      final list = _isWidgetListType(type);
+      final slot = list || classifyHoistType(type) is HoistIsWidget;
+      final propertyShape = slot || !_isLiteralArgument(value)
+          ? null
+          : islandPropertyShape(type);
+      final propertyType = propertyShape?.propertyType;
+      final fallback = switch (propertyType == null
+          ? null
+          : _hoist!.analyzer.analyze(value)) {
+        final HoistEvaluable evaluable => evaluable,
+        _ => null,
+      };
+      if (!slot && fallback == null) continue;
+      final undo = _checkpoint();
+      final scratch = <Issue>[];
+      final dsl = _translateSlotValue(
+        value,
+        propertyType ?? (list ? PropertyType.widgetList : PropertyType.widget),
+        scratch,
+        sourceParameter: propertyType == null
+            ? argument.correspondingParameter
+            : null,
+      );
+      if (dsl.isEmpty || scratch.any((issue) => !issue.code.isBuildNotice)) {
+        undo();
+        continue;
+      }
+      kept.addAll(scratch);
+      holes[value] = islandHole(name);
+      if (propertyType == null) {
+        slots.add(IslandSlot(name, list: list, dsl: dsl, node: value));
+      } else {
+        // A preview runs without the app's build, so it copies the value as
+        // written only when it reads nothing the build declares.
+        properties.add(
+          IslandProperty(
+            name,
+            shape: propertyShape!,
+            dsl: dsl,
+            fallback: fallback!.template,
+            closed: !_needsMount(value, const {}),
+            nullable: type?.nullabilitySuffix == NullabilitySuffix.question,
+          ),
+        );
+      }
+    }
+    _walk = walk;
+    final analysis = _hoist!.analyzer.analyze(shared ?? node, holes: holes);
+    if (analysis is! HoistEvaluable) {
+      if (analysis case final HoistNeedsSurfaceValue blocked) {
+        session.blocked.addAll(blocked.elements);
+        session.blockedBy[node] = blocked;
+      }
+      restore();
+      return null;
+    }
+    // The island takes its position in every loop around it, so each
+    // iteration keeps its own element, and binds the items it reads.
+    final loops = _walk.runtimeLoops;
+    final reads = <int>{
+      for (
+        String? item = analysis.item;
+        item != null;
+        item = _hoist!.values[item]?.item
+      )
+        loops.lastIndexWhere((loop) => loop.item == item),
+    };
+    if (reads.contains(-1) || loops.any((loop) => !_keysItems(loop))) {
+      restore();
+      return null;
+    }
+    issues.addAll(kept);
+    final identity = islandIdentity(session.surface, scope, widget, ordinal);
+    final island = Island(
+      id: identity.id,
+      name: identity.name,
+      widget: widget,
+      screen: session.surface.screen,
+      scope: scope,
+      location: _locationOf(node),
+      reason: failure.where((issue) => !issue.code.isBuildNotice).firstOrNull,
+      slots: slots,
+      properties: properties,
+      template: analysis.template,
+      library: session.namespace,
+      node: node,
+      items: [for (final loop in loops) loop.item!],
+      reads: reads,
+      placements: [
+        // Exclusive placements share the island; the fallback keys each.
+        ...?session.islands[identity.id]?.placements,
+        (at: shared ?? node, through: [..._localReads]),
+      ],
+      preview: _islandPreview(shared ?? node, holes),
+    );
+    if (session.islands[identity.id] case final prior?
+        when prior.implementation != island.implementation ||
+            !identical(prior.node, node)) {
+      issues.add(islandNameConflictIssue(widget, _locationOf(node)));
+      restore();
+      return null;
+    }
+    session.islands[identity.id] = island;
+    final placement = _placementOf(shared ?? node);
+    // A value placed at spots the build's copy can't mark keeps no identity.
+    if (placement.spots.firstWhereOrNull((read) => _spotForm(read) == null)
+        case final read?) {
+      issues.add(
+        Issue(
+          code: IssueCode.islandSpotsIndistinct,
+          message:
+              '`$widget` (${_locationOf(node)}) is placed in more than one '
+              'spot through `${read.toSource()}`, and Restage can\'t tell '
+              'those spots apart here, so its State resets when a new design '
+              'is shown. Try giving each spot its own value.',
+          location: _locationOf(node),
+        ),
+      );
+    }
+    session.recordIslands.add((
+      name: identity.name,
+      node: shared ?? node,
+      shared: shared != null,
+      placement: placement,
+      holes: {
+        for (final MapEntry(:key, :value) in holes.entries)
+          key: (
+            marker: value.replaceAllMapped(
+              islandHolePattern,
+              (m) => '\u0002${identity.name}|${m[1]}\u0002',
+            ),
+            property: properties.any((p) => islandHole(p.name) == value),
+          ),
+      },
+      calls: [..._callSites],
+      items: loops.isEmpty ? null : loops.last.item,
+    ));
+    _currentReferencedCustomLibraries?.add(session.namespace);
+    return '${identity.name}(${[
+      for (final property in properties) '${_rfwMapKey(property.name)}: ${property.dsl}',
+      for (final slot in slots) '${_rfwMapKey(slot.name)}: ${slot.dsl}',
+      if (loops.isNotEmpty) '$kPlacementItemsArgument: [${[
+          for (final loop in loops) '${loop.identifier}'
+                '${_rfwPathPart(_hoist!.add(itemIndexValue(loop.item!, label: _itemIndexLabel(loop))).key)}',
+        ].join(', ')}]',
+    ].join(', ')})';
+  }
+
+  // How many times the local or parameter [read] names is read where it is
+  // declared.
+  int _readsOf(SimpleIdentifier read) {
+    final element = read.element;
+    final offset = element?.firstFragment.offset;
+    if (element == null || offset == null) return 0;
+    return _readCounts[element] ??= () {
+      // The function that declares it: its body holds a local, its
+      // parameter list a parameter.
+      final scope = read.thisOrAncestorMatching<AstNode>(
+        (node) =>
+            node is FunctionBody &&
+            node.parent != null &&
+            node.parent!.offset <= offset &&
+            offset < node.parent!.end,
+      );
+      if (scope == null) return 0;
+      var count = 0;
+      scope.accept(
+        _IdentifierVisitor((identifier) {
+          if (identifier.element?.baseElement == element.baseElement &&
+              !identifier.inDeclarationContext()) {
+            count++;
+          }
+        }),
+      );
+      return count;
+    }();
+  }
+
+  final _readCounts = Map<Element, int>.identity();
+
+  // How the build's copy marks [read] without changing what its value is
+  // used as: `spot` for a widget, `spotEach` for widgets spread or passed
+  // as a list. Null where a marked value wouldn't type, so its placements
+  // keep no identity.
+  String? _spotForm(SimpleIdentifier read) {
+    final library = switch (read.root) {
+      CompilationUnit(:final declaredFragment?) => declaredFragment.element,
+      _ => null,
+    };
+    final type = read.staticType;
+    if (library == null || type is! InterfaceType) return null;
+    InterfaceType? widgetOf(InterfaceType type) =>
+        [
+          type,
+          ...type.allSupertypes,
+        ].firstWhereOrNull(
+          (t) =>
+              isFlutterFrameworkType(t.element, 'Widget') &&
+              t.element.name == 'Widget',
+        );
+    final iterable =
+        type.allSupertypes.firstWhereOrNull(
+          (t) => t.isDartCoreIterable,
+        ) ??
+        (type.isDartCoreIterable ? type : null);
+    final element = iterable?.typeArguments.singleOrNull;
+    final widget = element is InterfaceType
+        ? widgetOf(element)
+        : widgetOf(type);
+    if (widget == null) return null;
+    final marked = iterable == null
+        ? widget
+        : library.typeProvider.listType(widget);
+    final context = switch (read.parent) {
+      SpreadElement(:final parent) => switch (parent) {
+        TypedLiteral(:final staticType?) => staticType,
+        _ => null,
+      },
+      _ => _contextTypeOf(read),
+    };
+    if (context == null) return null;
+    final fits = read.parent is SpreadElement
+        ? context is InterfaceType &&
+              library.typeSystem.isAssignableTo(
+                marked,
+                library.typeProvider.iterableType(
+                  context.typeArguments.firstOrNull ?? widget,
+                ),
+              )
+        : library.typeSystem.isAssignableTo(marked, context);
+    if (!fits) return null;
+    return iterable == null ? 'spot' : 'spotEach';
+  }
+
+  // The type the code around [expression] expects of it, if it says one.
+  DartType? _contextTypeOf(Expression expression) {
+    final parent = expression.parent;
+    return switch (parent) {
+      ParenthesizedExpression() => _contextTypeOf(parent),
+      ConditionalExpression(:final condition)
+          when !identical(condition, expression) =>
+        _contextTypeOf(parent),
+      NamedArgument() => expression.correspondingParameter?.type,
+      ArgumentList() => expression.correspondingParameter?.type,
+      ListLiteral(:final staticType?) => switch (staticType) {
+        InterfaceType(:final typeArguments) => typeArguments.singleOrNull,
+        _ => null,
+      },
+      ExpressionFunctionBody() => _returnTypeOf(parent),
+      ReturnStatement() => switch (parent
+          .thisOrAncestorOfType<FunctionBody>()) {
+        final body? => _returnTypeOf(body),
+        null => null,
+      },
+      _ => null,
+    };
+  }
+
+  DartType? _returnTypeOf(FunctionBody body) => switch (body.parent) {
+    FunctionExpression(:final declaredFragment?) =>
+      declaredFragment.element.returnType,
+    MethodDeclaration(:final declaredFragment?) =>
+      declaredFragment.element.returnType,
+    _ => null,
+  };
+
+  // The build locals being translated through, outermost first.
+  final _localReads = <({SimpleIdentifier read, Expression initializer})>[];
+
+  // Every read a widget value is translated through, outermost first: a
+  // build local, a const local or a helper parameter, with what it stands
+  // for (`null` for a const local's own initializer).
+  final _placementReads = <({SimpleIdentifier read, Expression? bound})>[];
+
+  // Where the app places the widget [node] builds: the outermost read its
+  // value flows through unchanged, and the [spots], outermost first, of the
+  // reads that place a value holding it, which tell its placements apart.
+  ({AstNode at, List<SimpleIdentifier> spots}) _placementOf(AstNode node) {
+    AstNode at = node;
+    final spots = <SimpleIdentifier>[];
+    for (final (:read, :bound) in _placementReads.reversed) {
+      final same = bound == null
+          ? switch (_stripParensNode(at).parent) {
+              final VariableDeclaration declaration =>
+                declaration.declaredFragment?.element == read.element,
+              _ => false,
+            }
+          : identical(_stripParensNode(bound), _stripParensNode(at));
+      if (spots.isEmpty && same) {
+        at = read;
+      } else if (_readsOf(read) > 1) {
+        // A value read once is placed once: its own key tells it apart.
+        spots.insert(0, read);
+      }
+    }
+    return (at: at, spots: spots);
+  }
+
+  AstNode _stripParensNode(AstNode node) =>
+      node is Expression ? _stripParens(node) : node;
+
+  // The expression being translated, where a value hoisted now is read.
+  AstNode? _valueSite;
+
+  // Whether a value an app builder's body records is being translated; such
+  // a value may read the builder's own parameters.
+  bool _recordingSlot = false;
+
+  // The inlined helper calls being translated through, outermost first.
+  final _callSites = <AstNode>[];
+
+  // [value] under its occurrence's key: the first occurrence of a text keeps
+  // its key, and each other one gets its own.
+  HoistedValue _keyedByOccurrence(HoistedValue value) {
+    final hoist = _hoist!;
+    final node = value.site ?? _valueSite;
+    // Repeats of a read that runs no code, of a binding the mount borrows,
+    // or of a loop's items are one value.
+    if (_islands == null ||
+        node == null ||
+        hoist.exposing ||
+        value.kind == HoistValueKind.items ||
+        value.kind == HoistValueKind.itemIndex ||
+        value.kind == HoistValueKind.nativeBinding && !value.computed ||
+        !_evaluatesCode(node) && !_readsReassigned(node)) {
+      return value;
+    }
+    final id =
+        '${value.key}|${occurrenceOf(node, _callSites)}|'
+        '${[for (final step in _unrolled) step.ordinal].join('.')}';
+    final key = hoist.occurrenceKeys[id] ??= switch (hoist.occurrenceCounts
+        .update(value.key, (count) => count + 1, ifAbsent: () => 0)) {
+      0 => value.key,
+      final count => '${value.key}_$count',
+    };
+    return key == value.key ? value : value.withKey(key);
+  }
+
+  // Whether [node] reads a local the build assigns after declaring it.
+  bool _readsReassigned(AstNode node) {
+    var found = false;
+    node.accept(
+      _ElementReferenceVisitor.at(
+        (element) =>
+            element is LocalVariableElement &&
+            !element.isFinal &&
+            !element.isConst,
+        (_) => found = true,
+      ),
+    );
+    return found;
+  }
+
+  void _recordValueSite(HoistedValue value) {
+    final site = _valueSite;
+    if (_islands == null) return;
+    final at =
+        value.site ?? (site == null ? null : _recordSite(site, value) ?? site);
+    if (at != null) {
+      _hoist!.records.add((
+        key: value.key,
+        site: at,
+        calls: [..._callSites],
+        unrolled: [..._unrolled],
+        slot: _recordingSlot,
+      ));
+      // A value a widget closure records exists only when that closure runs:
+      // a kept builder's or an island slot's. A binding the mount borrows
+      // isn't recorded, so the delivered design reads it anywhere.
+      if (!_recordingSlot &&
+          !(value.kind == HoistValueKind.nativeBinding && !value.computed) &&
+          !_hoist!.exposing &&
+          !_recordedEarly(at, _callSites) &&
+          [at, ..._callSites].any((node) => _unrunClosure(node) != null)) {
+        _hoist!.closureMisses.add(at);
+      }
+    }
+  }
+
+  // The widget-building closure around [node] that the design path doesn't
+  // run, or `null`.
+  FunctionExpression? _unrunClosure(AstNode node) {
+    for (
+      AstNode? cursor = node.parent;
+      cursor != null && cursor is! MethodDeclaration;
+      cursor = cursor.parent
+    ) {
+      if (cursor is! FunctionExpression) continue;
+      if (cursor.parent is FunctionDeclaration) return null;
+      final type = cursor.staticType;
+      if (type is FunctionType &&
+          classifyHoistType(type.returnType) is HoistIsWidget &&
+          !_keptClosures.contains(cursor)) {
+        return cursor;
+      }
+    }
+    return null;
+  }
+
+  // Whether the value at [at], in a widget closure the design path doesn't
+  // run, reads only what the build has before that closure and runs no code,
+  // so the mount records it where the design is built.
+  bool _recordedEarly(AstNode at, List<AstNode> calls) {
+    if (calls.isNotEmpty || _evaluatesCode(at) || _readsReassigned(at)) {
+      return false;
+    }
+    FunctionExpression? outermost;
+    for (AstNode? node = at; node != null; node = node.parent) {
+      if (node is FunctionExpression && _unrunClosure(node.body) == node) {
+        outermost = node;
+      }
+    }
+    final closure = outermost;
+    if (closure == null) return false;
+    var local = false;
+    at.accept(
+      _ElementReferenceVisitor.at((element) {
+        final offset = element?.firstFragment.offset ?? -1;
+        return (element is LocalVariableElement ||
+                element is FormalParameterElement) &&
+            offset >= closure.offset &&
+            offset < closure.end;
+      }, (_) => local = true),
+    );
+    return !local;
+  }
+
+  // The kept builders' closures, which run before the design is built.
+  final Set<FunctionExpression> _keptClosures = HashSet.identity();
+
+  static bool _isBool(AstNode node) => switch (node) {
+    Expression(staticType: final DartType type) =>
+      type.isDartCoreBool &&
+          type.nullabilitySuffix != NullabilitySuffix.question,
+    _ => false,
+  };
+
+  // The node in [site] the app computes [value] at: the outermost one the
+  // mount writes as the value's own template.
+  AstNode? _recordSite(AstNode site, HoistedValue value) {
+    final hoist = _hoist!;
+    final nodes = <Expression>[];
+    site.accept(_Expressions(nodes));
+    for (final node in nodes) {
+      final analysis = hoist.analyzer.analyze(node);
+      if (analysis is HoistEvaluable && analysis.template == value.template) {
+        return node;
+      }
+    }
+    return null;
+  }
+
+  // The const local reads being translated in their own scope.
+  final _constReads = <SimpleIdentifier>{};
+
+  /// [translate] of the [initializer] that [read] stands for; each placement
+  /// of a local that can render beside another is its own island scope. A
+  /// local the mount computes once is placed as an island that reads it.
+  String _throughLocal(
+    SimpleIdentifier read,
+    Expression initializer,
+    List<Issue> issues,
+    String Function() translate,
+  ) {
+    // A helper the collection resolver inlined binds its parameters here.
+    if (read.element is FormalParameterElement) {
+      return _throughParameter(read, initializer, translate);
+    }
+    final saved = _walk;
+    _walk = _walk.copyWith(
+      islandScope: [
+        ..._walk.islandScope,
+        ..._placementStep(
+          read,
+          initializer.thisOrAncestorOfType<FunctionBody>() ?? read.root,
+        ),
+      ],
+    );
+    try {
+      if (_islands?.sharedLocals.contains(read.element?.baseElement) ?? false) {
+        return _emitIsland(initializer, const [], issues, shared: read) ??
+            translate();
+      }
+      _localReads.add((read: read, initializer: initializer));
+      _placementReads.add((read: read, bound: initializer));
+      try {
+        return translate();
+      } finally {
+        _localReads.removeLast();
+        _placementReads.removeLast();
+      }
+    } finally {
+      _walk = saved;
+    }
+  }
+
+  /// [translate] of the argument [read] stands for; each placement of a
+  /// parameter that can render beside another is its own island scope when
+  /// the argument runs no code, so it is the same value in each. A call
+  /// whose argument runs code and is read more than once is an island.
+  String _throughParameter(
+    SimpleIdentifier read,
+    Expression argument,
+    String Function() translate,
+  ) {
+    final body = _declaringBody(read);
+    _placementReads.add((read: read, bound: argument));
+    try {
+      if (body == null || _evaluatesCode(argument)) return translate();
+      return _inScope(_placementStep(read, body), translate);
+    } finally {
+      _placementReads.removeLast();
+    }
+  }
+
+  // Whether [node] is a call of a helper that reads an argument that runs
+  // code more than once, where the surface has islands.
+  bool _repeatsCode(AstNode node) =>
+      _islands != null &&
+      node is MethodInvocation &&
+      _repeatedArguments(node).isNotEmpty;
+
+  // The arguments of [call] that run code and that its helper reads more
+  // than once, or in a loop, closure or call.
+  List<Expression> _repeatedArguments(MethodInvocation call) {
+    final helper = _walk.inlined.helpers[call.methodName.element];
+    final body =
+        helper?.functionBody ??
+        helper?.body.thisOrAncestorOfType<FunctionBody>();
+    final binding = helper == null
+        ? null
+        : bindHelperArguments(
+            helper.params,
+            call.argumentList.arguments.toList(),
+          );
+    if (body == null || binding == null) return const [];
+    return [
+      for (final MapEntry(key: parameter, value: argument) in binding.entries)
+        if (_evaluatesCode(argument) && _readRepeatedly(parameter, body))
+          argument,
+    ];
+  }
+
+  // Whether [body] reads [parameter] more than once, or in a loop, closure
+  // or call, which may run it more than once.
+  static bool _readRepeatedly(Element parameter, FunctionBody body) {
+    final reads = <SimpleIdentifier>[];
+    body.accept(
+      _ElementReferenceVisitor.at(
+        (element) => element?.baseElement == parameter.baseElement,
+        reads.add,
+      ),
+    );
+    return reads.length > 1 ||
+        reads.any(
+          (read) =>
+              read.thisOrAncestorMatching(
+                    (node) =>
+                        identical(node, body) ||
+                        node is ForElement ||
+                        node is ForStatement ||
+                        node is FunctionExpression ||
+                        node is ArgumentList &&
+                            node.parent is! InstanceCreationExpression,
+                  )
+                  is! FunctionBody,
+        );
+  }
+
+  // [translate] with [steps] added to the island scope.
+  String _inScope(List<String> steps, String Function() translate) {
+    if (steps.isEmpty) return translate();
+    final saved = _walk;
+    _walk = _walk.copyWith(islandScope: [..._walk.islandScope, ...steps]);
+    try {
+      return translate();
+    } finally {
+      _walk = saved;
+    }
+  }
+
+  // The scope step of a read of a const widget local, which each placement
+  // gets as a final local's does; none for anything else.
+  static List<String> _constPlacementStep(SimpleIdentifier read) {
+    final element = read.element;
+    if (element is! LocalVariableElement ||
+        !element.isConst ||
+        classifyHoistType(element.type) is! HoistIsWidget) {
+      return const [];
+    }
+    final offset = element.firstFragment.nameOffset ?? -1;
+    for (AstNode? node = read; node != null; node = node.parent) {
+      if (node is FunctionBody && node.offset <= offset && offset < node.end) {
+        return _placementStep(read, node);
+      }
+    }
+    return const [];
+  }
+
+  // [read]'s scope step among the placements of its variable in [scope]:
+  // none when every placement is one identity.
+  static List<String> _placementStep(SimpleIdentifier read, AstNode scope) {
+    final element = read.element;
+    if (element == null) return const [];
+    final placements = _placements(scope, element);
+    final ordinal = placements.ordinals[read];
+    return ordinal == null || placements.count < 2
+        ? const []
+        : ['${read.name}$ordinal'];
+  }
+
+  /// Each placement of [element] under [scope], numbered by identity: reads
+  /// that can render together differ, reads in exclusive branches share one.
+  /// A read that is the target of an access does not place it.
+  static ({Map<SimpleIdentifier, int> ordinals, int count}) _placements(
+    AstNode scope,
+    Element element,
+  ) {
+    final ordinals = Map<SimpleIdentifier, int>.identity();
+    int number(AstNode node, int next) {
+      if (node is SimpleIdentifier) {
+        if (node.element?.baseElement == element.baseElement &&
+            !_isAccessTarget(node)) {
+          ordinals[node] = next++;
+        }
+        return next;
+      }
+      final (Iterable<AstNode> head, List<AstNode> arms) = switch (node) {
+        ConditionalExpression() => (
+          [node.condition],
+          [node.thenExpression, node.elseExpression],
+        ),
+        IfElement(:final elseElement?) => (
+          [node.expression, if (node.caseClause case final clause?) clause],
+          [node.thenElement, elseElement],
+        ),
+        IfStatement(:final elseStatement?) => (
+          [node.expression, if (node.caseClause case final clause?) clause],
+          [node.thenStatement, elseStatement],
+        ),
+        SwitchExpression() => ([node.expression], node.cases),
+        SwitchStatement() => ([node.expression], node.members),
+        _ => (node.childEntities.whereType<AstNode>(), const <AstNode>[]),
+      };
+      for (final child in head) {
+        next = number(child, next);
+      }
+      var end = next;
+      for (final arm in arms) {
+        end = math.max(end, number(arm, next));
+      }
+      return end;
+    }
+
+    return (ordinals: ordinals, count: number(scope, 0));
+  }
+
+  static bool _isAccessTarget(SimpleIdentifier node) {
+    final parent = node.parent;
+    return parent is PrefixedIdentifier && identical(parent.prefix, node) ||
+        parent is PropertyAccess && identical(parent.target, node) ||
+        parent is MethodInvocation && identical(parent.target, node);
+  }
+
+  // The function body that declares the parameter [read] reads.
+  static FunctionBody? _declaringBody(SimpleIdentifier read) {
+    final element = read.element?.baseElement;
+    for (AstNode? node = read; node != null; node = node.parent) {
+      if (node is! FunctionBody) continue;
+      final parameters = switch (node.parent) {
+        FunctionExpression(:final parameters) ||
+        MethodDeclaration(:final parameters) => parameters,
+        _ => null,
+      };
+      if (parameters?.parameters.any(
+            (parameter) =>
+                parameter.declaredFragment?.element.baseElement == element,
+          ) ??
+          false) {
+        return node;
+      }
+    }
+    return null;
+  }
+
+  // Whether evaluating [node] runs code: a call other than an inlined
+  // helper's, or a constructor that is not const. Closures run later and do
+  // not count.
+  bool _evaluatesCode(AstNode node, {bool appCode = false}) {
+    final visitor = _EvaluatesCode(
+      (element) => _walk.inlined.helpers[element],
+      appCode: appCode,
+    );
+    node.accept(visitor);
+    return visitor.found;
+  }
+
+  /// [node]'s template without its mount: an argument that needs the mount
+  /// is left out when optional and does nothing when it is a void callback.
+  /// `null` when anything else needs the mount.
+  String? _islandPreview(Expression node, Map<AstNode, String> holes) {
+    final edits = {...holes};
+    final arguments = switch (node) {
+      InstanceCreationExpression(:final argumentList) ||
+      MethodInvocation(:final argumentList) => argumentList.arguments,
+      _ => const <Argument>[],
+    };
+    for (final argument in arguments) {
+      final value = argument.argumentExpression;
+      if (holes.containsKey(value) || !_needsMount(value, const {})) continue;
+      final parameter = argument.correspondingParameter;
+      final type = parameter?.type;
+      if (type is FunctionType &&
+          type.returnType is VoidType &&
+          type.formalParameters.every((p) => p.isRequiredPositional)) {
+        edits[value] =
+            '(${[
+              for (var index = 1; index <= type.formalParameters.length; index++) '_' * index,
+            ].join(', ')}) {}';
+      } else if (argument is NamedArgument &&
+          parameter != null &&
+          !parameter.isRequired) {
+        edits[value] = _kDropped;
+      } else {
+        return null;
+      }
+    }
+    if (_needsMount(node, edits.keys.toSet())) return null;
+    final analysis = _hoist!.analyzer.analyze(node, holes: edits);
+    if (analysis is! HoistEvaluable || analysis.item != null) return null;
+    return analysis.template.replaceAll(
+      RegExp(
+        r'[A-Za-z_$][A-Za-z0-9_$]*\s*:\s*'
+        '$_kDropped'
+        r'\s*,?',
+      ),
+      '',
+    );
+  }
+
+  static const _kDropped = '\u0004';
+
+  /// Whether [node], outside [skipped], reads anything only the mount has:
+  /// the surface's members or `this`, or a variable declared around it.
+  bool _needsMount(AstNode node, Set<AstNode> skipped) {
+    final root = _hoist?.analyzer.rootContext?.baseElement;
+    var needs = false;
+    node.accept(
+      _MountReads(skipped, (identifier) {
+        final element = identifier.element;
+        final base = element?.baseElement;
+        if (base == null || identical(base, root)) return;
+        if (base is LocalVariableElement || base is FormalParameterElement) {
+          final offset = base.firstFragment.nameOffset ?? -1;
+          if (offset < node.offset || offset >= node.end) needs = true;
+        } else if (isInstanceMember(base) &&
+            !(identifier.parent is PropertyAccess &&
+                (identifier.parent! as PropertyAccess).propertyName ==
+                    identifier) &&
+            !(identifier.parent is PrefixedIdentifier &&
+                (identifier.parent! as PrefixedIdentifier).identifier ==
+                    identifier) &&
+            !(identifier.parent is MethodInvocation &&
+                identical(
+                  (identifier.parent! as MethodInvocation).methodName,
+                  identifier,
+                ) &&
+                (identifier.parent! as MethodInvocation).target != null)) {
+          needs = true;
+        }
+      }, onThis: () => needs = true),
+    );
+    return needs;
+  }
+
+  /// Finds the root shell of [root] and returns the design root under it.
+  ///
+  /// The shell is the chain of single-child wrappers and builders from the
+  /// root down to the last one that does not lower. The mount writes it, and
+  /// the design as its fallback, as the surface wrote them.
+  Expression _splitRoot(
+    Expression root,
+    _IslandSession session,
+    ClassElement? liftedState,
+  ) {
+    if (_reservedName(root) case final issue?) session.problem ??= issue;
+    _keepPreludes(session, root);
+    final state = liftedState == null
+        ? null
+        : _liftedState(root, liftedState, session);
+    if (liftedState != null && state == null) return root;
+    final returns = _walk.inlined.returns;
+    session.returns = returns;
+    session.buildBody = root.thisOrAncestorOfType<FunctionBody>();
+    session.rootWalk = _walk;
+    // A build that returns a switch takes its cases as several returns.
+    if (_stripParens(root) case final SwitchExpression switched
+        when returns.length < 2) {
+      session.arms = switched.cases;
+    }
+    final branches = _branchExpressions();
+    if (branches.length > 1) {
+      // The design is whichever return the build took.
+      session.split = MountSplit(
+        kept: const [],
+        // A switch's design root is its last case, as a build's is its last
+        // return.
+        designRoot: returns.length > 1 ? root : branches.last,
+        shell: const [],
+        state: state,
+      );
+      return root;
+    }
+    final chain = _rootChain(root);
+    // The copy runs the shell as the app wrote it, so the whole shell stays
+    // above the design; a lifted State can also keep the design alone.
+    final whole = [for (var index = 0; index <= chain.end; index++) index];
+    for (final kept in [
+      if (whole.isNotEmpty) whole,
+      const <int>[],
+    ]) {
+      if (_splitAt(root, chain, kept, state, session) case final split?) {
+        session.split = split;
+        return _stripParens(split.designRoot);
+      }
+    }
+    if (state == null) return root;
+    // The State moves into the mount whole; the recorded copy writes its
+    // build as the app wrote it.
+    session.split = MountSplit(
+      kept: const [],
+      designRoot: root,
+      shell: const [],
+      state: state,
+    );
+    return root;
+  }
+
+  /// A build with several returns as a switch on which one its mount took,
+  /// each return delivered as its own branch; `null` for one return.
+  String? _branches(List<Issue> issues) {
+    final branches = _branchExpressions();
+    final library = _hoist?.analyzer.namespace.library;
+    if (branches.length < 2 || _islands == null || library == null) {
+      return null;
+    }
+    final type = library.typeProvider.intType;
+    final branch = _hoist!.add(
+      HoistEvaluable(
+        label: 'which return ${_islands!.surface.screen}.build takes',
+        template: _kBranch,
+      ).value(classifyHoistType(type) as HoistCrosses, type),
+    );
+    bool throws(Expression e) => _stripParens(e) is ThrowExpression;
+    final translated = {
+      for (final (index, expression) in branches.indexed)
+        if (!throws(expression))
+          expression: _inBuildBranch(
+            index,
+            () => _translate(expression, issues),
+          ),
+    };
+    return 'switch ${_hoistedRead(branch)} {${[
+      for (final (index, expression) in branches.indexed) '${index == branches.length - 1 ? 'default' : index}: '
+            // A branch that throws never renders: the build throws there.
+            '${translated[expression] ?? translated.values.first}',
+    ].join(', ')}}';
+  }
+
+  /// What the build returns on each path, when the mount takes it.
+  List<Expression> _branchExpressions() {
+    final returns = _walk.inlined.returns;
+    if (returns.length > 1) {
+      return buildBranches(returns.last.expression!, returns);
+    }
+    final switched = _islands?.arms.firstOrNull?.parent;
+    return switched is SwitchExpression
+        ? buildBranches(switched, returns)
+        : const [];
+  }
+
+  static const _kBranch = 'restageBranch';
+
+  /// Makes each build local that calls code a mount prelude, run once in
+  /// order. Delivered content sees through it to what it holds; the mount's
+  /// own code reads it by name, and one nothing reads still runs.
+  void _keepPreludes(_IslandSession session, Expression root) {
+    if (_walk.inlined.statements.isNotEmpty) {
+      _keepStatements(session);
+      return;
+    }
+    final preludes = _walk.inlined.localBindings.entries.toList()
+      ..sort(
+        (left, right) => (left.key.firstFragment.nameOffset ?? 0).compareTo(
+          right.key.firstFragment.nameOffset ?? 0,
+        ),
+      );
+    for (final MapEntry(key: local, value: initializer) in preludes) {
+      // A widget the build places is design; one it reads is a value, and so
+      // is one that runs code and renders in several places at once.
+      final shared =
+          local is VariableElement &&
+          classifyHoistType(local.type) is HoistIsWidget &&
+          _evaluatesCode(initializer);
+      if (!(shared &&
+              _placedRepeatedly(
+                local,
+                initializer.thisOrAncestorOfType<FunctionBody>(),
+              )) &&
+          _onlyPlaced(local, [root, ..._walk.inlined.localBindings.values])) {
+        continue;
+      }
+      // Only code the build calls needs to run once; data stays delivered.
+      final calls = _Invocations();
+      initializer.accept(calls);
+      if (!calls.found) continue;
+      final analysis = _hoist!.analyzer.analyze(initializer);
+      if (analysis is! HoistEvaluable || analysis.item != null) continue;
+      session.scope.add(local.baseElement);
+      session.preludeLocals.add(local.baseElement);
+      if (shared) session.sharedLocals.add(local.baseElement);
+    }
+  }
+
+  // Whether [local], declared by [initializer], can render in more than one
+  // place at once: placed beside itself, in a loop, closure or call, or
+  // inside a local that can.
+  bool _placedRepeatedly(
+    Element local,
+    AstNode? scope, [
+    Set<Element> visiting = const {},
+  ]) {
+    if (scope == null) return true;
+    final placements = _placements(scope, local);
+    if (placements.count > 1) return true;
+    for (final read in placements.ordinals.keys) {
+      for (
+        AstNode? node = read.parent;
+        node != null && !identical(node, scope);
+        node = node.parent
+      ) {
+        if (node is ForElement ||
+            node is ForStatement ||
+            node is FunctionExpression ||
+            node is ArgumentList &&
+                node.parent is! InstanceCreationExpression) {
+          return true;
+        }
+        if (node is VariableDeclaration) {
+          final outer = node.declaredFragment?.element;
+          final held = outer == null
+              ? null
+              : _walk.inlined.localBindings[outer];
+          if (held != null &&
+              !visiting.contains(outer!.baseElement) &&
+              _placedRepeatedly(
+                outer,
+                held.thisOrAncestorOfType<FunctionBody>(),
+                {...visiting, local.baseElement},
+              )) {
+            return true;
+          }
+          break;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Whether every read of the widget-typed [local] in [scopes] places it.
+  bool _onlyPlaced(Element local, List<Expression> scopes) {
+    if (classifyHoistType(local is VariableElement ? local.type : null)
+            is! HoistIsWidget &&
+        !_isWidgetListType(local is VariableElement ? local.type : null)) {
+      return false;
+    }
+    var read = false;
+    for (final scope in scopes) {
+      scope.accept(
+        _ElementReferenceVisitor.at(
+          (element) => element?.baseElement == local.baseElement,
+          (node) {
+            final parent = node.parent;
+            if (parent is PrefixedIdentifier &&
+                    identical(parent.prefix, node) ||
+                parent is PropertyAccess && identical(parent.target, node) ||
+                parent is MethodInvocation && identical(parent.target, node)) {
+              read = true;
+            }
+          },
+        ),
+      );
+    }
+    return !read;
+  }
+
+  /// Runs a build's statements in the mount as written. With several
+  /// returns, each return records which it is and leaves the statements, and
+  /// the build's locals are declared ahead of them so the mount can read them.
+  void _keepStatements(_IslandSession session) {
+    final body = _walk.inlined;
+    final multiple = body.returns.length > 1;
+    // With several returns, a local a block, a loop, an if-case pattern or a
+    // for-each loop declares is read past where it is declared, so its values
+    // key by the local, as the build's own locals do.
+    final ahead = multiple ? _aheadDeclarations(body.statements) : null;
+    if (ahead != null) {
+      final inner = [
+        for (final (statement, _) in ahead.locals)
+          for (final variable in statement.variables.variables)
+            if (variable.declaredFragment?.element case final element?)
+              element.baseElement,
+        for (final (_, pattern) in ahead.patterns)
+          if (pattern.declaredFragment?.element case final element?)
+            element.baseElement,
+        for (final (_, pattern) in ahead.destructured)
+          if (pattern.declaredFragment?.element case final element?)
+            element.baseElement,
+        for (final (_, element) in ahead.loopVariables) element.baseElement,
+        for (final (_, element) in ahead.caught) element.baseElement,
+      ];
+      session.innerLocals.addAll(inner);
+      _nameHeldLocals(session, [
+        // The build's own locals first, so each keeps its plain name.
+        for (final statement in body.statements)
+          if (statement is VariableDeclarationStatement)
+            for (final variable in statement.variables.variables)
+              if (variable.declaredFragment?.element case final element?)
+                element.baseElement,
+        ...inner,
       ]);
+      session.scope.addAll(inner);
+    }
+    for (final statement in [
+      ...body.statements,
+      for (final (statement, _)
+          in ahead?.locals ?? const <(VariableDeclarationStatement, bool)>[])
+        statement,
+    ]) {
+      if (statement is! VariableDeclarationStatement) continue;
+      for (final variable in statement.variables.variables) {
+        final element = variable.declaredFragment?.element;
+        if (element == null) continue;
+        session.scope.add(element.baseElement);
+        if (multiple) {
+          session.mountNames.putIfAbsent(
+            element.baseElement,
+            () => element.name!,
+          );
+        }
+      }
+    }
+  }
+
+  // The refusal for a name the build declares or reads that starts with the
+  // prefix Restage keeps for the code it generates.
+  Issue? _reservedName(Expression root) {
+    final build = root.thisOrAncestorMatching(
+      (node) => node is MethodDeclaration || node is FunctionDeclaration,
+    );
+    if (build == null) return null;
+    Issue? found;
+    build.accept(
+      _Names((name, node) {
+        if (found != null || !name.startsWith('_restage')) return;
+        found = Issue(
+          code: IssueCode.unresolvedIdentifier,
+          message:
+              '`$name` (${_locationOf(node)}): Restage reserves names that '
+              'start with `_restage` for the code it generates. Try a name that '
+              "doesn't start with `_restage`.",
+          location: _declarationOf(node),
+        );
+      }),
+    );
+    return found;
+  }
+
+  // Whether [body] assigns or steps any of [elements].
+  static bool _writesAny(AstNode body, Set<Element> elements) {
+    var writes = false;
+    body.accept(
+      _Writes(
+        (element) => writes = writes || elements.contains(element?.baseElement),
+      ),
+    );
+    return writes;
+  }
+
+  // The declarations among [statements] the mount declares ahead: locals of
+  // nested blocks and loop bodies, with whether a loop repeats them; if-case
+  // pattern variables; and for-each loop variables.
+  static _AheadDeclarations _aheadDeclarations(List<Statement> statements) {
+    final ahead = (
+      locals: <(VariableDeclarationStatement, bool)>[],
+      patterns: <(Statement, DeclaredVariablePattern)>[],
+      destructured:
+          <(PatternVariableDeclarationStatement, DeclaredVariablePattern)>[],
+      loopVariables: <(ForStatement, Element)>[],
+      caught: <(CatchClause, Element)>[],
+    );
+    void walk(
+      Statement? statement, {
+      required bool nested,
+      required bool repeats,
+    }) {
+      switch (statement) {
+        case VariableDeclarationStatement() when nested:
+          ahead.locals.add((statement, repeats));
+        case PatternVariableDeclarationStatement(:final declaration):
+          declaration.pattern.accept(
+            _PatternVariables(
+              (pattern) => ahead.destructured.add((statement, pattern)),
+            ),
+          );
+        case Block(:final statements):
+          for (final inner in statements) {
+            walk(inner, nested: true, repeats: repeats);
+          }
+        case IfStatement(
+          :final caseClause,
+          :final thenStatement,
+          :final elseStatement,
+        ):
+          caseClause?.guardedPattern.pattern.accept(
+            _PatternVariables(
+              (pattern) => ahead.patterns.add((statement, pattern)),
+            ),
+          );
+          walk(thenStatement, nested: true, repeats: repeats);
+          walk(elseStatement, nested: true, repeats: repeats);
+        case ForStatement(:final forLoopParts, :final body):
+          switch (forLoopParts) {
+            case ForEachPartsWithDeclaration(:final loopVariable):
+              if (loopVariable.declaredFragment?.element case final element?) {
+                ahead.loopVariables.add((statement, element));
+              }
+            case ForEachPartsWithPattern(:final pattern):
+              pattern.accept(
+                _PatternVariables((variable) {
+                  if (variable.declaredFragment?.element case final element?) {
+                    ahead.loopVariables.add((statement, element));
+                  }
+                }),
+              );
+            // A classic loop's variables are held unless its body writes
+            // them, where the held copy would not follow.
+            case ForPartsWithDeclarations(:final variables):
+              final elements = [
+                for (final variable in variables.variables)
+                  if (variable.declaredFragment?.element case final element?)
+                    element,
+              ];
+              if (!_writesAny(body, elements.toSet())) {
+                for (final element in elements) {
+                  ahead.loopVariables.add((statement, element));
+                }
+              }
+            default:
+          }
+          walk(body, nested: true, repeats: true);
+        case TryStatement(
+          :final body,
+          :final catchClauses,
+          :final finallyBlock,
+        ):
+          walk(body, nested: true, repeats: repeats);
+          for (final clause in catchClauses) {
+            for (final parameter in [
+              clause.exceptionParameter,
+              clause.stackTraceParameter,
+            ]) {
+              if (parameter?.declaredFragment?.element case final element?) {
+                ahead.caught.add((clause, element));
+              }
+            }
+            walk(clause.body, nested: true, repeats: repeats);
+          }
+          walk(finallyBlock, nested: true, repeats: repeats);
+        case WhileStatement(:final body) || DoStatement(:final body):
+          walk(body, nested: true, repeats: true);
+        case SwitchStatement(:final members):
+          for (final member in members) {
+            if (member case SwitchPatternCase(:final guardedPattern)) {
+              guardedPattern.pattern.accept(
+                _PatternVariables(
+                  (pattern) => ahead.patterns.add((statement, pattern)),
+                ),
+              );
+            }
+            for (final inner in member.statements) {
+              walk(inner, nested: true, repeats: repeats);
+            }
+          }
+        default:
+      }
+    }
+
+    for (final statement in statements) {
+      walk(statement, nested: false, repeats: false);
+    }
+    return ahead;
+  }
+
+  // Names each local the mount declares ahead after its source name, with a
+  // number where an earlier one has the same name; the mount writes it under
+  // a prefix only Restage uses.
+  static void _nameHeldLocals(_IslandSession session, List<Element> locals) {
+    final used = {...session.mountNames.values};
+    for (final local in locals) {
+      final name = local.name!;
+      var spelled = name;
+      for (var n = 2; used.contains(spelled); n++) {
+        spelled = '$name$n';
+      }
+      used.add(spelled);
+      session.mountNames[local] = spelled;
+    }
+  }
+
+  void _statementProblem(
+    _IslandSession session,
+    Statement statement, [
+    HoistAnalysis? analysis,
+  ]) {
+    final owner = session.liftedState?.name ?? session.surface.screen;
+    final blocker = _blocker(analysis);
+    final String cause;
+    final String fix;
+    if (blocker.unnamed case final unnamed?) {
+      cause =
+          " It uses `$unnamed`, which ${_screenFile(statement)} doesn't "
+          'import.';
+      fix = 'Try importing the library that declares it.';
+    } else {
+      final verb = blocker.calls ? 'calls' : 'reads';
+      cause = blocker.read == null ? '' : ' It $verb `${blocker.read}`.';
+      fix = 'Try moving the statement into a method of `$owner`.';
+    }
+    session.problem ??= Issue(
+      code: IssueCode.buildMethodTooComplex,
+      message:
+          "Restage can't copy the statement at ${_locationOf(statement)} "
+          'into the generated `${_mountName(session.surface.screen)}`.$cause '
+          '$fix',
+      // The message names its place, so the issue names the declaration.
+      location: _declarationOf(statement),
+    );
+  }
+
+  /// What stopped [analysis] from copying: the read it could not reach, as
+  /// written and where, or the name its library does not import.
+  ({String? read, String? location, bool calls, String? unnamed}) _blocker(
+    HoistAnalysis? analysis,
+  ) {
+    if (analysis is HoistUnwritable && analysis.unnamed != null) {
+      return (
+        read: null,
+        location: null,
+        calls: false,
+        unnamed: analysis.unnamed,
+      );
+    }
+    final node = switch (analysis) {
+      HoistNeedsSurfaceValue(:final node) ||
+      HoistUnwritable(:final node) => node,
+      _ => null,
+    };
+    if (node == null) {
+      return (read: null, location: null, calls: false, unnamed: null);
+    }
+    final read = _accessThrough(node);
+    if (read is MethodInvocation) {
+      return (
+        read: readableSource(
+          [
+            if (read.target case final target?) _writtenSource(target),
+            read.methodName.name,
+          ].join('.'),
+        ),
+        location: _locationOf(read),
+        calls: true,
+        unnamed: null,
+      );
+    }
+    if (read.parent case FunctionExpressionInvocation(
+      :final function,
+    ) when identical(function, read)) {
+      return (
+        read: readableSource(_writtenSource(read)),
+        location: _locationOf(read),
+        calls: true,
+        unnamed: null,
+      );
+    }
+    return (
+      read: readableSource(_writtenSource(read)),
+      location: _locationOf(read),
+      calls: false,
+      unnamed: null,
+    );
+  }
+
+  // The member access or call a bare name is part of, such as `super.title`
+  // for `super` or `debugPrint(...)` for `debugPrint`; [node] otherwise.
+  static AstNode _accessThrough(AstNode node) {
+    if (node is! SimpleIdentifier &&
+        node is! ThisExpression &&
+        node is! SuperExpression) {
+      return node;
+    }
+    final parent = node.parent;
+    if (parent is PropertyAccess && identical(parent.target, node) ||
+        parent is MethodInvocation &&
+            (identical(parent.target, node) ||
+                parent.target == null && identical(parent.methodName, node)) ||
+        parent is PrefixedIdentifier && identical(parent.prefix, node)) {
+      return parent!;
+    }
+    return node;
+  }
+
+  // The file the generated surface is written beside, as a path.
+  String _screenFile(AstNode node) {
+    final unit = _currentSourceUnit ?? node.root;
+    return unit is CompilationUnit ? _unitPath(unit, unit) : 'this file';
+  }
+
+  // [node] as its file spells it.
+  static String _writtenSource(AstNode node) {
+    final unit = node.root;
+    final text = unit is CompilationUnit
+        ? unit.declaredFragment?.source.contents.data
+        : null;
+    return text == null
+        ? node.toSource()
+        : text.substring(node.offset, node.end);
+  }
+
+  // How a loop's item position reads to a developer: `index of p in plans`.
+  String _itemIndexLabel(_RuntimeLoopBinding loop) {
+    final items = _hoist!.values[loop.item!];
+    final item = items?.pattern ?? loop.identifier;
+    return 'index of $item in ${items?.label ?? loop.item!}';
+  }
+
+  /// The generated mount class's name for the screen class [screen].
+  static String _mountName(String screen) =>
+      generatedSurfaceName(screen, fallback: 'SurfaceScreen');
+
+  // [split] with the copied build that records each published value where
+  // the app computes it, when every value has such a place.
+  MountSplit? _recorded(
+    MountSplit? split,
+    _IslandSession? session,
+    _HoistSession? hoist,
+  ) {
+    if (session == null || hoist == null) return split;
+    // With nothing to record, no shell to keep and no statement to run, the
+    // fallback is the surface itself.
+    if (hoist.values.isEmpty &&
+        session.islands.isEmpty &&
+        session.recordPlacements.isEmpty &&
+        (split == null || split.kept.isEmpty && split.state == null) &&
+        switch (session.buildBody) {
+          BlockFunctionBody(block: Block(:final statements)) =>
+            !statements.take(statements.length - 1).any(_RunsAppCode.inside),
+          _ => true,
+        }) {
+      return null;
+    }
+    final root =
+        split?.designRoot ??
+        session.returns.firstOrNull?.expression ??
+        switch (session.buildBody) {
+          ExpressionFunctionBody(:final expression) => expression,
+          BlockFunctionBody(
+            block: Block(
+              statements: [..., ReturnStatement(:final expression?)],
+            ),
+          ) =>
+            expression,
+          _ => null,
+        };
+    if (root == null) {
+      session.recordProblem ??= Issue(
+        code: IssueCode.buildMethodTooComplex,
+        message:
+            "Restage can't generate `${_mountName(session.surface.screen)}`. "
+            'Please report this as a Restage bug.',
+        location: session.buildBody == null
+            ? session.surface.screen
+            : _declarationOf(session.buildBody!),
+      );
+      return split;
+    }
+    final outer = (_walk, _islands, _hoist);
+    _walk = session.rootWalk ?? _walk;
+    _islands = session;
+    _hoist = hoist;
+    final String? source;
+    try {
+      source = _recordedBuild(session, hoist, root);
+    } finally {
+      _walk = outer.$1;
+      _islands = outer.$2;
+      _hoist = outer.$3;
+    }
+    final base =
+        split ??
+        MountSplit(
+          kept: const [],
+          designRoot: root,
+          shell: const [],
+        );
+    if (source == null) {
+      return base.withRecorded(null, null, session.recordProblem);
+    }
+    return base.withRecorded(source, session.recordedFacts);
+  }
+
+  // The build as the app wrote it, each published value recorded where it
+  // is computed; `null` when a value has no such place.
+  String? _recordedBuild(
+    _IslandSession session,
+    _HoistSession hoist,
+    Expression root,
+  ) {
+    final body = session.buildBody;
+    if (body == null) {
+      session.recordProblem ??= Issue(
+        code: IssueCode.buildMethodTooComplex,
+        message:
+            "Restage can't generate `${_mountName(session.surface.screen)}`. "
+            'Please report this as a Restage bug.',
+        location: session.surface.screen,
+      );
+      return null;
+    }
+    const recorder = '_restageRecording';
+    // Where a value is recorded: the mount's recording, or a slot's own.
+    const into = '\u0006';
+    String? giveUp(String why, {AstNode? at, HoistAnalysis? analysis}) {
+      // A State member the copy can't read asks for the State to be lifted.
+      if (analysis case HoistNeedsSurfaceValue(:final elements)) {
+        session.blocked.addAll(elements);
+      }
+      final stopped =
+          at ??
+          switch (analysis) {
+            HoistNeedsSurfaceValue(:final node) ||
+            HoistUnwritable(:final node) => node,
+            _ => null,
+          };
+      final statement = stopped?.thisOrAncestorOfType<Statement>();
+      if (analysis != null && statement != null) {
+        final previous = session.problem;
+        session.problem = null;
+        _statementProblem(session, statement, analysis);
+        session.recordProblem ??= session.problem;
+        session.problem = previous;
+      }
+      session.recordProblem ??= Issue(
+        code: IssueCode.buildMethodTooComplex,
+        message:
+            "Restage can't generate `${_mountName(session.surface.screen)}`"
+            "${stopped == null ? '' : ' at ${_locationOf(stopped)}'}. "
+            'Please report this as a Restage bug.',
+        location: _declarationOf(stopped ?? body),
+      );
+      return null;
+    }
+
+    if (hoist.closureMisses.firstOrNull case final missed?) {
+      return giveUp('closure', at: missed);
+    }
+    String chainKey(List<AstNode> calls) =>
+        calls.map(identityHashCode).join(',');
+    final around =
+        <String, Map<AstNode, List<({String before, String after})>>>{};
+    final chains = <String, List<AstNode>>{'': const []};
+    AstNode? declarationOf(AstNode call) {
+      final owner = hoist.helperBodies[call]
+          ?.thisOrAncestorOfType<FunctionBody>()
+          ?.parent;
+      return owner is FunctionExpression ? owner.parent : owner;
+    }
+
+    bool within(AstNode node, AstNode? scope) =>
+        scope != null &&
+        identical(node.root, scope.root) &&
+        node.offset >= scope.offset &&
+        node.end <= scope.end;
+    AstNode? misplaced;
+    // The node is written in the innermost function of the calls it was
+    // reached through that contains it.
+    List<AstNode> callsOf(List<AstNode> through, AstNode node) {
+      for (var n = through.length; n > 0; n--) {
+        if (within(node, declarationOf(through[n - 1]))) {
+          return through.sublist(0, n);
+        }
+      }
+      return const [];
+    }
+
+    // What the recorded build writes, for the layouts it publishes.
+    final sites = <RecordedSite>[];
+    final recordedReturns = <RecordedReturn>[];
+    void site(
+      RecordedSiteKind kind,
+      String key,
+      List<AstNode> through,
+      AstNode node,
+    ) => sites.add(
+      RecordedSite(
+        kind: kind,
+        key: key,
+        node: node,
+        calls: callsOf(through, node),
+      ),
+    );
+
+    void at(List<AstNode> through, AstNode node, String before, String after) {
+      final calls = callsOf(through, node);
+      if (calls.isEmpty && !within(node, body)) {
+        misplaced ??= node;
+        return;
+      }
+      for (var n = 1; n <= calls.length; n++) {
+        final prefix = calls.sublist(0, n);
+        chains[chainKey(prefix)] = prefix;
+      }
+      ((around[chainKey(calls)] ??= Map.identity())[node] ??= []).add((
+        before: before,
+        after: after,
+      ));
+    }
+
+    String literal(String text) => "'$text'";
+    String? outerOf(HoistedValue value) => value.item;
+    final indexKeys = <String, List<String>>{};
+    for (final value in hoist.values.values) {
+      if (value.kind == HoistValueKind.itemIndex && value.item != null) {
+        (indexKeys[value.item!] ??= []).add(value.key);
+      }
+    }
+    String itemsCall(String key, String? outer) =>
+        '$into.items(${literal(key)}, ';
+    String itemsEnd(String key, String? outer) =>
+        '${outer == null && indexKeys[key] == null ? '' : ', ${outer == null ? 'null' : literal(outer)}'}'
+        '${indexKeys[key] == null ? '' : ', [${indexKeys[key]!.map(literal).join(', ')}]'})';
+    final wrappedLoops = Set<AstNode>.identity();
+    final early = <({String key, AstNode site})>[];
+    // A site in a loop the design unrolls records, on each iteration, the
+    // key of that iteration's value.
+    final loopIds = <ForElement, int>{};
+    final unrolledKeys = <String, Map<String, String>>{};
+    for (final record in hoist.records) {
+      if (record.unrolled.isEmpty) continue;
+      for (final step in record.unrolled) {
+        loopIds.putIfAbsent(step.loop, () => loopIds.length);
+      }
+      (unrolledKeys[occurrenceOf(record.site, record.calls)] ??= {})[[
+            for (final step in record.unrolled) step.ordinal,
+          ].join('.')] =
+          record.key;
+    }
+    final wrappedUnrolled = Set<ForElement>.identity();
+    final writtenUnrolled = <String>{};
+    // The key [record] is recorded under, or `null` when its site already
+    // records for every iteration.
+    String? keyOf(
+      ({
+        String key,
+        AstNode site,
+        List<AstNode> calls,
+        List<({ForElement loop, int ordinal})> unrolled,
+        bool slot,
+      })
+      record,
+    ) {
+      if (record.unrolled.isEmpty) return literal(record.key);
+      final group = occurrenceOf(record.site, record.calls);
+      if (!writtenUnrolled.add(group)) return null;
+      for (final step in record.unrolled) {
+        if (!wrappedUnrolled.add(step.loop)) continue;
+        final parts = step.loop.forLoopParts;
+        if (parts is ForEachParts) {
+          at(
+            record.calls,
+            parts.iterable,
+            '$recorder.unrolled(${loopIds[step.loop]}, ',
+            ')',
+          );
+        }
+      }
+      final keys = unrolledKeys[group]!;
+      return '$recorder.unrolledKey(const {${[
+        for (final MapEntry(:key, :value) in keys.entries) '${literal(key)}: ${literal(value)}',
+      ].join(', ')}}, const [${[
+        for (final step in record.unrolled) loopIds[step.loop],
+      ].join(', ')}])';
+    }
+
+    // The loop over the screen input [outer] around [site] walks its items
+    // into the recording, so what is recorded per item lands in one.
+    void walkRootLoop(String outer, List<AstNode> calls, AstNode site) {
+      for (
+        AstNode? node = site.parent;
+        node != null && !identical(node, body);
+        node = node.parent
+      ) {
+        final parts = switch (node) {
+          ForElement(:final forLoopParts) => forLoopParts,
+          ForStatement(:final forLoopParts) => forLoopParts,
+          _ => null,
+        };
+        if (parts is! ForEachParts) continue;
+        final iterable = parts.iterable.toSource();
+        if (iterable != outer &&
+            iterable != 'widget.$outer' &&
+            iterable != 'this.$outer') {
+          continue;
+        }
+        if (wrappedLoops.add(parts.iterable)) {
+          at(
+            calls,
+            parts.iterable,
+            itemsCall(outer, null),
+            itemsEnd(outer, null),
+          );
+        }
+        break;
+      }
+    }
+
+    for (final value in hoist.values.values) {
+      if (value.mountSource((name) => name) == _kBranch) continue;
+      if (value.kind == HoistValueKind.itemIndex) continue;
+
+      if (value.kind == HoistValueKind.nativeBinding && !value.computed) {
+        continue;
+      }
+      final records = [
+        for (final record in hoist.records)
+          if (record.key == value.key) record,
+      ];
+      if (hoist.exposes.any((expose) => expose.key == value.key)) continue;
+      if (records.isEmpty)
+        return giveUp('no site ${value.key} ${value.label} ${value.kind}');
+      final placed = Set<AstNode>.identity();
+      for (final record in records) {
+        if (!placed.add(record.site)) continue;
+        site(
+          switch (value.kind) {
+            HoistValueKind.items => RecordedSiteKind.items,
+            HoistValueKind.nativeBinding => RecordedSiteKind.native,
+            _ => RecordedSiteKind.value,
+          },
+          value.key,
+          record.calls,
+          record.site,
+        );
+        final outer = outerOf(value);
+        switch (value.kind) {
+          case HoistValueKind.items:
+            wrappedLoops.add(record.site);
+            at(
+              record.calls,
+              record.site,
+              itemsCall(value.key, outer),
+              itemsEnd(value.key, outer),
+            );
+          case HoistValueKind.textScaler:
+            at(
+              record.calls,
+              record.site,
+              '$recorder.scaler(${literal(value.key)}, ',
+              ')',
+            );
+          case HoistValueKind.nativeBinding:
+            final contract = value.nativeContract!;
+            final nativeKey = keyOf(record);
+            if (nativeKey == null) continue;
+            at(
+              record.calls,
+              record.site,
+              '$recorder.native($nativeKey, ',
+              '${outer == null ? '' : ', items: ${literal(outer)}'}, '
+                  'type: ${literal(contract.type)}, '
+                  'nullable: ${contract.nullable})',
+            );
+          default:
+            final tail = outer == null ? '' : ', ${literal(outer)}';
+            if (outer == null && _recordedEarly(record.site, record.calls)) {
+              early.add((key: value.key, site: record.site));
+              continue;
+            }
+            final key = keyOf(record);
+            if (key == null) continue;
+            // A condition is recorded in the branch it takes, so it keeps
+            // promoting what the branches read.
+            switch (record.site.parent) {
+              case IfElement(
+                    :final expression,
+                    :final thenElement,
+                    :final elseElement,
+                  )
+                  when identical(expression, record.site) &&
+                      record.site.parent!.thisOrAncestorMatching(
+                            (node) =>
+                                node is! CollectionElement ||
+                                node is Expression,
+                          )
+                          is ListLiteral:
+                at(
+                  record.calls,
+                  thenElement,
+                  '...$into.mark($key, true, [',
+                  ']$tail)${elseElement == null ? ' else ...$into.mark($key, false, const []$tail)' : ''}',
+                );
+                if (elseElement != null) {
+                  at(
+                    record.calls,
+                    elseElement,
+                    '...$into.mark($key, false, [',
+                    ']$tail)',
+                  );
+                }
+              case ConditionalExpression(
+                    :final condition,
+                    :final thenExpression,
+                    :final elseExpression,
+                  )
+                  when identical(condition, record.site):
+                at(
+                  record.calls,
+                  thenExpression,
+                  '$into.taken($key, true, ',
+                  '$tail)',
+                );
+                at(
+                  record.calls,
+                  elseExpression,
+                  '$into.taken($key, false, ',
+                  '$tail)',
+                );
+              case IfStatement(
+                    :final expression,
+                    :final thenStatement,
+                    :final elseStatement,
+                    caseClause: null,
+                  )
+                  when identical(expression, record.site):
+                at(
+                  record.calls,
+                  thenStatement,
+                  '{ $into.value($key, true$tail); ',
+                  ' }${elseStatement == null ? ' else { $into.value($key, false$tail); }' : ''}',
+                );
+                if (elseStatement != null) {
+                  at(
+                    record.calls,
+                    elseStatement,
+                    '{ $into.value($key, false$tail); ',
+                    ' }',
+                  );
+                }
+              // A condition is recorded beside it with boolean literals, so
+              // flow analysis still promotes through it.
+              case _ when _isBool(record.site):
+                at(
+                  record.calls,
+                  record.site,
+                  '((',
+                  ' || ($into.value($key, false$tail) && false)) && '
+                      '($into.value($key, true$tail) || true))',
+                );
+              default:
+                at(record.calls, record.site, '$into.value($key, ', '$tail)');
+            }
+        }
+        // A value per item of a screen input is recorded into the item the
+        // loop over that input walks.
+        if (outer != null && hoist.values[outer] == null) {
+          walkRootLoop(outer, record.calls, record.site);
+        }
+      }
+    }
+    // A kept builder publishes its parameters when it runs.
+    final exposed = <FunctionExpression, List<String>>{};
+    for (final expose in hoist.exposes) {
+      if (!hoist.values.containsKey(expose.key)) continue;
+      (exposed[expose.builder] ??= []).add(
+        '${literal(expose.key)}: ${expose.source}',
+      );
+    }
+    // Each run of a kept builder starts from what was recorded before it, so
+    // a run never reads what an earlier run recorded.
+    const allCalls = <AstNode>[];
+    for (final (index, builder) in session.keptBuilders.indexed) {
+      final entries = exposed[builder] ?? const <String>[];
+      final values = entries.isEmpty
+          ? 'const {}'
+          : '{${entries.toSet().join(', ')}}';
+      switch (builder.body) {
+        case ExpressionFunctionBody(:final expression):
+          at(
+            allCalls,
+            expression,
+            '($recorder..frame($index)).exposing($values, ',
+            ')',
+          );
+        case BlockFunctionBody(block: Block(statements: [final first, ...])):
+          at(
+            allCalls,
+            first,
+            '$recorder.frame($index); $recorder.exposing($values, null); ',
+            '',
+          );
+        default:
+          return giveUp('builder body');
+      }
+    }
+    // Each return builds the design from what the build returns, recording
+    // which return it was once it returns.
+    final branch = hoist.values.values
+        .where((value) => value.mountSource((name) => name) == _kBranch)
+        .firstOrNull;
+    final branches = switch (_branchExpressions()) {
+      final cases when cases.length > 1 => cases,
+      _ => [root],
+    };
+    // Values a closure the design doesn't run reads from before it are
+    // recorded as the design is built.
+    final earlyTexts = <String>[];
+    for (final record in early) {
+      final analysis = hoist.analyzer.analyze(record.site, scope: body);
+      if (analysis is! HoistEvaluable) {
+        return giveUp('early', analysis: analysis);
+      }
+      earlyTexts.add('${literal(record.key)}: ${analysis.template}');
+    }
+    final earlyBefore = earlyTexts.isEmpty
+        ? ''
+        : '$into.exposing({${earlyTexts.toSet().join(', ')}}, ';
+    final earlyAfter = earlyTexts.isEmpty ? '' : ')';
+    for (final (index, expression) in branches.indexed) {
+      if (branch != null) {
+        recordedReturns.add(
+          RecordedReturn(key: branch.key, index: index, node: expression),
+        );
+      }
+      for (final record in early) {
+        site(RecordedSiteKind.value, record.key, const [], expression);
+      }
+      at(
+        const [],
+        expression,
+        '_restageDesign(${branch == null ? '' : '$into.branch(${literal(branch.key)}, $index, '}$earlyBefore',
+        '$earlyAfter${branch == null ? ')' : '))'}',
+      );
+    }
+    final analyzer = hoist.analyzer;
+    final islandNames = {
+      for (final island in session.islands.values) island.name,
+    };
+    late final String? Function(
+      AstNode node,
+      AstNode scope,
+      List<AstNode> calls,
+    )
+    renderNode;
+    // An app builder's body, run where Flutter calls the builder: it records
+    // into its own recording and renders the delivered body with it.
+    String? slotBody(
+      FunctionExpression callback,
+      AstNode scope,
+      List<AstNode> through,
+    ) {
+      final calls = callsOf(through, callback);
+      final key = chainKey(calls);
+      final base = around[key];
+      final local = <AstNode, List<({String before, String after})>>{
+        ...?base,
+      };
+      bool inside(AstNode node) =>
+          node.offset >= callback.offset && node.end <= callback.end;
+      for (final MapEntry(key: node, value: texts) in local.entries.toList()) {
+        if (!inside(node)) continue;
+        local[node] = [
+          for (final text in texts)
+            (
+              before: text.before.replaceAll(into, kSlotRecordingName),
+              after: text.after.replaceAll(into, kSlotRecordingName),
+            ),
+        ];
+      }
+      final returns = <ReturnStatement>[];
+      final body = callback.body;
+      body.accept(_OwnReturns(body, returns));
+      final rendered = switch (body) {
+        ExpressionFunctionBody(:final expression) => expression,
+        BlockFunctionBody(:final block) => block,
+        _ => null,
+      };
+      if (rendered == null) return null;
+      for (final target in [
+        if (body is ExpressionFunctionBody) body.expression,
+        for (final r in returns)
+          if (r.expression case final value?) value,
+      ]) {
+        local[target] = [
+          (before: '$kSlotRenderName(', after: ')'),
+          ...?local[target],
+        ];
+      }
+      around[key] = local;
+      try {
+        final text = renderNode(rendered, scope, calls);
+        if (text == null) return null;
+        return body is ExpressionFunctionBody
+            ? 'return $text;'
+            : text.trim().substring(1, text.trim().length - 1);
+      } finally {
+        if (base == null) {
+          around.remove(key);
+        } else {
+          around[key] = base;
+        }
+      }
+    }
+
+    final islandsPlaced = <(String, AstNode)>{};
+    // Each island whose arguments the build evaluates once, by its node.
+    // Each call site of a helper is its own island.
+    final once =
+        <
+          String,
+          ({
+            AstNode node,
+            List<AstNode> calls,
+            List<Expression> arguments,
+            Map<AstNode, String> shared,
+            List<AstNode> slots,
+            String? Function(List<String> written, String widget) text,
+          })
+        >{};
+    // An app widget the design builds is placed as it does, keyed as the
+    // design keys it; a split one through its wrapper.
+    for (final placed in session.recordPlacements) {
+      if (placed.items case final items? when hoist.values[items] == null) {
+        walkRootLoop(items, placed.calls, placed.node);
+      }
+      // Unwrapped, the mount install refuses the surface.
+      if (placed.place == null) continue;
+      at(
+        placed.calls,
+        placed.node,
+        '$recorder.island(${literal(placed.name)}, ',
+        ', place: ${placed.place}'
+            '${placed.items == null ? '' : ', items: ${literal(placed.items!)}'})',
+      );
+    }
+    final spotsMarked = <String>{};
+    final spotIds = Map<AstNode, int>.identity();
+    int spotId(AstNode read) => spotIds[read] ??= spotIds.length;
+    for (final island in session.recordIslands) {
+      final placed = island.placement.at;
+      if (!islandNames.contains(island.name) ||
+          !islandsPlaced.add((island.name, placed))) {
+        continue;
+      }
+      // An island inside a value reads place is keyed at the spot they name;
+      // each read is marked once.
+      final spots = island.placement.spots;
+      for (final read in spots) {
+        final form = _spotForm(read);
+        if (form != null &&
+            spotsMarked.add(occurrenceOf(read, callsOf(island.calls, read)))) {
+          at(island.calls, read, '$recorder.$form(${spotId(read)}, ', ')');
+        }
+      }
+      final placedAt =
+          '${spots.isEmpty ? '' : ', spots: [${spots.map(spotId).join(', ')}]'}'
+          '${_islandFiresEvents(island.node) ? ', events: true' : ''}';
+      site(
+        RecordedSiteKind.island,
+        WidgetVocabulary.qualifiedName(
+          session.islands.values
+              .firstWhere((entry) => entry.name == island.name)
+              .library,
+          island.name,
+        ),
+        island.calls,
+        placed,
+      );
+      if (island.items case final items? when hoist.values[items] == null) {
+        walkRootLoop(items, island.calls, placed);
+      }
+      final items = island.items == null
+          ? ''
+          : ', items: ${literal(island.items!)}';
+      if (island.shared || island.holes.isEmpty) {
+        at(
+          island.calls,
+          placed,
+          '$recorder.island(${literal(island.name)}, ',
+          '$items$placedAt)',
+        );
+        continue;
+      }
+      // An island with design content evaluates its arguments once, in
+      // source order: the build's widget and the design's builder share them.
+      final scope = island.node.thisOrAncestorOfType<FunctionBody>()?.parent;
+      final scopeNode =
+          scope is FunctionExpression && scope.parent is FunctionDeclaration
+          ? scope.parent!
+          : scope is MethodDeclaration
+          ? scope
+          : body;
+      final arguments = switch (island.node) {
+        InstanceCreationExpression(:final argumentList) ||
+        MethodInvocation(:final argumentList) => <Expression>[
+          // Only an argument that runs app code is shared; evaluating any
+          // other twice changes nothing.
+          for (final argument in argumentList.arguments)
+            if (_stripParens(argument.argumentExpression)
+                    is! FunctionExpression &&
+                _evaluatesCode(argument.argumentExpression, appCode: true))
+              argument.argumentExpression,
+        ],
+        _ => null,
+      };
+      if (arguments == null) return giveUp('island', at: island.node);
+      // The record spells each argument's inferred type, so it infers as it
+      // does at its parameter.
+      final namespace = analyzer.namespace;
+      final widgetType = switch ((island.node as Expression).staticType) {
+        final InterfaceType type =>
+          [type, ...type.allSupertypes]
+              .where(
+                (t) =>
+                    t.element.name == 'Widget' &&
+                    isFlutterFrameworkType(t.element, 'Widget'),
+              )
+              .firstOrNull,
+        _ => null,
+      };
+      final types = [
+        for (final argument in arguments)
+          argument.staticType == null
+              ? null
+              : namespace.typeCode(argument.staticType!),
+        widgetType == null ? null : namespace.typeCode(widgetType),
+      ];
+      if (arguments.isNotEmpty && types.contains(null)) {
+        return giveUp('island', at: island.node);
+      }
+      final typed =
+          '<(${[
+            for (final type in types.take(arguments.length)) '$type, ',
+          ].join()}), ${types.last}>';
+      final shared = <AstNode, String>{
+        for (final (index, argument) in arguments.indexed)
+          argument: '_restageArgs.\$${index + 1}',
+      };
+      final holes = <AstNode, String>{...shared};
+      for (final MapEntry(key: argument, value: hole) in island.holes.entries) {
+        holes[argument] = hole.property
+            ? '(${hole.marker} ?? ${shared[argument] ?? switch (analyzer.analyze(argument, scope: scopeNode)) {
+                    HoistEvaluable(:final template) => template,
+                    _ => 'null',
+                  }})'
+            : hole.marker;
+      }
+      // Each app builder slot runs a copy of the app's own body.
+      final slotTexts = <String, String? Function()>{};
+      for (final slot
+          in session.islands.values
+              .firstWhere((entry) => entry.name == island.name)
+              .slots) {
+        final builder = slot.builder;
+        final callback = slot.node is Expression
+            ? _stripParens(slot.node as Expression)
+            : slot.node;
+        if (builder == null || callback is! FunctionExpression) continue;
+        final token = '\u0008${slotTexts.length}\u0008';
+        holes[slot.node] = token;
+        slotTexts[token] = () {
+          final body = slotBody(callback, scopeNode, island.calls);
+          return body == null
+              ? null
+              : builder.callback(
+                  AppValueSlot.bindingName(slot.name),
+                  sdk: kSdkPrefixMarker,
+                  names: AppValueSlot.parameterNames(callback),
+                  body: body,
+                );
+        };
+      }
+      final built = analyzer.analyze(
+        island.node,
+        holes: holes,
+        scope: scopeNode,
+      );
+      if (built is! HoistEvaluable) return giveUp('island', analysis: built);
+      final builders = {
+        for (final slot
+            in session.islands.values
+                .firstWhere((entry) => entry.name == island.name)
+                .slots)
+          if (slot.builder case final builder?) slot.name: builder,
+      };
+      final build = builders.isEmpty
+          ? built.template
+          : AppValueSlot.owning(
+              built.template,
+              builders,
+              source: '_restageSource',
+              context: '_restageContext',
+              sdk: kSdkPrefixMarker,
+            );
+      // A constant runs no code: its placement carries the delivered build.
+      if (island.node case final Expression node when node.inConstantContext) {
+        if (slotTexts.isNotEmpty || builders.isNotEmpty) {
+          return giveUp('island', at: island.node);
+        }
+        at(
+          island.calls,
+          placed,
+          '$recorder.island(${literal(island.name)}, ',
+          '$items$placedAt, build: (_restageContext, _restageSource) => '
+              '$build)',
+        );
+        continue;
+      }
+      // The app's own builder roots at the binding owner the delivered one
+      // roots at, so the island keeps its element across a flip.
+      final onceCalls = callsOf(island.calls, island.node);
+      once[occurrenceOf(island.node, onceCalls)] = (
+        node: island.node,
+        calls: onceCalls,
+        slots: [
+          for (final slot
+              in session.islands.values
+                  .firstWhere((entry) => entry.name == island.name)
+                  .slots)
+            if (slot.builder != null) slot.node,
+        ],
+        arguments: arguments,
+        shared: shared,
+        text: (List<String> written, String widget) {
+          final owned = builders.isEmpty
+              ? widget
+              : '${kSdkPrefixMarker}RestageBuilderBinding.retain(const [], '
+                    'child: $widget)';
+          final recorded =
+              '$recorder.built($owned, '
+              '(_restageContext, _restageSource) => $build)';
+          var text = written.isEmpty
+              ? recorded
+              : '${kSdkPrefixMarker}restageOnce$typed(('
+                    '${written.map((text) => '$text, ').join()}), '
+                    '(_restageArgs) => $recorded)';
+          for (final MapEntry(key: token, value: slot) in slotTexts.entries) {
+            final callback = slot();
+            if (callback == null) return null;
+            text = text.replaceAll(token, callback);
+          }
+          return text;
+        },
+      );
+      at(
+        island.calls,
+        placed,
+        '$recorder.island(${literal(island.name)}, ',
+        '$items$placedAt)',
+      );
+    }
+    final islandNodes = HashSet<AstNode>.identity()
+      ..addAll([
+        for (final island in session.recordIslands) ...[
+          island.node,
+          island.placement.at,
+        ],
+      ]);
+    // [node] in the scope [scope], with each helper call that leads to a
+    // recorded value written as its own recorded body.
+    String? render(
+      AstNode node,
+      AstNode scope,
+      List<AstNode> calls, {
+      bool island = false,
+    }) {
+      final holes = <AstNode, String>{};
+      // The island's own widget reads each shared argument from the once.
+      if (island) holes.addAll(once[occurrenceOf(node, calls)]!.shared);
+      for (final chain in chains.values) {
+        if (chain.length != calls.length + 1) continue;
+        if (chainKey(chain.sublist(0, calls.length)) != chainKey(calls)) {
+          continue;
+        }
+        final call = chain.last;
+        // Only the calls inside [node] are written here.
+        if (call.offset < node.offset || call.end > node.end) continue;
+        if (call is! MethodInvocation)
+          return giveUp('call ${call.runtimeType}');
+        final owner = hoist.helperBodies[call]
+            ?.thisOrAncestorOfType<FunctionBody>()
+            ?.parent;
+        final declaration = owner is FunctionExpression ? owner.parent : owner;
+        final (parameters, functionBody) = switch (declaration) {
+          FunctionDeclaration(:final functionExpression) => (
+            functionExpression.parameters,
+            functionExpression.body,
+          ),
+          MethodDeclaration(:final parameters, body: final b) => (
+            parameters,
+            b,
+          ),
+          _ => (null, null),
+        };
+        if (declaration == null || parameters == null || functionBody == null) {
+          return giveUp('no declaration $call');
+        }
+        final whole = render(declaration, declaration, chain);
+        final arguments = render(call.argumentList, scope, calls);
+        if (whole == null || arguments == null)
+          return giveUp('helper render $call');
+        final contents = declaration.root is CompilationUnit
+            ? (declaration.root as CompilationUnit)
+                  .declaredFragment
+                  ?.source
+                  .contents
+                  .data
+            : null;
+        if (contents == null) return null;
+        final head = contents.substring(declaration.offset, parameters.offset);
+        if (!whole.startsWith(head)) return giveUp('head');
+        var function = whole.substring(head.length).trimRight();
+        if (functionBody is ExpressionFunctionBody && function.endsWith(';')) {
+          function = function.substring(0, function.length - 1);
+        }
+        holes[call] = '($function)$arguments';
+      }
+      for (final shared in once.values) {
+        final island = shared.node;
+        if (identical(island, node) ||
+            island.offset < node.offset ||
+            island.end > node.end ||
+            chainKey(shared.calls) != chainKey(calls)) {
+          continue;
+        }
+        final written = [
+          for (final argument in shared.arguments)
+            render(argument, scope, calls),
+        ];
+        final widget = render(island, scope, calls, island: true);
+        if (written.contains(null) || widget == null) return null;
+        final text = shared.text(written.cast<String>(), widget);
+        if (text == null) return null;
+        holes[island] = text;
+      }
+      // An event the build fires dispatches through its own mount.
+      final events = _EventHelperCalls();
+      node.accept(events);
+      for (final call in events.calls) {
+        if (holes.keys.any(
+          (hole) =>
+              !identical(hole, node) &&
+              hole.offset <= call.offset &&
+              hole.end >= call.end,
+        )) {
+          continue;
+        }
+        final member = call.methodName.name == 'paywallEvent'
+            ? 'event'
+            : 'surfaceEvent';
+        final arguments = render(call.argumentList, scope, calls);
+        if (arguments == null) return giveUp('event $call');
+        holes[call] =
+            '$recorder.$member'
+            '${call.typeArguments?.toSource() ?? ''}$arguments';
+      }
+      // An app widget the build constructs, whose own code fires events,
+      // builds inside the event registration.
+      final widgets = _AppWidgetConstructions(
+        (type) =>
+            customWidgetClassifications.containsKey(customWidgetKey(type)),
+        skip: islandNodes,
+      );
+      node.accept(widgets);
+      for (final widget in widgets.found) {
+        if (identical(widget, node) ||
+            holes.keys.any(
+              (hole) => hole.offset <= widget.offset && hole.end >= widget.end,
+            ) ||
+            !_islandFiresEvents(widget)) {
+          continue;
+        }
+        final written = render(widget, scope, calls);
+        if (written == null) return giveUp('event widget $widget');
+        holes[widget] = '$recorder.withEvents($written)';
+      }
+      final aroundHere = around[chainKey(calls)] ?? const {};
+      final analysis = analyzer.analyze(
+        node,
+        holes: holes,
+        // The island's own record is written around its once, and its
+        // app builder slots record where the design renders them.
+        around: island
+            ? (Map<AstNode, List<({String before, String after})>>.identity()
+                ..addAll(aroundHere)
+                ..remove(node)
+                ..removeWhere(
+                  (at, _) => once[occurrenceOf(node, calls)]!.slots.any(
+                    (slot) => at.offset >= slot.offset && at.end <= slot.end,
+                  ),
+                ))
+            : aroundHere,
+        scope: scope,
+      );
+      return analysis is HoistEvaluable
+          ? analysis.template
+          : giveUp('render ${analysis.runtimeType}', analysis: analysis);
+    }
+
+    renderNode = render;
+    if (misplaced case final node?) {
+      return giveUp('outside', at: node);
+    }
+    final written = render(body, body, const [])?.replaceAll(into, recorder);
+    if (written == null) return null;
+    session.recordedFacts = RecordedBuild(
+      body: body,
+      sites: sites,
+      returns: recordedReturns,
+      splits: {
+        for (final placed in session.recordPlacements)
+          if (placed.split) placed.widget,
+      },
+      placesAppWidgets: session.recordPlacements.isNotEmpty,
+      locate: _locationOf,
+    );
+    if (body is ExpressionFunctionBody) {
+      return '() ${written.trimRight().replaceFirst(RegExp(r';$'), '')}';
+    }
+    return '() $written';
+  }
+
+  MountSplit? _splitAt(
+    Expression root,
+    _RootChain chain,
+    List<int> kept,
+    LiftedState? state,
+    _IslandSession session,
+  ) {
+    // A builder's parameters and locals keep their names in the mount.
+    final steps = [for (final index in kept) chain.steps[index]];
+    final scope = {
+      for (final step in steps) ...{...step.scope, ...step.bindings.keys},
+    };
+    final walk = _walk;
+    session.scope.addAll(scope);
+    _walk = _walk.copyWith(
+      inlined: InlinedDefinitions(
+        localBindings: {
+          ..._walk.inlined.localBindings,
+          for (final step in steps) ...step.bindings,
+        },
+        helpers: _walk.inlined.helpers,
+      ),
+    );
+    final bottom = kept.isEmpty ? root : chain.steps[kept.last].next;
+    final shellPairs = [
+      for (final index in kept)
+        (node: chain.nodes[index] as Expression, next: chain.steps[index].next),
+    ];
+    if (shellPairs.isEmpty && state == null) {
+      session.scope.removeAll(scope);
+      _walk = walk;
+      return null;
+    }
+    // The recorded copy writes the shell and the design as the app wrote
+    // them.
+    {
+      for (final index in kept) {
+        if (chain.steps[index].builder case final builder?) {
+          _keptClosures.add(builder);
+          session.keptBuilders.add(builder);
+          _exposeBuilderState(builder, _locationOf(chain.nodes[index]));
+        }
+      }
+      return MountSplit(
+        kept: shellPairs,
+        designRoot: bottom,
+        shell: [
+          for (final pair in shellPairs)
+            (
+              widget: islandWidgetType(pair.node),
+              location: _locationOf(pair.node),
+              reason:
+                  pair.next.parent is FunctionBody ||
+                      pair.next.parent is ReturnStatement
+                  ? MountReason.builder
+                  : MountReason.notDelivered,
+            ),
+        ],
+        state: state,
+      );
+    }
+  }
+
+  /// Publishes every public field of [builder]'s parameters, and each
+  /// parameter itself, that crosses as data, so any design can read them.
+  void _exposeBuilderState(FunctionExpression builder, String location) {
+    void expose(String source, DartType? type) {
+      final verdict = classifyHoistType(type);
+      if (verdict is! HoistCrosses ||
+          verdict.kind == HoistValueKind.textScaler ||
+          type == null) {
+        return;
+      }
+      _hoist!.exposing = true;
+      final value = _hoist!.add(
+        HoistEvaluable(label: source, template: source).value(verdict, type),
+      );
+      _hoist!.exposing = false;
+      _hoist!.exposes.add((key: value.key, source: source, builder: builder));
+      _emissionSources?.add(
+        DslEmissionSource(
+          dsl: 'data.context.${value.key}',
+          location: location,
+          construct: source,
+        ),
+      );
+    }
+
+    for (final parameter
+        in builder.parameters?.parameters ?? const <FormalParameter>[]) {
+      final element = parameter.declaredFragment?.element;
+      final name = element?.name;
+      final type = element?.type;
+      if (name == null || type is! InterfaceType) continue;
+      expose(name, type);
+      for (final owner in [type, ...type.allSupertypes]) {
+        if (owner.element.library.isInSdk) continue;
+        for (final field in owner.element.fields) {
+          if (field.isStatic || !field.isPublic || !field.isOriginDeclaration) {
+            continue;
+          }
+          final getter = type.lookUpGetter(field.name!, type.element.library);
+          expose('$name.${field.name}', getter?.returnType);
+        }
+      }
+    }
+  }
+
+  /// The single-child wrappers and builders from [root] down, and the index
+  /// of the last one that does not lower.
+  _RootChain _rootChain(Expression root) {
+    final nodes = <InstanceCreationExpression>[];
+    final steps = <_ShellStep>[];
+    final lowers = <bool>[];
+    var end = -1;
+    var cursor = _stripParens(root);
+    while (cursor is InstanceCreationExpression) {
+      final step = _shellStep(cursor);
+      if (step == null) break;
+      nodes.add(cursor);
+      steps.add(step);
+      // A builder's body lowers with it or not at all, so a builder that
+      // lowers ends the chain.
+      final builder = step.builder != null;
+      final attempt = _attempt(
+        cursor,
+        stub: builder ? null : step.next,
+        probe: true,
+      );
+      // Only a node that needs app code stays in the mount.
+      lowers.add(
+        attempt.lowers ||
+            !attempt.issues.every(
+              (issue) => issue.code.isBuildNotice || issue.code.needsAppCode,
+            ),
+      );
+      if (!lowers.last) {
+        end = nodes.length - 1;
+      } else if (builder) {
+        break;
+      }
+      cursor = _stripParens(step.next);
+    }
+    return (nodes: nodes, steps: steps, lowers: lowers, end: end);
+  }
+
+  /// The surface's `State` as the mount declares it: its class header and
+  /// members, with the mount's name in place of the surface's. `null`, with
+  /// the reason recorded, when it cannot move.
+  LiftedState? _liftedState(
+    Expression root,
+    ClassElement liftedState,
+    _IslandSession session,
+  ) {
+    final unit = root.root as CompilationUnit;
+    final source = unit.declaredFragment?.source.contents.data;
+    final declaration = unit.declarations
+        .whereType<ClassDeclaration>()
+        .firstWhereOrNull((d) => d.declaredFragment?.element == liftedState);
+    final surface = stateWidgetOf(liftedState);
+    if (source == null || declaration == null || surface == null) return null;
+    final members = [
+      for (final member in declaration.body.members)
+        if (!(member is MethodDeclaration && member.name.lexeme == 'build'))
+          member,
+    ];
+    // The mount's State is not the app's, so its `super` is another object.
+    final build = declaration.body.members
+        .whereType<MethodDeclaration>()
+        .firstWhereOrNull((member) => member.name.lexeme == 'build');
+    final supers = <SuperExpression>[];
+    build?.body.accept(_Supers(supers));
+    if (supers.firstOrNull case final read?) {
+      final use = switch (read.parent) {
+        PropertyAccess() || MethodInvocation() => read.parent!,
+        _ => read,
+      };
+      final calls = use is MethodInvocation;
+      session.problem = Issue(
+        code: IssueCode.stateShapeUnsupported,
+        message:
+            "`${liftedState.name}` can't be used in the generated "
+            '`${_mountName(surface.name ?? '')}` because its build '
+            '${calls ? 'calls' : 'reads'} `${readableSource(use.toSource())}` '
+            '(${_locationOf(use)}). Try '
+            '${calls ? 'calling it' : 'reading the value'} through a member '
+            'of `${liftedState.name}`.',
+        location: _locationOf(use),
+      );
+      return null;
+    }
+    final base = declaration.extendsClause?.superclass;
+    if (base != null && !_baseTakesMount(base, surface)) {
+      session.problem = Issue(
+        code: IssueCode.stateShapeUnsupported,
+        message:
+            "`${liftedState.name}` can't be used in the generated "
+            '`${_mountName(surface.name ?? '')}`. Its base class '
+            '`${base.name.lexeme}` only accepts `${surface.name}` as its '
+            'widget. Try loosening the bound on '
+            "`${base.name.lexeme}`'s type parameter.",
+        location: _locationOf(declaration),
+      );
+      return null;
+    }
+    // The header's and parameters' references to the surface's type name the
+    // mount instead; constructions and other uses stay. `widget` reads an
+    // instance of the surface the mount keeps current.
+    String rewrite(AstNode node, {required bool header}) {
+      final edits = <(int, int, String)>[];
+      node.accept(_TypeReferences(surface, edits, header: header));
+      node.accept(
+        _ElementReferenceVisitor.at(
+          _isStateWidgetGetter,
+          (at) => edits.add((at.offset, at.end, kStateWidgetSlot)),
+        ),
+      );
+      var text = source.substring(node.offset, node.end);
+      edits.sort((left, right) => right.$1.compareTo(left.$1));
+      for (final (start, end, replacement) in edits) {
+        text = text.replaceRange(
+          start - node.offset,
+          end - node.offset,
+          replacement,
+        );
+      }
+      return text;
+    }
+
+    // The surface's didUpdateWidget runs from the mount's, given the
+    // previous surface instance and the mount's old widget for `super`.
+    String update(MethodDeclaration method) {
+      final parameter = method.parameters?.parameters.singleOrNull;
+      final name = parameter?.name?.lexeme ?? 'oldWidget';
+      final body = method.body;
+      final edits = <(int, int, String)>[];
+      body.accept(
+        _ElementReferenceVisitor.at(
+          _isStateWidgetGetter,
+          (at) => edits.add((at.offset, at.end, kStateWidgetSlot)),
+        ),
+      );
+      body.accept(_SuperUpdates(edits));
+      var text = source.substring(body.offset, body.end);
+      edits.sort((left, right) => right.$1.compareTo(left.$1));
+      for (final (start, end, replacement) in edits) {
+        text = text.replaceRange(
+          start - body.offset,
+          end - body.offset,
+          replacement,
+        );
+      }
+      return 'void $kStateUpdateSlot(${surface.name} $name, '
+          '$kMountNameMarker _restageOldWidget) $text';
+    }
+
+    return LiftedState(
+      name: liftedState.name ?? '',
+      location: _locationOf(declaration),
+      header: [
+        declaration.extendsClause,
+        declaration.withClause,
+        declaration.implementsClause,
+      ].nonNulls.map((clause) => rewrite(clause, header: true)).join(' '),
+      members: [
+        for (final member in members)
+          member is MethodDeclaration &&
+                  member.name.lexeme == 'didUpdateWidget' &&
+                  !member.isStatic
+              ? update(member)
+              : rewrite(member, header: false),
+      ],
+      updates: members.any(
+        (member) =>
+            member is MethodDeclaration &&
+            member.name.lexeme == 'didUpdateWidget' &&
+            !member.isStatic,
+      ),
+      customBase:
+          base != null &&
+          !(base.element?.name == 'State' &&
+              base.element?.library?.identifier ==
+                  'package:flutter/src/widgets/framework.dart'),
+    );
+  }
+
+  // Whether the State base [base] can take the mount in place of [surface]:
+  // Flutter's own `State`, or a base whose parameters the surface fills are
+  // bounded by a type the mount, which extends the surface's own base, is.
+  static bool _baseTakesMount(NamedType base, ClassElement surface) {
+    final element = base.element;
+    if (element is! InterfaceElement) return false;
+    if (element.name == 'State' &&
+        element.library.identifier ==
+            'package:flutter/src/widgets/framework.dart') {
+      return true;
+    }
+    final mount = surface.supertype;
+    final arguments = base.typeArguments?.arguments ?? const <TypeAnnotation>[];
+    if (mount == null ||
+        !arguments.any((argument) => argument.type?.element == surface)) {
+      return false;
+    }
+    for (final (index, argument) in arguments.indexed) {
+      if (argument.type?.element != surface ||
+          index >= element.typeParameters.length) {
+        continue;
+      }
+      final bound = element.typeParameters[index].bound;
+      if (bound is InterfaceType &&
+          bound.element != mount.element &&
+          !mount.allSupertypes.any((type) => type.element == bound.element)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// The argument for [node]'s one widget or builder argument, when the call
+  /// passes exactly one.
+  _ShellStep? _shellStep(InstanceCreationExpression node) {
+    bool isWidget(DartType? type) => classifyHoistType(type) is HoistIsWidget;
+    final passed = [
+      for (final argument in node.argumentList.arguments)
+        if (_stripParens(
+              argument is NamedArgument
+                  ? argument.argumentExpression
+                  : argument as Expression,
+            )
+            case final value
+            when isWidget(value.staticType) ||
+                _isWidgetListType(value.staticType) ||
+                value is FunctionExpression &&
+                    isWidget(value.declaredFragment?.element.returnType))
+          value,
+    ];
+    if (passed.length != 1 || _isWidgetListType(passed.single.staticType)) {
+      return null;
+    }
+    final argument = node.argumentList.arguments.firstWhere(
+      (argument) => identical(
+        _stripParens(
+          argument is NamedArgument
+              ? argument.argumentExpression
+              : argument as Expression,
+        ),
+        passed.single,
+      ),
+    );
+    final value = argument is NamedArgument
+        ? argument.argumentExpression
+        : argument as Expression;
+    final builder = _stripParens(value);
+    if (builder is! FunctionExpression) {
+      return (next: value, builder: null, bindings: const {}, scope: const {});
+    }
+    // Only a builder that runs once per build of its widget joins the shell.
+    final widget = node.constructorName.type.element;
+    if (widget is! InterfaceElement ||
+        !_islands!.contentFree.contains(
+          widget,
+          argument.correspondingParameter?.name ?? '',
+        )) {
+      return null;
+    }
+    final body = extractInlinableBuildBody(builder.body);
+    if (body == null) return null;
+    return (
+      next: body.expression,
+      builder: builder,
+      bindings: body.localBindings,
+      scope: {
+        for (final parameter
+            in builder.parameters?.parameters ?? const <FormalParameter>[])
+          if (parameter.declaredFragment?.element case final element?) element,
+      },
+    );
+  }
+
+  /// Translates [node] against a checkpoint and rolls back when it does not
+  /// lower or when it is a [probe]; [stub] stands for any delivered widget.
+  ({String dsl, List<Issue> issues, bool lowers}) _attempt(
+    Expression node, {
+    Expression? stub,
+    bool probe = false,
+  }) {
+    final stubs = _islands!.stubs;
+    final misses = _hoist?.closureMisses.length ?? 0;
+    final restore = _checkpoint();
+    final scratch = <Issue>[];
+    var dsl = '';
+    if (stub != null) stubs.add(stub);
+    try {
+      if (!probe || _admitOrdinaryLeaf(node, scratch)) {
+        dsl = _translateExpression(node, scratch);
+      }
+    } finally {
+      if (stub != null) stubs.remove(stub);
+    }
+    final lowers =
+        !scratch.any((issue) => !issue.code.isBuildNotice) &&
+        (_hoist?.closureMisses.length ?? 0) == misses;
+    if (probe || !lowers) restore();
+    return (dsl: dsl, issues: scratch, lowers: lowers);
+  }
+
+  bool _isWidgetListType(DartType? type) =>
+      type is InterfaceType &&
+      (type.isDartCoreList || type.isDartCoreIterable) &&
+      classifyHoistType(type.typeArguments.single) is HoistIsWidget;
+
+  bool _isLiteralArgument(Expression value) {
+    final stripped = _stripParens(value);
+    return stripped is Literal ||
+        stripped is InstanceCreationExpression && stripped.isConst ||
+        tryFoldConstant(stripped) != null;
+  }
+
+  /// Captures the per-translation accumulators; the returned function puts
+  /// them back, undoing a failed attempt.
+  void Function() _checkpoint() {
+    void Function() map<K, V>(Map<K, V>? target) {
+      if (target == null) return () {};
+      final copy = Map.of(target);
+      return () => target
+        ..clear()
+        ..addAll(copy);
+    }
+
+    void Function() set<T>(Set<T>? target) {
+      if (target == null) return () {};
+      final copy = Set.of(target);
+      return () => target
+        ..clear()
+        ..addAll(copy);
+    }
+
+    void Function() list<T>(List<T>? target) {
+      if (target == null) return () {};
+      final length = target.length;
+      return () => target.length = length;
+    }
+
+    final restores = [
+      map(_currentWidgetDefinitions),
+      map(_currentWidgetDefinitionStates),
+      map(_currentDefinitionOwners),
+      set(_currentReferencedCustomLibraries),
+      map(_currentRfwCatalogConstructorOrigins),
+      set(_currentCustomWidgetInlineClaims),
+      set(_currentCustomWidgetReferences),
+      map(_currentCustomWidgetFactoryRoutes),
+      list(_currentEventClosureNotices),
+      list(_emissionSources),
+      map(_hoist?.values),
+      map(_hoist?.occurrenceKeys),
+      map(_hoist?.occurrenceCounts),
+      list(_hoist?.records),
+      list(_hoist?.exposes),
+      list(_hoist?.closureMisses),
+      set(_keptClosures),
+      list(_islands?.recordIslands),
+      list(_islands?.recordPlacements),
+      map(_islands?.islands),
+      list(_islands?.order),
+    ];
+    final session = _collectionSession.copy();
+    final walk = _walk;
+    final interactionItems = _currentEmitsInteractionItems;
+    final suppressed = _currentTranslationSuppressed;
+    final builderScopes = _builderScopeCounter;
+    return () {
+      _builderScopeCounter = builderScopes;
+      for (final restore in restores) {
+        restore();
+      }
+      _collectionSession = session;
+      _walk = walk;
+      _currentEmitsInteractionItems = interactionItems;
+      _currentTranslationSuppressed = suppressed;
+    };
   }
 
   /// The translation of [expr], reading a mount-computed value in place of
@@ -1347,7 +4563,15 @@ final class ExpressionTranslator {
     final hoist = _hoist;
     if (hoist == null || hoist.speculating) return null;
     final stripped = _stripParens(expr);
-    if (stripped is Literal) return null;
+    if (hoist.inParts.contains(stripped)) return null;
+    // A string or collection whose parts the payload cannot read crosses
+    // whole.
+    if (stripped is Literal &&
+        stripped is! StringInterpolation &&
+        stripped is! AdjacentStrings &&
+        stripped is! TypedLiteral) {
+      return null;
+    }
     if (containsInstalledIntlTranslation(
       stripped,
       helpers: _walk.inlined.helpers,
@@ -1397,18 +4621,39 @@ final class ExpressionTranslator {
         ),
       );
     }
+    // Copy stays in the payload around the parts the mount computes.
+    if ((stripped is StringInterpolation || stripped is AdjacentStrings) &&
+        hoist.inParts.add(stripped)) {
+      final restore = _checkpoint();
+      final parts = <Issue>[];
+      try {
+        final dsl = translate(parts);
+        if (!parts.any((issue) => !issue.code.isBuildNotice)) {
+          issues.addAll(parts);
+          return dsl;
+        }
+      } finally {
+        hoist.inParts.remove(stripped);
+      }
+      restore();
+    }
     final scratch = <Issue>[];
     final String dsl;
+    final restore = _checkpoint();
     hoist.speculating = true;
+    final seesThrough = _seesThroughPreludes;
+    _seesThroughPreludes = true;
     try {
       dsl = translate(scratch);
     } finally {
       hoist.speculating = false;
+      _seesThroughPreludes = seesThrough;
     }
     if (!scratch.any((issue) => !issue.code.isBuildNotice)) {
       issues.addAll(scratch);
       return dsl;
     }
+    restore();
     // A Color crosses as the native object; ARGB would drop its subtype.
     if (verdict.kind == HoistValueKind.color) {
       if (isInstalledNativeConstant(stripped)) {
@@ -1513,16 +4758,19 @@ final class ExpressionTranslator {
     Expression expression, {
     required String type,
     bool computed = false,
+    bool construct = false,
   }) {
+    if (_ownParamArg(expression) case final arg?) return arg;
     final hoist = _hoist;
     if (hoist == null || hoist.speculating) return null;
     final expr = _resolveBoundIdentifier(_stripParens(expression));
     final root = _borrowedNativeRoot(expr);
     if (root == null &&
         (!computed ||
-            (_InstalledNativeConstruction(
-              _resolveBoundIdentifier,
-            )..visit(expr)).found))
+            !construct &&
+                (_InstalledNativeConstruction(
+                  _resolveBoundIdentifier,
+                )..visit(expr)).found))
       return null;
     final analysis = hoist.analyzer.analyze(expr);
     // A computed value read per list item binds once per item.
@@ -1545,9 +4793,50 @@ final class ExpressionTranslator {
           expression: expr,
           nativeContract: contract,
           computed: root == null,
+          location: _locationOf(expr),
         ),
       ),
     );
+  }
+
+  // The native binding contract values of [type] cross as, if any.
+  static String? _nativeContractOf(DartType? type) {
+    if (type is! InterfaceType) return null;
+    for (final candidate in [type, ...type.allSupertypes]) {
+      final element = candidate.element;
+      if (nativeBindingRoute('${element.library.identifier}#${element.name}')
+          case final route?) {
+        return route.contractType;
+      }
+    }
+    return null;
+  }
+
+  // A custom widget definition's read of its own parameter, as `args`: a
+  // native value it was given crosses on as the same value.
+  String? _ownParamArg(Expression expression) {
+    if (_walk.classKey == null) return null;
+    final (name, element) = switch (_stripParens(expression)) {
+      SimpleIdentifier(:final name, :final element) => (name, element),
+      PrefixedIdentifier(
+        prefix: SimpleIdentifier(name: 'widget'),
+        :final identifier,
+      )
+          when _walk.stateFields != null =>
+        (identifier.name, identifier.element),
+      _ => (null, null),
+    };
+    final variable = element is PropertyAccessorElement
+        ? element.variable
+        : element;
+    final argName = name == null ? null : _walk.argNames[name];
+    if (argName == null) return null;
+    // Only a read of the parameter's own field is the parameter.
+    final field = _walk.params[argName]?.sourceField;
+    if (field == null || variable?.baseElement != field.baseElement) {
+      return null;
+    }
+    return 'args${_rfwPathPart(argName)}';
   }
 
   PropertyEntry? _nativeKeyProperty(WidgetEntry entry) =>
@@ -1566,6 +4855,37 @@ final class ExpressionTranslator {
                 'flutter.Key';
       });
 
+  // A key a lowering can't carry is an issue, never dropped: in a mount the
+  // widget then renders from the app with its key; without one it's refused.
+  void _keyNotKept(Expression expression, List<Issue> issues) {
+    // A builder's own program carries the key of the widget it returns.
+    if (_activeWidgetBuilder != null) return;
+    final mount = _generatedMountName(expression);
+    issues.add(
+      Issue(
+        code: IssueCode.propertyValueTypeMismatch,
+        message:
+            '`${readableSource(_writtenSource(expression))}` '
+            "(${_locationOf(expression)}): Restage keeps a widget's key only "
+            "through the screen's generated widget, and this build doesn't "
+            'use one. Try showing the screen through $mount, or removing the '
+            'key.',
+        location: _locationOf(expression),
+      ),
+    );
+  }
+
+  // The generated widget of the screen [expression] is in, as a message
+  // names it.
+  String _generatedMountName(Expression expression) {
+    final declaration = expression.thisOrAncestorOfType<ClassDeclaration>();
+    final element = declaration?.declaredFragment?.element;
+    final screen = stateWidgetOf(element)?.name ?? element?.name;
+    return screen == null
+        ? 'its generated widget'
+        : '`${generatedSurfaceName(screen, fallback: 'SurfaceScreen')}`';
+  }
+
   String? _catalogNativeKey(
     WidgetEntry entry,
     Expression expression,
@@ -1573,6 +4893,38 @@ final class ExpressionTranslator {
   ) {
     final property = _nativeKeyProperty(entry);
     final resolved = _resolveBoundIdentifier(expression);
+    // In a mount, a global key keeps its holder in the app, and a key that
+    // compares by value and has no compiled constant is computed there.
+    String? carried() {
+      if (_islands == null ||
+          property == null ||
+          _activeWidgetBuilder != null ||
+          runtimeRealizationFor(entry) != null ||
+          !_comparesByValue(resolved)) {
+        return null;
+      }
+      // The mount reads a build's constant local through its initializer.
+      final read = _nativeBindingRead(
+        _constantLocalValue(resolved) ?? expression,
+        type: 'flutter.Key',
+        computed: true,
+        construct: true,
+      );
+      return read == null
+          ? null
+          : RfwConstructorPresenceEncoder.encode(property, read);
+    }
+
+    if (_islands != null) {
+      if (_globalKeyIssue(expression) case final issue?) {
+        issues.add(issue);
+        return null;
+      }
+      // A constant has a compiled key; any other key the mount computes.
+      if (!_isConstantKey(resolved)) {
+        if (carried() case final key?) return key;
+      }
+    }
     final isNull =
         resolved is NullLiteral ||
         installedNativeConstantValue(resolved)?.isNull == true;
@@ -1607,9 +4959,17 @@ final class ExpressionTranslator {
     }
     final before = issues.length;
     final reference = _nativeKeyReference(expression, issues);
+    if (reference == null && issues.length == before) {
+      if (carried() case final key?) return key;
+    }
+    // In a mount a key the design can't carry is an issue, so the widget
+    // takes a path that keeps it; it is never left out. A builder's own
+    // program carries the key of the widget it returns.
     if (reference == null &&
         issues.length == before &&
+        _activeWidgetBuilder == null &&
         (!legacy ||
+            _islands != null ||
             property != null &&
                 RfwConstructorPresenceProtocol.appliesTo(property))) {
       issues.add(
@@ -1621,12 +4981,129 @@ final class ExpressionTranslator {
         ),
       );
     }
+    if (reference == null && issues.length == before) {
+      _keyNotKept(expression, issues);
+      return null;
+    }
     return reference == null || property == null
         ? reference
         : RfwConstructorPresenceEncoder.encode(property, reference);
   }
 
+  // A global key in a mount: the app keeps the widget that holds it.
+  Issue? _globalKeyIssue(Expression expression) {
+    final type = _stripParens(expression).staticType;
+    return type is InterfaceType &&
+            [type, ...type.allSupertypes].any(
+              (t) =>
+                  t.element.name == 'GlobalKey' &&
+                  t.element.library.identifier ==
+                      'package:flutter/src/widgets/framework.dart',
+            )
+        ? Issue(
+            code: IssueCode.propertyValueTypeMismatch,
+            message: 'A global key needs the widget that holds it.',
+            location: _locationOf(expression),
+          )
+        : null;
+  }
+
+  // Whether [expression], read through build locals, is a local key equal to
+  // any key built from equal arguments: a constant with its own `==`, a key
+  // whose `==` compares values, or a `ValueKey` over a type that does.
+  bool _comparesByValue(Expression expression) {
+    final seesThrough = _seesThroughPreludes;
+    _seesThroughPreludes = true;
+    try {
+      expression = _stripParens(_resolveBoundIdentifier(expression));
+    } finally {
+      _seesThroughPreludes = seesThrough;
+    }
+    // A constant compares as the key it builds, such as `Key('…')`.
+    final type =
+        installedNativeConstantValue(expression)?.type ?? expression.staticType;
+    if (type is! InterfaceType || !_isFlutterKey(type, 'LocalKey')) {
+      return false;
+    }
+    final equals = type.lookUpMethod(
+      '==',
+      type.element.library,
+      concrete: true,
+    );
+    if (equals == null ||
+        equals.enclosingElement?.library?.isDartCore != false) {
+      return false;
+    }
+    if (_isConstantKey(expression)) return true;
+    if (equals.enclosingElement case final InterfaceElement owner
+        when _isFlutterKey(owner.thisType, 'ValueKey')) {
+      final value = type.asInstanceOf(owner)?.typeArguments.single;
+      return value != null && _comparesValues(value);
+    }
+    return expression is InstanceCreationExpression &&
+        (_islands?.contentFree.equalsByValue(type.element) ?? false);
+  }
+
+  // The initializer of the `const` local [expression] reads, if it reads one.
+  static Expression? _constantLocalValue(Expression expression) {
+    final element = expression is SimpleIdentifier ? expression.element : null;
+    if (element is! LocalVariableElement || !element.isConst) return null;
+    Expression? value;
+    expression.thisOrAncestorOfType<FunctionBody>()?.accept(
+      _DeclarationOf(element, (declaration) => value = declaration.initializer),
+    );
+    return value;
+  }
+
+  // Whether [expression] is a constant creation or reads a constant.
+  static bool _isConstantKey(Expression expression) {
+    final element = switch (expression) {
+      Identifier(:final element) => element,
+      PropertyAccess(:final propertyName) => propertyName.element,
+      _ => null,
+    };
+    return expression is InstanceCreationExpression && expression.isConst ||
+        element is PropertyAccessorElement && element.variable.isConst ||
+        element is VariableElement && element.isConst;
+  }
+
+  // Whether [type] is Flutter's key class [name] or extends it.
+  static bool _isFlutterKey(InterfaceType type, String name) =>
+      [type, ...type.allSupertypes].any(
+        (t) =>
+            t.element.name == name &&
+            t.element.library.identifier ==
+                'package:flutter/src/foundation/key.dart',
+      );
+
+  // Whether values of [type] are equal when their contents are: core scalars,
+  // enums, and classes with a constant constructor and their own `==`.
+  static bool _comparesValues(DartType type) {
+    if (type is! InterfaceType) return false;
+    final element = type.element;
+    if (element.library.isDartCore) {
+      return const {
+        'String',
+        'int',
+        'double',
+        'num',
+        'bool',
+      }.contains(element.name);
+    }
+    if (element is EnumElement) return true;
+    final equals = type.lookUpMethod('==', element.library, concrete: true);
+    return equals != null &&
+        equals.enclosingElement?.library?.isDartCore == false &&
+        element.constructors.any((constructor) => constructor.isConst);
+  }
+
   String? _nativeKeyReference(Expression expression, List<Issue> issues) {
+    if (_islands != null) {
+      if (_globalKeyIssue(expression) case final issue?) {
+        issues.add(issue);
+        return null;
+      }
+    }
     final active = _activeWidgetBuilder;
     if (active != null && active.hasNativeKeyValue(expression)) {
       return active.value(expression);
@@ -1645,6 +5122,7 @@ final class ExpressionTranslator {
               resolved,
               type: 'flutter.Key',
               emissionLibrary: hoist.analyzer.namespace.library,
+              location: _locationOf(resolved),
             ),
           ),
         );
@@ -1660,11 +5138,16 @@ final class ExpressionTranslator {
       }
     }
     final constant = installedNativeConstantValue(resolved);
+    // A ValueKey, written out or read from a constant declaration.
+    final valueKeyType = switch (constant?.type ?? resolved.staticType) {
+      final InterfaceType type => type.element,
+      _ => null,
+    };
     final scalarValueKey =
-        resolved is InstanceCreationExpression &&
-        resolved.constructorName.element?.enclosingElement.name == 'ValueKey' &&
-        resolved.constructorName.element?.enclosingElement.library.identifier ==
-            'package:flutter/src/foundation/key.dart';
+        valueKeyType?.name == 'ValueKey' &&
+        valueKeyType?.library.identifier ==
+            'package:flutter/src/foundation/key.dart' &&
+        (resolved is InstanceCreationExpression || constant != null);
     if (constant != null && !constant.isNull && !scalarValueKey) {
       issues.add(
         Issue(
@@ -1691,9 +5174,7 @@ final class ExpressionTranslator {
   String _hoistedRead(HoistedValue value) {
     final item = value.item;
     if (item == null) return 'data.context${_rfwPathPart(value.key)}';
-    final loop = _walk.runtimeLoops.lastWhere(
-      (loop) => loop.root?.name == item,
-    );
+    final loop = _walk.runtimeLoops.lastWhere((loop) => loop.item == item);
     return '${loop.identifier}${_rfwPathPart(value.key)}';
   }
 
@@ -1780,7 +5261,7 @@ final class ExpressionTranslator {
           type,
         );
       },
-      install: (plan) => hoist.add(plan.binding),
+      install: (plan) => hoist.add(plan.bindingAt(_locationOf(value))),
     );
   }
 
@@ -1800,6 +5281,7 @@ final class ExpressionTranslator {
           expression,
           type: type,
           emissionLibrary: _hoist!.analyzer.namespace.library,
+          location: _locationOf(expression),
         ),
       );
       final reference = _hoistedRead(value);
@@ -1942,7 +5424,9 @@ final class ExpressionTranslator {
       operations: _installedValueOperations,
       parent: parentBuilder?.expressions,
       capture: (value) {
-        if (parentBuilder != null && values.referencesOuter(value)) {
+        if (parentBuilder != null &&
+            (values.referencesOuter(value) ||
+                _slotFrames.contains(parentBuilder))) {
           return parentBuilder.captureValue(value);
         }
         final saved = _activeWidgetBuilder;
@@ -2025,7 +5509,7 @@ final class ExpressionTranslator {
   String _encodeScalarValueProgram(BuilderExpressionLowering values, int root) {
     final program = values.program(root);
     program.validate(operations: _installedValueOperations);
-    return '{ version: 1, program: ${_stringLiteral(program.encode())}, captures: {'
+    return '$_kValueProgram${_stringLiteral(program.encode())}, captures: {'
         '${values.captureDsl.entries.map((e) => '${e.key}: ${e.value}').join(', ')} } }';
   }
 
@@ -2193,7 +5677,9 @@ final class ExpressionTranslator {
         operations: _installedValueOperations,
         valueExtension: _lowerInstalledValue,
         capture: (value) {
-          final outer = lowering.expressions.referencesOuter(value);
+          final outer =
+              lowering.expressions.referencesOuter(value) ||
+              _slotFrames.contains(previous);
           _activeWidgetBuilder = outer ? previous : null;
           try {
             return outer && previous != null
@@ -2308,8 +5794,35 @@ final class ExpressionTranslator {
         }
         return _lowerInstalledValue(value, lowering);
       },
+      // A value the build records is read from the app builder's own
+      // recording of it.
+      recorded: !contract.isAppValueSignature
+          ? null
+          : (value, shape) {
+              if (values.referencesOuter(value)) return null;
+              final undo = _checkpoint();
+              final start = _hoist?.records.length ?? 0;
+              _activeWidgetBuilder = null;
+              final outerSlot = _recordingSlot;
+              _recordingSlot = true;
+              try {
+                _translate(_resolveBoundIdentifier(value), <Issue>[]);
+                final added = _hoist?.records.skip(start).toList() ?? [];
+                final node = added.length == 1
+                    ? current.recordedValue(added.single.key, shape)
+                    : null;
+                if (node == null) undo();
+                return node;
+              } finally {
+                _activeWidgetBuilder = current;
+                _recordingSlot = outerSlot;
+              }
+            },
       capture: (value) {
-        final isOuter = values.referencesOuter(value);
+        // Inside an app builder's slot, its frame reads what the slot
+        // records.
+        final isOuter =
+            values.referencesOuter(value) || _slotFrames.contains(previous);
         _activeWidgetBuilder = isOuter ? previous : null;
         try {
           return isOuter && previous != null
@@ -2337,6 +5850,9 @@ final class ExpressionTranslator {
       translateBody: (body) => _translate(body, issues),
       helperFor: _admittedBuilderHelper,
     );
+    if (contract.isAppValueSignature || _slotFrames.contains(previous)) {
+      _slotFrames.add(current);
+    }
     _activeWidgetBuilder = current;
     try {
       return callback != null
@@ -2390,7 +5906,9 @@ final class ExpressionTranslator {
         return _lowerInstalledValue(value, lowering);
       },
       capture: (value) {
-        final outer = previous != null && values.referencesOuter(value);
+        final outer =
+            previous != null &&
+            (values.referencesOuter(value) || _slotFrames.contains(previous));
         _activeWidgetBuilder = outer ? previous : null;
         try {
           return outer
@@ -2420,6 +5938,7 @@ final class ExpressionTranslator {
       translateBody: (body) => _translate(body, issues),
       helperFor: _admittedBuilderHelper,
     );
+    if (_slotFrames.contains(previous)) _slotFrames.add(current);
     _activeWidgetBuilder = current;
     try {
       final semantics = _collectionSemanticProbe();
@@ -2817,13 +6336,33 @@ final class ExpressionTranslator {
       // sharing a name with a constructor parameter cannot be mislowered.
       final boundArg = _walk.paramBindings[expr.element];
       if (boundArg != null) {
-        return _translate(boundArg, issues);
+        return _throughParameter(
+          expr,
+          boundArg,
+          () => _translate(boundArg, issues),
+        );
+      }
+      // Each placement of a const widget local is its own scope.
+      if (_constPlacementStep(expr) case final step
+          when step.isNotEmpty && _constReads.add(expr)) {
+        _placementReads.add((read: expr, bound: null));
+        try {
+          return _inScope(step, () => _translate(expr, issues));
+        } finally {
+          _constReads.remove(expr);
+          _placementReads.removeLast();
+        }
       }
       // A reference to a leading `final` local binding resolves-through to its
       // initializer (element-keyed, before the name-based lowerings).
       final localInitializer = _walk.inlined.localBindings[expr.element];
       if (localInitializer != null) {
-        return _translate(localInitializer, issues);
+        return _throughLocal(
+          expr,
+          localInitializer,
+          issues,
+          () => _translate(localInitializer, issues),
+        );
       }
       // The arg/state/handler matches below are NAME-based. A `const` local
       // declared in the build() body (permitted by the body-shape rule) can
@@ -2955,24 +6494,19 @@ final class ExpressionTranslator {
     }
     issues.add(
       _appOnlyValueIssue(expr, IssueCode.unrecognizedMethodCall) ??
-          _replaceable(
-            Issue(
-              code: IssueCode.unrecognizedMethodCall,
-              capabilityGapSubject: 'expression:${_nodeKind(expr)}',
-              message:
-                  'Unsupported expression: ${_nodeKind(expr)} `$expr`. '
-                  'See the supported expression subset.',
-              location: _locationOf(expr),
-            ),
+          Issue(
+            code: IssueCode.unrecognizedMethodCall,
+            capabilityGapSubject: 'expression:${_nodeKind(expr)}',
+            message:
+                "Restage can't translate "
+                '`${readableSource(expr.toSource())}` (${_locationOf(expr)}). '
+                "Try computing the value in the screen's build method and "
+                'passing it in.',
+            // The message names its place, so the issue names the declaration.
+            location: _declarationOf(expr),
           ),
     );
     return '';
-  }
-
-  /// [issue], marked as one an app-value refusal may explain instead.
-  Issue _replaceable(Issue issue) {
-    _hoist?.replaceable.add(issue);
-    return issue;
   }
 
   /// A same-file const initializer that requires structured translation.
@@ -3406,11 +6940,17 @@ final class ExpressionTranslator {
       );
     }
     if (isInterpolatedString(value)) {
-      final parts = _interpolationParts(value as StringLiteral, issues);
-      if (parts == null) return '';
-      if (parts.length == 1) return '{ text: ${parts.single} }';
-      final spans = parts.map((p) => '{ text: $p }').join(', ');
-      return '{ children: [$spans] }';
+      String spans(List<Issue> into) {
+        final parts = _interpolationParts(value as StringLiteral, into);
+        if (parts == null) return '';
+        if (parts.length == 1) return '{ text: ${parts.single} }';
+        return '{ children: [${parts.map((p) => '{ text: $p }').join(', ')}] }';
+      }
+
+      // Parts the payload cannot read make the whole text a value.
+      final read = _hoisted(value, issues, spans);
+      if (read == null) return spans(issues);
+      return read.isEmpty || read.startsWith('{') ? read : '{ text: $read }';
     }
     final before = issues.length;
     final plain = _translateSlotValue(text, PropertyType.string, issues);
@@ -3433,11 +6973,7 @@ final class ExpressionTranslator {
       issues,
       (scratch) => _joinedStringValueUnhoisted(text, scratch),
     );
-    if (hoisted != null) return hoisted;
-    final before = issues.length;
-    final dsl = _joinedStringValueUnhoisted(text, issues);
-    _explainAppOnlyFailure(text, issues, before);
-    return dsl;
+    return hoisted ?? _joinedStringValueUnhoisted(text, issues);
   }
 
   String _joinedStringValueUnhoisted(Expression text, List<Issue> issues) {
@@ -3532,6 +7068,17 @@ final class ExpressionTranslator {
       }
     }
     final rootAccess = _rootParamAccess(resolved);
+    // A read the payload cannot carry is computed in the mount on its own,
+    // so the copy around it stays delivered.
+    if (rootAccess != null &&
+        (!rootAccess.param.isHostData || rootAccess.isRefused)) {
+      final hoisted = _hoisted(
+        inner,
+        issues,
+        (scratch) => _translateSlotValue(inner, PropertyType.string, scratch),
+      );
+      if (hoisted != null) return hoisted;
+    }
     if (rootAccess != null) {
       if (!rootAccess.param.isHostData) {
         issues.add(
@@ -3588,10 +7135,10 @@ final class ExpressionTranslator {
       Issue(
         code: IssueCode.unsupportedInterpolation,
         message:
-            'An interpolated value must be a non-null String the '
-            'surface can read: host data, a State field, a build() local, a '
-            'condition over them, or a String helper. Found: '
-            '${_nodeKind(inner)} ${inner.toSource()}.',
+            "Restage can't translate `${readableSource(inner.toSource())}` "
+            '(${_locationOf(inner)}) inside a string. Try interpolating a '
+            "`String` from the screen's constructor, a field of its `State`, "
+            'or a local variable in `build`.',
         location: _locationOf(inner),
       ),
     );
@@ -3961,17 +7508,26 @@ final class ExpressionTranslator {
     required int ordinal,
     PropertyType? itemType,
     String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
-  }) => _withTranslationBindings(
-    candidate.bindings,
-    () => _emitBoundRuntimeLoop(
-      candidate,
-      refusal,
-      issues,
-      ordinal: ordinal,
-      itemType: itemType,
-      emitLeaf: emitLeaf,
-    ),
-  );
+  }) {
+    // The loop is translated through the helper calls its spread crossed,
+    // so the copy records it inside them.
+    String? emitted;
+    _throughLocals(candidate.spreadProvenance, 0, issues, () {
+      emitted = _withTranslationBindings(
+        candidate.bindings,
+        () => _emitBoundRuntimeLoop(
+          candidate,
+          refusal,
+          issues,
+          ordinal: ordinal,
+          itemType: itemType,
+          emitLeaf: emitLeaf,
+        ),
+      );
+      return emitted ?? '';
+    });
+    return emitted;
+  }
 
   String? _emitBoundRuntimeLoop(
     CollectionRuntimeLoopCandidate candidate,
@@ -3981,7 +7537,50 @@ final class ExpressionTranslator {
     PropertyType? itemType,
     String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
   }) {
-    final identifier = candidate.identifier;
+    String? emit(List<Issue> sink, {required bool inMount}) => _emitLoopOver(
+      candidate,
+      refusal,
+      sink,
+      ordinal: ordinal,
+      itemType: itemType,
+      emitLeaf: emitLeaf,
+      inMount: inMount,
+    );
+    final restore = _checkpoint();
+    final direct = <Issue>[];
+    final dsl = emit(direct, inMount: false);
+    if (dsl != null || _islands == null || _hoist!.speculating) {
+      issues.addAll(direct);
+      return dsl;
+    }
+    // A body that needs its item in the mount walks a list the mount
+    // publishes.
+    restore();
+    final published = <Issue>[];
+    if (_itemsInMount(candidate, any: true) != null) {
+      final again = emit(published, inMount: true);
+      if (again != null) {
+        issues.addAll(published);
+        return again;
+      }
+    }
+    restore();
+    issues.addAll(direct);
+    return null;
+  }
+
+  String? _emitLoopOver(
+    CollectionRuntimeLoopCandidate candidate,
+    CollectionUnrollRefused refusal,
+    List<Issue> issues, {
+    required int ordinal,
+    required bool inMount,
+    PropertyType? itemType,
+    String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
+  }) {
+    final identifier = candidate.pattern == null
+        ? candidate.identifier
+        : _absentLoopIdentifier();
     if (!isRfwIdentifier(identifier) ||
         _kRfwLoopReservedWords.contains(identifier)) {
       issues.add(
@@ -3996,7 +7595,12 @@ final class ExpressionTranslator {
       );
       return null;
     }
-    final input = _runtimeLoopInput(candidate, refusal, issues);
+    final input = _runtimeLoopInput(
+      candidate,
+      refusal,
+      issues,
+      inMount: inMount,
+    );
     if (input == null) return null;
 
     final before = issues.length;
@@ -4009,6 +7613,8 @@ final class ExpressionTranslator {
           identifier,
           input.elementShape,
           root: input.root,
+          items: input.items,
+          elements: candidate.patternVariables,
         ),
       ],
     );
@@ -4060,13 +7666,38 @@ final class ExpressionTranslator {
     return '...for $identifier in ${input.dsl}: $template';
   }
 
-  ({String dsl, HostDataShape elementShape, RootContextParam? root})?
+  ({
+    String dsl,
+    HostDataShape elementShape,
+    RootContextParam? root,
+    String? items,
+  })?
   _runtimeLoopInput(
     CollectionRuntimeLoopCandidate candidate,
     CollectionUnrollRefused refusal,
-    List<Issue> issues,
-  ) {
+    List<Issue> issues, {
+    bool inMount = false,
+  }) {
     final iterable = candidate.iterable;
+    if (_itemsInMount(candidate, any: inMount) case final items?) {
+      final outer = switch (_hoist!.values[items]!.item) {
+        final item? => _walk.runtimeLoops.lastWhereOrNull(
+          (loop) => loop.item == item,
+        ),
+        null => null,
+      };
+      return (
+        dsl: outer == null
+            ? 'data.context${_rfwPathPart(items)}'
+            : '${outer.identifier}${_rfwPathPart(items)}',
+        elementShape: HostDataScalarShape(
+          iterable.staticType!,
+          HostDataScalarKind.object,
+        ),
+        root: null,
+        items: items,
+      );
+    }
     if (!_isResolvedList(iterable.staticType)) {
       _recordCollectionRefusal(refusal, issues);
       return null;
@@ -4079,6 +7710,7 @@ final class ExpressionTranslator {
           dsl: outer.dsl(_rfwPathPart),
           elementShape: shape.elementShape,
           root: null,
+          items: null,
         );
       }
     }
@@ -4096,7 +7728,81 @@ final class ExpressionTranslator {
       dsl: rootAccess.dsl(_rfwPathPart),
       elementShape: shape.elementShape,
       root: rootAccess.isMember ? null : rootAccess.param,
+      items: null,
     );
+  }
+
+  /// The key of the item list the mount computes for a split surface's loop
+  /// over an iterable it can evaluate: one the payload cannot read, a
+  /// destructuring loop, or, with [any], one whose body needs its items.
+  String? _itemsInMount(
+    CollectionRuntimeLoopCandidate candidate, {
+    bool any = false,
+  }) {
+    final hoist = _hoist;
+    final iterable = candidate.iterable;
+    final type = iterable.staticType;
+    if (_islands == null ||
+        hoist == null ||
+        hoist.speculating ||
+        type is! InterfaceType ||
+        type.allSupertypes.every((t) => !t.isDartCoreIterable) &&
+            !type.isDartCoreIterable ||
+        candidate.pattern == null &&
+            (_isPlainObjectListInput(iterable) ||
+                !any &&
+                    (_rootParamAccess(iterable) != null ||
+                        _runtimeLoopReference(iterable) != null))) {
+      return null;
+    }
+    // Reached through a helper, the list is walked where the helper's loop
+    // is written, inside the helper the copy runs.
+    final walked = switch (candidate.loop?.forLoopParts) {
+      final ForEachParts parts when candidate.spreadProvenance.isNotEmpty =>
+        parts.iterable,
+      _ => iterable,
+    };
+    final analysis = hoist.analyzer.analyze(walked);
+    if (analysis is! HoistEvaluable) return null;
+    // A nested loop's list is computed per item of a list the mount walks:
+    // one it publishes, or a screen input's own list.
+    if (analysis.item case final outer?
+        when hoist.values[outer]?.kind != HoistValueKind.items &&
+            !_walk.runtimeLoops.any((loop) => loop.root?.name == outer)) {
+      return null;
+    }
+    final site = _valueSite;
+    _valueSite = walked;
+    final String key;
+    try {
+      key = hoist
+          .add(
+            analysis.items(
+              type,
+              pattern: switch (candidate.pattern) {
+                final DartPattern pattern => _writtenSource(pattern),
+                null => candidate.identifier,
+              },
+            ),
+          )
+          .key;
+    } finally {
+      _valueSite = site;
+    }
+    return key;
+  }
+
+  // A screen input's list of objects, which carries per-item values itself.
+  bool _isPlainObjectListInput(Expression iterable) {
+    final access = _rootParamAccess(iterable);
+    final shape = access?.shape;
+    return access != null &&
+        !access.isMember &&
+        !access.isRefused &&
+        !access.param.hasNonNullDefault &&
+        shape is HostDataListShape &&
+        shape.elementShape is HostDataObjectShape &&
+        _isResolvedList(shape.type);
   }
 
   bool _containsConstructorCall(String dsl, String identifier) {
@@ -4161,6 +7867,8 @@ final class ExpressionTranslator {
     }
     if (expression is SimpleIdentifier) {
       for (final binding in _walk.runtimeLoops.reversed) {
+        // The mount reads a walked item's members as per-item values.
+        if (binding.items != null) continue;
         if (identical(binding.element, expression.element)) {
           return _RuntimeLoopReference(
             binding,
@@ -4210,7 +7918,10 @@ final class ExpressionTranslator {
     issues.add(
       Issue(
         code: IssueCode.unsupportedCollectionFlow,
-        message: refusal.detail,
+        message: collectionRefusalMessage(
+          refusal,
+          _locationOf(refusal.location),
+        ),
         location: _locationOf(refusal.location),
       ),
     );
@@ -4247,7 +7958,8 @@ final class ExpressionTranslator {
       final helper =
           _walk.inlined.helpers[invocation.methodName.element] ??
           _collectionHelpers[invocation.methodName.element];
-      if (helper == null) return null;
+      // Such a call is an island, which the leaf translates whole.
+      if (helper == null || _repeatsCode(invocation)) return null;
       final bindings = bindHelperArguments(
         helper.params,
         invocation.argumentList.arguments.toList(),
@@ -4286,22 +7998,113 @@ final class ExpressionTranslator {
     MeasurementOccurrenceScope? measurementScope,
   }) {
     if (emitLeaf != null) return emitLeaf(occurrence, ordinal) ?? '';
-    if (itemType != null) {
-      return _translateSlotElement(
-        occurrence.terminalExpression,
-        occurrence.bindings,
-        itemType,
-        issues,
-        measurementScope: measurementScope,
+    final saved = _walk;
+    final unrolled = _unrolled.length;
+    _unrolled.addAll([
+      for (final step in occurrence.structuralPath)
+        if (step.kind == CollectionStructuralOccurrenceKind.loopIteration &&
+            step.node is ForElement &&
+            !_unrolled.any((known) => identical(known.loop, step.node)))
+          (loop: step.node as ForElement, ordinal: step.ordinal),
+    ]);
+    // Each unrolled iteration is its own island scope.
+    final iterations = [
+      for (final step in occurrence.structuralPath)
+        if (step.kind == CollectionStructuralOccurrenceKind.loopIteration)
+          '${step.ordinal}',
+    ];
+    if (iterations.isNotEmpty) {
+      _walk = _walk.copyWith(
+        islandScope: [..._walk.islandScope, ...iterations],
       );
     }
-    return _translateWithBindings(
-      occurrence.terminalExpression,
-      occurrence.bindings,
-      issues,
-      _translate,
-      measurementScope: measurementScope,
-    );
+    try {
+      return _throughLocals(
+        [...occurrence.spreadProvenance, ...occurrence.sourceProvenance],
+        0,
+        issues,
+        () => itemType != null
+            ? _translateSlotElement(
+                occurrence.terminalExpression,
+                occurrence.bindings,
+                itemType,
+                issues,
+                measurementScope: measurementScope,
+              )
+            : _translateWithBindings(
+                occurrence.terminalExpression,
+                occurrence.bindings,
+                issues,
+                _translate,
+                measurementScope: measurementScope,
+              ),
+      );
+    } finally {
+      _walk = saved;
+      _unrolled.length = unrolled;
+    }
+  }
+
+  // Whether every record of [key] is an app builder slot's own.
+  static bool _slotOnly(_HoistSession hoist, String key) {
+    final records = [
+      for (final record in hoist.records)
+        if (record.key == key) record,
+    ];
+    return records.isNotEmpty && records.every((record) => record.slot);
+  }
+
+  // The builder frames inside an app builder's slot.
+  final Set<WidgetBuilderLowering> _slotFrames = HashSet.identity();
+
+  // The statically unrolled loop iterations being translated, outermost first.
+  final _unrolled = <({ForElement loop, int ordinal})>[];
+
+  // [translate] through each build local and helper parameter the
+  // collection resolver crossed from [from] on, as a read of it.
+  String _throughLocals(
+    List<CollectionSemanticSourceStep> steps,
+    int from,
+    List<Issue> issues,
+    String Function() translate,
+  ) {
+    for (var index = from; index < steps.length; index++) {
+      final step = steps[index];
+      String rest() => _throughLocals(steps, index + 1, issues, translate);
+      // Each call of a helper the resolver inlined is its own scope, as an
+      // inlined call's is.
+      if (step case CollectionSemanticSourceStep(
+        kind: CollectionSemanticSourceKind.helper,
+        source: final MethodInvocation call,
+      )) {
+        _callSites.add(call);
+        // The helper's body is where the copy runs what the list holds.
+        _hoist?.helperBodies[call] =
+            _walk.inlined.helpers[call.methodName.element]?.body ?? step.target;
+        try {
+          return _inScope([islandCallStep(call)], rest);
+        } finally {
+          _callSites.removeLast();
+        }
+      }
+      final read = step.source;
+      if (read is! SimpleIdentifier) continue;
+      if (step.kind == CollectionSemanticSourceKind.constDeclaration) {
+        return _inScope(_constPlacementStep(read), rest);
+      }
+      if (step.kind != CollectionSemanticSourceKind.binding) continue;
+      final argument = _walk.paramBindings[read.element];
+      if (argument != null) {
+        if (!identical(argument, step.target)) continue;
+        return _throughParameter(read, argument, rest);
+      }
+      final initializer = _walk.inlined.localBindings[read.element];
+      if (initializer == null || !identical(initializer, step.target)) {
+        continue;
+      }
+      return _throughLocal(read, initializer, issues, rest);
+    }
+    return translate();
   }
 
   String _translateDoubleElement(
@@ -4784,14 +8587,12 @@ final class ExpressionTranslator {
     }
     issues.add(
       _appOnlyValueIssue(expr, IssueCode.unresolvedIdentifier) ??
-          _replaceable(
-            Issue(
-              code: IssueCode.unresolvedIdentifier,
-              message:
-                  "'${expr.toSource()}' is not a resolved enum constant "
-                  'or portable const value.',
-              location: _locationOf(expr),
-            ),
+          Issue(
+            code: IssueCode.unresolvedIdentifier,
+            message:
+                "'${expr.toSource()}' is not a resolved enum constant "
+                'or portable const value.',
+            location: _locationOf(expr),
           ),
     );
     return '';
@@ -6046,6 +9847,9 @@ final class ExpressionTranslator {
       final name = a.name.lexeme;
       if (isDiscardedWidgetKeyArgument(a)) {
         _activeWidgetBuilder?.observeKey(a.argumentExpression);
+        if (_activeWidgetBuilder == null) {
+          return defer('the Text `key:` is not reproduced by $adoptTarget');
+        }
         continue;
       }
       if (!kRestageFormattedTextProps.contains(name)) {
@@ -6957,7 +10761,9 @@ final class ExpressionTranslator {
     // Inline helpers captured by resolved element identity, including static calls.
     // Run before static value substitution so captured widget helpers inline.
     final helper = _walk.inlined.helpers[expr.methodName.element];
-    if (helper != null) {
+    // A call that reads an argument that runs code more than once is not
+    // inlined: the widget around it renders in the app as written.
+    if (helper != null && !_repeatsCode(expr)) {
       return _inlineHelperBody(helper, expr, issues);
     }
 
@@ -7206,12 +11012,10 @@ final class ExpressionTranslator {
     }
 
     issues.add(
-      _replaceable(
-        Issue(
-          code: IssueCode.unrecognizedMethodCall,
-          message: 'Unsupported method invocation: ${expr.toSource()}.',
-          location: _locationOf(expr),
-        ),
+      Issue(
+        code: IssueCode.unrecognizedMethodCall,
+        message: 'Unsupported method invocation: ${expr.toSource()}.',
+        location: _locationOf(expr),
       ),
     );
     return '';
@@ -7752,7 +11556,8 @@ final class ExpressionTranslator {
       canonicalPaywallIdFor: canonicalPaywallIdFor,
     );
     expr.accept(scanner);
-    if (scanner.resultDrop != null) {
+    // A split surface runs a navigation it cannot lower as an action.
+    if (scanner.resultDrop != null && _islands == null) {
       issues.add(_navigationUnsupportedIssue(scanner.resultDrop!, expr));
       return const [];
     }
@@ -7815,6 +11620,11 @@ final class ExpressionTranslator {
     }
     return names;
   }
+
+  // Whether app code an island runs outside the recorded build can fire an
+  // event; its own event calls are rewritten, so they don't count.
+  bool _islandFiresEvents(AstNode island) =>
+      reachesEvents(island, customWidgetClassifications, helpers: false);
 
   Iterable<CustomWidgetBlueprint> _reachableCustomWidgetBlueprints(
     Expression expr,
@@ -8198,8 +12008,8 @@ final class ExpressionTranslator {
           code: IssueCode.shaderMaskFormUnsupported,
           capabilityGapSubject: 'widget:${widgetClass!.name}',
           message:
-              '${widgetClass.name}: $reason. Put this effect in a custom '
-              'widget annotated with @RestageWidget.',
+              "`${widgetClass.name}` renders from your app's code because "
+              '$reason.',
           location: _locationOf(anchor),
         ),
       );
@@ -8323,7 +12133,8 @@ final class ExpressionTranslator {
           defer('the native key requires the original PageView owner');
           return '';
         }
-        continue;
+        _keyNotKept(arg.argumentExpression, issues);
+        return '';
       }
       switch (name) {
         case 'children':
@@ -9199,8 +13010,17 @@ final class ExpressionTranslator {
     String? constructorName,
     bool occurrenceScoped = false,
   }) {
+    var splitPlaced = false;
     final occurrenceScope = _walk.measurementScope;
-    if (!occurrenceScoped && occurrenceScope != null) {
+    // A function call is not a widget occurrence: it renders from the app.
+    final callsFunction =
+        anchor is MethodInvocation &&
+        switch (anchor.methodName.element) {
+          ConstructorElement() => false,
+          ExecutableElement() => true,
+          _ => false,
+        };
+    if (!occurrenceScoped && occurrenceScope != null && !callsFunction) {
       if (widgetClass == null) {
         issues.add(
           Issue(
@@ -9345,6 +13165,19 @@ final class ExpressionTranslator {
         // diagnostic): discard any inline-specific diagnostics and reference
         // the registered catalog entry below.
         issues.removeRange(issueMark, issues.length);
+        // A split widget's delivered definition shadows that entry.
+        if (splitWidgetDefinitions[key] case final split?) {
+          splitPlaced = true;
+          _currentWidgetDefinitions?.addAll(split.definitions);
+          _currentWidgetDefinitionStates?.addAll(split.states);
+          for (final origin in split.origins) {
+            _currentRfwCatalogConstructorOrigins?.putIfAbsent(
+              origin.constructorName,
+              () => origin,
+            );
+          }
+          _currentReferencedCustomLibraries?.addAll(split.libraries);
+        }
       }
     }
     if (entry == null) {
@@ -9467,21 +13300,15 @@ final class ExpressionTranslator {
         code: IssueCode.unknownWidget,
         capabilityGapSubject: 'widget:$widgetName',
         message: statePackage != null
-            ? "'$widgetName' (package:$statePackage) builds from app "
-                  'state. Read that state in the host widget and pass the '
-                  'values to this surface as constructor inputs. See '
-                  'https://docs.restage.dev/authoring/write-a-surface'
-                  '#adopt-an-existing-widget'
-            : "Widget '$widgetName' is not a known catalog widget. If "
-                  'it is a custom widget, annotate its class with '
-                  '@RestageWidget so Restage can recognize it.',
+            ? "`$widgetName` (package:$statePackage) renders from your "
+                  "app's code because it builds from your app's state."
+            : "`$widgetName` renders from your app's code because it isn't "
+                  "in Restage's widget catalog. Try promoting it with "
+                  '`restage widget promote ${_locationOf(anchor)}` if '
+                  'designers should place it on other screens.',
         location: _locationOf(anchor),
       );
-      issues.add(
-        anchor is MethodInvocation && statePackage == null
-            ? _replaceable(unknown)
-            : unknown,
-      );
+      issues.add(unknown);
       return '';
     }
 
@@ -9807,7 +13634,98 @@ final class ExpressionTranslator {
       );
     }
 
+    // An app widget the design builds keeps its identity on both paths.
+    if (widgetClass != null &&
+        firstAnnotation(widgetClass, 'RestageWidget') != null) {
+      emitted.addAll(
+        _appWidgetPlacement(
+          anchor,
+          entry,
+          issues,
+          split: splitPlaced ? widgetClass : null,
+        ),
+      );
+    }
     return _catalogCall(entry, emitted);
+  }
+
+  // Whether [loop] gives each item a map the build records its positions
+  // into: a list the mount walks, or a screen input's list of objects.
+  bool _keysItems(_RuntimeLoopBinding loop) =>
+      loop.item != null &&
+      (_hoist!.values[loop.item]?.kind == HoistValueKind.items ||
+          loop.shape is HostDataObjectShape);
+
+  // Where a mount's build places the app widget [entry] at [node], through
+  // its wrapper when it's the [split] class: the name and loop positions it
+  // is keyed by on both paths, recorded for the build's copy. None outside a
+  // mount. In a loop whose items the mount doesn't walk it adds [issues], so
+  // the loop walks them in the mount.
+  List<String> _appWidgetPlacement(
+    Expression node,
+    WidgetEntry entry,
+    List<Issue> issues, {
+    ClassElement? split,
+  }) {
+    final session = _islands;
+    final hoist = _hoist;
+    final loops = _walk.runtimeLoops;
+    if (session == null || hoist == null) return const [];
+    if (loops.any((loop) => !_keysItems(loop))) {
+      issues.add(
+        Issue(
+          code: IssueCode.unsupportedCollectionFlow,
+          message:
+              "`${entry.name}` (${_locationOf(node)}) is inside a loop whose "
+              "items Restage can't track one by one, so its State would be "
+              'lost when a new design is shown. Try passing the list in '
+              "through the screen's constructor.",
+          location: _locationOf(node),
+        ),
+      );
+      return const [];
+    }
+    final scope = _walk.islandScope.join('>');
+    final widget = islandWidgetType(node);
+    final key = '$scope/$widget';
+    final peers = [
+      for (final entry in session.order)
+        if (entry.key == key) entry.node,
+    ];
+    final ordinal = switch (peers.indexWhere((peer) => identical(peer, node))) {
+      -1 => peers.length,
+      final index => index,
+    };
+    if (ordinal == peers.length) session.order.add((key: key, node: node));
+    final name = islandIdentity(session.surface, scope, widget, ordinal).name;
+    if (!session.recordPlacements.any(
+      (placed) => identical(placed.node, node),
+    )) {
+      session.recordPlacements.add((
+        name: name,
+        node: node,
+        calls: [..._callSites],
+        items: loops.isEmpty ? null : loops.last.item,
+        widget: entry.name,
+        split: split != null,
+        place: split == null
+            ? '${kSdkPrefixMarker}RestageRecording.itself'
+            : spellBesideClass(
+                session.library,
+                split.library.identifier,
+                split.name ?? '',
+                splitAppName(entry.name),
+              ),
+      ));
+    }
+    return [
+      '$kPlacementNameArgument: ${jsonEncode(name)}',
+      if (loops.isNotEmpty)
+        '$kPlacementItemsArgument: [${[
+          for (final loop in loops) '${loop.identifier}'
+                '${_rfwPathPart(hoist.add(itemIndexValue(loop.item!, label: _itemIndexLabel(loop))).key)}',
+        ].join(', ')}]',
+    ];
   }
 
   /// The `crossAxisAlignment: CrossAxisAlignment.baseline` argument of a flex
@@ -10687,6 +14605,7 @@ final class ExpressionTranslator {
     final measurementScope = _walk.measurementScope;
     final measurementWidgetList = _walk.measurementWidgetList;
     _walk = _walk.copyWith(
+      islandScope: [..._walk.islandScope, islandCallStep(call)],
       paramBindings: {..._walk.paramBindings, ...binding},
       measurementScope:
           measurementScope != null && helperElement is ExecutableElement
@@ -10697,9 +14616,12 @@ final class ExpressionTranslator {
           ? measurementWidgetList.enterHelper(helperElement)
           : measurementWidgetList,
     );
+    _callSites.add(call);
+    _hoist?.helperBodies[call] = helper.body;
     try {
       return visit(helper.body);
     } finally {
+      _callSites.removeLast();
       if (guardBuilder) _activeBuilderHelpers.remove(helper);
       _walk = saved;
     }
@@ -10754,7 +14676,7 @@ final class ExpressionTranslator {
         owners == null) {
       return null;
     }
-    final name = blueprint.rfwName;
+    final name = _definitionName(blueprint);
     final emissionIdentity = catalogEntry == null
         ? null
         : (
@@ -10823,7 +14745,12 @@ final class ExpressionTranslator {
       final bodyMark = issues.length;
       try {
         if (_admitOrdinaryLeaf(blueprint.buildExpression, issues)) {
-          definitions[name] = _translate(blueprint.buildExpression, issues);
+          final body = _translate(blueprint.buildExpression, issues);
+          if (_passThroughParam(body) case final param?) {
+            (_passThroughs[definitions] ??= {})[name] = param;
+          } else {
+            definitions[name] = body;
+          }
         }
         if (stateFields != null && stateFields.isNotEmpty) {
           definitionStates[name] = {
@@ -10839,6 +14766,7 @@ final class ExpressionTranslator {
       if (issues.skip(bodyMark).any((issue) => !issue.code.isBuildNotice)) {
         definitions.remove(name);
         definitionStates.remove(name);
+        _passThroughs[definitions]?.remove(name);
         return '';
       }
     } else if (claimedBy != key) {
@@ -10847,13 +14775,30 @@ final class ExpressionTranslator {
       );
       return '';
     }
-    if (!definitions.containsKey(name)) return '';
+    final passThrough = _passThroughs[definitions]?[name];
+    if (passThrough != null) definitionStates.remove(name);
+    if (passThrough == null && !definitions.containsKey(name)) return '';
     if (emissionIdentity != null) {
       _currentCustomWidgetInlineClaims?.add(emissionIdentity);
     }
 
     // The call-site arguments translate in the caller's context — restored
     // above after any definition-body translation.
+    if (passThrough != null) {
+      final mark = issues.length;
+      // Only the argument it returns is built; Flutter never reads the rest.
+      final values = _customWidgetCallArgValues(
+        blueprint,
+        args,
+        issues,
+        catalogEntry: catalogEntry,
+        only: passThrough,
+      );
+      if (issues.skip(mark).any((issue) => !issue.code.isBuildNotice)) {
+        return '';
+      }
+      return values[passThrough];
+    }
     final callArgs = normalizeOptionalChild(
       issues,
       () => _customWidgetCallArgs(
@@ -10869,6 +14814,31 @@ final class ExpressionTranslator {
       RefusedDslEmission() => '',
     };
   }
+
+  // The parameter a translated build [body] returns as is, or null: a
+  // declaration's root must be a constructor call or a switch.
+  static String? _passThroughParam(String body) =>
+      RegExp(r'^args\.([A-Za-z_][A-Za-z0-9_]*)$').firstMatch(body.trim())?[1];
+
+  /// The RFW name [blueprint]'s inlined definition emits under: its class
+  /// name, or, when a surface root, a different catalog widget or another
+  /// inlined class also uses that name, the name with a suffix derived from
+  /// the class's identity.
+  String _definitionName(CustomWidgetBlueprint blueprint) =>
+      _definitionNames[(blueprint.classKey, blueprint.rfwName)] ??= () {
+        final name = blueprint.rfwName;
+        final shared =
+            _inlineNameConflict(name, blueprint.classKey) != null ||
+            customWidgetBlueprints.values.any(
+              (other) =>
+                  other.rfwName == name && other.classKey != blueprint.classKey,
+            );
+        if (!shared) return name;
+        final digest = sha256.convert(utf8.encode(blueprint.classKey));
+        return '${name}_${digest.toString().substring(0, 8)}';
+      }();
+
+  final Map<(String, String), String> _definitionNames = {};
 
   /// Why the RFW widget name [name] cannot be claimed by the custom widget
   /// [classKey] — a reserved surface root name, or a different catalog widget
@@ -10913,6 +14883,24 @@ final class ExpressionTranslator {
     NodeList<Argument> args,
     List<Issue> issues, {
     WidgetEntry? catalogEntry,
+  }) => [
+    for (final MapEntry(:key, :value) in _customWidgetCallArgValues(
+      blueprint,
+      args,
+      issues,
+      catalogEntry: catalogEntry,
+    ).entries)
+      '${_rfwMapKey(key)}: $value',
+  ].join(', ');
+
+  /// The lowered value of each call-site argument [_customWidgetCallArgs]
+  /// emits, by parameter name, in emission order; only [only]'s when given.
+  Map<String, String> _customWidgetCallArgValues(
+    CustomWidgetBlueprint blueprint,
+    NodeList<Argument> args,
+    List<Issue> issues, {
+    WidgetEntry? catalogEntry,
+    String? only,
   }) {
     // Collect call-site expressions by parameter name. Unmatched named
     // arguments are diagnosed.
@@ -10927,7 +14915,9 @@ final class ExpressionTranslator {
       CustomWidgetParam? param;
       if (arg is NamedArgument) {
         final argName = arg.name.lexeme;
-        if (isDiscardedWidgetKeyArgument(arg)) {
+        // A key the widget forwards to its build is one of its parameters.
+        if (isDiscardedWidgetKeyArgument(arg) &&
+            !parameterNames.contains(argName)) {
           if (!isLegacyScalarWidgetKey(arg.argumentExpression)) {
             issues.add(
               Issue(
@@ -10938,6 +14928,8 @@ final class ExpressionTranslator {
                 location: _locationOf(arg),
               ),
             );
+          } else {
+            _keyNotKept(arg.argumentExpression, issues);
           }
           continue;
         }
@@ -11000,9 +14992,10 @@ final class ExpressionTranslator {
     //   omitted, constructor default exists      → the default        (row 1)
     //   omitted, no default, coalesced           → the fallback       (row 2)
     //   omitted, no default, not coalesced       → unbound (args.<name> = null)
-    final emitted = <String>[];
+    final emitted = <String, String>{};
     final fallbacks = _completionFallbacks[blueprint.classKey] ?? const {};
     for (final param in blueprint.params) {
+      if (only != null && param.name != only) continue;
       final suppliedExpr = supplied[param.name];
       final fallback = fallbacks[param.name];
       if (suppliedExpr != null) {
@@ -11033,10 +15026,7 @@ final class ExpressionTranslator {
         }
         if (fallback != null && _isNullLiteral(suppliedExpr)) {
           // Row 3: explicit `null` fires the `??` → the fallback.
-          emitted.add(
-            '${_rfwMapKey(param.name)}: '
-            '${_coerceParamValue(param, fallback)}',
-          );
+          emitted[param.name] = _coerceParamValue(param, fallback);
         } else {
           final beforeIssues = issues.length;
           final lowered = _translateParamValue(
@@ -11070,25 +15060,20 @@ final class ExpressionTranslator {
             );
           } else {
             // Row 4: a passed value, unchanged.
-            emitted.add('${_rfwMapKey(param.name)}: $lowered');
+            emitted[param.name] = lowered;
           }
         }
       } else if (param.defaultValue != null) {
         // Row 1: omitted + constructor default — the `??` never fires; the
         // existing default-completion path, unchanged.
         final defaultLiteral = _foldedLiteral(param.defaultValue!);
-        emitted.add(
-          '${_rfwMapKey(param.name)}: '
-          '${_coerceParamValue(param, defaultLiteral)}',
-        );
+        emitted[param.name] = _coerceParamValue(param, defaultLiteral);
       } else if (fallback != null) {
         // Row 2: omitted, no default — the fallback.
-        emitted.add(
-          '${_rfwMapKey(param.name)}: ${_coerceParamValue(param, fallback)}',
-        );
+        emitted[param.name] = _coerceParamValue(param, fallback);
       }
     }
-    return emitted.join(', ');
+    return emitted;
   }
 
   CustomWidgetParam? _resolvedCustomWidgetParam(
@@ -11233,6 +15218,41 @@ final class ExpressionTranslator {
         issues,
         sourceParameter: param.sourceParameter,
       );
+    } else if (_nativeContractOf(param.type) case final contract?) {
+      // A native value crosses as a direct site would pass it.
+      final before = issues.length;
+      translated =
+          _nativeBindingRead(
+            stripped,
+            type: contract,
+            computed: true,
+            construct: true,
+          ) ??
+          (contract == 'flutter.Key'
+              ? _nativeKeyReference(stripped, issues)
+              : null) ??
+          '';
+      if (translated.isEmpty && issues.length == before) {
+        final source = readableSource(_writtenSource(stripped));
+        // In a mount the call site renders from the app; without one it's
+        // refused.
+        issues.add(
+          Issue(
+            code: IssueCode.propertyValueTypeMismatch,
+            message: _hoist == null
+                ? '`$source` (${_locationOf(stripped)}): Restage passes this '
+                      "value to a widget only through the screen's generated "
+                      "widget, and this build doesn't use one. Try showing the "
+                      'screen through ${_generatedMountName(stripped)}, or '
+                      'removing the argument.'
+                : 'App code builds the widget that takes `$source` '
+                      "(${_locationOf(stripped)}) because Restage can't pass "
+                      "`$source` through a design. Designs can't change that "
+                      'widget.',
+            location: _locationOf(stripped),
+          ),
+        );
+      }
     } else {
       final paramType = param.type;
       final declaredListItemType = paramType == null
@@ -11301,6 +15321,12 @@ final class ExpressionTranslator {
   ) {
     final handler = value.trimLeft();
     if (handler.startsWith('{nativeEvent: ')) {
+      // A callback that returns a value passes unmeasured; a tap returns
+      // nothing.
+      if (_resolveBoundIdentifier(_stripParens(expression)).staticType
+          case FunctionType(:final returnType) when returnType is! VoidType) {
+        return value;
+      }
       final tap = _measurementTapEvent(marker, occurrence, expression, issues);
       if (tap.isEmpty) return '';
       return '${value.substring(0, value.length - 1)}, measurement: $tap}';
@@ -11750,11 +15776,7 @@ final class ExpressionTranslator {
     final composedSwitch = _tryComposedConditionSwitch(expr, issues, branch);
     if (composedSwitch != null) return composedSwitch;
     final beforeCondition = issues.length;
-    final cond = _translateSlotValue(
-      expr.condition,
-      PropertyType.boolean,
-      issues,
-    );
+    final cond = _conditionKey(expr.condition, issues);
     // Lower every part before refusing so each diagnosed part is reported.
     var refused = _diagnosedEmpty(cond, issues, beforeCondition);
     final beforeThen = issues.length;
@@ -11765,6 +15787,23 @@ final class ExpressionTranslator {
     refused |= _diagnosedEmpty(elseDsl, issues, beforeElse);
     if (refused) return '';
     return _switchDsl(cond, [('true', thenDsl), ('false', elseDsl)]);
+  }
+
+  /// Translates the [index]th path of a build with several with the
+  /// measurement scope qualified by it, as source discovery keys it.
+  T _inBuildBranch<T>(int index, T Function() translate) {
+    final saved = _walk;
+    _walk = _walk.copyWith(
+      measurementScope: _walk.measurementScope?.enterBuildBranch(index),
+      measurementWidgetList: _walk.measurementWidgetList?.enterBuildBranch(
+        index,
+      ),
+    );
+    try {
+      return translate();
+    } finally {
+      _walk = saved;
+    }
   }
 
   /// Translates [branch] with the measurement scope qualified by its path from
@@ -11846,7 +15885,15 @@ final class ExpressionTranslator {
     List<Issue> issues,
     String Function(Expression) branch,
   ) {
-    final resolved = _resolveBoundIdentifier(_stripParens(expr.condition));
+    // A theme comparison held in a build local is still that comparison.
+    final seesThrough = _seesThroughPreludes;
+    _seesThroughPreludes = true;
+    final Expression resolved;
+    try {
+      resolved = _resolveBoundIdentifier(_stripParens(expr.condition));
+    } finally {
+      _seesThroughPreludes = seesThrough;
+    }
     final cond = _stripParens(resolved);
     if (cond is! BinaryExpression) return null;
     final bindings = _walk.inlined.localBindings;
@@ -12201,16 +16248,53 @@ final class ExpressionTranslator {
           negated: distributed.negated,
         );
       }
-      return null;
+      // A split surface's mount can compute any other comparison.
+      if (_islands == null) return null;
     }
     final before = issues.length;
-    final dsl = _translateSlotValue(cond, PropertyType.boolean, issues);
+    final dsl = _conditionKey(cond, issues);
     if (dsl.isEmpty || issues.length > before) return null;
     return _ConditionLowering(
       (whenTrue, whenFalse) =>
           _switchDsl(dsl, [('true', whenTrue), ('false', whenFalse)]),
     );
   }
+
+  /// [condition] as a switch key. A switch resolves its key as data, so a
+  /// condition that lowers to a program is the value the mount computes;
+  /// with no mount to compute it, it lowers as data or is refused.
+  String _conditionKey(Expression condition, List<Issue> issues) {
+    final site = _valueSite;
+    _valueSite = condition;
+    try {
+      return _conditionKeyAt(condition, issues);
+    } finally {
+      _valueSite = site;
+    }
+  }
+
+  String _conditionKeyAt(Expression condition, List<Issue> issues) {
+    final dsl = _translateSlotValue(condition, PropertyType.boolean, issues);
+    if (!dsl.startsWith(_kValueProgram)) return dsl;
+    // A switch reads its key as data, so a key is never a program: it is the
+    // value the mount computes, or, with none to compute it, data or refused.
+    final hoist = _hoist;
+    final type = condition.staticType;
+    final verdict = classifyHoistType(type);
+    final stripped = _stripParens(condition);
+    final analysis = hoist?.analyzer.analyze(stripped);
+    if (hoist == null ||
+        verdict is! HoistCrosses ||
+        type == null ||
+        analysis is! HoistEvaluable) {
+      return _translateSlotValueLegacy(condition, PropertyType.boolean, issues);
+    }
+    return _hoistedRead(
+      hoist.add(analysis.value(verdict, type, expression: stripped)),
+    );
+  }
+
+  static const _kValueProgram = '{ version: 1, program: ';
 
   /// An equality whose operand resolves to a conditional or a bound literal.
   ({Expression operand, Expression literal, bool negated})?
@@ -12778,7 +16862,12 @@ final class ExpressionTranslator {
       final resolved = _resolveBoundIdentifier(_stripParens(expr));
       if (_isNullLiteral(resolved) && property?.constructorNullable == true)
         return 'null';
-      final binding = _nativeBindingRead(resolved, type: native.contractType);
+      // The mount records the app's own object where the build computes it.
+      final binding = _nativeBindingRead(
+        resolved,
+        type: native.contractType,
+        computed: _islands != null,
+      );
       if (binding != null) return binding;
       issues.add(
         Issue(
@@ -12803,7 +16892,6 @@ final class ExpressionTranslator {
           ) ??
           '';
     }
-    final before = issues.length;
     final dsl = _translateSlotValueUnrecorded(
       expr,
       type,
@@ -12812,9 +16900,6 @@ final class ExpressionTranslator {
       sourceParameter: sourceParameter,
       coerce: coerce,
     );
-    if (type != PropertyType.event && type != PropertyType.widget) {
-      _explainAppOnlyFailure(expr, issues, before);
-    }
     _recordEmission(expr, dsl);
     return dsl;
   }
@@ -13179,6 +17264,38 @@ final class ExpressionTranslator {
     return value is NullLiteral ? 0 : 1;
   }
 
+  // The mount's binding of the app's closure [expression], which Flutter calls
+  // with its own arguments; null outside a mount or for a type with no id.
+  // [argument], the expression as written, names the slot's own type; a
+  // catalog slot takes only its [expected] callback type.
+  String? _typedClosureBinding(
+    Expression expression,
+    Expression argument, {
+    String? expected,
+  }) {
+    final declared = switch (argument.parent) {
+      NamedArgument(:final correspondingParameter?) =>
+        correspondingParameter.type,
+      _ => null,
+    };
+    final callback = declared is FunctionType
+        ? declared
+        : expression.staticType;
+    if (_islands == null || callback is! FunctionType) return null;
+    String type;
+    try {
+      type = installedNativeTypeId(callback);
+    } on ArgumentError {
+      return null;
+    }
+    // The slot may be optional; the callback passed is not.
+    if (callback.nullabilitySuffix == NullabilitySuffix.question) {
+      type = type.substring(0, type.length - 1);
+    }
+    if (expected != null && type != expected) return null;
+    return _nativeBindingRead(expression, type: type, computed: true);
+  }
+
   String _translateSlotValueCore(
     Expression rawExpr,
     PropertyType type,
@@ -13186,6 +17303,32 @@ final class ExpressionTranslator {
     PropertyEntry? property,
     bool coerce = true,
   }) {
+    if (type == PropertyType.event &&
+        property?.callbackSignature != null &&
+        _islands != null) {
+      // A typed callback that doesn't lower is the app's own closure.
+      final scratch = <Issue>[];
+      final legacy = _translateSlotValueLegacy(
+        rawExpr,
+        type,
+        scratch,
+        property: property,
+        coerce: coerce,
+      );
+      if (scratch.any((issue) => !issue.code.isBuildNotice)) {
+        final expression = _resolveBoundIdentifier(_stripParens(rawExpr));
+        if (_typedClosureBinding(
+              expression,
+              rawExpr,
+              expected: eventNativeType(property!),
+            )
+            case final action?) {
+          return '{nativeEvent: $action}';
+        }
+      }
+      issues.addAll(scratch);
+      return legacy;
+    }
     if (type == PropertyType.event && property?.callbackSignature == null) {
       final scratch = <Issue>[];
       final legacy = _translateSlotValueLegacy(
@@ -13198,36 +17341,62 @@ final class ExpressionTranslator {
       // A completed declarative translation may intentionally emit no handler.
       // Navigation refusals also retain their diagnostic and context boundary.
       if (!scratch.any((issue) => !issue.code.isBuildNotice) ||
-          scratch.any(
-            (issue) => issue.code == IssueCode.navigationFormUnsupported,
-          )) {
+          _islands == null &&
+              scratch.any(
+                (issue) => issue.code == IssueCode.navigationFormUnsupported,
+              )) {
         issues.addAll(scratch);
         return legacy;
       }
       final expression = _resolveBoundIdentifier(_stripParens(rawExpr));
       final callback = expression.staticType;
       if (callback is FunctionType && callback.formalParameters.isEmpty) {
+        String? reference;
+        final native = <Issue>[];
         try {
-          final reference =
+          reference =
               _nativeBindingRead(expression, type: kNativeVoidCallbackType) ??
               (expression is FunctionExpression
                   ? _tryNativeCallValue(
                       expression,
-                      issues,
+                      native,
                       type: kNativeVoidCallbackType,
                     )
                   : null);
-          if (reference != null) return '{nativeEvent: $reference}';
         } on BuilderLoweringException catch (error) {
-          issues.add(
-            Issue(
-              code: IssueCode.propertyValueTypeMismatch,
-              message: error.reason,
-              location: _locationOf(error.node),
-            ),
-          );
-          return '';
+          if (_islands == null) {
+            issues.add(
+              Issue(
+                code: IssueCode.propertyValueTypeMismatch,
+                message: error.reason,
+                location: _locationOf(error.node),
+              ),
+            );
+            return '';
+          }
         }
+        if (reference != null) {
+          issues.addAll(native);
+          return '{nativeEvent: $reference}';
+        }
+        // An action: the mount holds the app's own closure.
+        final action = _islands == null
+            ? null
+            : _nativeBindingRead(
+                expression,
+                type: kNativeVoidCallbackType,
+                computed: true,
+              );
+        if (action != null) return '{nativeEvent: $action}';
+        issues.addAll(native);
+      } else if (_typedClosureBinding(
+            expression,
+            rawExpr,
+            expected: property == null ? null : eventNativeType(property),
+          )
+          case final action?) {
+        // Any other callback crosses as its slot's own type.
+        return '{nativeEvent: $action}';
       }
       issues.addAll(scratch);
       return legacy;
@@ -13351,6 +17520,61 @@ final class ExpressionTranslator {
     // `_structured.alignmentGeometry` directly rather than `_translate`,
     // so a bound reference used in such a slot would otherwise bypass the
     // resolve-through and over-claim. Inert outside inlining (both maps empty).
+    // A widget a build local holds is placed through that local.
+    if (expr case final SimpleIdentifier read
+        when type == PropertyType.widget || type == PropertyType.widgetList) {
+      if (_constPlacementStep(read) case final step
+          when step.isNotEmpty && _constReads.add(read)) {
+        _placementReads.add((read: read, bound: null));
+        try {
+          return _inScope(
+            step,
+            () => _translateSlotValueLegacy(
+              read,
+              type,
+              issues,
+              property: property,
+              coerce: coerce,
+            ),
+          );
+        } finally {
+          _constReads.remove(read);
+          _placementReads.removeLast();
+        }
+      }
+      final argument = _walk.paramBindings[read.element];
+      final initializer = _walk.inlined.localBindings[read.element];
+      if (argument != null) {
+        return _throughParameter(
+          read,
+          argument,
+          () => _translateSlotValueLegacy(
+            argument,
+            type,
+            issues,
+            property: property,
+            coerce: coerce,
+          ),
+        );
+      }
+      if (initializer != null &&
+          (!identical(_resolveBoundIdentifier(read), read) ||
+              (_islands?.sharedLocals.contains(read.element?.baseElement) ??
+                  false))) {
+        return _throughLocal(
+          read,
+          initializer,
+          issues,
+          () => _translateSlotValueLegacy(
+            initializer,
+            type,
+            issues,
+            property: property,
+            coerce: coerce,
+          ),
+        );
+      }
+    }
     final resolved = _resolveBoundIdentifier(expr);
     if (resolved is ConditionalExpression) {
       return _conditionalSwitch(
@@ -13796,6 +18020,12 @@ final class ExpressionTranslator {
       if (current is SimpleIdentifier) {
         final element = current.element;
         if (element == null || !seen.add(element)) break;
+        // A value the app computes reads a build local by name; an attempt
+        // to deliver sees through to what it holds.
+        if (!_seesThroughPreludes &&
+            (_islands?.preludeLocals.contains(element.baseElement) ?? false)) {
+          break;
+        }
         Expression? local;
         for (
           var scope = _activeWidgetBuilder?.expressions;
@@ -14236,10 +18466,16 @@ final class ExpressionTranslator {
   Issue? _appOnlyValueIssue(Expression expr, IssueCode code) {
     Issue refuse(String message) =>
         Issue(code: code, message: message, location: _locationOf(expr));
-    if (_hoistRefusal(expr) case final message?) {
-      final refusal = refuse(message);
-      _hoist?.refusals.add(refusal);
-      return refusal;
+    final stripped = _stripParens(expr);
+    // The mount's library must be able to name what the app evaluates.
+    if (_hoist?.analyzer.analyze(stripped) case HoistUnwritable(
+      unnamed: final name?,
+    )) {
+      return refuse(
+        "'${stripped.toSource()}' is evaluated in the app, and "
+        "${_currentSourcePath ?? "the screen's file"} can't refer to "
+        "'$name'. Import it there.",
+      );
     }
     Expression? current = expr;
     for (var depth = 0; current != null && depth < 16; depth++) {
@@ -14290,46 +18526,6 @@ final class ExpressionTranslator {
       current = bound ?? receiver;
     }
     return null;
-  }
-
-  /// Why the mount cannot compute [expr] for the surface, when it is an
-  /// app-only value; `null` when another refusal applies.
-  String? _hoistRefusal(Expression expr) {
-    final hoist = _hoist;
-    if (hoist == null) return null;
-    final stripped = _stripParens(expr);
-    final verdict = classifyHoistType(stripped.staticType);
-    final lookup =
-        stripped is MethodInvocation ||
-        stripped is PropertyAccess ||
-        stripped is PrefixedIdentifier ||
-        stripped is IndexExpression ||
-        stripped is FunctionExpressionInvocation;
-    final analysis = hoist.analyzer.analyze(stripped);
-    switch (analysis) {
-      case HoistNeedsSurfaceValue(isBuildArgument: true) ||
-          HoistNeedsSurfaceValue(name: 'ref'):
-        return "'ref' needs this screen to extend a widget whose build "
-            'receives it, such as ConsumerWidget.';
-      case HoistNeedsSurfaceValue(:final name) when verdict is HoistCrosses:
-        return "'${stripped.toSource()}' depends on '$name', which exists "
-            'only inside this surface. Pass the value in as a constructor '
-            'input.';
-      case HoistUnwritable(unnamed: final name?):
-        final screen = _currentSourcePath ?? "the screen's file";
-        return "'${stripped.toSource()}' is evaluated in the app, and "
-            "$screen can't refer to '$name'. Import it there.";
-      case HoistEvaluable(:final label) when lookup && verdict is HoistIsWidget:
-        return "'$label' returns a widget. Register that widget as a custom "
-            'widget to use it here.';
-      case HoistEvaluable(:final label)
-          when lookup && verdict is HoistDoesNotCross:
-        final type = stripped.staticType?.getDisplayString() ?? 'value';
-        return "'$label' is a $type, which a surface can't receive. Pass a "
-            'color, number, string, text style or enum.';
-      case _:
-        return null;
-    }
   }
 
   /// Whether [call] is a static `of` lookup on an app class taking a
@@ -14503,8 +18699,9 @@ final class ExpressionTranslator {
             issue: Issue(
               code: IssueCode.customWidgetImperative,
               message: withoutEntry(
-                'its build() uses ${blocker.detail}, which a delivered '
-                'surface cannot express (${blocker.kind.name})',
+                'its build() uses ${blocker.detail}'
+                '${_readableBlockerLocation(blocker.location)}, which a '
+                'delivered surface cannot express',
               ),
               location: blocker.location,
             ),
@@ -14517,12 +18714,26 @@ final class ExpressionTranslator {
             code: IssueCode.customWidgetUnsupportedReducible,
             capabilityGapSubject: 'customWidget:$widgetName',
             message: withoutEntry(
-              'its build() uses ${blocker.detail} (${blocker.kind.name}), '
-              'which is not supported in delivered surfaces',
+              'its build() uses ${blocker.detail}'
+              '${_readableBlockerLocation(blocker.location)}, which is not '
+              'supported in delivered surfaces',
             ),
             location: blocker.location,
           ),
           reason: 'build() uses ${blocker.detail}',
+        );
+      case UnclassifiableWidget(:final ownKey?):
+        return (
+          issue: Issue(
+            code: classification.diagnosticCode,
+            capabilityGapSubject: 'customWidget:$widgetName',
+            message:
+                "`$widgetName` renders from your app's code because its "
+                'build() creates its own key (`$ownKey`). Try passing the key '
+                "in through `$widgetName`'s constructor.",
+            location: _locationOf(anchor),
+          ),
+          reason: classification.reason,
         );
       case UnclassifiableWidget():
         return (
@@ -14538,6 +18749,16 @@ final class ExpressionTranslator {
         );
     }
   }
+
+  // A blocker's location, `<file>#<class>@<line>:<column>`, as the message
+  // names it: ` (<file>:<line>:<column>)`, or nothing when it isn't one.
+  static String _readableBlockerLocation(String location) => switch (RegExp(
+    r'^(.+?)#[^@]*@(\d+:\d+)$',
+  ).firstMatch(location)) {
+    final match? =>
+      ' (${match[1]!.startsWith('package:') ? 'lib/${match[1]!.split('/').skip(1).join('/')}' : match[1]}:${match[2]})',
+    null => '',
+  };
 
   static String _withoutFinalPeriod(String message) => message.endsWith('.')
       ? message.substring(0, message.length - 1)
@@ -14878,13 +19099,41 @@ final class ExpressionTranslator {
       return '${_unitPath(unit, current)}:${location.lineNumber}:'
           '${location.columnNumber}';
     }
-    final path = _currentSourcePath ?? '<unknown>';
-    final li = _currentLineInfo;
-    if (li == null) {
-      return '$path (offset ${node.offset})';
-    }
+    // Without a source context, the node's own unit gives a readable place.
+    final path =
+        _currentSourcePath ??
+        (unit is CompilationUnit ? _unitPath(unit, unit) : null);
+    final li =
+        _currentLineInfo ?? (unit is CompilationUnit ? unit.lineInfo : null);
+    if (path == null || li == null) return _declarationOf(node);
     final loc = li.getLocation(node.offset);
     return '$path:${loc.lineNumber}:${loc.columnNumber}';
+  }
+
+  // Where [node] is when its file cannot be named: the enclosing class and
+  // member as written, or its file position when it has neither.
+  String _declarationOf(AstNode node) {
+    final owner = node
+        .thisOrAncestorOfType<ClassDeclaration>()
+        ?.declaredFragment
+        ?.element
+        .name;
+    final member = switch (node.thisOrAncestorMatching(
+      (n) =>
+          n is MethodDeclaration ||
+          n is FunctionDeclaration ||
+          n is VariableDeclaration &&
+              n.parent?.parent is TopLevelVariableDeclaration,
+    )) {
+      MethodDeclaration(:final name) ||
+      FunctionDeclaration(:final name) ||
+      VariableDeclaration(:final name) => name.lexeme,
+      _ => null,
+    };
+    final declaration = [owner, member].nonNulls.join('.');
+    if (declaration.isNotEmpty) return declaration;
+    // A node in a unit always has a file position, so this can't recurse.
+    return node.root is CompilationUnit ? _locationOf(node) : node.toSource();
   }
 
   /// A helper call's name as written: `Owner.method` for a static.
@@ -14897,7 +19146,9 @@ final class ExpressionTranslator {
   /// within the surface's package, its full URI otherwise.
   String _unitPath(CompilationUnit unit, AstNode surface) {
     final uri = unit.declaredFragment?.source.uri;
-    if (uri == null) return '<unknown>';
+    if (uri == null) {
+      return unit.declaredFragment?.source.shortName ?? 'this file';
+    }
     final surfaceUri = surface is CompilationUnit
         ? surface.declaredFragment?.source.uri
         : null;
@@ -16221,6 +20472,46 @@ final class _PaywallEventNameScanner extends RecursiveAstVisitor<void> {
   }
 }
 
+// The `paywallEvent` and `surfaceEvent` calls a recorded build rewrites.
+final class _EventHelperCalls extends RecursiveAstVisitor<void> {
+  final List<MethodInvocation> calls = [];
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    final name = node.methodName.name;
+    if ((name == 'paywallEvent' || name == 'surfaceEvent') &&
+        node.methodName.element != null &&
+        callsEventHelper(node) &&
+        switch (node.target) {
+          null || SimpleIdentifier(element: PrefixElement()) => true,
+          _ => false,
+        }) {
+      calls.add(node);
+    }
+    super.visitMethodInvocation(node);
+  }
+}
+
+// The outermost constructions of app widgets below a node, past [skip].
+final class _AppWidgetConstructions extends RecursiveAstVisitor<void> {
+  _AppWidgetConstructions(this.isApp, {required this.skip});
+
+  final bool Function(ClassElement type) isApp;
+  final Set<AstNode> skip;
+  final List<InstanceCreationExpression> found = [];
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    if (skip.contains(node)) return;
+    if (node.constructorName.type.element case final ClassElement type
+        when isApp(type)) {
+      found.add(node);
+      return;
+    }
+    super.visitInstanceCreationExpression(node);
+  }
+}
+
 String? _paywallEventName(
   MethodInvocation node,
   HelperRegistry helpers,
@@ -16631,6 +20922,7 @@ final class _WalkContext {
     required this.measurementScope,
     required this.measurementWidget,
     required this.measurementWidgetList,
+    required this.islandScope,
   });
 
   /// The initial root state — matches the pre-bundle field defaults. Not
@@ -16652,7 +20944,8 @@ final class _WalkContext {
       validatedCoalesceParams = {},
       measurementScope = null,
       measurementWidget = null,
-      measurementWidgetList = null;
+      measurementWidgetList = null,
+      islandScope = const [];
 
   /// Constructor parameters keyed by fields read in a custom-widget body.
   /// Empty for root paywalls. Bare names lower to `args`; `widget.X` also lowers
@@ -16741,6 +21034,9 @@ final class _WalkContext {
   /// Exact widget-list slot whose elements are being translated.
   final MeasurementWidgetListOccurrence? measurementWidgetList;
 
+  /// Helper calls and unrolled iterations from the surface's build.
+  final List<String> islandScope;
+
   /// Returns a copy with the named fields replaced. Omitted fields keep their
   /// current value (shared by reference). The four nullable fields use the
   /// [_kWalkUnset] sentinel so a caller can set them to null.
@@ -16761,6 +21057,7 @@ final class _WalkContext {
     Object? measurementScope = _kWalkUnset,
     Object? measurementWidget = _kWalkUnset,
     Object? measurementWidgetList = _kWalkUnset,
+    List<String>? islandScope,
   }) {
     return _WalkContext(
       argNames: argNames ?? this.argNames,
@@ -16794,6 +21091,7 @@ final class _WalkContext {
       measurementWidgetList: identical(measurementWidgetList, _kWalkUnset)
           ? this.measurementWidgetList
           : measurementWidgetList as MeasurementWidgetListOccurrence?,
+      islandScope: islandScope ?? this.islandScope,
     );
   }
 }
@@ -16804,6 +21102,8 @@ final class _RuntimeLoopBinding {
     this.identifier,
     this.shape, {
     this.root,
+    this.items,
+    this.elements = const [],
   });
 
   final Element element;
@@ -16812,6 +21112,18 @@ final class _RuntimeLoopBinding {
 
   /// The screen input this loop walks directly, if it walks one.
   final RootContextParam? root;
+
+  /// The mount-computed item list this loop walks, if it walks one.
+  final String? items;
+
+  /// The variables a destructuring loop declares.
+  final List<Element> elements;
+
+  /// The context value whose items this loop walks.
+  String? get item => items ?? root?.name;
+
+  bool binds(Element? candidate) =>
+      identical(element, candidate) || elements.contains(candidate);
 }
 
 final class _RuntimeLoopReference {
@@ -16908,16 +21220,585 @@ final class _InstalledNativeConstruction extends RecursiveAstVisitor<void> {
   }
 }
 
-/// Calls [onFound] for each reference to [element].
-final class _ElementReferenceVisitor extends RecursiveAstVisitor<void> {
-  _ElementReferenceVisitor(this.element, this.onFound);
+/// Calls [onFound] for each reference to [element], or to any element
+/// [matches] accepts.
+typedef _AheadDeclarations = ({
+  List<(VariableDeclarationStatement, bool)> locals,
+  List<(Statement, DeclaredVariablePattern)> patterns,
+  List<(PatternVariableDeclarationStatement, DeclaredVariablePattern)>
+  destructured,
+  List<(ForStatement, Element)> loopVariables,
+  List<(CatchClause, Element)> caught,
+});
 
-  final Element element;
-  final void Function() onFound;
+final class _ElementReferenceVisitor extends RecursiveAstVisitor<void> {
+  _ElementReferenceVisitor(Element element, void Function() onFound)
+    : this.at((candidate) => candidate == element, (_) => onFound());
+  _ElementReferenceVisitor.at(this.matches, this.onFound);
+
+  final bool Function(Element? element) matches;
+  final void Function(SimpleIdentifier node) onFound;
 
   @override
   void visitSimpleIdentifier(SimpleIdentifier node) {
-    if (node.element == element) onFound();
+    if (matches(node.element)) onFound(node);
+  }
+}
+
+/// The nodes down a surface's root shell, their steps, and the index of the
+/// last one that does not lower.
+typedef _RootChain = ({
+  List<InstanceCreationExpression> nodes,
+  List<_ShellStep> steps,
+  List<bool> lowers,
+  int end,
+});
+
+/// One step down a root shell: the next node, and for a builder its
+/// closure, prelude locals and parameters.
+typedef _ShellStep = ({
+  Expression next,
+  FunctionExpression? builder,
+  Map<Element, Expression> bindings,
+  Set<Element> scope,
+});
+
+// Whether [type] is the type of a parameter that is covariant, written so or
+// inherited, as `didUpdateWidget`'s is.
+bool _isCovariantParameterType(NamedType type) {
+  final parameter = type.parent;
+  return parameter is FormalParameter &&
+      (parameter.declaredFragment?.element.isCovariant ?? false);
+}
+
+/// Collects the type names that refer to [element].
+final class _TypeReferences extends RecursiveAstVisitor<void> {
+  _TypeReferences(this.element, this.edits, {required this.header});
+
+  final Element element;
+  final List<(int, int, String)> edits;
+
+  /// Whether every reference counts; in members only `covariant` parameter
+  /// types do.
+  final bool header;
+
+  @override
+  void visitNamedType(NamedType node) {
+    if (node.element == element &&
+        (header || _isCovariantParameterType(node))) {
+      edits.add((
+        node.importPrefix?.offset ?? node.name.offset,
+        node.name.end,
+        kMountNameMarker,
+      ));
+    }
+    super.visitNamedType(node);
+  }
+}
+
+// Every `super.didUpdateWidget(...)` call: its argument becomes the mount's
+// old widget.
+final class _SuperUpdates extends RecursiveAstVisitor<void> {
+  _SuperUpdates(this.edits);
+
+  final List<(int, int, String)> edits;
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    if (node.target is SuperExpression &&
+        node.methodName.name == 'didUpdateWidget') {
+      final arguments = node.argumentList;
+      edits.add((
+        arguments.leftParenthesis.end,
+        arguments.rightParenthesis.offset,
+        '_restageOldWidget',
+      ));
+      return;
+    }
+    super.visitMethodInvocation(node);
+  }
+}
+
+// The declaration of one local variable.
+final class _DeclarationOf extends RecursiveAstVisitor<void> {
+  _DeclarationOf(this.element, this.found);
+
+  final Element element;
+  final void Function(VariableDeclaration declaration) found;
+
+  @override
+  void visitVariableDeclaration(VariableDeclaration node) {
+    if (identical(node.declaredFragment?.element, element)) found(node);
+    super.visitVariableDeclaration(node);
+  }
+}
+
+// Whether a node calls code: an invocation or a non-constant construction.
+final class _Invocations extends RecursiveAstVisitor<void> {
+  bool found = false;
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) => found = true;
+
+  @override
+  void visitFunctionExpressionInvocation(FunctionExpressionInvocation node) =>
+      found = true;
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    if (!node.isConst) found = true;
+    super.visitInstanceCreationExpression(node);
+  }
+}
+
+final class _EvaluatesCode extends RecursiveAstVisitor<void> {
+  _EvaluatesCode(this.helperFor, {this.appCode = false});
+
+  final HelperDef? Function(Element? element) helperFor;
+
+  /// Whether a framework constructor counts only by what its arguments run.
+  final bool appCode;
+  final Set<HelperDef> _entered = {};
+  bool found = false;
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    final helper = helperFor(node.methodName.element);
+    if (helper == null || !_entered.add(helper)) {
+      found = true;
+      return;
+    }
+    node.argumentList.accept(this);
+    for (final root in helper.roots) {
+      root.accept(this);
+    }
+    _entered.remove(helper);
+  }
+
+  @override
+  void visitFunctionExpressionInvocation(FunctionExpressionInvocation node) =>
+      found = true;
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {}
+
+  // A getter, operator or index the app declares is code too.
+  static bool _appDeclared(Element? element) {
+    final uri = element?.library?.uri;
+    return uri != null &&
+        !uri.isScheme('dart') &&
+        !uri.toString().startsWith('package:flutter/');
+  }
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    if (node.element case final PropertyAccessorElement getter
+        when !getter.isOriginVariable && _appDeclared(getter)) {
+      found = true;
+    }
+  }
+
+  // Types whose members the app can't override: String, int, double, num,
+  // bool and Null.
+  static bool _closedType(DartType? type) =>
+      type is InterfaceType &&
+          type.element.library.isDartCore &&
+          const {
+            'String',
+            'int',
+            'double',
+            'num',
+            'bool',
+            'Null',
+          }.contains(type.element.name) ||
+      type != null && type.isDartCoreNull;
+
+  // Anything iterated but a literal may run the app's iterator.
+  static bool _literal(Expression expression) =>
+      expression.unParenthesized is TypedLiteral;
+
+  @override
+  void visitBinaryExpression(BinaryExpression node) {
+    final operator = node.operator.type;
+    final logical =
+        operator == TokenType.AMPERSAND_AMPERSAND ||
+        operator == TokenType.BAR_BAR ||
+        operator == TokenType.QUESTION_QUESTION;
+    if (!logical &&
+        (node.element == null && !_closedType(node.leftOperand.staticType) ||
+            _appDeclared(node.element) ||
+            !_closedType(node.leftOperand.staticType) &&
+                // An enum's == is its identity.
+                node.leftOperand.staticType?.element is! EnumElement &&
+                (operator == TokenType.EQ_EQ ||
+                    operator == TokenType.BANG_EQ))) {
+      found = true;
+    }
+    super.visitBinaryExpression(node);
+  }
+
+  // Interpolating anything but a closed type calls its `toString`.
+  @override
+  void visitInterpolationExpression(InterpolationExpression node) {
+    if (!_closedType(node.expression.staticType)) found = true;
+    super.visitInterpolationExpression(node);
+  }
+
+  @override
+  void visitSpreadElement(SpreadElement node) {
+    if (!_literal(node.expression)) found = true;
+    super.visitSpreadElement(node);
+  }
+
+  @override
+  void visitForEachPartsWithDeclaration(ForEachPartsWithDeclaration node) {
+    if (!_literal(node.iterable)) found = true;
+    super.visitForEachPartsWithDeclaration(node);
+  }
+
+  @override
+  void visitForEachPartsWithIdentifier(ForEachPartsWithIdentifier node) {
+    if (!_literal(node.iterable)) found = true;
+    super.visitForEachPartsWithIdentifier(node);
+  }
+
+  @override
+  void visitForEachPartsWithPattern(ForEachPartsWithPattern node) {
+    if (!_literal(node.iterable)) found = true;
+    super.visitForEachPartsWithPattern(node);
+  }
+
+  @override
+  void visitPrefixExpression(PrefixExpression node) {
+    if (_appDeclared(node.element) || node.operator.type.isIncrementOperator) {
+      found = true;
+    }
+    super.visitPrefixExpression(node);
+  }
+
+  @override
+  void visitPostfixExpression(PostfixExpression node) {
+    if (_appDeclared(node.element) || node.operator.type.isIncrementOperator) {
+      found = true;
+    }
+    super.visitPostfixExpression(node);
+  }
+
+  @override
+  void visitAssignmentExpression(AssignmentExpression node) => found = true;
+
+  @override
+  void visitIndexExpression(IndexExpression node) {
+    if (_appDeclared(node.element)) found = true;
+    super.visitIndexExpression(node);
+  }
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    final library = node.constructorName.element?.library.uri;
+    if (!node.isConst &&
+        node.constructorName.element?.isConst != true &&
+        !(appCode &&
+            library != null &&
+            (library.isScheme('dart') ||
+                library.toString().startsWith('package:flutter/')))) {
+      found = true;
+    }
+    super.visitInstanceCreationExpression(node);
+  }
+}
+
+// Each name [onName] meets, declared or read, with where it is written.
+final class _Names extends RecursiveAstVisitor<void> {
+  _Names(this.onName);
+
+  final void Function(String name, AstNode node) onName;
+
+  // A member after a target, a label or a constructor's name is not one
+  // the scope resolves.
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    final member = switch (node.parent) {
+      PropertyAccess(:final propertyName) => identical(propertyName, node),
+      PrefixedIdentifier(:final identifier) => identical(identifier, node),
+      MethodInvocation(:final methodName, :final target) =>
+        identical(methodName, node) && target != null,
+      Label() || ConstructorName() => true,
+      _ => false,
+    };
+    if (!member) onName(node.name, node);
+  }
+
+  @override
+  void visitVariableDeclaration(VariableDeclaration node) {
+    onName(node.name.lexeme, node);
+    super.visitVariableDeclaration(node);
+  }
+
+  @override
+  void visitDeclaredVariablePattern(DeclaredVariablePattern node) {
+    onName(node.name.lexeme, node);
+    super.visitDeclaredVariablePattern(node);
+  }
+
+  @override
+  void visitDeclaredIdentifier(DeclaredIdentifier node) {
+    onName(node.name.lexeme, node);
+    super.visitDeclaredIdentifier(node);
+  }
+
+  @override
+  void visitRegularFormalParameter(RegularFormalParameter node) {
+    if (node.name case final name?) onName(name.lexeme, node);
+    super.visitRegularFormalParameter(node);
+  }
+
+  @override
+  void visitFunctionDeclarationStatement(FunctionDeclarationStatement node) {
+    onName(node.functionDeclaration.name.lexeme, node);
+    super.visitFunctionDeclarationStatement(node);
+  }
+}
+
+final class _Writes extends RecursiveAstVisitor<void> {
+  _Writes(this.onWrite);
+
+  final void Function(Element? element) onWrite;
+
+  @override
+  void visitAssignmentExpression(AssignmentExpression node) {
+    onWrite(node.writeElement);
+    super.visitAssignmentExpression(node);
+  }
+
+  @override
+  void visitPostfixExpression(PostfixExpression node) {
+    onWrite(node.writeElement);
+    super.visitPostfixExpression(node);
+  }
+
+  @override
+  void visitPrefixExpression(PrefixExpression node) {
+    onWrite(node.writeElement);
+    super.visitPrefixExpression(node);
+  }
+}
+
+final class _PatternVariables extends RecursiveAstVisitor<void> {
+  _PatternVariables(this.onPattern);
+
+  final void Function(DeclaredVariablePattern pattern) onPattern;
+
+  @override
+  void visitDeclaredVariablePattern(DeclaredVariablePattern node) {
+    onPattern(node);
+    super.visitDeclaredVariablePattern(node);
+  }
+}
+
+// The identifier reads and `this` in a node, outside [skipped] nodes.
+final class _MountReads extends GeneralizingAstVisitor<void> {
+  _MountReads(this.skipped, this.onRead, {required this.onThis});
+
+  final Set<AstNode> skipped;
+  final void Function(SimpleIdentifier identifier) onRead;
+  final void Function() onThis;
+
+  @override
+  void visitNode(AstNode node) {
+    if (!skipped.contains(node)) super.visitNode(node);
+  }
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    if (!skipped.contains(node) &&
+        !node.inDeclarationContext() &&
+        node.parent is! Label) {
+      onRead(node);
+    }
+  }
+
+  @override
+  void visitThisExpression(ThisExpression node) => onThis();
+}
+
+/// One translation's islands.
+final class _IslandSession {
+  _IslandSession(
+    this.namespace,
+    this.library,
+    this.liftedState,
+    this.surface, {
+    required this.contentFree,
+    this.stateless,
+  });
+
+  /// Which root builders run once per build, so the mount can keep them.
+  final ContentFreeBuilders contentFree;
+
+  final String namespace;
+
+  /// The library the mount's part belongs to.
+  final LibraryElement library;
+
+  /// The surface every island name starts with, and its root method.
+  final ({String name, String method, String screen}) surface;
+
+  /// The surface's `State`, when the mount takes it over.
+  final ClassElement? liftedState;
+
+  /// The surface's class when it has no `State`.
+  final ClassElement? stateless;
+
+  /// Builder parameters and locals the mount declares.
+  final Set<Element> scope = {};
+
+  /// Child arguments a shell probe stands in for.
+  final Set<Expression> stubs = HashSet.identity();
+
+  MountSplit? split;
+
+  /// The build's locals the mount declares once, for values it computes.
+  final Set<Element> preludeLocals = {};
+
+  /// The names the mount declares locals under, by element, where a name
+  /// differs from its source name or the local is declared ahead of its block.
+  final Map<Element, String> mountNames = {};
+
+  /// The locals among [mountNames] a block, pattern or loop declares.
+  final Set<Element> innerLocals = {};
+
+  /// The slot of the local [element] the mount declares ahead.
+  String heldSlot(Element element) =>
+      heldLocalSlot(mountNames[element]!, inner: innerLocals.contains(element));
+
+  /// The widget [preludeLocals] each placement reads as an island.
+  final Set<Element> sharedLocals = {};
+
+  /// The build's returns, when it has several.
+  List<ReturnStatement> returns = const [];
+
+  /// The arms of the switch a build returns, when the mount takes its case.
+  List<SwitchExpressionCase> arms = const [];
+
+  /// The body of the build the surface renders.
+  FunctionBody? buildBody;
+
+  /// Why the build can't be recorded, when it can't.
+  Issue? recordProblem;
+
+  /// The root builders the mount keeps, outermost first.
+  final List<FunctionExpression> keptBuilders = [];
+
+  /// What the recorded build writes, once it is written.
+  RecordedBuild? recordedFacts;
+
+  /// Each island as the recorded build writes it.
+  final List<
+    ({
+      String name,
+      AstNode node,
+      bool shared,
+      ({AstNode at, List<SimpleIdentifier> spots}) placement,
+      Map<AstNode, ({String marker, bool property})> holes,
+      List<AstNode> calls,
+      String? items,
+    })
+  >
+  recordIslands = [];
+
+  /// Each app widget the design builds that the build places, by the name
+  /// its placement is keyed under, and the function that places it: a split
+  /// widget's wrapper, null where the mount's imports don't show it (the
+  /// mount install refuses then).
+  final List<
+    ({
+      String name,
+      AstNode node,
+      List<AstNode> calls,
+      String? items,
+      String widget,
+      bool split,
+      String? place,
+    })
+  >
+  recordPlacements = [];
+
+  /// The walk the build's root is translated in.
+  _WalkContext? rootWalk;
+
+  /// Why the mount cannot take over the surface's `State`.
+  Issue? problem;
+
+  // A lifted State's members, inherited ones too.
+  bool inMountScope(Element element) =>
+      scope.contains(element.baseElement) || isStateMember(element);
+
+  /// Whether [element] is an instance member of the lifted State or of one
+  /// of its supertypes.
+  bool isStateMember(Element element) =>
+      liftedState != null && isInstanceMemberOf(liftedState!, element);
+
+  /// The mount's spelling of `this` of [type]: the mount State itself, or the
+  /// stateless surface's instance.
+  String? thisFor(DartType? type) {
+    final element = type?.element;
+    if (element == null) return null;
+    if (element == liftedState) return 'this';
+    if (element == stateless) return '\u0000$kSurfaceInstance\u0000';
+    return null;
+  }
+
+  bool isSurfaceMember(Element element) =>
+      stateless != null &&
+      element.enclosingElement == stateless &&
+      isInstanceMember(element);
+
+  /// Islands by structural ID.
+  final Map<String, Island> islands = {};
+
+  /// Surface declarations islands needed but the mount could not see.
+  final Set<Element> blocked = {};
+
+  /// Why the mount could not write an island, by its node.
+  final Map<Expression, HoistNeedsSurfaceValue> blockedBy = HashMap.identity();
+
+  /// Island candidates by scope and widget type, in the order reached.
+  final List<({String key, Expression node})> order = [];
+
+  /// Candidates under translation, so a nested call does not re-enter.
+  final Set<Expression> attempting = HashSet.identity();
+}
+
+// The returns of [body] itself, not of a function nested in it.
+final class _OwnReturns extends RecursiveAstVisitor<void> {
+  _OwnReturns(this.body, this.found);
+
+  final FunctionBody body;
+  final List<ReturnStatement> found;
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {
+    if (identical(node.body, body)) super.visitFunctionExpression(node);
+  }
+
+  @override
+  void visitReturnStatement(ReturnStatement node) {
+    found.add(node);
+    super.visitReturnStatement(node);
+  }
+}
+
+// Every expression in a node, outermost first.
+final class _Expressions extends GeneralizingAstVisitor<void> {
+  _Expressions(this.found);
+
+  final List<Expression> found;
+
+  @override
+  void visitExpression(Expression node) {
+    found.add(node);
+    super.visitExpression(node);
   }
 }
 
@@ -16928,15 +21809,128 @@ final class _HoistSession {
   final HoistAnalyzer analyzer;
   final Map<String, HoistedValue> values = {};
 
-  /// Refusals already explained, so an enclosing expression keeps them.
-  final Set<Issue> refusals = Set.identity();
-
-  /// Generic failures an app-value refusal may explain instead.
-  final Set<Issue> replaceable = Set.identity();
-
   /// Set while a candidate is translated to see whether it lowers.
   bool speculating = false;
 
-  HoistedValue add(HoistedValue value) =>
-      values.putIfAbsent(value.key, () => value);
+  /// Set while a kept builder's parameters are published.
+  bool exposing = false;
+
+  /// Strings whose parts are being translated before the whole is hoisted.
+  final Set<Expression> inParts = HashSet.identity();
+
+  /// Each node a value is computed at, with the helper calls around it.
+  final List<
+    ({
+      String key,
+      AstNode site,
+      List<AstNode> calls,
+      List<({ForElement loop, int ordinal})> unrolled,
+      bool slot,
+    })
+  >
+  records = [];
+
+  /// Values computed in a widget closure the design path doesn't run.
+  final List<AstNode> closureMisses = [];
+
+  /// Each builder parameter value a kept builder publishes when it runs.
+  final List<({String key, String source, FunctionExpression builder})>
+  exposes = [];
+
+  /// The body each inlined helper call runs.
+  final Map<AstNode, Expression> helperBodies = Map.identity();
+
+  /// Records where each added value is read.
+  void Function(HoistedValue value)? onAdd;
+
+  HoistedValue add(HoistedValue value) {
+    final keyed = occurrence?.call(value) ?? value;
+    final added = values.putIfAbsent(keyed.key, () => keyed);
+    onAdd?.call(keyed);
+    return added;
+  }
+
+  /// The key each occurrence of a value's text is recorded under.
+  HoistedValue Function(HoistedValue value)? occurrence;
+
+  /// Each occurrence's key, by base key and [occurrenceOf] identity.
+  final Map<String, String> occurrenceKeys = {};
+
+  /// How many occurrences of each base key have a key.
+  final Map<String, int> occurrenceCounts = {};
+}
+
+/// The identity of one occurrence in a build: the node, and the helper calls
+/// it is reached through.
+String occurrenceOf(AstNode node, Iterable<AstNode> calls) =>
+    [node, ...calls].map(identityHashCode).join(',');
+
+// Whether a statement calls code the app declares, which the mount must run
+// as the app does even when nothing reads its result.
+// Each `super` in a node.
+final class _Supers extends RecursiveAstVisitor<void> {
+  _Supers(this.found);
+
+  final List<SuperExpression> found;
+
+  @override
+  void visitSuperExpression(SuperExpression node) => found.add(node);
+}
+
+final class _RunsAppCode extends RecursiveAstVisitor<void> {
+  bool found = false;
+
+  static bool inside(AstNode node) {
+    final visitor = _RunsAppCode();
+    node.accept(visitor);
+    return visitor.found;
+  }
+
+  static bool _app(Element? element) {
+    final uri = element?.library?.uri;
+    return uri == null ||
+        !uri.isScheme('dart') && !uri.toString().startsWith('package:flutter/');
+  }
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    if (_app(node.methodName.element)) found = true;
+    super.visitMethodInvocation(node);
+  }
+
+  @override
+  void visitFunctionExpressionInvocation(FunctionExpressionInvocation node) {
+    if (_app(node.element)) found = true;
+    super.visitFunctionExpressionInvocation(node);
+  }
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    if (!node.isConst && _app(node.constructorName.element)) found = true;
+    super.visitInstanceCreationExpression(node);
+  }
+
+  @override
+  void visitAssignmentExpression(AssignmentExpression node) => found = true;
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    if (node.element case final PropertyAccessorElement getter
+        when !getter.isOriginVariable && _app(getter)) {
+      found = true;
+    }
+  }
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {}
+}
+
+// Calls [onIdentifier] with each simple identifier it visits.
+final class _IdentifierVisitor extends RecursiveAstVisitor<void> {
+  _IdentifierVisitor(this.onIdentifier);
+
+  final void Function(SimpleIdentifier identifier) onIdentifier;
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) => onIdentifier(node);
 }

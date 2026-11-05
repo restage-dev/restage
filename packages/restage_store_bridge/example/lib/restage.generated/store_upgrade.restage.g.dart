@@ -1,6 +1,6 @@
 part of '../store_upgrade.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 final _storePaywallPlacementDefinitionValue =
     RestagePaywall.generatedPlacementDefinition(
@@ -17,20 +17,20 @@ final _storePaywallPlacementDefinitionValue =
           'presentation': 'inline',
         },
         'providedContext': <String, Object?>{
+          'schemaVersion': 1,
           'inputs': <String, Object?>{
             'packages': <String, Object?>{
+              'kind': 'list',
               'items': <String, Object?>{
+                'kind': 'object',
                 'fields': <String, Object?>{
                   'billingTerms': <String, Object?>{'kind': 'string'},
                   'identifier': <String, Object?>{'kind': 'string'},
                   'priceString': <String, Object?>{'kind': 'string'},
                 },
-                'kind': 'object',
               },
-              'kind': 'list',
             },
           },
-          'schemaVersion': 1,
         },
         'handledEvents': <String, Object?>{
           'schemaVersion': 1,
@@ -52,6 +52,7 @@ final _storePaywallPlacementDefinitionValue =
           },
         ),
       ),
+      surfaceWidget: 'StorePaywallSurface',
     );
 
 final storePaywallPlacementDefinition = () =>
@@ -69,7 +70,7 @@ final class StorePaywallSurface extends StatelessWidget {
     this.resolver,
     this.errorBuilder,
     this.loadingBuilder,
-  }) : _restageArgument0 = packages,
+  }) : _restageStored0 = packages,
        _restagePlacementName = placement;
 
   /// Overrides the implicit placement with an explicit name.
@@ -83,10 +84,11 @@ final class StorePaywallSurface extends StatelessWidget {
     this.resolver,
     this.errorBuilder,
     this.loadingBuilder,
-  }) : _restageArgument0 = packages,
+  }) : _restageStored0 = packages,
        _restagePlacementName = restagePlacementId;
 
-  final List<PaywallPackage> _restageArgument0;
+  final List<PaywallPackage> _restageStored0;
+  List<PaywallPackage> get _restageArgument0 => _restageStored0;
   final String? _restagePlacementName;
 
   final ValueChanged<RestageEvent>? onEvent;
@@ -99,41 +101,48 @@ final class StorePaywallSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const SurfaceVocabulary(
-      widgets: RestageWidgetLibraries.fromVocabulary(
-        core: {
-          'Column': buildColumn,
-          'Padding': buildPadding,
-          'SizedBox': buildSizedBox,
-          'Text': buildText,
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      const SurfaceVocabulary(
+        widgets: RestageWidgetLibraries.fromVocabulary(
+          core: {
+            'Column': buildColumn,
+            'Padding': buildPadding,
+            'SizedBox': buildSizedBox,
+            'Text': buildText,
+          },
+          material: {
+            'FilledButton': buildFilledButton,
+            'TextButton': buildTextButton,
+          },
+        ),
+      ).addToInstalled();
+      return RestagePaywall(
+        id: 'store_upgrade',
+        placementBinding: RestagePaywall.generatedPlacementBinding(
+          definition: storePaywallPlacementDefinition,
+          name: _restagePlacementName,
+        ),
+        context: <String, Object?>{
+          ..._restageRecording.values,
+          'packages': <Object?>[
+            for (final restageValue0 in _restageArgument0)
+              <String, Object?>{
+                'identifier': restageValue0.identifier,
+                'priceString': restageValue0.priceString,
+                'billingTerms': restageValue0.billingTerms,
+              },
+          ],
         },
-        material: {
-          'FilledButton': buildFilledButton,
-          'TextButton': buildTextButton,
-        },
-      ),
-    ).addToInstalled();
-    return RestagePaywall(
-      id: 'store_upgrade',
-      placementBinding: RestagePaywall.generatedPlacementBinding(
-        definition: storePaywallPlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      context: <String, Object?>{
-        'packages': <Object?>[
-          for (final restageValue0 in _restageArgument0)
-            <String, Object?>{
-              'identifier': restageValue0.identifier,
-              'priceString': restageValue0.priceString,
-              'billingTerms': restageValue0.billingTerms,
-            },
-        ],
-      },
-      fallbackBuilder: (context) => StorePaywall(packages: _restageArgument0),
-      onEvent: onEvent,
-      resolver: resolver,
-      errorBuilder: errorBuilder,
-      loadingBuilder: loadingBuilder,
-    );
+        fallbackBuilder: (_) => _restageBuilt,
+        onEvent: onEvent,
+        resolver: resolver,
+        errorBuilder: errorBuilder,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return (() => _restageDesign(StorePaywall(packages: _restageArgument0)))();
   }
 }

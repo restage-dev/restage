@@ -10,7 +10,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/user_catalog.g.dart';
 import 'package:restage_example/user_factories.g.dart';
-import 'package:restage_example/widgets/pulse_badge.dart';
 import 'package:restage_render_host/restage_render_host.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -151,21 +150,30 @@ Future<Map<String, Object?>> _waitForMessage(
   throw TimeoutException('Timed out waiting for $type.');
 }
 
+// The badge's own scale: the split widget keeps it in the app, around the
+// delivered label.
+final _badgeScale = find.ancestor(
+  of: find.text('Streak: 12'),
+  matching: find.byType(ScaleTransition),
+);
+
 void main() {
   setUp(Restage.debugReset);
 
   test('uses the exact canonical PulseBadge blob', () {
     final blob = readDeliveryArtifact('assets/paywalls/pulse_paywall.rfw');
-    expect(blob, hasLength(5740));
+    expect(blob, hasLength(6951));
     expect(
       sha256.convert(blob).toString(),
-      '6f5182dbba2860f7086b2a52339b5522dcb3ebbf2529288d5fecde88c2c6d44c',
+      '31d427f881b8b08ea31316db6784436f8e982a20d90a411d0dbded3c5017c202',
     );
+    // PulseBadge is split: its definition delivers the label around the
+    // app's scale.
     expect(
       decodeLibraryBlob(Uint8List.fromList(blob))
           .widgets
           .map((declaration) => declaration.name),
-      contains('Paywall'),
+      containsAll(['PulseBadge', 'Paywall']),
     );
   });
 
@@ -174,18 +182,12 @@ void main() {
     final mounted = await _mountBundle(tester);
     final scales = <double>[];
     for (var frame = 0; frame < 3; frame += 1) {
-      final transitions = tester
-          .widgetList<ScaleTransition>(
-            find.descendant(
-              of: find.byType(PulseBadge),
-              matching: find.byType(ScaleTransition),
-            ),
-          )
-          .toList();
+      final transitions =
+          tester.widgetList<ScaleTransition>(_badgeScale).toList();
       if (transitions.length == 1) scales.add(transitions.single.scale.value);
       if (frame < 2) await tester.pump(const Duration(milliseconds: 100));
     }
-    final pulseBadgeCount = find.byType(PulseBadge).evaluate().length;
+    final pulseBadgeCount = _badgeScale.evaluate().length;
     final labelCount = find.text('Streak: 12').evaluate().length;
     final messageTypes =
         mounted.transport.sent.map((payload) => payload['type']).toList();
@@ -202,12 +204,7 @@ void main() {
       'harness snapshots the exact root while PulseBadge animation is active',
       (tester) async {
     final mounted = await _mountBundle(tester);
-    final transition = tester.widget<ScaleTransition>(
-      find.descendant(
-        of: find.byType(PulseBadge),
-        matching: find.byType(ScaleTransition),
-      ),
-    );
+    final transition = tester.widget<ScaleTransition>(_badgeScale);
     expect(transition.scale.status, AnimationStatus.forward);
     expect(transition.scale.value, lessThan(1));
 
@@ -243,15 +240,15 @@ void main() {
   const frames = <(Duration, String)>[
     (
       Duration.zero,
-      '5700dd41c50cc1e65042b1be2981f6267a3a988bc695789d3436ad881bc7a810',
+      'e15bfe5ab364f2ab06dce388026d47795ac04ea854732dea41f91897f17823f0',
     ),
     (
       Duration(milliseconds: 100),
-      'c42cc6a476b259643d1d714f69c98e163ca1d694b1334527aec70d2186a9b25e',
+      '79544c422c72a489fdaf647458840933a5d4c99d086156a3737531b1016c11d9',
     ),
     (
       Duration(milliseconds: 200),
-      '190ae017f15edde72881ca7383aee302b308b599acf9d3f5005badc9e69c1226',
+      'c2925dc30361d0c119da8cd61ccb5a2c2e23688b08877466edaa4cbe2672790b',
     ),
   ];
   for (final (elapsed, expectedHash) in frames) {

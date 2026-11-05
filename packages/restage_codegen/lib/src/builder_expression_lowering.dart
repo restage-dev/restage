@@ -134,9 +134,14 @@ final class BuilderExpressionLowering {
     this.parent,
     this.lexicalParent,
     this.extension,
+    this.recorded,
     Map<String, ValueOperation> operations = const {},
   }) : operations = {...operations};
   final String Function(Expression expression) capture;
+
+  /// The node reading [Expression] as a value the app's builder records, or
+  /// null to capture it.
+  final int? Function(Expression expression, ValueType shape)? recorded;
   final BuilderExpressionLowering? parent;
   final BuilderExpressionLowering? lexicalParent;
   final int? Function(Expression, BuilderExpressionLowering)? extension;
@@ -841,9 +846,24 @@ final class BuilderExpressionLowering {
     }
     final type = root?.staticType;
     return type is InterfaceType &&
-        type.nullabilitySuffix == NullabilitySuffix.none &&
-        type.element.name == 'BoxConstraints' &&
-        type.element.library.identifier.startsWith('package:flutter/');
+            type.nullabilitySuffix == NullabilitySuffix.none &&
+            type.element.name == 'BoxConstraints' &&
+            type.element.library.identifier.startsWith('package:flutter/') ||
+        // An outer callback's record parameter is read field by field.
+        root is SimpleIdentifier &&
+            !identical(root, expression) &&
+            _outerParameter(root.element);
+  }
+
+  bool _outerParameter(Element? element) {
+    for (var scope = parent; scope != null; scope = scope.parent) {
+      final node = scope.bindings[element];
+      if (node != null) {
+        return scope.nodes[node].op == 'parameter' &&
+            scope.nodes[node].type.kind == 'record';
+      }
+    }
+    return false;
   }
 
   bool _isNonNullable(Expression expression) {
@@ -904,7 +924,10 @@ final class BuilderExpressionLowering {
       final shape = e is SimpleIdentifier
           ? _bindingTypeFor(e.element) ?? valueTypeFor(e.staticType, e)
           : valueTypeFor(e.staticType, e);
-      if (!const {'list', 'record'}.contains(shape.kind))
+      if (!const {'list', 'record'}.contains(shape.kind) ||
+          e is! SimpleIdentifier &&
+              colorValueType.accepts(shape.nonNull) &&
+              shape.nonNull.accepts(colorValueType))
         return _capture(e, shape);
     }
 
@@ -1558,6 +1581,7 @@ final class BuilderExpressionLowering {
   }
 
   int _capture(Expression expression, ValueType shape) {
+    if (recorded?.call(expression, shape) case final node?) return node;
     if (_nativeColorType(expression.staticType) && parent == null) {
       throw BuilderLoweringException(
         expression,

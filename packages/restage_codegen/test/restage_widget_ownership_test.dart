@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:glob/glob.dart';
+import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:test/test.dart';
@@ -83,7 +84,7 @@ void main() {
     expect(report, isNot(contains('issue=')));
   });
 
-  test('reports no owner with export-or-explicit guidance', () async {
+  test('warns at the declaration when no library exports it', () async {
     final report = await _probe({
       'lib/card.dart': '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -96,8 +97,17 @@ void main() {
       ''',
     });
 
-    expect(report, contains('has no owning @RestageLibrary export'));
-    expect(report, contains('provide an explicit `library` override'));
+    expect(
+      report,
+      contains(
+        'issue=lib/card.dart#ProductCard|`ProductCard` '
+        '(lib/card.dart:5:15) is annotated with `@RestageWidget`, and no '
+        "`@RestageLibrary` library exports it. Designers can't place or "
+        'edit it as a widget of its own. Try exporting it from your '
+        '`@RestageLibrary` library.',
+      ),
+    );
+    expect(report, isNot(contains('widget=')));
   });
 
   test('sorts several owners and accepts explicit disambiguation', () async {
@@ -167,7 +177,7 @@ void main() {
       report,
       allOf(
         contains('unowned/card.dart#ProductCard|'),
-        contains('ProductCard has no owning @RestageLibrary export'),
+        contains('`ProductCard` (lib/unowned/card.dart:'),
       ),
     );
   });
@@ -275,6 +285,9 @@ final class _OwnershipProbeBuilder implements Builder {
       }
       for (final issue in result.issues) {
         lines.add('issue=${issue.location}|${issue.message}');
+        if (issue.code == IssueCode.customWidgetUnexported) {
+          expect(issue.code.isInformational, isTrue);
+        }
       }
     }
     lines.sort();

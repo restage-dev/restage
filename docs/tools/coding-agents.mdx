@@ -48,7 +48,9 @@ It explains how to preserve OTA flexibility: keep supported composition in the
 surface, expose useful inputs and child slots, and inspect compiler diagnostics
 and generated RFW to see when a custom component uses native code. It covers typed events,
 host data, branching and general flows, host actions, purchase integration and
-compiler failures.
+compiler failures. Agents read `restage build report` after each build. They
+keep the parts that render from the app unless you want one changeable over the
+air, and they never rewrite code only to make a part render from the design.
 
 The skill's source examples build in a real app. Their fallback and bundled-RFW
 paths are tested separately, because a working fallback says nothing about

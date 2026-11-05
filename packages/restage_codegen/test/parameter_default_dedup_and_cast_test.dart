@@ -156,9 +156,7 @@ void main() {
         );
 
         expect(source, isNotNull);
-        // The theme binding resolves to a nullable value at render time, so the
-        // parameter default stays a reachable fallback.
-        expect(source, contains('resolveThemeBinding'));
+        expect(source, isNot(contains('resolveThemeBinding')));
         expect(source, contains('?? Colors.transparent'));
       },
     );

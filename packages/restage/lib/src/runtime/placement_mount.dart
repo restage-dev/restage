@@ -168,6 +168,10 @@ final class PlacementMountBinding {
   @internal
   bool get isExplicit => _mount != null;
 
+  /// Whether a generated widget supplies this binding's definition.
+  @internal
+  bool get isGenerated => _definition != null;
+
   /// The surface category an explicit mount declares, if any.
   @internal
   Surface? get declaredSurface {

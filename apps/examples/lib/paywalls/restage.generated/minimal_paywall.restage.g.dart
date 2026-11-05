@@ -1,6 +1,6 @@
 part of '../minimal_paywall.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_cast
 
 final _minimalPaywallPlacementDefinitionValue =
     RestagePaywall.generatedPlacementDefinition(
@@ -17,8 +17,8 @@ final _minimalPaywallPlacementDefinitionValue =
       'presentation': 'inline'
     },
     'providedContext': <String, Object?>{
-      'inputs': <String, Object?>{},
-      'schemaVersion': 1
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{}
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,
@@ -46,6 +46,7 @@ final _minimalPaywallPlacementDefinitionValue =
       },
     ),
   ),
+  surfaceWidget: 'MinimalPaywallSurface',
 );
 
 final minimalPaywallPlacementDefinition =
@@ -88,37 +89,43 @@ final class MinimalPaywallSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const SurfaceVocabulary(
-      widgets: RestageWidgetLibraries.fromVocabulary(
-        core: {
-          'Column': buildColumn,
-          'Container': buildContainer,
-          'Expanded': buildExpanded,
-          'GestureDetector': buildGestureDetector,
-          'Padding': buildPadding,
-          'Row': buildRow,
-          'SafeArea': buildSafeArea,
-          'SizedBox': buildSizedBox,
-          'Spacer': buildSpacer,
-          'Text': buildText,
-        },
-        material: {
-          'AppBar': buildAppBar,
-          'Scaffold': buildScaffold,
-        },
-      ),
-    ).addToInstalled();
-    return RestagePaywall(
-      id: 'minimal_paywall',
-      placementBinding: RestagePaywall.generatedPlacementBinding(
-        definition: minimalPaywallPlacementDefinition,
-        name: _restagePlacementName,
-      ),
-      fallbackBuilder: (context) => MinimalPaywall(),
-      onEvent: onEvent,
-      resolver: resolver,
-      errorBuilder: errorBuilder,
-      loadingBuilder: loadingBuilder,
-    );
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording();
+    Widget _restageDesign(Widget _restageBuilt) {
+      const SurfaceVocabulary(
+        widgets: RestageWidgetLibraries.fromVocabulary(
+          core: {
+            'Column': buildColumn,
+            'Container': buildContainer,
+            'Expanded': buildExpanded,
+            'GestureDetector': buildGestureDetector,
+            'Padding': buildPadding,
+            'Row': buildRow,
+            'SafeArea': buildSafeArea,
+            'SizedBox': buildSizedBox,
+            'Spacer': buildSpacer,
+            'Text': buildText,
+          },
+          material: {
+            'AppBar': buildAppBar,
+            'Scaffold': buildScaffold,
+          },
+        ),
+      ).addToInstalled();
+      return RestagePaywall(
+        id: 'minimal_paywall',
+        placementBinding: RestagePaywall.generatedPlacementBinding(
+          definition: minimalPaywallPlacementDefinition,
+          name: _restagePlacementName,
+        ),
+        fallbackBuilder: (_) => _restageBuilt,
+        onEvent: onEvent,
+        resolver: resolver,
+        errorBuilder: errorBuilder,
+        loadingBuilder: loadingBuilder,
+      );
+    }
+
+    return (() => _restageDesign(MinimalPaywall()))();
   }
 }

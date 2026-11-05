@@ -106,33 +106,35 @@ Widget buildText(BuildContext context, DataSource source) {
       RestageDecoders.string(source, <Object>['text'], context: context) ??
           (throw ArgumentError('Text.text is required.')),
       style: RestageDecoders.packagedFont(TextStyle(
-          inherit: RestageValueBinding.read<bool>(
-                  source, const <Object>['inherit'], context) ??
+          inherit: RestageValueBinding.read<bool>(source, const <Object>['inherit'], context) ??
               true,
           color: RestageDecoders.color(source, <Object>['color']),
           backgroundColor:
               RestageDecoders.color(source, <Object>['backgroundColor']),
-          fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']) ??
-              resolveThemeBinding(context, path: 'defaultTextStyle.fontSize')
-                  as double?,
-          fontWeight: RestageDecoders.fontWeight(source, <Object>['fontWeight']) ??
-              resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
-                  as FontWeight?,
+          fontSize: RestageDecoders.textMetric(source, <Object>['fontSize']),
+          fontWeight:
+              RestageDecoders.fontWeight(source, <Object>['fontWeight']),
           fontStyle: RestageDecoders.enumByName<FontStyle>(
               FontStyle.values, source, <Object>['fontStyle']),
           letterSpacing:
               RestageDecoders.textMetric(source, <Object>['letterSpacing']),
           wordSpacing:
               RestageDecoders.textMetric(source, <Object>['wordSpacing']),
-          textBaseline: RestageDecoders.enumByName<TextBaseline>(TextBaseline.values, source, <Object>['textBaseline']),
+          textBaseline: RestageDecoders.enumByName<TextBaseline>(
+              TextBaseline.values, source, <Object>['textBaseline']),
           height: RestageDecoders.textMetric(source, <Object>['height']),
-          leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(TextLeadingDistribution.values, source, <Object>['leadingDistribution']),
+          leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
+              TextLeadingDistribution.values,
+              source,
+              <Object>['leadingDistribution']),
           locale: ArgumentDecoders.locale(source, <Object>['locale']),
           foreground: RestageDecoders.paint(source, <Object>['foreground']),
           background: RestageDecoders.paint(source, <Object>['background']),
           shadows: RestageDecoders.shadows(source, <Object>['shadows']),
-          fontFeatures: RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
-          fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
+          fontFeatures:
+              RestageDecoders.fontFeatures(source, <Object>['fontFeatures']),
+          fontVariations:
+              RestageDecoders.fontVariations(source, <Object>['fontVariations']),
           decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
           decorationColor: RestageDecoders.color(source, <Object>['decorationColor']),
           decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),

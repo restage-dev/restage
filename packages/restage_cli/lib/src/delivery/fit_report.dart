@@ -1,7 +1,10 @@
 import 'dart:convert';
 
+import 'package:restage_cli/src/api/typed_error_models.dart' show FitReason;
+import 'package:restage_cli/src/api/typed_error_renderer.dart'
+    show fitReasonSentence;
 import 'package:restage_shared/restage_shared.dart'
-    show SurfaceFitFailureCodeV1;
+    show SurfaceFitFailureCodeV1, SurfaceFitFailureV1;
 
 /// Whether a push reports this placement: the surface fits it, or the
 /// placement shows it by default or through its delivery rules.
@@ -16,7 +19,8 @@ bool fitConcernsPushedSurface(List<int> verdictBytes) {
 }
 
 /// One placement's fit verdict in plain words: the verdict, then each
-/// distinct reason it does not fit.
+/// distinct reason it does not fit, worded as the publish confirmation words
+/// it.
 List<String> describeFitVerdict(List<int> verdictBytes) {
   final Object? decoded;
   try {
@@ -32,140 +36,119 @@ List<String> describeFitVerdict(List<int> verdictBytes) {
   ];
   final census = failures.where((f) => f['path'] == r'$.reportingCensus');
   if (census.isNotEmpty) {
-    return ['not checked yet; ${_needs(census.first['required'])}'];
-  }
-  final missingFields = <String>[];
-  final reasons = <String>{};
-  for (final failure in failures) {
-    final code = SurfaceFitFailureCodeV1.values.asNameMap()[failure['code']];
-    final path = failure['path'] is String ? failure['path']! as String : '';
-    final appValue = code == SurfaceFitFailureCodeV1.missingHostField
-        ? _appValueKey.firstMatch(path)?.group(1)
-        : null;
-    if (appValue != null) {
-      final required = failure['required'];
-      final label =
-          required is Map<String, Object?> && required['label'] is String
-          ? required['label']! as String
-          : appValue;
-      reasons.add(
-        "This version reads '$label', which installed builds don't compute. "
-        'It needs an app release',
-      );
-      continue;
-    }
-    if (code == SurfaceFitFailureCodeV1.missingHostField) {
-      final field = _after(path, r'$.requiredContext.');
-      if (field != null && !missingFields.contains(field)) {
-        missingFields.add(field);
-      }
-      continue;
-    }
-    reasons.add(_reason(code, path, failure['required'], failure['available']));
+    final days = switch (census.first['required']) {
+      final String text => RegExp(r'(\d+) days').firstMatch(text)?.group(1),
+      _ => null,
+    };
+    return [
+      'not checked yet',
+      'No app build has shown this placement '
+          '${days == null ? 'recently' : 'in the last $days days'}. Try '
+          'opening it in an app build, then pushing again.',
+    ];
   }
   return [
     'does not fit',
-    if (missingFields.isNotEmpty)
-      'the app does not pass ${missingFields.map((f) => '`$f`').join(', ')} '
-          'to this placement',
-    ...reasons,
+    ...{
+      for (final failure in failures)
+        _requirementSentence(failure) ??
+            fitReasonSentence(
+              fitReasonOfFailure(failure),
+              build: 'an installed build',
+            ),
+    },
   ];
 }
 
-/// A value the app's generated widget computes, at the end of a path.
-final _appValueKey = RegExp(r'\.(_h[0-9a-f]{10})$');
-
-String _needs(Object? required) => required is String && required.isNotEmpty
-    ? 'needs ${required[0].toLowerCase()}${required.substring(1)}'
-    : 'something it needs is missing';
-
-String? _after(String path, String prefix) =>
-    path.startsWith(prefix) && path.length > prefix.length
-    ? path.substring(prefix.length)
-    : null;
-
-String _kind(Object? kind) => switch (kind) {
-  'flow' => 'a flow',
-  'single' => 'one screen',
-  _ => 'another kind of content',
-};
-
-String _reason(
-  SurfaceFitFailureCodeV1? code,
-  String path,
-  Object? required,
-  Object? available,
-) {
-  // "an event", or "the event `name`" when the path names it.
-  String named(String prefix, String noun) {
-    final subject = _after(path, prefix);
-    if (subject == null) return noun;
-    return '${noun.replaceFirst(RegExp('^an? '), 'the ')} `$subject`';
+/// [failure], a fit failure as JSON, as the reason a publish confirmation
+/// words.
+FitReason fitReasonOfFailure(Map<String, Object?> failure) {
+  final code = SurfaceFitFailureCodeV1.values.asNameMap()[failure['code']];
+  final path = failure['path'] is String ? failure['path']! as String : '';
+  final required = failure['required'];
+  final available = failure['available'];
+  SurfaceFitFailureV1? parsed;
+  try {
+    if (code != null) {
+      parsed = SurfaceFitFailureV1(
+        code: code,
+        path: path,
+        required: required,
+        available: available,
+      );
+    }
+  } on Object {
+    parsed = null;
   }
-
-  return switch (code) {
-    null => 'an unknown requirement is not met',
-    SurfaceFitFailureCodeV1.hostingMismatch => switch ((required, available)) {
-      ({'contentKind': final Object? needs}, {'contentKind': final Object? has})
-          when needs != has =>
-        'the surface is ${_kind(needs)}; this placement shows ${_kind(has)}',
-      (_, {'presentation': final String presentation}) =>
-        'the surface cannot be shown $presentation',
-      _ => 'this placement shows content another way',
-    },
-    SurfaceFitFailureCodeV1.missingHostField =>
-      'the app does not pass ${named(r'$.requiredContext.', 'a value')}',
-    SurfaceFitFailureCodeV1.incompatibleHostField =>
-      'the app passes ${named(r'$.requiredContext.', 'a value')} '
-          'in a different shape',
-    SurfaceFitFailureCodeV1.unhandledEvent =>
-      'the app does not handle ${named(r'$.emittedEvents.', 'an event')} here',
-    SurfaceFitFailureCodeV1.incompatibleEventShape =>
-      'the app handles ${named(r'$.emittedEvents.', 'an event')} '
-          'with different values',
-    SurfaceFitFailureCodeV1.missingInstalledVocabulary =>
-      'the app build does not report its widgets',
-    SurfaceFitFailureCodeV1.missingWidget =>
-      required is String && required.isNotEmpty
-          ? 'the app build does not include the widget `$required`'
-          : 'the app build lacks a widget the surface uses',
-    SurfaceFitFailureCodeV1.missingIcon =>
-      'the app build lacks an icon the surface uses',
-    SurfaceFitFailureCodeV1.builtInFloor =>
-      required is int && available is int
-          ? 'the surface needs built-in widgets version $required; '
-                'the app build has $available'
-          : 'the app build has older built-in widgets',
-    SurfaceFitFailureCodeV1.missingLibrary =>
-      'the app build does not include the '
-          '${named(r'$.capabilities.requiredLibraries.', 'widget library')}',
-    SurfaceFitFailureCodeV1.oldLibrary =>
-      'the app build has an older '
-          '${named(r'$.capabilities.requiredLibraries.', 'widget library')}',
-    SurfaceFitFailureCodeV1.brokenLibrary =>
-      'the ${named(r'$.capabilities.requiredLibraries.', 'widget library')} '
-          'changed in a way the surface cannot use',
-    SurfaceFitFailureCodeV1.deliveryModeMismatch =>
-      'the app hosts a different kind of flow here',
-    SurfaceFitFailureCodeV1.actionMismatch =>
-      'the app does not provide '
-          '${named(r'$.flowBoundary.actions.', 'an action')} here',
-    SurfaceFitFailureCodeV1.seedMismatch =>
-      'the app can start the flow with '
-          '${named(r'$.flowBoundary.hostSeedableState.', 'a value')} '
-          'the surface does not accept',
-    SurfaceFitFailureCodeV1.signalMismatch =>
-      required is String && required.isNotEmpty
-          ? 'the surface fires the signal `$required`. '
-                'This app has no handler for it'
-          : 'the surface fires a signal this app has no handler for',
-    SurfaceFitFailureCodeV1.resultMismatch =>
-      'the app expects a different result from the flow',
-    SurfaceFitFailureCodeV1.outboundMismatch =>
-      'the app does not accept '
-          '${named(r'$.flowBoundary.outbound.', 'a value')} from the surface',
-    SurfaceFitFailureCodeV1.missingRequirement => _needs(required),
-    SurfaceFitFailureCodeV1.malformedRequirement =>
-      'what this version needs could not be read',
+  final when = switch (available) {
+    {'when': [final Map<String, Object?> first, ...]} => first,
+    _ => null,
   };
+  String? text(Object? from, String key) => switch (from) {
+    final Map<String, Object?> map => switch (map[key]) {
+      final String value when value.isNotEmpty => value,
+      _ => null,
+    },
+    _ => null,
+  };
+  return (
+    code: '${failure['code']}',
+    token: parsed?.token,
+    label: parsed?.label,
+    build: text(available, 'build'),
+    condition: text(when, 'source'),
+    plain: text(when, 'plain'),
+    location: text(when, 'location'),
+  );
+}
+
+// What a placement-level requirement [failure] names, or null when the
+// publish confirmation's wording fits it.
+String? _requirementSentence(Map<String, Object?> failure) {
+  if (failure['code'] != SurfaceFitFailureCodeV1.missingRequirement.name) {
+    return null;
+  }
+  return switch (failure['path']) {
+    r'$.publication' =>
+      "This version can't be shown until it is live with a verified file.",
+    r'$.publication.target' =>
+      'This version belongs to another app or environment than this '
+          'placement.',
+    r'$.publication.surface' =>
+      'This version belongs to another surface or contract version.',
+    r'$.publication.payload' =>
+      "Delivery rules can't route to this version because its format "
+          "doesn't match the surface's active version.",
+    r'$.publication.surfaceType' =>
+      'This placement declares another surface type. Try publishing the '
+          'version to a placement that shows its type.',
+    _ => null,
+  };
+}
+
+/// A value or, when [island], a widget shown where [build] doesn't make it,
+/// and when the build makes it: [condition] at [location].
+String outsideLayoutSentence({
+  required bool island,
+  String? label,
+  String? build,
+  String? condition,
+  String? location,
+}) {
+  // An island's label is `<widget> in <screen>`.
+  final subject = label == null || label.isEmpty
+      ? 'something'
+      : island
+      ? label.split(' in ').first
+      : label;
+  final (shown, made, makes, show, making) = island
+      ? ('is placed', 'create', 'creates', 'placing', 'creating')
+      : ('is shown', 'compute', 'computes', 'showing', 'computing');
+  return [
+    "`$subject` $shown where ${build == null ? 'the build' : '`$build`'} "
+        "doesn't $made it.",
+    if (condition != null && location != null)
+      'The build $makes it only when `$condition` ($location). Try $show it '
+          'only in that case, or $making it before that `if`.',
+  ].join(' ');
 }
