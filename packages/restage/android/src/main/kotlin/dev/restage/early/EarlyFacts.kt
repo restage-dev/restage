@@ -5,6 +5,8 @@ import android.content.res.Resources
 import android.os.Build
 import android.util.Base64
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.security.SecureRandom
 import java.util.TimeZone
 
@@ -69,8 +71,11 @@ object EarlyFacts {
         val nonce = Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
         val created = System.currentTimeMillis() * 1000
         val temp = File(context.filesDir, "restage_install_registration.tmp")
-        temp.writeText("$nonce:$created")
-        temp.renameTo(file)
+        FileOutputStream(temp).use { output ->
+            output.write("$nonce:$created".toByteArray(Charsets.UTF_8))
+            output.fd.sync()
+        }
+        if (!temp.renameTo(file)) throw IOException("Registration unavailable")
         return nonce to created
     }
 
@@ -91,7 +96,8 @@ object EarlyFacts {
     /** Starts a new registration identity, after the service refused the old one. */
     @Synchronized
     fun resetRegistration(context: Context): Pair<String, Long> {
-        File(context.filesDir, "restage_install_registration").delete()
+        val file = File(context.filesDir, "restage_install_registration")
+        if (file.exists() && !file.delete()) throw IOException("Registration unavailable")
         return registration(context)
     }
 

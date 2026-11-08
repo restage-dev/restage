@@ -56,8 +56,9 @@ final class EarlyRequest {
         'authorization': 'Bearer $apiKey',
         'timeoutMs': 20000,
       });
-      if (result == null && kDebugMode)
+      if (result == null && kDebugMode) {
         await _reportMismatch(request, contract);
+      }
       if (result == null || result['status'] != 200) return null;
       sentAtMicros = result['sentAtMicros'] as int?;
       answeredAtMicros = result['answeredAtMicros'] as int?;
@@ -304,6 +305,26 @@ final class EarlyRequest {
   static Future<bool> Function(String meteringKey, String analyticsAnonymousId)?
       identitySetter;
 
+  /// A test's acknowledgement of clearing native startup authority.
+  @visibleForTesting
+  static Future<bool> Function()? startupInvalidator;
+
+  /// Whether native startup identity must participate in local erasure.
+  static bool get hasBootstrapPlatform =>
+      _supported || identitySetter != null || startupInvalidator != null;
+
+  /// Disables the persisted startup request until fresh authority replaces it.
+  static Future<bool> invalidateStartup() async {
+    if (startupInvalidator case final invalidate?) return invalidate();
+    if (!_supported) return true;
+    try {
+      await _channel.invokeMethod<void>('invalidateStartup');
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
   /// Replaces the identity the platform fills into its early request, after
   /// the app reset its own. Both must be UUIDs; false when the platform
   /// refuses or is absent.
@@ -338,26 +359,39 @@ final class EarlyRequest {
 
   /// Replaces the install's registration identity with a new one, after the
   /// service refused the old one.
-  static Future<({String nonce, int createdAtMicros})?> resetRegistration() =>
-      _registration('resetRegistration');
+  static Future<({String nonce, int createdAtMicros})?> resetRegistration({
+    bool propagateErrors = false,
+  }) =>
+      _registration('resetRegistration', propagateErrors: propagateErrors);
 
   /// The install's registration nonce and creation time, made by the platform
   /// before its first request and kept until a credential is confirmed.
-  static Future<({String nonce, int createdAtMicros})?> registration() =>
-      _registration('registration');
+  /// With [propagateErrors], native failure cannot acknowledge durable erasure.
+  /// An unsupported platform still has no native identity.
+  static Future<({String nonce, int createdAtMicros})?> registration({
+    bool propagateErrors = false,
+  }) =>
+      _registration('registration', propagateErrors: propagateErrors);
 
   static Future<({String nonce, int createdAtMicros})?> _registration(
-    String method,
-  ) async {
+    String method, {
+    required bool propagateErrors,
+  }) async {
     if (!_supported) return null;
     try {
       final result = await _channel.invokeMapMethod<String, Object?>(method);
-      if (result == null) return null;
+      if (result == null) {
+        if (propagateErrors) {
+          throw StateError('Native registration unavailable');
+        }
+        return null;
+      }
       return (
         nonce: result['registrationNonce']! as String,
         createdAtMicros: result['registrationCreatedAtMicros']! as int,
       );
     } on Object {
+      if (propagateErrors) rethrow;
       return null;
     }
   }

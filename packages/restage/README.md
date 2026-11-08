@@ -520,6 +520,11 @@ either `governedMeasurementTransportEnabled: true` or your own
 `governedMeasurementTransport` to `Restage.configure(...)`. Passing both throws
 an `ArgumentError`. Ordinary interaction measurement does not need either.
 
+The same opt-in also covers `Restage.privacy.request()`. With neither transport
+option, identity, consent and privacy calls send no request and return an
+unavailable result. Debug builds warn when a call is blocked and explain the
+configuration to check. This gate does not disable ordinary SDK traffic.
+
 The
 [telemetry guide](https://docs.restage.dev/trust/telemetry) covers when
 measurement runs, what the records contain, offline behavior and opting out.

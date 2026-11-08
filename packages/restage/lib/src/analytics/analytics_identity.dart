@@ -92,7 +92,9 @@ class AnalyticsIdentity {
     return fresh;
   }
 
-  Future<void> _repairCurrentAnonymousIdPersistence() async {
+  Future<void> _repairCurrentAnonymousIdPersistence({
+    bool requirePersistence = false,
+  }) async {
     while (true) {
       final generation = _generation;
       final current = _anonymousIdCache;
@@ -101,7 +103,10 @@ class AnalyticsIdentity {
       final prefs = await _prefsProvider();
       if (_generation != generation || _anonymousIdCache != current) continue;
 
-      await prefs.setString(_anonymousIdKey, current);
+      final saved = await prefs.setString(_anonymousIdKey, current);
+      if (requirePersistence && !saved) {
+        throw StateError('Installation identity could not be persisted');
+      }
       if (_generation == generation && _anonymousIdCache == current) return;
     }
   }
@@ -130,22 +135,45 @@ class AnalyticsIdentity {
   /// clears [userId] and the current surface presentation, and rotates the app
   /// session. Persistence completes asynchronously after the in-memory privacy
   /// boundary has taken effect.
-  Future<void> reset() async {
+  Future<void> reset({
+    String? replacementId,
+    Future<void> Function(String actor)? beforePersist,
+    bool requirePersistence = false,
+  }) async {
+    if (replacementId != null && !isValidUuidV4(replacementId)) {
+      throw ArgumentError('Invalid replacement installation identity');
+    }
     final generation = ++_generation;
     _anonymousIdResolutionGeneration = null;
     _anonymousIdResolution = null;
-    final fresh = _newId();
+    final fresh = replacementId ?? _newId();
     _anonymousIdCache = fresh;
     _userId = null;
     rotateSession();
     surfaceSessionId = null;
 
+    if (beforePersist != null) await beforePersist(fresh);
     final prefs = await _prefsProvider();
-    if (_generation != generation) return;
-    await prefs.setString(_anonymousIdKey, fresh);
     if (_generation != generation) {
-      await _repairCurrentAnonymousIdPersistence();
+      if (requirePersistence) {
+        await _repairCurrentAnonymousIdPersistence(requirePersistence: true);
+      }
+      return;
     }
+    final saved = await prefs.setString(_anonymousIdKey, fresh);
+    if (requirePersistence && !saved) {
+      throw StateError('Installation identity could not be persisted');
+    }
+    if (_generation != generation) {
+      await _repairCurrentAnonymousIdPersistence(
+          requirePersistence: requirePersistence);
+    }
+  }
+
+  /// Awaits durable persistence of the current installation actor.
+  Future<void> persistCurrent() async {
+    await anonymousId();
+    await _repairCurrentAnonymousIdPersistence(requirePersistence: true);
   }
 
   /// Mints a fresh per-event idempotency id (UUIDv4).

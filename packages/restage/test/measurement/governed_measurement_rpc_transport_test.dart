@@ -90,6 +90,78 @@ void main() {
       },
     );
 
+    test('carries install erasure inside the governed privacy envelopes',
+        () async {
+      final operation = MeasurementInstallErasureRequestV1(
+        operationId: 'erase.rpc.1',
+        assignmentKey: 'ic1.${'a' * 64}',
+      );
+      final request = RestagePrivacyRequestV1(
+        targets: RestagePrivacyTargets.measurement,
+        action: RestagePrivacyAction.delete,
+        authorities: [
+          RestagePrivacyDomainAuthority(
+            domain: RestagePrivacyDomain.measurement,
+            requestCanonicalBytes: operation.canonicalBytes,
+          ),
+        ],
+      );
+      final completion = MeasurementInstallErasureReceiptV1(
+        operationId: operation.operationId,
+        target: _target(),
+        completedAtServerTimeMicros: 100,
+      );
+      final receipt = RestagePrivacyReceiptV1(
+        targets: request.targets,
+        action: request.action,
+        status: RestagePrivacyCoordinatorStatus.completed,
+        domainResults: [
+          RestagePrivacyDomainResult.withReceipt(
+            RestagePrivacyDomainReceipt(
+              domain: RestagePrivacyDomain.measurement,
+              action: request.action,
+              status: RestagePrivacyDomainStatus.completed,
+              operationId: operation.operationId,
+              receiptCanonicalBytes: completion.canonicalBytes,
+            ),
+          ),
+        ],
+      );
+      final transport = RestageGovernedMeasurementRpcTransport(
+        RestageRpcClient(
+          baseUrl: 'https://example.com',
+          apiKey: 'rs_pk_direct',
+          httpClient: MockClient((sent) async {
+            expect(sent.url.path, '/sdk/v1/measurement-governed');
+            expect(sent.headers['Authorization'], 'Bearer rs_pk_direct');
+            final body = jsonDecode(sent.body) as Map;
+            expect(body['operation'], 'requestPrivacy');
+            final envelope = RestagePrivacyRequestV1.fromCanonicalBytes(
+              base64Url.decode(
+                base64Url.normalize(body['requestCanonicalBase64'] as String),
+              ),
+            );
+            expect(
+              MeasurementInstallErasureRequestV1.fromCanonicalBytes(
+                envelope.authorities.single.requestCanonicalBytes,
+              ),
+              operation,
+            );
+            return http.Response(_resultBody(receipt.canonicalBytes), 200);
+          }),
+        ),
+      );
+      final result = await transport.requestPrivacy(request);
+      final domain =
+          result.domainResults.single as RestagePrivacyDomainReceiptResultV1;
+      expect(
+        MeasurementInstallErasureReceiptV1.fromCanonicalBytes(
+          domain.receipt.receiptCanonicalBytes,
+        ),
+        completion,
+      );
+    });
+
     test('keeps privacy transport failure domain-local and closed', () async {
       final request = _privacyRequest();
       final transport = RestageGovernedMeasurementRpcTransport(

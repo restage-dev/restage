@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.util.Log
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
@@ -44,6 +45,7 @@ object EarlyRequest {
         val text = try {
             val file = lastFile(context)
             val last = if (file.exists()) file.readText() else null
+            if (last != null && JSONObject(last).optBoolean("disabled", false)) return null
             // A kept template describes the build that wrote it.
             if (last != null && JSONObject(last).optString("builtFor") == EarlyFacts.buildStamp(context)) {
                 Log.i(TAG, "template from the last launch")
@@ -168,6 +170,20 @@ object EarlyRequest {
         val temp = File(context.filesDir, "$LAST.tmp")
         temp.writeText(JSONObject(template).put("builtFor", EarlyFacts.buildStamp(context)).toString())
         temp.renameTo(file)
+    }
+
+    /** Clears startup authority without falling back to a bundled template. */
+    fun invalidateStartup(context: Context) {
+        val file = lastFile(context)
+        val temp = File(context.filesDir, "$LAST.invalidating")
+        val data = JSONObject().put("builtFor", EarlyFacts.buildStamp(context))
+            .put("disabled", true).toString().toByteArray(Charsets.UTF_8)
+        FileOutputStream(temp).use { output ->
+            output.write(data)
+            output.fd.sync()
+        }
+        check(temp.renameTo(file)) { "Startup authority could not be cleared" }
+        templateJson = null
     }
 
     private fun lastFile(context: Context) = File(context.filesDir, LAST)

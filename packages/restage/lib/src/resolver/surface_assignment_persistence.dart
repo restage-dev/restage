@@ -1,3 +1,4 @@
+import 'package:meta/meta.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Orders assignment writes and local erasure across configured generations.
@@ -10,6 +11,17 @@ abstract final class SurfaceAssignmentPersistence {
   static final Set<String> _unremoved = {};
 
   static int get generation => _generation;
+
+  /// Discards volatile state after all work has settled, as a new process would.
+  @visibleForTesting
+  static void debugRestart() {
+    _generation++;
+    _writes = null;
+    _ready = null;
+    _failure = null;
+    _unremoved.clear();
+    _unsaved.clear();
+  }
 
   /// New readers and writers must observe successful local erasure first.
   static Future<void> get ready {
@@ -74,7 +86,10 @@ abstract final class SurfaceAssignmentPersistence {
 
   /// Invalidates pending writes immediately and erases after active writes end.
   /// The actor is installation-wide, so reset retires all SDK assignment scopes.
-  static Future<void> forget({Future<void>? afterIdentityReset}) {
+  static Future<void> forget({
+    Future<void>? afterIdentityReset,
+    Future<void> Function()? afterErasure,
+  }) {
     final generation = ++_generation;
     _failure = null;
     return _ready = _ordered(() async {
@@ -91,6 +106,7 @@ abstract final class SurfaceAssignmentPersistence {
             }
           }
         }
+        if (afterErasure != null) await afterErasure();
       } catch (error, stack) {
         if (generation == _generation) _failure = (error, stack);
         rethrow;

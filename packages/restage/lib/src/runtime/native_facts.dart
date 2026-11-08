@@ -45,25 +45,37 @@ abstract final class NativeFacts {
 
   /// The install's registration identity from the platform, taken from the
   /// facts already read.
-  static Future<({String nonce, int createdAtMicros})?> registration() async {
+  static Future<({String nonce, int createdAtMicros})?> registration({
+    bool propagateErrors = false,
+  }) async {
     if (_registration case final held?) return held;
     if (debugFacts == null && _underFlutterTest) return null;
+    // A prior best-effort facts read may have hidden a native failure. Durable
+    // erasure asks the registration method directly rather than trusting null.
+    if (propagateErrors && debugFacts == null) {
+      return _registration =
+          await EarlyRequest.registration(propagateErrors: true);
+    }
     final facts = await read();
     final nonce = facts?['registrationNonce'];
     final created = facts?['registrationCreatedAtMicros'];
     if (nonce is String && created is int) {
       return _registration = (nonce: nonce, createdAtMicros: created);
     }
-    return _registration = await EarlyRequest.registration();
+    return _registration = await EarlyRequest.registration(
+      propagateErrors: propagateErrors,
+    );
   }
 
   /// A new registration identity from the platform, after a refusal.
-  static Future<({String nonce, int createdAtMicros})?>
-      resetRegistration() async {
+  static Future<({String nonce, int createdAtMicros})?> resetRegistration(
+      {bool propagateErrors = false}) async {
     final reset = debugResetRegistration;
     if (reset != null) return _registration = reset();
     if (_underFlutterTest) return null;
-    return _registration = await EarlyRequest.resetRegistration();
+    return _registration = await EarlyRequest.resetRegistration(
+      propagateErrors: propagateErrors,
+    );
   }
 
   /// Forgets the read, as a new process would.

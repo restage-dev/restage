@@ -754,6 +754,7 @@ class RestageRpcClient {
           url,
           _apiKey,
           contract: request.buildContract);
+      checkPublication();
       if (taken != null) {
         _answeredBuildContracts.add(hash);
         onEarly?.call();
