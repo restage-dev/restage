@@ -3,77 +3,85 @@ title: Experiments
 description: Compare surface versions, plan success and safety metrics, and use experiment results to choose delivery changes.
 ---
 
-An experiment compares published surface versions. The SDK renders the version a
-unit is assigned only when the app supports it. A fallback shown without an
-assignment isn't recorded as showing an arm. Assignment happens before rendering,
-so the experiment's results can include an assigned unit whose version never
-rendered.
+An experiment compares published versions of a surface. Each unit gets assigned a
+version, and the SDK renders it only if the app supports it. A fallback that shows
+without an assignment isn't recorded as showing an arm.
 
-Use the same generated `*Surface(...)` mount as ordinary delivery. Your app does
-not need `.atPlacement()` to take part: the mount declares its placement
-automatically.
-Keep analytics and measurement enabled for assignment. Installation is the
-default randomization unit; it is separate from your app's signed-in accounts.
+Assignment happens before rendering. Results can include an assigned unit whose version
+never rendered.
 
-The first-launch wait limits how long a mount waits. A mount request sent before
-the app's assignment credentials are ready can't assign the unit. A request
-with credentials can still return an assignment after the fallback appears, and
-content saved earlier can keep an earlier assignment. So what was on screen
-doesn't tell you on its own whether a unit was enrolled. The startup request assigns arms too. A device that qualifies gets its arm on
-its first launch, and later mounts keep it.
+Use the same generated `*Surface(...)` mount as ordinary delivery. You don't need `.atPlacement()` to take part, because the mount declares its placement for you. Keep analytics
+and measurement enabled, because assignment needs them. The default randomization unit is the installation, separate from your app's signed-in accounts.
+
+The first-launch wait limits how long a mount waits. A mount request sent before the
+app's assignment credentials are ready can't assign the unit. A request with credentials
+can still return an assignment after the fallback appears. Content saved earlier can keep
+an earlier assignment. What was on screen doesn't tell you on its own whether a unit was
+enrolled.
+
+The startup request assigns arms too. A device that qualifies gets its arm on its first launch, and later mounts keep it.
 
 ## Change delivery during an experiment
 
-Uploading a new revision doesn't make it live or replace the versions an
-experiment uses. Changing what is served can still affect delivery and
-measurement. Check the change's impact review before publishing, rolling back,
-killing or freezing a surface, or changing routing.
+Uploading a new revision doesn't make it live or replace the versions an experiment
+uses. Other changes to what's served can still affect delivery and measurement. Check the
+impact review before you publish, roll back, kill or freeze a surface, or change routing.
 
-Review the named experiments, metrics and consequences. Warnings can describe
-lost metric sources, changed populations or lost scheduled output. An agent
-must explain newly disclosed impact and stop unless you have authorized it.
-Confirming a live change doesn't acknowledge these warnings; an acknowledgment
-names the exact set of warnings you reviewed. Refusals block the change, and an
-out-of-date review must be redone. See the [CLI](/tools/cli#review-experiment-impact),
+The review names the experiments and metrics involved and what the change would do to
+them. A warning can say you'd lose a metric source, change a population or lose scheduled
+output. A few rules apply:
+
+- An agent must explain newly disclosed impact and stop unless you've authorized it.
+- Confirming a live change doesn't acknowledge the warnings. An acknowledgment names
+  the exact set of warnings you reviewed.
+- Refusals block the change.
+- If a review is out of date, redo it.
+
+See the [CLI](/tools/cli#review-experiment-impact),
 [MCP](/tools/mcp-server#review-experiment-impact) and
 [routing](/delivery/audience-routing#simulate-and-review-a-policy) workflows.
 
-Impact reviews cover specific delivery operations. Credential revocation, SDK
-configuration and app releases need their own dependency checks. For example,
-revoking a key used by installed apps or disabling measurement can interrupt
-delivery or assignment without this warning workflow. Acknowledging a delivery
-warning also doesn't mean an interrupted experiment is still valid.
+Impact reviews cover only specific delivery operations. Revoking a credential, changing
+SDK configuration and releasing an app need their own dependency checks. Revoking a key
+that installed apps use, or turning measurement off, can interrupt delivery or assignment
+with no warning from this workflow. Acknowledging a delivery warning also doesn't mean an
+interrupted experiment is still valid.
 
 ## Design the comparison
 
-Start with a hypothesis, such as whether a shorter onboarding flow improves
-completion. Select published versions of the surface, choose a reference
-variant, and set the traffic weights. You can compare 2–16 variants.
+Start with a hypothesis, such as whether a shorter onboarding flow improves completion.
+Select published versions of the surface, choose a reference variant and set the traffic
+weights. You can compare 2–16 variants.
 
-Select an audience revision and check that the builds and attributes it needs are
-ready. Choose one primary metric, any safety metrics that should block rollout if
-they get worse, and any extra diagnostic metrics. Pick from the metrics and
-options that `discover` returns.
+Select an audience revision and check that the builds and attributes it needs are ready.
+Then choose:
 
-Restage offers two analysis modes:
+- One primary metric.
+- Any safety metrics that should block rollout if they get worse.
+- Any extra diagnostic metrics.
+
+Pick from the metrics and options that `discover` returns.
+
+Restage has two analysis modes:
 
 | Mode | Use it to |
 | --- | --- |
 | Measure only | Observe each variant without calling a winner. |
 | Fixed-horizon rate comparison | Compare supported rate metrics after planned enrollment and follow-up. |
 
-For a rate comparison, choose the baseline rate, minimum detectable effect and
-practical improvement needed for rollout. Review the resolved significance
-level and power, enrollment limits, follow-up time and late-outcome grace period.
-Each safety metric has its own harmful direction and harm margin. Validation
-reports whether the plan is feasible and how many units it plans to enroll; fix
-what it finds before launch.
+For a rate comparison, choose the baseline rate, the minimum detectable effect and the
+practical improvement you need before rollout. Review the resolved significance level and
+power, the enrollment limits, the follow-up time and the late-outcome grace period. Each
+safety metric has its own harmful direction and harm margin.
 
-For example, compare the current onboarding with a shorter version, use the
-completion rate from `discover` as the primary metric, and pick an available
-safety metric. Check that both versions render on a device, review the draft,
-then activate. Watch delivery and data health during the run. Use the final
-primary and safety results to choose the next delivery change.
+Validation reports whether the plan is feasible and how many units it plans to enroll.
+Fix what it finds before launch.
+
+For example, compare the current onboarding with a shorter version. Use the completion
+rate from `discover` as the primary metric and pick an available safety metric. Check that
+both versions render on a device, review the draft, then activate. Watch delivery and data
+health during the run. Use the final primary and safety results to choose the next
+delivery change.
 
 ## Read results
 
@@ -87,53 +95,49 @@ restage analytics overview
 restage analytics health
 ```
 
-Replace `EXPERIMENT_ID` with an id from the list. Experiment results default to
-the current run. `--from` and `--until` narrow only the traffic breakdowns; the
-statistical result always covers the whole run as designed.
-Most other analytics reads default to the last 30 days.
+Replace `EXPERIMENT_ID` with an id from the list. Results default to the current run. `--from` and `--until` narrow only the traffic breakdowns, while the statistical result always covers the whole run as designed. Most other analytics reads default to the last 30 days.
 
-Read the service's decision alongside its effect estimates, intervals and safety
-results. A winner must exceed the practical margin against every other variant,
-with all required safety comparisons acceptable. Beating the reference alone
-does not establish a winner. A measure-only run does not call a winner.
-Each kind of result reports its own availability, so counts can be ready while
-the statistical result is still pending or withheld. Keep those states in mind,
-and check data health before reading anything into missing figures.
+Read the service's decision next to its effect estimates, intervals and safety
+results:
 
-The statistical result counts every assigned unit. Views and renders use
-different denominators. A missing or unresolved outcome doesn't count as a
-failure. Platform, country and build breakdowns describe traffic only; they don't
-estimate a separate effect for each group.
+- A winner must beat every other variant by the practical margin, with all required
+  safety comparisons acceptable. Beating the reference alone doesn't make a winner.
+- A measure-only run never calls a winner.
+- Each kind of result reports its own availability. Counts can be ready while the
+  statistical result is still pending or withheld. Check data health before you read
+  anything into missing figures.
 
-The MCP equivalents include `restage_read_experiments`,
-`restage_read_experiment`, `restage_read_analytics_overview` and
-`restage_read_data_health`.
+The statistical result counts every assigned unit. Views and renders use different
+denominators. A missing or unresolved outcome doesn't count as a failure. Platform,
+country and build breakdowns describe traffic only and don't estimate a separate effect
+for each group.
+
+The MCP equivalents include `restage_read_experiments`, `restage_read_experiment`,
+`restage_read_analytics_overview` and `restage_read_data_health`.
 
 ## Create an experiment
 
-Draft, review and lifecycle operations are available through the CLI, TUI and
-MCP. Sign in and select the intended app, environment and plane.
+You can draft, review and run an experiment through the CLI, the TUI or MCP. Sign in
+and select the app, environment and plane you mean.
 
-Build and upload each alternative revision while keeping the current version
-serving. Replace `SURFACE_SLUG` with the authored surface's slug:
+Build and upload each alternative revision while the current version keeps serving.
+Replace `SURFACE_SLUG` with the authored surface's slug:
 
 ```sh
 dart run build_runner build
 restage surface push SURFACE_SLUG
 ```
 
-`discover` lists the revisions the service accepted, whether live or only
-uploaded. A candidate only needs the upload; `surface publish` would change what
-is served by default.
+`discover` lists the revisions the service accepted, whether live or only uploaded. A candidate only needs the upload, while `surface publish` would change what's served by default.
 
 ```sh
 restage experiment discover --json
 restage experiment create --json
 ```
 
-`discover` returns the choices the target supports. `create` starts a draft.
-Keep the returned draft id, revision id and compare-and-set token for subsequent
-operations. The token prevents an older edit from overwriting a newer one.
+`discover` returns the choices the target supports. `create` starts a draft. Keep the
+returned draft id, revision id and compare-and-set token for the later commands. The
+token stops an older edit from overwriting a newer one.
 
 ### Edit the returned draft
 
@@ -143,21 +147,21 @@ Resolve a draft to an editable file:
 restage experiment resolve-draft --draft-id DRAFT_ID --json > draft.json
 ```
 
-Edit only `response.choices` in `draft.json`, using the choices supported by the
-target. Leave everything else as it is, including the target, draft id, revision
-and token. Save the whole file:
+Edit only `response.choices` in `draft.json`, using the choices the target supports.
+Leave everything else alone, including the target, draft id, revision and token. Then save
+the whole file:
 
 ```sh
 restage experiment save --replacement draft.json --json > saved-draft.json
 ```
 
-Continue from the newly returned revision and token. If another edit made yours
-out of date, resolve the draft again before saving. A bare choices object is not a
-valid replacement file.
+Continue from the revision and token it returns. If another edit made yours out of
+date, resolve the draft again before saving. A bare choices object isn't a valid
+replacement file.
 
 ### Validate, review and activate
 
-Substitute the latest draft id, revision id and token in these commands:
+Put your latest draft id, revision id and token in these commands:
 
 ```sh
 restage experiment validate --draft-id DRAFT_ID \
@@ -166,10 +170,9 @@ restage experiment review --draft-id DRAFT_ID \
   --draft-revision-id REVISION_ID --expected-cas CAS_TOKEN --json
 ```
 
-Inspect `response.planningPreview`, resolve validation issues and inspect the
-review, including audience conflicts.
-Activation must name that exact reviewed draft and use the returned review
-id and digest:
+Read `response.planningPreview`, fix any validation issues, and read the review,
+including audience conflicts. Activation must name that exact reviewed draft and use
+the review id and digest it returned:
 
 ```sh
 restage experiment activate --draft-id DRAFT_ID \
@@ -177,14 +180,12 @@ restage experiment activate --draft-id DRAFT_ID \
   --review-id REVIEW_ID --review-digest REVIEW_DIGEST
 ```
 
-A live change prompts for confirmation. Use `--yes` only after approving it.
-Changing the draft invalidates the old review; validate and review again.
+A live change asks you to confirm, and you pass `--yes` only after you've approved it. If you change the draft, the old review no longer counts and you validate and review again.
 
 ### Manage the lifecycle
 
 `restage experiment read --experiment-id EXPERIMENT_ID --json` returns the current
-experiment. Use `response.summary.lifecycleOrdinal` when pausing, resuming or concluding it;
-this prevents an action against out-of-date state. For example:
+experiment. Pass its `response.summary.lifecycleOrdinal` when you pause, resume or conclude it, to stop an action against out-of-date state. For example:
 
 ```sh
 restage experiment pause --experiment-id EXPERIMENT_ID \
@@ -192,27 +193,24 @@ restage experiment pause --experiment-id EXPERIMENT_ID \
 ```
 
 Replace `1` with the current ordinal. Run each subcommand with `--help` for its
-required fields. Use the same explicit `--idempotency-key` when retrying an
-operation whose response was lost.
+required fields. If a response gets lost, retry with the same explicit
+`--idempotency-key`.
 
-A concluded experiment cannot resume. A winning variant is not promoted
-automatically. Read the available delivery choices:
+A concluded experiment can't resume, and Restage doesn't promote a winning variant for you. Read the delivery choices:
 
 ```sh
 restage experiment delivery-options --experiment-id EXPERIMENT_ID --json
 ```
 
-Prepare the subsequent [delivery plan](/delivery/audience-routing) with the
-chosen version and measured audience revision, then review and publish it.
+Then prepare a [delivery plan](/delivery/audience-routing) with the version you chose
+and the audience revision you measured. Review it and publish it.
 
 ## MCP and TUI
 
-`restage_experiment_apply` accepts an operation and its payload.
-For `replaceDraft`, pass the resolved draft file with edited
-`response.choices`, just as with CLI `save`. Follow the tool schema for
-idempotency and live-target confirmation.
+`restage_experiment_apply` takes an operation and its payload. For `replaceDraft`,
+pass the resolved draft file with your edited `response.choices`, as with CLI `save`.
+The tool schema describes idempotency and live-target confirmation.
 
-The [TUI](/tools/cli#open-the-tui) runs the same commands through its `/` command prompt.
-Commands inherit the selected target. Target checks and confirmation rules are
-shared with the CLI; use an external terminal when interactive confirmation is
-needed.
+The [TUI](/tools/cli#open-the-tui) runs the same commands at its `/` prompt. Commands
+use the target you selected. Target checks and confirmation rules are the same as in
+the CLI. If a command needs interactive confirmation, use an external terminal.

@@ -8,17 +8,19 @@ import 'package:restage/restage.dart';
 import 'package:restage_a2ui/restage_a2ui.dart';
 import 'package:restage_widgetbook_example/onboarding/screens/get_started_screen.dart'
     as p1;
-import 'package:restage_widgetbook_example/widgets/bare_catalog_card.dart'
+import 'package:restage_widgetbook_example/onboarding/screens/welcome_screen.dart'
     as p2;
-import 'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart'
+import 'package:restage_widgetbook_example/widgets/bare_catalog_card.dart'
     as p3;
-import 'package:restage_widgetbook_example/widgets/constructor_fidelity_proof.dart'
+import 'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart'
     as p4;
-import 'package:restage_widgetbook_example/widgets/feature_panel.dart' as p5;
-import 'package:restage_widgetbook_example/widgets/feature_row.dart' as p6;
-import 'package:restage_widgetbook_example/widgets/price_badge.dart' as p7;
-import 'package:restage_widgetbook_example/widgets/stat_tile.dart' as p8;
-import 'package:restage_widgetbook_example/widgets/status_panel.dart' as p9;
+import 'package:restage_widgetbook_example/widgets/constructor_fidelity_proof.dart'
+    as p5;
+import 'package:restage_widgetbook_example/widgets/feature_panel.dart' as p6;
+import 'package:restage_widgetbook_example/widgets/feature_row.dart' as p7;
+import 'package:restage_widgetbook_example/widgets/price_badge.dart' as p8;
+import 'package:restage_widgetbook_example/widgets/stat_tile.dart' as p9;
+import 'package:restage_widgetbook_example/widgets/status_panel.dart' as p10;
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
@@ -53,7 +55,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
         };
         return (() {
           final label = ComponentProps.asString(data['props_label']);
-          return p2.BareCatalogCard(label: label ?? 'Bare catalog card');
+          return p3.BareCatalogCard(label: label ?? 'Bare catalog card');
         })();
       },
     ),
@@ -113,12 +115,13 @@ List<ComponentImplementation> buildRestageCatalogItems() {
                     final status = ComponentProps.asString(
                       data['props_status'],
                     );
-                    return p9.CatalogShowcase(
+                    return p10.CatalogShowcase(
                       title: title ?? '',
                       enabled: enabled ?? true,
                       status:
-                          p9.CatalogShowcaseStatus.values.asNameMap()[status] ??
-                          p9.CatalogShowcaseStatus.values.first,
+                          p10.CatalogShowcaseStatus.values
+                              .asNameMap()[status] ??
+                          p10.CatalogShowcaseStatus.values.first,
                       hero: _restageA2uiRequireChild(
                         restageBuildChild,
                         data['props_hero'],
@@ -165,7 +168,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
             '/restage_${Uri.encodeComponent(itemContext.componentModel.id)}${itemContext.dataContext.path == '/' ? '' : '/context_${Uri.encodeComponent(itemContext.dataContext.path)}'}/props_count';
         final _restageA2uiArg_data =
             (_restageA2uiBuild_ConstructorCorpusData(data['props_data'], 0) ??
-            p3.ConstructorCorpusDefaults.publicData);
+            p4.ConstructorCorpusDefaults.publicData);
         return (() {
           final value = ComponentProps.asString(data['props_value']);
           return (() {
@@ -253,7 +256,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
                                             ComponentProps.asString(
                                               data['props_publicColor'],
                                             );
-                                        return p3.ConstructorFidelityCorpus(
+                                        return p4.ConstructorFidelityCorpus(
                                           value: value ?? '',
                                           ordinaryLabel: ordinaryLabel ?? '',
                                           requiredNamed: requiredNamed ?? '',
@@ -281,15 +284,15 @@ List<ComponentImplementation> buildRestageCatalogItems() {
                                           enabled: enabled ?? true,
                                           count: (count ?? 7).toInt(),
                                           mode:
-                                              p3.ConstructorCorpusMode.values
+                                              p4.ConstructorCorpusMode.values
                                                   .asNameMap()[mode] ??
-                                              p3.ConstructorCorpusMode.ready,
+                                              p4.ConstructorCorpusMode.ready,
                                           directColor:
                                               _restageA2uiColor(directColor) ??
                                               const p0.Color.new(4279312947),
                                           publicColor:
                                               _restageA2uiColor(publicColor) ??
-                                              p3
+                                              p4
                                                   .ConstructorCorpusDefaults
                                                   .publicColor,
                                           data: _restageA2uiArg_data,
@@ -391,7 +394,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
                     final optionalText = ComponentProps.asString(
                       data['props_optionalText'],
                     );
-                    return p4.ConstructorFidelityProof(
+                    return p5.ConstructorFidelityProof(
                       label ?? '',
                       enabled: enabled ?? true,
                       optionalText: optionalText ?? 'constructor-default',
@@ -450,7 +453,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
             final leading = ComponentProps.asString(data['props_leading']);
             return (() {
               final trailing = ComponentProps.asString(data['props_trailing']);
-              return p3.ConstructorPositionalCorpus(
+              return p4.ConstructorPositionalCorpus(
                 requiredLabel ?? '',
                 leading ?? 'leading-default',
                 trailing ?? 'trailing-default',
@@ -482,7 +485,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
           for (final key in itemContext.componentModel.properties.keys)
             key: restageProps.value(key),
         };
-        return p5.FeaturePanel(
+        return p6.FeaturePanel(
           header: _restageA2uiBuildChild(
             restageBuildChild,
             data['props_header'],
@@ -528,7 +531,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
           final title = ComponentProps.asString(data['props_title']);
           return (() {
             final subtitle = ComponentProps.asString(data['props_subtitle']);
-            return p6.FeatureRow(
+            return p7.FeatureRow(
               title: title ?? 'Unlimited projects',
               subtitle: subtitle ?? 'No caps on what you ship.',
             );
@@ -570,7 +573,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
           final price = ComponentProps.asString(data['props_price']);
           return (() {
             final period = ComponentProps.asString(data['props_period']);
-            return p7.PriceBadge(
+            return p8.PriceBadge(
               price: price ?? '\$9.99',
               period: period ?? 'mo',
             );
@@ -615,7 +618,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
           for (final key in itemContext.componentModel.properties.keys)
             key: restageProps.value(key),
         };
-        return p3.RequiredNullableWidgetProof(
+        return p4.RequiredNullableWidgetProof(
           _restageA2uiBuildChild(
             restageBuildChild,
             data['props_positionalNullable'],
@@ -671,7 +674,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
           final label = ComponentProps.asString(data['props_label']);
           return (() {
             final value = ComponentProps.asString(data['props_value']);
-            return p8.StatTile(
+            return p9.StatTile(
               label: label ?? 'Active users',
               value: value ?? '1,204',
             );
@@ -826,6 +829,56 @@ List<ComponentImplementation> buildRestageCatalogItems() {
                   })();
                 })();
               })();
+            })();
+          })(),
+        );
+      },
+    ),
+    ComponentImplementation(
+      name: 'welcome_screen',
+      schema: S.object(
+        description: 'An onboarding screen with a Continue action.',
+        properties: {
+          'props_title': S.combined(
+            description: 'The screen title.',
+            oneOf: [
+              S.string(),
+              S.combined($ref: r'common_types.json#/$defs/DataBinding'),
+              S.combined($ref: r'common_types.json#/$defs/FunctionCall'),
+            ],
+          ),
+          'props_tone': S.string(
+            description: 'The screen\'s tone. Widgetbook previews each value.',
+            enumValues: <Object?>['calm', 'urgent'],
+          ),
+        },
+        required: <String>['props_title'],
+      ),
+      builder: (context, restageNode, restageProps, restageBuildChild) {
+        final itemContext = restageNode.context!;
+        final data = <String, Object?>{
+          for (final key in itemContext.componentModel.properties.keys)
+            key: restageProps.value(key),
+        };
+        return RestageEventDispatcher(
+          onEvent: (eventId, value) {
+            itemContext.dispatchAction({
+              'event': {
+                'name': eventId,
+                'context': <String, Object?>{'value': value},
+              },
+            });
+          },
+          child: (() {
+            final title = ComponentProps.asString(data['props_title']);
+            return (() {
+              final tone = ComponentProps.asString(data['props_tone']);
+              return p2.WelcomeScreen(
+                title: title ?? '',
+                tone:
+                    p2.WelcomeScreenTone.values.asNameMap()[tone] ??
+                    p2.WelcomeScreenTone.calm,
+              );
             })();
           })(),
         );
@@ -1105,7 +1158,7 @@ Map<String, Object?> buildRestageCatalogDefinitions() => <String, Object?>{
 
 /// Content address for exactly the generated custom-only catalog.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/b95c383cf890f56ed8d294589ac0a78c4a0d647c833273ba83c94712dd0c16d5';
+    'restage:catalog/sha256/50ba295aaa9d8760f7628e31ac79a0158624f85476bf9c50fb25d3c2b5262ee0';
 
 /// Compact identity and capability metadata for the generated catalog.
 /// The producer-facing `.a2ui.json` remains a separate portable artifact.
@@ -1114,7 +1167,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
   a2uiProtocolVersion: '1.0',
   catalogId: restageA2uiCatalogId,
   fingerprint:
-      'sha256/b95c383cf890f56ed8d294589ac0a78c4a0d647c833273ba83c94712dd0c16d5',
+      'sha256/50ba295aaa9d8760f7628e31ac79a0158624f85476bf9c50fb25d3c2b5262ee0',
   catalogContentVersion: 1,
   availableLibraries: <A2uiAvailableLibrary>[
     A2uiAvailableLibrary(
@@ -1134,11 +1187,12 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
     'RequiredNullableWidgetProof': 1,
     'StatTile': 1,
     'get_started_screen': 1,
+    'welcome_screen': 1,
   },
 );
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/b95c383cf890f56ed8d294589ac0a78c4a0d647c833273ba83c94712dd0c16d5".',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/50ba295aaa9d8760f7628e31ac79a0158624f85476bf9c50fb25d3c2b5262ee0".',
   'BareCatalogCard: A card registered with only `@RestageWidget()`.',
   'BareCatalogCard constructor fields: label => props_label.',
   'CatalogShowcase: Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.',
@@ -1161,6 +1215,8 @@ const List<String> _restageA2uiSystemPromptFragments = <String>[
   'StatTile constructor fields: label => props_label, value => props_value.',
   'get_started_screen: Use for the final action in a native onboarding flow.',
   'get_started_screen constructor fields: title => props_title, enabled => props_enabled, tone => props_tone, data => props_data, context => props_context, itemContext => props_itemContext, restageA2uiStatus => props_restageA2uiStatus, description => props_description, usage => props_usage.',
+  'welcome_screen: Use for the first screen of a native onboarding flow.',
+  'welcome_screen constructor fields: title => props_title, tone => props_tone.',
 ];
 
 /// Builds the generated custom-only A2UI catalog identified by
@@ -1234,7 +1290,7 @@ T? _restageA2uiAs<T>(Object? v) => v is T ? v : null;
 
 const int _kA2uiMaxBuildDepth = 64;
 
-p9.CatalogShowcaseData? _restageA2uiBuild_CatalogShowcaseData(
+p10.CatalogShowcaseData? _restageA2uiBuild_CatalogShowcaseData(
   Object? _raw,
   int _depth,
 ) {
@@ -1244,10 +1300,10 @@ p9.CatalogShowcaseData? _restageA2uiBuild_CatalogShowcaseData(
   if (note == null) return null;
   final count = _restageA2uiAs<num>(_raw['count'])?.toInt();
   if (count == null) return null;
-  return p9.CatalogShowcaseData(note: note, count: count);
+  return p10.CatalogShowcaseData(note: note, count: count);
 }
 
-p3.ConstructorCorpusData? _restageA2uiBuild_ConstructorCorpusData(
+p4.ConstructorCorpusData? _restageA2uiBuild_ConstructorCorpusData(
   Object? _raw,
   int _depth,
 ) {
@@ -1260,10 +1316,10 @@ p3.ConstructorCorpusData? _restageA2uiBuild_ConstructorCorpusData(
   if (nested == null) return null;
   final count = _restageA2uiAs<num>(_raw['count'])?.toInt();
   if (count == null) return null;
-  return p3.ConstructorCorpusData(nested: nested, count: count);
+  return p4.ConstructorCorpusData(nested: nested, count: count);
 }
 
-p3.ConstructorCorpusNestedData? _restageA2uiBuild_ConstructorCorpusNestedData(
+p4.ConstructorCorpusNestedData? _restageA2uiBuild_ConstructorCorpusNestedData(
   Object? _raw,
   int _depth,
 ) {
@@ -1271,7 +1327,7 @@ p3.ConstructorCorpusNestedData? _restageA2uiBuild_ConstructorCorpusNestedData(
   if (_raw is! Map<String, Object?>) return null;
   final label = _restageA2uiAs<String>(_raw['label']);
   if (label == null) return null;
-  return p3.ConstructorCorpusNestedData(label: label);
+  return p4.ConstructorCorpusNestedData(label: label);
 }
 
 enum _RestageA2uiSourceKind { literal, path, call, localOverride }

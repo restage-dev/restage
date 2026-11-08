@@ -3,9 +3,7 @@ title: Starters
 description: Small onboarding, message, paywall, custom-widget, and host-data examples to copy from the public examples app.
 ---
 
-The public [`apps/examples`](https://github.com/restage-dev/restage/tree/main/apps/examples)
-app has small starters and fuller reference surfaces. Each starter shows one idea, so it
-is easy to copy into another Flutter app.
+The public [`apps/examples`](https://github.com/restage-dev/restage/tree/main/apps/examples) app has small starters and larger reference surfaces. Each starter shows one idea, and you can copy any of them into your own app.
 
 ## Five small examples
 
@@ -17,13 +15,9 @@ is easy to copy into another Flutter app.
 | Custom widget | `lib/widgets/minimal_custom_widget.dart` and `starter_stats.dart` | A `@RestageWidget` inlined into a generated screen. |
 | Host data | `lib/surfaces/starter_host_data.dart` and `starter_host_data_demo.dart` | A `@Screen` whose rows are constructor parameters, mounted through the generated `StarterChecklistSurface`. A `for` over the rows becomes a loop in the artifact, and a tap comes back as a typed event. See [Host data](/authoring/host-data). |
 
-The folders are just how the examples app is organized. The generator finds annotations
-anywhere in the package, and the id and category come from the annotation. One package
-can hold onboarding, message, survey, paywall, and general surfaces side by side.
+The folders are just how the examples app is organized. The generator finds annotations anywhere in the package. The id and category come from the annotation. One package can hold onboarding, message, survey, paywall and general surfaces side by side.
 
-For the shorter `FlowDefinition` form, which lists screen types and event constants
-directly, see `lib/surfaces/general_flow.dart` and `lib/surfaces/message_offer_flow.dart`.
-The second one also shows a paywall as a step in a message flow.
+`lib/surfaces/general_flow.dart` and `lib/surfaces/message_offer_flow.dart` show the shorter `FlowDefinition` form. It lists screen types and event constants directly. The second one also has a paywall as a step in a message flow.
 
 ## Run the gallery
 
@@ -33,49 +27,38 @@ From the examples app, run:
 flutter run
 ```
 
-The gallery shows each source widget next to its compiled result, so you can compare
-them. This gallery opts into bundling to demonstrate artifact rendering. For
-ordinary app integrations, copy the authored surface and use its generated mount
-with bundling off; the compiled-widget fallback works offline. The gallery's theme
-switch also shows which examples follow the app theme and which use fixed brand
-colors on purpose.
+The gallery shows each source widget next to its compiled result. This gallery turns bundling on to show artifact rendering. In your own app, copy the authored surface and use its generated mount with bundling off. Its fallback is your compiled widget, and it works offline.
 
-After changing a source file, regenerate the artifacts:
+The gallery's theme switch shows which examples follow the app theme. The others use fixed brand colors on purpose.
+
+After you change a source file, rebuild:
 
 ```sh
 dart run build_runner build
 ```
 
-or leave the builder running:
+Or leave the builder running:
 
 ```sh
 dart run build_runner watch
 ```
 
-Flutter's hot reload doesn't replace a bundled asset, so press `R` to hot-restart the
-gallery after the generator writes a new `.rsbundle`.
+Hot reload doesn't replace a bundled asset. Press `R` to hot-restart the gallery after the build writes a new `.rsbundle`.
 
-That only applies to bundled assets. A published surface can use
-[live refresh](/delivery/live-refresh): Restage Cloud, or your own
-`SurfaceUpdateChannel`, tells a surface on screen to fetch and show the new version in
-place.
+That only applies to bundled assets. A published surface can use [live refresh](/delivery/live-refresh). Restage Cloud, or your own `SurfaceUpdateChannel`, tells a surface on screen to fetch the new version and show it in place.
 
 ## Other reference surfaces
 
 The same app includes:
 
-- onboarding flows with host actions, branching, hosted delivery, and live refresh;
-- message and survey flows that run on the same flow runtime;
-- branded paywalls with plan selection, custom components, modal sheets, and
-  multi-screen navigation;
-- custom widgets backed by app code, with nested data-class properties and lists of
-  structured values;
-- a general flow that returns a `Map<String, Object?>`.
+- Onboarding flows with host actions, branching, hosted delivery and live refresh.
+- Message and survey flows that run on the same flow runtime.
+- Branded paywalls with plan selection, custom components, modal sheets and
+  multi-screen navigation.
+- Custom widgets backed by app code, with nested data-class properties and lists of
+  structured values.
+- A general flow that returns a `Map<String, Object?>`.
 
-Several standalone entry points under `lib/main_*.dart` isolate hosted flow delivery,
-rollback, live refresh, and structured-widget examples. Read the comment at the top of
-each file for the `--dart-define` values it needs.
+Several entry points under `lib/main_*.dart` run one example on its own: hosted flow delivery, rollback, live refresh and structured widgets. The comment at the top of each file lists the `--dart-define` values it needs.
 
-For the smallest setup outside the gallery, follow the [Quickstart](/quickstart). The
-[Custom widgets](/authoring/custom-widgets) and [Flows](/flows/overview) guides explain
-the two larger starter shapes.
+For the smallest setup outside the gallery, follow the [Quickstart](/quickstart). The [Custom widgets](/authoring/custom-widgets) and [Flows](/flows/overview) guides cover the two larger starters.

@@ -3,13 +3,9 @@ title: Shaders and image effects
 description: Load a fragment shader or fill text with an image in an ordinary Flutter custom widget.
 ---
 
-[Plain gradients and masks](/authoring/gradients-and-masks) compile directly.
-Anything that loads an asset or decodes an image belongs in your own
-`@RestageWidget`. Restage compiles that Dart code into your app and its preview
-build; the editor changes the constructor parameters.
+[Plain gradients and masks](/authoring/gradients-and-masks) compile directly. Code that loads an asset or decodes an image renders from your app. That Dart code is compiled into your app and its preview build. Write it inline, or put it in your own `@RestageWidget` if you want the editor to change its constructor parameters.
 
-These are ordinary Flutter examples. Use the loading, caching, and error handling
-that fit your app.
+The examples below are ordinary Flutter. Use whatever loading, caching and error handling fits your app.
 
 ## An animated fragment shader
 
@@ -21,8 +17,7 @@ flutter:
     - shaders/waves.frag
 ```
 
-Save this as `shaders/waves.frag`. The uniforms are the painted size, elapsed time,
-and a premultiplied tint:
+Save this as `shaders/waves.frag`. The uniforms are the painted size, the elapsed time and a premultiplied tint:
 
 ```glsl
 #include <flutter/runtime_effect.glsl>
@@ -39,9 +34,7 @@ void main() {
 }
 ```
 
-Save the widget as `lib/animated_shader.dart`. It loads the program once for this
-widget, repaints from a ticker, and disposes the ticker and shader when removed.
-`speed` and `tint` become live inspector controls.
+Save the widget as `lib/animated_shader.dart`. It loads the program once, repaints from a ticker, and disposes the ticker and shader when the widget is removed. `speed` and `tint` become live controls in the editor's inspector.
 
 ```dart
 import 'dart:ui' as ui;
@@ -147,16 +140,13 @@ class _WavePainter extends CustomPainter {
 }
 ```
 
-Use it inside an annotated surface just like any Flutter widget:
+Use it in an annotated surface like any Flutter widget:
 
 ```dart
 const AnimatedShader(speed: 1.5, tint: Color(0xFFEC4899))
 ```
 
-The float indices follow declaration order in the shader. Colors sent to the
-shader use premultiplied alpha. Flutter's
-[fragment shader guide](https://docs.flutter.dev/ui/design/graphics/fragment-shaders)
-explains the shader APIs and supported operations.
+The float indices follow the order the uniforms are declared in the shader. Colors you send to the shader use premultiplied alpha. Flutter's [fragment shader guide](https://docs.flutter.dev/ui/design/graphics/fragment-shaders) covers the shader APIs and what they support.
 
 ## Image-filled text
 
@@ -168,10 +158,7 @@ flutter:
     - images/texture.png
 ```
 
-Save this as `lib/image_filled_text.dart`. `AssetImage` supplies the decoded image;
-`ImageShader` stretches it across the text bounds. Changing `imageAsset` replaces
-the image subscription. `text`, `fontSize`, and `letterSpacing` remain ordinary
-constructor parameters.
+Save this as `lib/image_filled_text.dart`. `AssetImage` supplies the decoded image and `ImageShader` stretches it across the text bounds. When `imageAsset` changes, the widget swaps the image subscription. `text`, `fontSize` and `letterSpacing` are ordinary constructor parameters.
 
 ```dart
 import 'dart:ui' as ui;
@@ -292,9 +279,9 @@ const ImageFilledText(
 )
 ```
 
-This example reserves the text's space while loading and shows plain text if the
-image fails. A network-image version can resolve a `NetworkImage` instead; web
-previews need an image server that permits cross-origin image access.
+While the image loads, this widget reserves the text's space. If the image fails, it shows plain text.
+
+For a network image, resolve a `NetworkImage` instead. Web previews then need an image server that allows cross-origin image access.
 
 ## Register and preview
 
@@ -313,18 +300,13 @@ export 'image_filled_text.dart';
 const effectsLibrary = 0;
 ```
 
-Follow [Custom widgets](/authoring/custom-widgets) to add `restage_codegen` and
-`build_runner`, then generate and push a preview build:
+Follow [Custom widgets](/authoring/custom-widgets) to add `restage_codegen` and `build_runner`. Then generate a preview build and push it:
 
 ```sh
 dart run build_runner build
 restage build push
 ```
 
-The render bundle includes your declared shaders and assets. Open a surface that
-uses the widget in the editor to see the compiled effect and edit its exposed
-parameters live.
+The render bundle includes the shaders and assets you declared. Open a surface that uses the widget in the editor to see the effect and edit its parameters live.
 
-New shader code, widget code, or bundled images require a new app build and a new
-preview build. Parameter changes can be delivered over the air to app versions
-that already contain the widget and its assets.
+New shader code, widget code or bundled images need a new app build and a new preview build. Parameter changes can go out over the air to app versions that already contain the widget and its assets.

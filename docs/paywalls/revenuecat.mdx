@@ -3,34 +3,26 @@ title: RevenueCat
 description: Show RevenueCat packages and localized prices, and measure completed purchases in paywall experiments.
 ---
 
-`restage_revenuecat` connects a Restage paywall to your app’s existing RevenueCat
-configuration. Pass it an offering. The paywall receives its packages and localized
-prices, and purchase buttons send the identifier of the package they display.
-RevenueCat remains the source of subscription and entitlement information.
+`restage_revenuecat` connects a Restage paywall to the RevenueCat setup your app already has. You give it an offering. The paywall gets the offering's packages and localized prices, and each purchase button sends the identifier of the package it shows. RevenueCat stays the source for subscription and entitlement information.
 
-The adapter is available in the [Restage source repository](https://github.com/restage-dev/restage/tree/main/packages/restage_revenuecat).
-It has not been published to pub.dev.
+<Callout type="info">
+The adapter lives in the [Restage source repository](https://github.com/restage-dev/restage/tree/main/packages/restage_revenuecat). It isn't on pub.dev yet.
+</Callout>
 
 ## Adapter helpers
 
 | API | Use |
 | --- | --- |
-| `revenueCatEventHandler` | Purchase the selected package or restore through the supplied RevenueCat offering. |
-| `revenueCatOfferingData` | Build display context for a direct `RestagePaywall` mount. |
+| `revenueCatEventHandler` | Buys the selected package, or restores, through the RevenueCat offering you pass in. |
+| `revenueCatOfferingData` | Builds the display context for a direct `RestagePaywall` mount. |
 
-The adapter exports functions only, with no prebuilt paywall or scope widget. Configure
-RevenueCat in your app. `RevenueCatPaywallSurface` below is generated from the
-example's authored Flutter widget; use the same pattern for your own design.
+The adapter exports functions only. There's no prebuilt paywall or scope widget, and you configure RevenueCat in your app. `RevenueCatPaywallSurface` below is generated from the example's Flutter widget. Follow the same pattern for your own design.
 
-Prefer that generated mount and its typed constructor inputs. The data-map helper
-is useful with the [direct mount API](#direct-mount-data-helper).
+Use that generated mount and its typed constructor inputs. The data-map helper is for the [direct mount API](#direct-mount-data-helper).
 
 ## Connect an offering
 
-Configure RevenueCat as you normally do, then fetch the offering before mounting
-the paywall. The snippets below adapt the
-[runnable adapter example](https://github.com/restage-dev/restage/tree/main/packages/restage_revenuecat/example).
-Initialize delivery once at startup:
+Configure RevenueCat as usual, then fetch the offering before you mount the paywall. These snippets come from the [runnable adapter example](https://github.com/restage-dev/restage/tree/main/packages/restage_revenuecat/example). Set up delivery once at startup:
 
 ```dart
 import 'package:restage/restage.dart';
@@ -45,7 +37,7 @@ Restage.configureWithInstalledCatalog(
 );
 ```
 
-After RevenueCat has been configured, load the offering and mount the paywall:
+Once RevenueCat is configured, load the offering and mount the paywall:
 
 ```dart
 import 'package:purchases_flutter/purchases_flutter.dart';
@@ -69,24 +61,20 @@ final paywall = RevenueCatPaywallSurface(
   onEvent: revenueCatEventHandler(
     offering: offering,
     onCustomerInfo: (info) {
-      // Apply your app's existing RevenueCat entitlement checks.
+      // Run your app's usual RevenueCat entitlement checks.
     },
     onError: (error, stackTrace) {
-      // Handle RevenueCat errors, including cancellation, in your app.
+      // Handle RevenueCat errors here, including cancellation.
     },
   ),
 );
 ```
 
-Use the same offering for the data and the handler. The handler purchases the
-selected RevenueCat package, preserving its configured offer. An identifier absent
-from that offering produces an error. Restore calls RevenueCat’s restore operation
-and returns its customer information through `onCustomerInfo`.
+Use the same offering for the data and the handler. The handler buys the selected RevenueCat package with its configured offer. An identifier that isn't in the offering produces an error. Restore calls RevenueCat's restore and hands the customer information to `onCustomerInfo`.
 
-The offering is [local host data](/authoring/host-data). Its metadata and customer
-information are excluded from the data helper, and the offering is never uploaded.
+The offering is [local host data](/authoring/host-data). The data helper leaves out its metadata and customer information, and the offering is never uploaded.
 
-## Author the recommended generated mount
+## Author the generated mount
 
 Declare the fields your surface reads as host data in `lib/revenuecat_upgrade.dart`:
 
@@ -129,33 +117,23 @@ class RevenueCatPaywall extends StatelessWidget {
 }
 ```
 
-Run `dart run build_runner build` to generate `RevenueCatPaywallSurface`. It
-retains the original Flutter widget as its fallback; bundling assets is optional.
+Run `dart run build_runner build` to generate `RevenueCatPaywallSurface`. It keeps your compiled widget as the fallback, and bundling assets is optional.
 
-The surface controls the layout and which packages appear. The app supplies the
-current offering each time it opens the paywall. Keep the event names
-`revenuecat.purchase` and `revenuecat.restore`; `purchase` and `restore` are reserved.
+The surface decides the layout and which packages appear. Your app passes in the current offering each time it opens the paywall. Keep the event names `revenuecat.purchase` and `revenuecat.restore`, because plain `purchase` and `restore` are reserved.
 
 ## Direct mount data helper
 
-Generated mounts serialize the constructor values you pass. For a direct
-`RestagePaywall` mount, `revenueCatOfferingData(offering)` supplies the same display
-data as a context map; direct mounts also need widget registration and a fallback.
-The data map contains an offering `identifier` and a `packages` list. Each package
-contains `identifier`, `productIdentifier`, `priceString` and `currencyCode`.
-`subscriptionPeriod`, `freeTrial` and `introductoryPrice` are included when available.
-Offer phases contain a localized `priceString`, a `period` and `cycles` when supplied
-by RevenueCat. An available offer does not establish the user’s eligibility; the
-store decides that during purchase.
+A generated mount sends the constructor values you pass. For a direct `RestagePaywall` mount, `revenueCatOfferingData(offering)` gives you the same display data as a context map. Direct mounts also need widget registration and a fallback.
+
+The map has the offering's `identifier` and a `packages` list. Each package has `identifier`, `productIdentifier`, `priceString` and `currencyCode`. It also has `subscriptionPeriod`, `freeTrial` and `introductoryPrice` when they're available. Offer phases have a localized `priceString`, plus a `period` and `cycles` when RevenueCat supplies them.
+
+An available offer doesn't mean the user is eligible for it. The store decides that during purchase.
 
 ## Run a price test
 
-For a $49 versus $59 annual-plan test, configure two packages in the offering, such
-as `annual_49` and `annual_59`, with their corresponding store products. Each card
-uses the package’s `priceString`, so other currencies keep their localized prices.
+To test $49 against $59 for an annual plan, add two packages to the offering, such as `annual_49` and `annual_59`, each with its store product. Each card shows the package's `priceString`. Other currencies keep their localized prices.
 
-Publish one paywall version that selects `annual_49` and another that selects
-`annual_59`. For example, the first version’s package loop can include:
+Publish one paywall version that picks `annual_49` and another that picks `annual_59`. The first version's package loop can look like this:
 
 ```dart
 for (final package in packages)
@@ -169,53 +147,30 @@ for (final package in packages)
     ),
 ```
 
-Select the two published versions as experiment arms and choose **Purchase
-conversion** as the primary metric. Once the app has this adapter integration,
-a package in RevenueCat plus a paywall version in Restage is enough to introduce
-a price point without an app release. Both packages must be present in the offering
-the app fetches.
+Select the two published versions as experiment arms and choose **Purchase conversion** as the primary metric. Both packages must be in the offering the app fetches.
+
+Once the app has this adapter, a new price point is a package in RevenueCat and a paywall version in Restage. You don't need an app release.
 
 ## Publish holiday pricing
 
-Add an `annual_holiday` package alongside `annual_standard` in RevenueCat. Publish
-a holiday paywall version that selects `annual_holiday` and displays its live price.
-Activate that version for the promotion, then roll back to the version selecting
-`annual_standard` when it ends. Keep both packages available through the rollout
-and rollback, including while apps still hold an earlier offering.
+Add an `annual_holiday` package next to `annual_standard` in RevenueCat. Publish a holiday paywall version that picks `annual_holiday` and shows its live price. Activate that version for the promotion. When it ends, roll back to the version that picks `annual_standard`.
 
-The app keeps the same adapter integration. Each change is a package in RevenueCat
-plus a paywall version in Restage, with no app release.
+Keep both packages available for the whole rollout and rollback. That includes while some apps still hold an earlier offering.
+
+The app keeps the same adapter integration. Each change is a package in RevenueCat and a paywall version in Restage, with no app release.
 
 ## Understand purchase conversion
 
-Publish a paywall version after adding this integration to make **Purchase
-conversion** available. Versions published before purchase reporting was supported
-retain their existing tap metrics.
+**Purchase conversion** shows up once you publish a paywall version after adding this integration. Versions published before purchase reporting existed keep their tap metrics.
 
-The SDK links each event to the paywall view (the exposure) that sent it. After
-RevenueCat reports success, the handler calls `Restage.measurement.reportPurchase`
-with that event and the package and product identifiers. A paywall refresh or
-dismissal during checkout does not move the purchase to another version. The report
-contains no customer or store transaction identifier.
+The SDK ties each event to the paywall view (the exposure) that sent it. When RevenueCat reports success, the handler calls `Restage.measurement.reportPurchase` with that event and the package and product identifiers. If the paywall refreshes or closes during checkout, the purchase still counts for the version it came from. The report has no customer or store transaction identifier.
 
-**Purchase conversion** records whether a paywall exposure produced at least one
-app-reported successful purchase within 24 hours. Multiple purchases from one
-exposure count as one conversion. Rates without an experiment divide by the
-exposures shown; experiments divide by the units assigned to each arm.
-These results use the same experiment result
-view in the dashboard and MCP. Failures, cancellations and restores produce no purchase
-report. A report rejected or lost in transport cannot count as a conversion, and
-reporting failure does not change the purchase result in your app.
+**Purchase conversion** records whether a paywall exposure led to at least one successful purchase that the app reported within 24 hours. Several purchases from one exposure count as one conversion. Without an experiment, the rate divides by the exposures shown. In an experiment, it divides by the units assigned to each arm. The dashboard and MCP show these results in the same experiment result view.
 
-Purchase counts update as reports arrive. Counts too small to show safely are
-withheld, as for other results. Results remain marked provisional while
-exposures are pending: each exposure has a 24-hour attribution window followed by a
-24-hour report-arrival grace period. The experiment verdict uses only exposures
-whose windows have closed. Purchases outside the attribution window do not count.
+Failures, cancellations and restores send no purchase report. A report that's rejected or lost in transport can't count as a conversion. A failed report doesn't change the purchase result in your app.
 
-Without an accepted purchase report, a tap metric measures button activation;
-it cannot establish whether checkout completed. RevenueCat’s Flutter purchase
-result does not include the paid amount or currency, so this adapter leaves them
-unknown. Catalog prices remain display data. Purchase reports feed experiment
-results only. Restage doesn't record them as revenue, and they don't count toward
-billing.
+Purchase counts update as reports arrive. Counts too small to show safely are withheld, like other results. Results stay marked provisional while exposures are pending. Each exposure has a 24-hour attribution window, then a 24-hour grace period for reports to arrive. The experiment verdict uses only exposures whose windows have closed. Purchases outside the attribution window don't count.
+
+Without an accepted purchase report, a tap metric only measures button activation. It can't tell you whether checkout completed.
+
+RevenueCat's Flutter purchase result doesn't include the amount or currency paid, and the adapter leaves them unknown. Catalog prices remain display data, and purchase reports feed experiment results only. Restage doesn't record them as revenue, and they don't count toward billing.

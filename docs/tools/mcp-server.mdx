@@ -3,12 +3,14 @@ title: MCP server
 description: Let an MCP-capable agent or IDE manage your Restage surfaces, routing, products, and app settings.
 ---
 
-`restage_mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server for
-Restage. An agent or IDE that speaks MCP, such as Claude Code, Claude Desktop, or
-Cursor, launches it as a subprocess and talks to it over standard input and output. It
-reaches the same backend as the `restage` CLI.
+`restage_mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server. It
+lets an agent or IDE that speaks MCP, like Claude Code, Claude Desktop or Cursor, do what
+you'd do with the `restage` CLI. The host starts it as a subprocess and talks to it over
+standard input and output. It uses the same backend as the CLI.
 
+<Callout type="info">
 The source is public under BSD-3-Clause. It isn't on pub.dev yet.
+</Callout>
 
 ## Install
 
@@ -23,17 +25,17 @@ dart compile exe packages/restage_mcp/bin/restage_mcp.dart \
   -o "$HOME/.pub-cache/bin/restage_mcp"
 ```
 
-Make sure `$HOME/.pub-cache/bin` is on your `PATH`.
+Put `$HOME/.pub-cache/bin` on your `PATH`.
 
 ## Configure your MCP host
 
-Every host runs the same command. For Claude Code:
+Every host runs the same command. In Claude Code:
 
 ```sh
 claude mcp add restage -- restage_mcp
 ```
 
-For a host that reads an `mcpServers` object, such as Claude Desktop or Cursor:
+Claude Desktop and Cursor read an `mcpServers` object:
 
 ```json
 {
@@ -45,236 +47,226 @@ For a host that reads an `mcpServers` object, such as Claude Desktop or Cursor:
 }
 ```
 
-A new sign-in uses Restage Cloud. Set
-`RESTAGE_BACKEND_URL` in `env` to sign in to another backend. After sign-in, each tool
-uses the backend your session was created against. The docs tools read the docs of that
-backend.
+A new sign-in goes to Restage Cloud. To sign in to another backend, set
+`RESTAGE_BACKEND_URL` in `env`. Every tool then uses the backend you signed in to, and
+the docs tools read that backend's docs.
 
 ## Sign in
 
-Call `restage_login`. It opens your browser and shows a short code. Approve the sign-in
-there, then call `restage_login` again to finish. `restage_whoami` reports who you are
-signed in as, and `restage_logout` signs out and removes the saved session.
+Call `restage_login` to open your browser and show a short code. Approve the sign-in
+there, then call `restage_login` again to finish.
 
-The MCP server and the CLI share one saved session. If you already ran `restage login`,
-the server uses that session and ignores `RESTAGE_BACKEND_URL`. No tool ever returns
-your session token.
+`restage_whoami` shows who you're signed in as. `restage_logout` signs you out and deletes
+the saved session.
+
+The server and the CLI share one saved session. If you already ran `restage login`, the
+server uses it and ignores `RESTAGE_BACKEND_URL`. No tool returns your session token.
 
 ## Tools
 
 Your MCP host lists every tool with its full input schema. Tools marked admin need an
-admin role.
+admin role. Each tool does what a `restage` CLI command does.
 
-Every tool does what a `restage` CLI command does. A tool that acts on an environment
-takes `environmentSlug`, plus `runtimePlane` (`sandbox` or `live`) when that environment
-exists on both planes. Without it, such a call is refused, so it never reaches the
-wrong plane.
+A tool that acts on an environment takes `environmentSlug`. If the environment exists on
+both planes, it also takes `runtimePlane` (`sandbox` or `live`). A call without it is
+refused. That way a call can't land on the wrong plane.
 
 **Project setup.**
 
 | Tool | What it does |
 | --- | --- |
-| `restage_status` | Report the account, endpoint, and the project a local `restage_config.yaml` points at, and name anything in it that does not exist. |
+| `restage_status` | Show the account, the endpoint and the project your local `restage_config.yaml` points at. Names anything in it that doesn't exist. |
 | `restage_init` | Set up a Flutter project for Restage. |
-| `restage_doctor` | Check a Flutter project for common setup issues, including a `restage_config.yaml` that names things that do not exist. |
+| `restage_doctor` | Check a Flutter project for common setup problems, including a `restage_config.yaml` that names things that don't exist. |
 
-**Surfaces.** These work the same for onboarding, message, survey, paywall, and general
-surfaces. Pass `surfaceSlug`. Reads look up the type from the slug; changes also need
-`surfaceType`.
+**Surfaces.** These work the same for onboarding, message, survey, paywall and general
+surfaces. Pass `surfaceSlug`. Reads find the type from the slug, while changes also need `surfaceType`.
 
 | Tool | What it does |
 | --- | --- |
-| `restage_list_surfaces` | List surfaces under a project and app, of one type or of every type. |
-| `restage_surface_status` | Show the live version, freeze state, and delivery details for one surface. |
-| `restage_surface_history` | List the revisions pushed to one surface. |
-| `restage_surface_audit` | Show the audit timeline for one surface. |
-| `restage_read_surface_funnel` | Read views, steps, drop-off, and completions per published version over a time window. |
+| `restage_list_surfaces` | List the surfaces in a project and app, of one type or all types. |
+| `restage_surface_status` | Show a surface's live version, freeze state and delivery details. |
+| `restage_surface_history` | List the revisions pushed to a surface. |
+| `restage_surface_audit` | Show a surface's audit timeline. |
+| `restage_read_surface_funnel` | Read views, steps, drop-off and completions for each published version over a time window. |
 | `restage_push_surface` | Push generated surfaces from a local Flutter project, like `restage surface push`. |
-| `restage_publish_surface` | Publish a pushed revision so it serves (admin). Defaults to the latest one pushed. `showInApp` says how to mount it in an app. |
+| `restage_publish_surface` | Make a pushed revision live (admin). Defaults to the latest one pushed. `showInApp` says how to mount it in an app. |
 | `restage_push_surface_draft` | Push a surface's saved dashboard draft as a new revision (admin). |
 | `restage_pull_surface_draft` | Download a surface's saved dashboard draft as base64. |
-| `restage_rollback_preflight` | Compare a rollback's compatibility with the current active version without changing anything. |
+| `restage_rollback_preflight` | Check a rollback against the current active version without changing anything. |
 | `restage_rollback_surface` | Make an earlier published version live again, with a reason (admin). It can also freeze the surface. |
-| `restage_kill_surface` | Stop hosted delivery; devices use content they saved earlier or their fallback (admin). |
-| `restage_freeze_surface` / `restage_unfreeze_surface` | Stop or allow new publishes of a surface (admin). |
+| `restage_kill_surface` | Stop hosted delivery (admin). Devices use content they saved earlier, or the fallback. |
+| `restage_freeze_surface` / `restage_unfreeze_surface` | Block or allow new publishes of a surface (admin). |
 | `restage_list_paywalls` | List paywalls under a project and app. |
 
-**Pushing does not publish.** `restage_push_surface` uploads a version and changes
-nothing users see. `restage_publish_surface` makes it live. The routing tools change
-which published version each audience receives.
+**Pushing doesn't publish.** `restage_push_surface` uploads a version, and users see nothing new until `restage_publish_surface` makes it live. The routing tools change which
+published version each audience gets.
 
-After a kill, devices may use content they saved earlier that still qualifies, or
-their configured fallback. Content already displayed is not necessarily removed immediately.
-Generated mounts include the original Flutter widgets as fallback.
+After a kill, devices can still show content they saved earlier if it qualifies, or fall
+back to what you configured. Content already on screen isn't necessarily removed right away.
+Generated mounts include your compiled widgets as the fallback.
 
-**Delivery routing (beta).** Routing decides which published version each request receives.
+**Delivery routing (beta).** Routing decides which published version each request gets.
 
 | Tool | What it does |
 | --- | --- |
-| `restage_read_routing` | Read the routing rules for one surface in one environment. |
+| `restage_read_routing` | Read a surface's routing rules in one environment. |
 | `restage_read_routing_revision` | Read an earlier revision of those rules. |
-| `restage_preview_routing` | Try routing rules against a sample request without publishing them. |
-| `restage_review_routing` | Review a complete candidate policy and return its original impact review. |
-| `restage_publish_routing` | Publish the exact policy from the original server review. |
+| `restage_preview_routing` | Try the routing rules on a sample request without publishing anything. |
+| `restage_review_routing` | Review a complete candidate policy. Returns the original impact review. |
+| `restage_publish_routing` | Publish the exact policy from the original review. |
 | `restage_review_route_rollback` | Review restoring one route from an earlier policy revision. |
 | `restage_rollback_route` | Restore one route to an earlier revision and leave the rest unchanged. |
 | `restage_list_routing_audiences` | List the audiences a routing rule can name. |
-| `restage_routing_audience_usage` | List the experiments and routing rules that use one audience. |
-| `restage_read_delivery_diagnostics` | Read default versions served and requests the server refused, for a date range. |
+| `restage_routing_audience_usage` | List the experiments and routing rules that use an audience. |
+| `restage_read_delivery_diagnostics` | Read the default versions served and the requests the server refused, for a date range. |
 
-**Surface lifecycle and library compatibility**
+**Surface lifecycle and library compatibility.**
 
 | Tool | What it does |
 | --- | --- |
 | `restage_rename_surface_version` | Set or clear a version label. |
 | `restage_archive_surface` / `restage_restore_surface` | Archive a surface across environments, or restore it to the list for publication. |
-| `restage_check_libraries` | List live versions, delivery rules and experiment arms that the local build would stop rendering, based on its recorded library versions. |
-| `restage_record_libraries` | Record a package's widget library versions from its last build, before the package is published. |
+| `restage_check_libraries` | List live versions, delivery rules and experiment arms that your local build would stop rendering, based on its recorded library versions. |
+| `restage_record_libraries` | Record a package's widget library versions from its last build, before you publish the package. |
 
-**Documentation**
+**Documentation.**
 
 | Tool | What it does |
 | --- | --- |
 | `restage_docs_search` | Search the Restage docs. Returns ranked sections with their URLs and a snippet. |
 | `restage_docs_read` | Read a docs page, or one section with `#anchor`, as Markdown. |
 
-**Placements and delivery plans**
+**Placements and delivery plans.**
 
 | Tool | What it does |
 | --- | --- |
 | `restage_read_delivery_map` / `restage_where` | Read routing and renders by app build, or find where a surface version is being served. |
 | `restage_placement_list` / `restage_placement_read` | List app placements or read one. |
-| `restage_placement_observed_history` | Read observed placement mounts. |
-| `restage_placement_simulate` | Preview placement decisions for supplied inputs. |
-| `restage_delivery_policy_read` / `restage_delivery_policy_timeline` / `restage_delivery_policy_history` | Inspect the current plan and its revisions. |
-| `restage_delivery_policy_fit` / `restage_delivery_policy_simulate` | Check content compatibility and preview a plan's decisions. |
-| `restage_delivery_policy_review` / `restage_delivery_policy_publish` | Review a complete plan and publish the exact reviewed change. |
-| `restage_delivery_policy_undo_review` | Review a plan rollback before publishing it. |
-| `restage_placement_sample_import` / `restage_placement_sample_prepare` / `restage_placement_sample_store` / `restage_placement_sample_bind` | Validate an explicitly supplied capture and PNG, review, upload and bind it. |
+| `restage_placement_observed_history` | Read the placement mounts the server has seen. |
+| `restage_placement_simulate` | Preview placement decisions for inputs you supply. |
+| `restage_delivery_policy_read` / `restage_delivery_policy_timeline` / `restage_delivery_policy_history` | Read the current plan and its revisions. |
+| `restage_delivery_policy_fit` / `restage_delivery_policy_simulate` | Check that content fits, and preview a plan's decisions. |
+| `restage_delivery_policy_review` / `restage_delivery_policy_publish` | Review a complete plan, then publish the change you reviewed. |
+| `restage_delivery_policy_undo_review` | Review a plan rollback before you publish it. |
+| `restage_placement_sample_import` / `restage_placement_sample_prepare` / `restage_placement_sample_store` / `restage_placement_sample_bind` | Validate a capture and PNG you supply, review them, then upload and bind the sample. |
 | `restage_placement_sample_read` / `restage_placement_sample_read_image` / `restage_placement_sample_delete` | Read or delete a stored sample. |
 
-These tools need an exact target. Plan and sample changes need the same
-live-target approval as other writes. Reading placements never captures
-or uploads a screen.
+These tools need an exact target. Plan and sample changes need the same live-target
+approval as other writes. Reading placements never captures or uploads a screen.
 
-See [Placements](/delivery/placements) for the app setup and review workflow.
+[Placements](/delivery/placements) covers the app setup and the review steps.
 
-**Builds.** A surface that uses your app's own widgets needs a build of those widgets
-before the dashboard can show it.
+**Builds.** The dashboard can show a surface that uses your own widgets only after you
+push a build of those widgets.
 
 | Tool | What it does |
 | --- | --- |
 | `restage_list_builds` | List an app's builds, one per environment and one per user. |
 | `restage_push_build` | Build your app's widgets for the web and push the build, like `restage build push`. It can take minutes. |
-| `restage_push_catalog` | Upload the app's generated widget catalog, which lists your own widgets in the dashboard editor's palette. Devices and previews do not need it. |
+| `restage_push_catalog` | Upload the app's generated widget catalog. It lists your own widgets in the dashboard editor's palette. Devices and previews don't need it. |
 | `restage_build_report` | Report what the last local build delivers and what renders from the app, like `restage build report --json`. Pass `accept` to record it as the baseline. |
 | `restage_widget_promote` | Move a widget that renders from the app into a widget class of your own, like `restage widget promote`. |
+
+`restage_build_report` has no `check` option. Read its `changes` field instead. It's absent when there's no baseline. `generatedErrors` lists any generated part that doesn't compile. Keep the parts that render from the app unless the developer wants to change or test what they cover. Never rewrite code only to remove one.
+
+The report suggests `restage_widget_promote` when the same code renders from the app in several screens, or when a widget takes three or more values from the design. Use it only when the developer wants the code named and reusable. [What renders from your app](/authoring/islands) explains the parts.
 
 **Workspace.**
 
 | Tool | What it does |
 | --- | --- |
 | `restage_list_organizations` | The organizations you belong to. |
-| `restage_list_projects` | Projects under an organization. |
-| `restage_list_apps` | Apps under a project. |
-| `restage_list_environments` | Environments under a project. |
-| `restage_list_environment_targets` | Environment targets under an app. |
-| `restage_get_app_config` | An app's iOS bundle id, Android package, and web domain. |
-| `restage_update_app_config` | Update them (admin). |
+| `restage_list_projects` | The projects in an organization. |
+| `restage_list_apps` | The apps in a project. |
+| `restage_list_environments` | The environments in a project. |
+| `restage_list_environment_targets` | The environment targets of an app. |
+| `restage_get_app_config` | An app's iOS bundle id, Android package and web domain. |
+| `restage_update_app_config` | Change them (admin). |
 | `restage_list_api_keys` | List an environment's API keys, with the secrets removed. |
 | `restage_mint_api_key` | Mint a public key (admin). The key is returned in full. |
 | `restage_revoke_api_key` | Revoke a key (admin). |
-| `restage_resolve_api_key` | Find the organization, project, app, environment, and plane a key belongs to. The key is matched against key prefixes locally and never sent. |
+| `restage_resolve_api_key` | Find the organization, project, app, environment and plane a key belongs to. The key is matched against key prefixes locally and never sent. |
 
-Public keys ship inside your app, so `restage_mint_api_key` returns the key in full.
-Secret keys are shown only once, so they are created in the dashboard.
+Public keys ship inside your app, and `restage_mint_api_key` returns the whole key. Secret keys appear only once, and you create them in the dashboard.
 
-**Audit.** `restage_audit_log`, `restage_audit_export`, and `restage_audit_verdict` read
+**Audit.** `restage_audit_log`, `restage_audit_export` and `restage_audit_verdict` read
 the organization's audit log, its compliance rows, and whether its audit chain verifies.
-Each row's `chain` is `pending`, `chained` (not yet reached by a verification run), or
+Each row's `chain` is `pending`, `chained` (no verification run has reached it yet) or
 `verified`.
 
 **Products and stores.**
 
 | Tool | What it does |
 | --- | --- |
-| `restage_list_products` | Store products for an app. |
+| `restage_list_products` | An app's store products. |
 | `restage_import_products` | Fetch a store's catalog again and update the products (admin). |
-| `restage_list_product_slots` | Product slots and their product mappings. |
-| `restage_upsert_product_slot` | Create or update a slot and its whole product mapping (admin). |
+| `restage_list_product_slots` | Product slots and which products they map to. |
+| `restage_upsert_product_slot` | Create or change a slot and its whole product mapping (admin). |
 | `restage_list_store_connections` | Store connections, without secrets. |
 
-`restage_upsert_product_slot` replaces the whole mapping. A store you pass as `null` is
-unmapped, so list the slots first and pass back any mapping you want to keep.
+`restage_upsert_product_slot` replaces the whole mapping, and a store you pass as `null` is unmapped. List the slots first and pass back any mapping you want to keep.
 
-**Analytics and experiment results**
+**Analytics and experiment results.**
 
 | Tool | What it does |
 | --- | --- |
-| `restage_read_analytics_overview` | Read aggregate analytics for the selected target. |
-| `restage_read_explore` | Read analytics grouped by a supported dimension. |
+| `restage_read_analytics_overview` | Read overall analytics for the selected target. |
+| `restage_read_explore` | Read analytics grouped by a dimension such as platform. |
 | `restage_read_surface_analytics` / `restage_read_surface_taps` | Read a surface's metrics or taps. |
-| `restage_read_data_health` | Inspect measurement health. |
+| `restage_read_data_health` | Check measurement health. |
 | `restage_read_experiments` / `restage_read_experiment` | List experiments or read one experiment's results. |
 
-These reads are always registered. Use each tool's schema for its target and
-time window. Most analytics default to the last 30 days; experiment results
-default to the whole current run. Dates filter only the traffic breakdowns; the
-statistical result always covers the whole run as designed. Withheld or
-unavailable values must not be read as zero.
+These reads are always registered, and each tool's schema lists its target and time window. Most analytics default to the last 30 days, while experiment results default to the whole current run. Dates filter only the traffic breakdowns, and the statistical result always covers the whole run as designed. Don't read a withheld or unavailable value as zero.
 
-**Experiment authoring.** `restage_experiment_apply` is registered by default. Create and edit a
-draft, validate it, review its current revision, then activate that reviewed
-revision. Read results before pausing, resuming or concluding it. Live lifecycle
-changes require `confirmLive: true`. See [Experiments](/delivery/experiments) for
-the workflow and operation arguments.
+**Experiment authoring.** `restage_experiment_apply` is registered by default. Use it to
+create and edit a draft, validate it, review its current revision, then activate that
+reviewed revision. Read the results before you pause, resume or conclude, and pass `confirmLive: true` for live lifecycle changes. [Experiments](/delivery/experiments) has the workflow
+and the operation arguments.
 
-Two low-level tools, `restage_apply_canonical_mutation` and
-`restage_activate_experiment`, still need `RESTAGE_EXPERIMENTAL=1`; ordinary
-experiment authoring doesn't use them.
+`restage_apply_canonical_mutation` and `restage_activate_experiment` are low-level tools
+that still need `RESTAGE_EXPERIMENTAL=1`. Ordinary experiment authoring doesn't use them.
 
-For routing, use the original review returned by `restage_review_routing` as
-`reviewBase64` in `restage_publish_routing`. The preview tool takes a simulation
-request; the review tool takes a review request. The
-[Audience routing guide](/delivery/audience-routing) explains the distinction.
+For routing, pass the review that `restage_review_routing` returned, unchanged, as
+`reviewBase64` to `restage_publish_routing`. The preview tool takes a simulation request
+and the review tool takes a review request. The
+[Audience routing guide](/delivery/audience-routing) explains the difference.
 
 ## Review experiment impact
 
-Surface publish, rollback, kill, freeze and unfreeze review measurement impact
-before applying a change. Call the intended tool with `reviewOnly: true` to
-inspect its `measurementReview` and `reviewDigest` without changing the surface.
-Pass an explicit revision when publishing, so you publish the exact revision you
-reviewed.
+Publish, rollback, kill, freeze and unfreeze check how a change affects measurement
+before they apply it. To see that check first, call the tool with `reviewOnly: true`. You
+get a `measurementReview` and a `reviewDigest`, and the surface doesn't change. When you
+publish, pass an explicit revision so you publish the one you reviewed.
 
-Read the affected experiments, metrics, versions and what each warning means. If
-the review shows impact the user hasn't approved, explain it and stop before
-applying. Once the user approves, repeat the exact operation with `reviewOnly`
-omitted or false and `reviewedDigest` set to the returned digest. A review with no
-warnings needs no acknowledgment.
+Read which experiments, metrics and versions are affected, and what each warning means.
+If the review shows an impact the user hasn't approved, explain it and stop. Once the
+user approves, repeat the same call with `reviewOnly` left out or false and
+`reviewedDigest` set to the digest you got back. A review with no warnings needs no
+acknowledgment.
 
-Choose a lowercase UUIDv4 as `operationId` and reuse it with the same inputs when
-you retry. When you can't tell whether a call went through, check status and
-history before retrying. Refusals block the change; an out-of-date or changed
-review must be inspected again.
-An agent must not copy a digest from an error simply to make a call succeed.
-Warning errors include `acknowledgementRequired: true` and the full review.
+Pick a lowercase UUIDv4 for `operationId` and reuse it, with the same inputs, when you
+retry. If you can't tell whether a call went through, check status and history first.
+A refusal blocks the change. If the review is out of date or has changed, inspect it
+again. Never copy a digest out of an error just to make a call succeed. Warning errors
+include `acknowledgementRequired: true` and the full review.
 
-On live targets, these operations also need a reason and `confirmLive: true`
-after user approval, including when `reviewOnly` is true. This confirms only the
-live change; measurement warnings need their own acknowledgment. Sandbox targets
-skip the live confirmation and still check measurement impact.
+On live targets, these calls also need a reason and `confirmLive: true` after the user
+approves, even with `reviewOnly: true`. `confirmLive` confirms only the live change.
+Measurement warnings need their own acknowledgment. Sandbox targets skip the live
+confirmation and still check measurement impact.
 
-`restage_rollback_preflight` checks compatibility against the current active
-version. It is separate from the rollback tool's measurement review and does
-not prove compatibility with every installed app. Routing uses its own
+`restage_rollback_preflight` checks compatibility against the current active version. It's
+separate from the rollback tool's measurement review, and it doesn't prove the version
+works on every installed app. Routing has its own
 [policy review and acknowledgment](/delivery/audience-routing#simulate-and-review-a-policy).
 
 ## Keeping secrets out of the chat
 
-Pass ids, slugs, and ordinary settings as tool arguments. Don't pass API keys or tokens:
-if an argument fails validation, your MCP host may repeat it in the error.
+Pass ids, slugs and ordinary settings as tool arguments. Don't pass API keys or tokens.
+If an argument fails validation, your MCP host may repeat it in the error.
 
-The server removes your session token and the sign-in code from every tool result.
-Internal errors come back as a fixed message, with no stack trace. A damaged credentials
-file never leaks its contents into a result. None of this protects you from a
-compromised backend, which already holds your session.
+The server strips your session token and the sign-in code from every tool result.
+Internal errors come back as a fixed message with no stack trace. A damaged credentials
+file never leaks its contents into a result. None of this protects you from a compromised
+backend. The backend already holds your session.

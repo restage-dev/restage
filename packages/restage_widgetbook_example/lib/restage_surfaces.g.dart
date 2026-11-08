@@ -6,10 +6,13 @@
 import 'package:restage/restage.dart' as restage;
 import 'package:restage_widgetbook_example/onboarding/screens/get_started_screen.dart'
     as s0;
+import 'package:restage_widgetbook_example/onboarding/screens/welcome_screen.dart'
+    as s1;
 
 /// Every surface this package compiles, for
 /// `Restage.configure(surfaces: restageSurfaces)`.
 final List<restage.RestageSurfaceRef> restageSurfaces =
     List<restage.RestageSurfaceRef>.unmodifiable(<restage.RestageSurfaceRef>[
       s0.getStartedScreenPlacementDefinition(),
+      s1.welcomeScreenPlacementDefinition(),
     ]);

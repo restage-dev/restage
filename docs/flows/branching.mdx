@@ -3,14 +3,11 @@ title: Branching
 description: Store an answer in flow state and send the user to the matching screen.
 ---
 
-A flow branches in three steps. A screen event stores a value in flow state, a
-`Decision` reads that state, and its branches, tried in order, pick the next screen.
-The example on this page is a short survey with two paths.
+A flow branches in three steps. A screen event stores a value in flow state, a `Decision` reads that state, and its branches, tried in order, pick the next screen. The example here is a short survey with two paths.
 
 ## Give each answer an event
 
-Each answer gets its own `SurfaceEvent`. A typed event can carry a value, which you
-pass as the second argument to `surfaceEvent`:
+Each answer gets its own `SurfaceEvent`. A typed event can carry a value, passed as the second argument to `surfaceEvent`:
 
 ```dart
 @Screen()
@@ -38,18 +35,17 @@ final class QuestionScreen extends StatelessWidget {
 
 ## Declare the state
 
-Declare each piece of state once. A `FlowStateRef<String>` names the key, and you reuse
-the same reference everywhere the flow reads or writes it:
+Declare each piece of state once, with a `FlowStateRef<String>` that names the key. Reuse the same reference wherever the flow reads or writes it:
 
 ```dart
 const answer = FlowStateRef<String>('answer');
 ```
 
-State is private to the flow unless you say otherwise. To include it in the flow's
-result or survey answers, mark it `FlowStateClassification.exportable`, as the full
-example below does.
+State is private to the flow unless you say otherwise. To put it in the flow's result or
+survey answers, mark it `FlowStateClassification.exportable`, like the full example
+below does.
 
-If your app should supply a starting value, use a `SeedableFlowStateRef`:
+If your app supplies a starting value, use a `SeedableFlowStateRef`:
 
 ```dart
 const returningUser = SeedableFlowStateRef<bool>(
@@ -58,14 +54,13 @@ const returningUser = SeedableFlowStateRef<bool>(
 );
 ```
 
-The build generates a typed seed class for the flow, for example
-`SetupSurveySeed(returningUser: true)`, which you pass to the generated `SetupSurveySurface` as `initialState:`.
-The direct `RestageFlowGraph` API accepts the same seed.
+The build generates a typed seed class for the flow, like
+`SetupSurveySeed(returningUser: true)`. Pass it to the generated `SetupSurveySurface` as
+`initialState:`. The direct `RestageFlowGraph` API takes the same seed.
 
 ## Define the decision
 
-A `Decision` is a step a transition can lead to. Its branches are tried in order, and
-`otherwise` is required:
+A `Decision` is a step a transition can lead to. Its branches are tried in order, and `otherwise` is required:
 
 ```dart
 final route = Decision(
@@ -84,13 +79,13 @@ final route = Decision(
 );
 ```
 
-Every state reference has `equals`, `notEquals`, `oneOf`, `isSet`, `isUnset`, and
+Every state reference has `equals`, `notEquals`, `oneOf`, `isSet`, `isUnset` and
 `equalsState` (compare two pieces of state). Integer state also has `greaterThan`,
-`atLeast`, `lessThan`, and `atMost`.
+`atLeast`, `lessThan` and `atMost`.
 
 ## Put it together
 
-Here is the whole flow in one file:
+Here's the whole flow in one file:
 
 ```dart
 import 'package:restage/restage.dart';
@@ -145,20 +140,21 @@ final setupSurvey = FlowDefinition(
 );
 ```
 
-`capture: answer` stores the event's value, and `answer.set('skipped')` writes a fixed
-value. `outbound` lists exactly which state leaves the flow: here the answer goes into
-the flow's result and its survey answers. Nothing else does.
+`capture: answer` stores the event's value. `answer.set('skipped')` writes a fixed value.
+
+`outbound` lists exactly which state leaves the flow. Here the answer goes into the
+flow's result and its survey answers, and nothing else does.
 
 Every `Transition.complete` in a flow ends at the same finish, with one id and one
-result; the build stops with an error if two of them differ. To tell your app which
-path the user took, keep it in state and list it in `terminalResult`, as this example
-does with `answer`.
+result. The build stops with an error if two of them differ. To tell your app which path
+the user took, keep it in state and list it in `terminalResult`, like this example does
+with `answer`.
 
 ## Loops and forward references
 
-Dart allows references to later top-level declarations. For a graph with cycles,
-a `NodeRef` avoids constructing mutually dependent node objects. List the referenced
-node in `nodes` so the build can resolve it:
+Dart lets a declaration refer to a later top-level declaration. For a graph with
+cycles, a `NodeRef` saves you from building nodes that depend on each other. List the
+referenced node in `nodes` so the build can resolve it:
 
 ```dart
 const attempts = FlowStateRef<int>('attempts', defaultValue: 0);
@@ -186,9 +182,8 @@ final retryFlow = FlowDefinition(
 );
 ```
 
-Use a screen type or `Decision` directly when no symbolic reference is needed.
+When you don't need a reference, use a screen type or a `Decision` directly.
 
-Back navigation skips decisions, because only screens the user saw are kept in the
-history. See [Navigation](/flows/navigation-and-chrome). To branch on the result of
-something your app does, such as a permission request, see
-[Host actions](/flows/host-actions).
+Back navigation skips decisions, because the history keeps only screens the user saw.
+See [Navigation](/flows/navigation-and-chrome). To branch on the result of something
+your app does, like a permission request, see [Host actions](/flows/host-actions).

@@ -1,0 +1,153 @@
+---
+title: What renders from your app
+description: How the build splits a screen into what a published version can change and what keeps running from your app's compiled code, and how to see and change that split.
+---
+
+The build delivers as much of a screen as it can. Code it can't deliver doesn't fail the build. It stays in your app and keeps running there, and you annotate the widget you have without restructuring anything.
+
+Everything that renders from your app is compiled into your app. A published version never carries code and stays data only. [App Store compliance](/app-store-compliance) covers that boundary.
+
+## Values, actions and islands
+
+The build splits what it can't deliver into three kinds: **values**, **actions** and **islands**.
+
+- **Value:** an expression your app computes, like `offer.title`. The design reads the result.
+- **Action:** a closure of yours that calls app code, like `() => buy()`. Your app keeps the closure and the design fires it by name.
+- **Island:** the smallest widget that holds code the build can't deliver. It renders from your compiled code. Its child widgets stay delivered as slots, and its literal arguments become properties a design can set.
+
+Here's a paywall body with all three:
+
+```dart
+Scaffold(
+  body: ListView(
+    controller: _scroll,
+    children: [
+      Text(offer.title),
+      FilledButton(onPressed: () => buy(), child: const Text('Continue')),
+    ],
+  ),
+)
+```
+
+`offer.title` is a value and `() => buy()` is an action. The `ListView` is an island because the build can't deliver a `ScrollController`. The `Text` and the button inside it are slots, and a design can still change them.
+
+<Callout type="info">
+You don't mark slots yourself. An island's widget arguments, like `child`, `children` and any builder body the build can deliver, become slots automatically.
+</Callout>
+
+The generated mount, `<ClassName>Surface`, runs a copy of your `build()` and records each value, condition and island where your build produces it. It also keeps your actions, like `() => buy()`, for the design to fire by name. For a paywall, a `@Screen(surface: ...)` or a split widget, it owns your widget's `State` too. Root listeners, providers and builders around the screen, like a `BlocListener`, stay in the mount whatever the design looks like. Without a design, the mount shows what your own `build()` produces.
+
+## See what renders from your app
+
+After `dart run build_runner build`, run the report:
+
+```sh
+restage build report
+```
+
+It prints one block per generated widget:
+
+```text
+`PaywallSurface` (lib/paywall.dart): designs can change 9 of its 12 widgets (75%).
+  `ListView` (lib/paywall.dart:12:7) renders from the app. Restage can't translate `_scroll`.
+  App code computes `offer.title` (lib/paywall.dart:9:5).
+  App code runs `() => buy()` (lib/paywall.dart:20:12).
+  App code keeps `BlocListener` (lib/paywall.dart:6:12) around every design.
+```
+
+The first line is the share a design can change, and each line under it names a part, where it is and why. Three flags help in CI and scripts:
+
+- `--accept` records this build in `restage_build_report.json`. Commit that file.
+- `--check` compares the build with it and exits 1 when they differ. It also exits 1 when there's no baseline, or when a generated part doesn't compile.
+- `--json` prints the report as JSON. The MCP server's `restage_build_report` returns the same.
+
+A later report shows when a part starts or stops rendering from your app, or when its code changes.
+
+## Move more of a screen over the air
+
+Leave the parts that render from your app alone unless you want a design to change them. They're usually behavior, like listeners, controllers, scroll physics and purchase logic. Don't write a second copy of the screen. If one part swallows content you want to change or test, rewrite only that part.
+
+Widgets of your own need no annotation. This covers your app and its path packages. The build inlines a widget that only composes other widgets, and makes an island of one it can't. A widget from a hosted dependency renders from your app unless it has `@RestageWidget`.
+
+`@RestageWidget` names a component, reuses it across surfaces and gives it editor properties. Add it by hand, or let the CLI move an island into a class for you:
+
+```sh
+restage widget promote lib/paywall.dart:12 --name PlanList
+```
+
+That puts the widget at that location in a `@RestageWidget` class and exports it from your package's widget library. Pass `--library` when the package has several widget libraries, and build again afterwards.
+
+The report suggests promoting when the same code renders from the app in several screens, or when an island takes three or more values from the design. Promote fails if no file in the package has `@RestageLibrary`, or if the file changed since the last build. A widget with its own logic is split when you annotate it. See [Custom widgets](/authoring/custom-widgets#widgets-with-their-own-logic).
+
+## Keep a widget in the app on purpose
+
+`@RenderInApp` leaves a widget to your app's code, where a design can't change it. Put it on a widget class:
+
+```dart
+@RenderInApp()
+class PromoBanner extends StatelessWidget {
+  // ...
+}
+```
+
+Or put it on a `library` directive to cover every widget the library declares or exports. That keeps a whole design-system package native:
+
+```dart
+@RenderInApp()
+library;
+```
+
+You can also put it on a local variable in `build` that holds one widget. The build stops with an error if the generated mount can't build the widget, for example because it uses something the mount can't reach.
+
+## What changes over the air
+
+A published version can change these without an app release:
+
+- copy, styling, spacing, layout and order;
+- adding or removing sections, with widgets from the catalog and your design system;
+- where islands go, what's in their slots and their properties;
+- the whole design.
+
+A design can repeat an island inside a loop only if your build creates it inside a loop. Anywhere else, it can place each island once.
+
+These need an app release:
+
+- an island's own behavior;
+- the values your app computes;
+- the actions it provides;
+- any new island.
+
+The dashboard preview renders islands from the build you push with `restage build push`.
+
+## When app code changes
+
+A published version records the islands it uses. On the device, the SDK checks them against the installed build before it renders anything:
+
+- Editing code inside a lone island keeps published versions fitting.
+- Changing an island's inputs or slots doesn't. When two islands share a type and the same inputs and slots, they could trade places. An edit to either one counts as a change, and so does adding the second one. Live versions that show a changed island fall back to your compiled widget until you republish them. The report says so, and `restage build push` names each version.
+- A value or island exists only in the layouts where your build produces it. Publishing a design that reads one somewhere else asks for confirmation. The prompt lists each build that can't show the design and why.
+- A design that doesn't fit isn't rendered. The device keeps what it had, or shows your compiled widget.
+
+## What still stops the build
+
+Unsupported code renders from your app. These still stop the build with an error:
+
+- a non-finite literal such as `SizedBox(width: double.infinity)`;
+- a name in `build()` that starts with `_restage`, whether you declare it or read it;
+- a `build()` statement the generated mount can't copy, because it uses a name the screen file doesn't import or reads or calls something the mount can't reach;
+- in a flow step's `build()` (a `@Screen()` with no `surface:`), an unused local, `late`, several variables in one statement, a `final` with no value, or any statement other than a local or the return;
+- a helper that calls itself;
+- in a flow step, a `State` that can't become delivered state: a lifecycle method, a field of a type the build can't deliver, a nullable field with no value, or a handler that isn't one `setState` assignment;
+- a `State` for your surface whose build reads `super.x`, or whose base class only accepts the original widget;
+- a surface with no `build()`, such as a `RenderObjectWidget` or a `ProxyWidget`;
+- a surface whose generated mount is skipped, for a name clash or a constructor argument whose source the build can't tell, while the surface needs values, islands, kept wrappers or `State`;
+- `@RenderInApp` on a widget the mount can't build;
+- a `@RestageLibrary` namespace equal to the one reserved for your package's islands;
+- a `@RestageWidget` exported by more than one `@RestageLibrary`;
+- a `show` or `hide` import that hides the generated names of a split widget;
+- the `paywallPurchase` and `paywallPriceFor` helpers, the reserved `purchase`, `restore` and `restage.*` event names, and reads of `data.products`;
+- a theme read outside the supported forms, like a `Brightness` use other than `==` or `!=`;
+- a missing `part` line, a duplicate id, an invalid analytics id, an integer that overflows, an icon the build can't rebuild or tell apart, and `completesOn` with no tap that fires it;
+- a constructor input an RFW, A2UI or Widgetbook target can't handle.
+
+[Authoring constraints](/authoring/constraints) has the rules for what a design can change in place.

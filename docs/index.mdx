@@ -3,23 +3,15 @@ title: What is Restage?
 description: Server-driven UI for Flutter. Annotate a widget you already wrote and publish it as a surface.
 ---
 
-Restage is server-driven UI for Flutter. Add one annotation to a widget you already
-wrote, and it becomes a surface you can publish, measure, and roll back without a new
-app build: an onboarding flow, a message, a survey, a paywall, or any screen. It renders
-as real Flutter widgets inside your app, using your theme.
+Restage is server-driven UI for Flutter. It lets you change a screen in your app after you've shipped it. You annotate a widget you already wrote, and then you can publish, measure and roll back new versions of it without a new app build. The app draws them as real Flutter widgets with your theme. Onboarding flows, messages, surveys, paywalls and any other screen work the same way.
 
-What ships is a description your app's widgets draw, in a small closed language the
-compiler checks. It can carry simple logic, like conditions over data your app supplies.
-Gestures, drawing, network calls and native work stay in Dart compiled into your app. New
-kinds of behavior still ship as an app release.
+What you publish is a description that your app's widgets draw. It's written in a small, closed language that the compiler checks. It can carry simple logic, like conditions over data your app supplies. Gestures, drawing, network calls and native work stay in Dart compiled into your app. New kinds of behavior still ship as an app release. A published version can also move the parts of a screen that render from your app's compiled code, and change what's in their slots.
 
-These guides describe the current repository source, which can include changes not
-yet published to pub.dev. For a released package, use its release tag and changelog.
+These guides describe the current repository source, including changes that may not be on pub.dev yet. For a released package, use its release tag and changelog.
 
-## A surface from source to screen
+## Example: a welcome screen
 
-Write the screen as a Flutter widget in `lib/welcome_screen.dart`. Data it needs from
-the app is an ordinary constructor parameter:
+Write the screen as a Flutter widget in `lib/welcome_screen.dart`. Data from the app is an ordinary constructor parameter:
 
 ```dart
 import 'package:flutter/material.dart';
@@ -61,11 +53,7 @@ Run the build:
 dart run build_runner build
 ```
 
-It compiles the widget to a small artifact and generates a mount, `WelcomeScreenSurface`.
-The mount takes your constructor's parameters, `name` included, plus `onEvent` for the
-events the class declares (`next` arrives as a `WelcomeScreenSurfaceNextEvent`) and optional
-`resolver`, `onUnavailable`, and `loadingBuilder` hooks. It's an ordinary widget, so it goes wherever the screen belongs in your
-widget tree. Here it is the whole body of a page the app routes to on first run:
+The build compiles the widget and generates a mount, `WelcomeScreenSurface`. It's an ordinary widget. Put it wherever the screen belongs. It takes your constructor's parameters (`name` here), an `onEvent` callback, and optional `resolver`, `onUnavailable` and `loadingBuilder` hooks. `next` arrives as a `WelcomeScreenSurfaceNextEvent`. Here it's the whole body of a page the app shows on first run:
 
 ```dart
 class OnboardingPage extends StatelessWidget {
@@ -87,69 +75,44 @@ class OnboardingPage extends StatelessWidget {
 }
 ```
 
-It could as easily be one card inside an existing screen. Only the subtree under the
-mount is delivered; the rest of the page stays app code.
+It could just as well be one card inside an existing screen. Only the widgets under the mount are delivered. The rest of the page stays app code.
 
-The button fires `surfaceEvent(next)` instead of a callback. A published surface can't
-carry Dart functions. The app receives the event through the mount's `onEvent`. The mount
-renders the published version of the screen, passes `name` to it, and shows the
-compiled-in `WelcomeScreen` if delivery or rendering fails. With no backend configured it
-renders from the app itself, so it works offline with no account.
+The button calls `surfaceEvent(next)` where you'd normally write a callback. A callback that calls your own code, like `() => Navigator.of(context).maybePop()`, works too, and your app runs it as an action. A published surface carries no Dart functions. The app gets the event through `onEvent`.
 
-The file name gives the surface its id, `welcome_screen`. To change the screen without
-an app release, connect the app to Restage Cloud, push a version, then publish it:
+The mount shows the published version of the screen and passes it `name`. If delivery or rendering fails, it shows your compiled `WelcomeScreen`. With no backend configured, it renders from the app itself. That way it works offline with no account.
+
+## Publish it
+
+The file name gives the surface its id, `welcome_screen`. To change the screen without an app release, connect the app to Restage Cloud, push a version, then publish it:
 
 ```sh
 restage surface push welcome_screen
 restage surface publish welcome_screen
 ```
 
-A push uploads a version and changes nothing that is running. A publish makes it live.
-Installed apps pick up the published version the next time the screen mounts, and you
-can roll back to an earlier version at any time. See
-[Controlled delivery](/controlled-delivery).
+A push uploads a version and changes nothing that's running. A publish makes it live, and installed apps pick it up the next time the screen mounts. You can roll back to an earlier version at any time. See [Controlled delivery](/controlled-delivery).
 
-With the app connected, the SDK also measures each published version. Views, taps, and
-completions are captured automatically, with no tracking calls to add. Pass
-`measurementEnabled: false` to `Restage.configure` to switch it off. See
-[Telemetry and data](/trust/telemetry) for what is recorded.
+Once the app is connected, the SDK also measures each published version. It captures views, taps and completions automatically, with no tracking calls to add. Pass `measurementEnabled: false` to `Restage.configure` to switch it off. [Telemetry and data](/trust/telemetry) lists what's recorded.
 
 The [Quickstart](/quickstart) walks through the same steps with a paywall.
 
 ## Kinds of surface
 
-Every surface has a category from the `Surface` enum: `onboarding`, `message`, `survey`,
-`paywall`, or `general` for anything else.
+Every surface has a category from the `Surface` enum: `onboarding`, `message`, `survey`, `paywall`, or `general` for anything else. Three annotations publish them:
 
 - `@Screen(surface: ...)` publishes a single screen.
-- `@FlowGraph(surface: ...)` publishes a flow of screens. A bare `@Screen()` marks a
-  screen for use inside a flow.
+- `@FlowGraph(surface: ...)` publishes a flow of screens. A bare `@Screen()` marks a screen for use inside a flow.
 - `@Paywall()` publishes a paywall. A paywall can also be a step in a flow.
 
-Every mount takes a `context:` map for [data the app already has](/authoring/host-data).
-[Flows](/flows/overview) cover multi-screen surfaces. Generated mounts are the
-recommended starting point; [API choices](/authoring/write-a-surface#recommended-authoring-and-mounting-apis)
-explains named placements, direct mounts and older names.
+Every mount takes a `context:` map for [data the app already has](/authoring/host-data). [Flows](/flows/overview) covers multi-screen surfaces. Start with generated mounts. [API choices](/authoring/write-a-surface#recommended-authoring-and-mounting-apis) explains named placements, direct mounts and older names.
 
-The build also writes `.restage/build/metadata/restage.publication.json`, which records each
-surface's id, category, and generated files. The CLI reads that file when you push, so
-the id comes from your code. Directories and output paths play no part in it.
+The build also writes `.restage/build/metadata/restage.publication.json`. It records each surface's id, category and generated files. The CLI reads it when you push, and that's how the id comes from your code. Directories and output paths don't affect it.
 
-## The pieces
+## The packages
 
-The [`restage`](https://pub.dev/packages/restage) package is the open-source SDK that
-ships in your app. The catalog packages (`restage_core`, `restage_material`, and
-`restage_cupertino`) provide the built-in Flutter widgets, and `@RestageWidget` adds
-widgets from your own app.
+- [`restage`](https://pub.dev/packages/restage) is the open-source SDK that ships in your app.
+- `restage_core`, `restage_material` and `restage_cupertino` are the catalogs of built-in Flutter widgets. Widgets from your own app work without an annotation. Add `@RestageWidget` to name one, reuse it and list it in the editor.
+- [`restage_codegen`](https://pub.dev/packages/restage_codegen) runs at build time. It checks your source and writes the artifacts, capability files and flow documents, and it doesn't ship in your app.
+- [`restage_measurement_schema`](https://pub.dev/packages/restage_measurement_schema) holds the shared data types for measurement and experiments. `restage` re-exports the ones its API uses. It only defines types and sends nothing.
 
-[`restage_codegen`](https://pub.dev/packages/restage_codegen) runs at build time. It
-checks your source and writes the artifacts, capability files, and flow documents. It
-does not ship in your app.
-
-[`restage_measurement_schema`](https://pub.dev/packages/restage_measurement_schema)
-holds the shared data types for measurement and experiments. The `restage` package
-re-exports the ones its API uses. It only defines types and sends nothing.
-
-The `restage` CLI, its full-screen terminal UI, and the MCP server are in the
-[public repository](https://github.com/restage-dev/restage). They are not on pub.dev
-yet. Their backend commands need a Restage Cloud account or your own server.
+The `restage` CLI, its full-screen terminal UI and the MCP server are in the [public repository](https://github.com/restage-dev/restage). They aren't on pub.dev yet. Their backend commands need a Restage Cloud account or your own server.

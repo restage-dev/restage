@@ -3,12 +3,7 @@ title: Widget catalog
 description: The built-in Flutter widgets a surface can use, and how to add your own.
 ---
 
-The catalog is the set of widgets a surface can use. Built-in widgets come from
-three libraries; optional packages and your app can add more.
-
-You don't need to look widgets up before you write a surface. You write the Flutter
-widgets you already know, and the build finds them in the catalog. The catalog matters
-when you want to know what's covered, or when you want to add a widget.
+You write a surface with the Flutter widgets you already know. The build looks each one up in the catalog and compiles it. A widget that isn't in the catalog renders from your app. Built-in widgets come from three libraries, and optional packages and your app can add more. You only need this page to see what's covered or to add a widget.
 
 ## The three libraries
 
@@ -20,15 +15,11 @@ when you want to know what's covered, or when you want to add a widget.
 
 ## You write ordinary Flutter
 
-There are no separate widget classes to learn. You write `Container`, `Text`,
-`Column`, `FilledButton`, and the rest with their normal Flutter APIs, and the build
-maps each one to its catalog entry. A surface that uses `CupertinoButton` renders it
-from the Cupertino library.
+There are no separate widget classes to learn. You write `Container`, `Text`, `Column`, `FilledButton` and the rest with their normal Flutter APIs. A surface that uses `CupertinoButton` renders it from the Cupertino library.
 
 ### Transforms
 
-Use `Transform.translate` to move a child when painting while keeping its layout
-space unchanged:
+`Transform.translate` moves a child when painting and leaves its layout space alone:
 
 ```dart
 Transform.translate(
@@ -37,10 +28,9 @@ Transform.translate(
 )
 ```
 
-Offsets, `transformHitTests`, and `filterQuality` retain Flutter's behavior.
+Offsets, `transformHitTests` and `filterQuality` behave as they do in Flutter.
 
-`Transform.scale` supports uniform scaling through `scale`, or independent axes
-through `scaleX` and `scaleY`, including zero and negative factors:
+`Transform.scale` takes a uniform `scale`, or `scaleX` and `scaleY` for each axis. Zero and negative factors work:
 
 ```dart
 Transform.scale(
@@ -51,13 +41,11 @@ Transform.scale(
 )
 ```
 
-Origin, alignment, filtering, and hit testing follow Flutter. Omitting alignment
-uses the native center default; passing `alignment: null` preserves null.
+Origin, alignment, filtering and hit testing follow Flutter. If you leave out `alignment` you get the native center default, and `alignment: null` stays null.
 
 ### Responsive layouts and grids
 
-Use native builders for layout decisions that depend on the space their parent gives
-this widget:
+Use the native builders when a layout depends on the space the parent gives the widget:
 
 ```dart
 LayoutBuilder(builder: (context, constraints) {
@@ -69,15 +57,11 @@ LayoutBuilder(builder: (context, constraints) {
 })
 ```
 
-`LayoutBuilder` reads local constraints. `OrientationBuilder` derives orientation
-from its local space. Supported `Theme` and `MediaQuery` reads inside callbacks use
-that callback's context. Pure callbacks can use immutable locals, conditions,
-helper functions, typed captures, and finite child collections; see
-[Builder callbacks](/authoring/constraints#builder-callbacks).
+`LayoutBuilder` reads its local constraints, and `OrientationBuilder` works out orientation from its local space. `Theme` and `MediaQuery` reads inside a callback use that callback's context.
 
-`GridView`, `.count`, `.extent`, `.builder`, and `.custom` use native standard grid
-and child delegates. A builder requests items lazily and may return null, including
-when `itemCount` is omitted. For a typed `habits` input:
+A callback can use immutable locals, conditions, helper functions, typed captures and finite child collections. See [Builder callbacks](/authoring/constraints#builder-callbacks).
+
+`GridView`, `.count`, `.extent`, `.builder` and `.custom` use Flutter's standard grid and child delegates. A builder asks for items lazily and can return null, including when you leave out `itemCount`. Here `habits` is a typed input:
 
 ```dart
 GridView.builder(
@@ -96,17 +80,18 @@ GridView.builder(
 )
 ```
 
-For reordered data, use stable scalar `ValueKey` values on returned roots and a
-matching native key-to-index callback. Standard physics parent chains, native
-cache values, and delegate flags retain their normal behavior. Explicit controller
-objects and custom physics/delegates require installed application code.
+If the data can be reordered, give the returned roots stable scalar `ValueKey` values and add a matching key-to-index callback.
+
+Standard physics parent chains, cache values and delegate flags behave as they do in Flutter. Explicit controller objects and custom physics or delegates run in code installed in your app. The scrollable that holds one renders from your app automatically. A `ListView(controller: _scroll)` needs no change.
 
 ### Direction and clipped shapes
 
-Use `Directionality` and native `textDirection` arguments where Flutter exposes
-them. `EdgeInsets.only(left: ...)` stays physical; `EdgeInsetsDirectional.only(start: ...)` follows direction. Directional alignment, corner radii, gradients, and
-`DecorationImage` alignment resolve when Flutter renders them. A slot typed as
-concrete `Alignment` or `EdgeInsets` still requires that concrete type.
+Use `Directionality` and the `textDirection` arguments where Flutter has them:
+
+- `EdgeInsets.only(left: ...)` stays physical.
+- `EdgeInsetsDirectional.only(start: ...)` follows the direction.
+- Directional alignment, corner radii, gradients and `DecorationImage` alignment resolve when Flutter renders them.
+- A slot typed as concrete `Alignment` or `EdgeInsets` still needs that concrete type.
 
 ```dart
 Directionality(
@@ -123,16 +108,13 @@ Directionality(
 )
 ```
 
-Plain `ClipPath` and direct `ShapeBorderClipper` construction also work. The static
-`ClipPath.shape` method reads ambient direction; a direct `ShapeBorderClipper`
-keeps its supplied nullable `textDirection`. Arbitrary `CustomClipper` methods
-must live in installed application code. Directional radius recipes accept circular
-corners; unsupported elliptical corners receive a diagnostic.
+Plain `ClipPath` and direct `ShapeBorderClipper` construction work too. The static `ClipPath.shape` method reads the ambient direction, while a direct `ShapeBorderClipper` keeps the nullable `textDirection` you give it.
+
+Directional radius recipes take circular corners. Elliptical corners render from your app, and so does a `CustomClipper` with its own methods.
 
 ### Optional SVG
 
-Add `restage_svg` and `flutter_svg` to your app's dependencies, then use the native
-package APIs:
+Add `restage_svg` and `flutter_svg` to your app's dependencies. Then use the `flutter_svg` API as usual:
 
 ```dart
 import 'package:flutter_svg/flutter_svg.dart';
@@ -144,29 +126,24 @@ SvgPicture.asset(
 )
 ```
 
-`SvgPicture.network`, `.string`, `.memory`, and the unnamed constructor with a
-supported `SvgAssetLoader`, `SvgNetworkLoader`, `SvgStringLoader`, or
-`SvgBytesLoader` also work. Declare bundled assets in `pubspec.yaml` as usual. Package asset keys, network headers, byte data, `SvgTheme`, `ColorFilter`,
-RTL mirroring, and declarative nullable `placeholderBuilder` callbacks retain
-native behavior. Byte lists contain integers from 0 through 255 and are limited
-to 1 MiB. Custom bundles, clients, color mappers, file loaders, arbitrary loader
-subclasses, and unsupported error/image callbacks receive authoring diagnostics.
-`SvgTheme.currentColor` and the color passed to `ColorFilter.mode` must be
-non-null, proven base `Color` values. Subtypes such as `Colors.red`
-(`MaterialColor`) are diagnosed, including through typed, dynamic, or imported
-constant aliases. This applies both inside and outside callbacks. Ordinary
-Flutter paint properties continue to accept their supported MaterialColor values.
-Supported base Color constants retain their exact components and color space.
-Placeholder callbacks read their native local context; a captured outer context
-continues to refer to its original ancestor scope.
+`SvgPicture.network`, `.string` and `.memory` work too, and so does the unnamed constructor with an `SvgAssetLoader`, `SvgNetworkLoader`, `SvgStringLoader` or `SvgBytesLoader`. Declare bundled assets in `pubspec.yaml` as you normally would.
 
-The SVG dependency is optional for apps that do not use this catalog.
+These behave as they do in `flutter_svg`:
+
+- Package asset keys and network headers.
+- Byte data. A byte list holds integers from 0 through 255 and is limited to 1 MiB.
+- `SvgTheme`, `ColorFilter` and RTL mirroring.
+- Nullable `placeholderBuilder` callbacks. A placeholder callback reads its own local context, while a captured outer context still points at its original ancestor scope.
+
+Custom bundles, HTTP clients, color mappers, files, loaders and typed error and image callbacks work when your app passes them in from outside `build()`, like `bundle: bundle` from a field. Written inline in `build()`, like `bundle: rootBundle`, an inline `ColorMapper`, your own `BytesLoader` subclass or an inline `errorBuilder` closure, they make the `SvgPicture` render from your app.
+
+`SvgTheme.currentColor` and the color you pass to `ColorFilter.mode` can be any `Color`, including a `MaterialColor` such as `Colors.red`, directly or through a dynamic or imported constant, and the swatch is kept. Base `Color` constants keep their exact components and color space. A null color makes the `SvgPicture` render from your app.
+
+If your app doesn't use SVG, you don't need the dependency.
 
 ### AppBar
 
-`AppBar` supports its layout, text and icon styles, system-bar styles, opacity,
-animation, and accessibility options. Use ordinary Flutter values such as
-`TextStyle`, `IconThemeData`, and `SystemUiOverlayStyle`:
+`AppBar` supports its layout, text and icon styles, system-bar styles, opacity, animation and accessibility options. Pass ordinary Flutter values such as `TextStyle`, `IconThemeData` and `SystemUiOverlayStyle`:
 
 ```dart
 import 'package:flutter/material.dart';
@@ -183,21 +160,15 @@ AppBar(
 )
 ```
 
-Omitted styles, `centerTitle`, and `toolbarHeight` retain Flutter's theme and
-platform defaults. The `bottom` slot accepts a `TabBar` or `PreferredSize`, and
-`flexibleSpace` places content behind the toolbar.
+If you leave out the styles, `centerTitle` or `toolbarHeight`, Flutter's theme and platform defaults apply. The `bottom` slot takes a `TabBar` or `PreferredSize`, and `flexibleSpace` puts content behind the toolbar.
 
-`IconThemeData` supports its constructor, `IconThemeData.fallback()`,
-`copyWith`, and `IconThemeData.lerp`. An `AppBar` used as another AppBar's
-`bottom` may take a nullable `toolbarHeight`.
+`IconThemeData` supports its constructor, `IconThemeData.fallback()`, `copyWith` and `IconThemeData.lerp`. An `AppBar` used as another `AppBar`'s `bottom` can take a nullable `toolbarHeight`.
 
-`notificationPredicate` accepts a depth check such as
-`(notification) => notification.depth == 1`, where the depth is an `int`.
-Omitting it keeps Flutter's default predicate.
+`notificationPredicate` takes a depth check such as `(notification) => notification.depth == 1`, where the depth is an `int`. If you leave it out, Flutter's default predicate applies.
 
 ### Tab pages
 
-Combine `DefaultTabController`, `TabBar`, and `TabBarView` as you would in Flutter:
+Combine `DefaultTabController`, `TabBar` and `TabBarView` the way you would in Flutter:
 
 ```dart
 DefaultTabController(
@@ -213,32 +184,24 @@ DefaultTabController(
 )
 ```
 
-`TabBarView` uses the nearest `DefaultTabController` and supports `clipBehavior`,
-`dragStartBehavior`, and `viewportFraction`, including fractions greater than one.
-Provide bounded space, such as the `Scaffold.body` above, and matching controller,
-tab, and page counts. Explicit `controller` and `physics` expressions are not
-currently compiled.
+`TabBarView` uses the nearest `DefaultTabController`. It supports `clipBehavior`, `dragStartBehavior` and `viewportFraction`, including fractions above one.
+
+Give it bounded space, as `Scaffold.body` does above. The controller, tab and page counts have to match. A `TabBarView` with an explicit `controller` or `physics` isn't delivered and renders from your app instead.
 
 ## Widgets with built-in gestures and animation
 
-`restage_material` includes widgets whose gesture and animation code is compiled into
-your app. A surface sets their properties and receives their events:
+`restage_material` includes widgets whose gesture and animation code is compiled into your app. A surface sets their properties and receives their events:
 
 - `RestageModalSheet` and `RestageDraggableSheet` for bottom sheets you drag.
 - `RestagePager` for pages you swipe.
-- `RestageDropdown`, `RestageRadioGroup`, `RestageSegmentedButton`, and
-  `RestageToggleButtons` for choosing an option.
+- `RestageDropdown`, `RestageRadioGroup`, `RestageSegmentedButton` and `RestageToggleButtons` for choosing an option.
 
-`restage_core` adds motion widgets (`RestageMotion`, `RestageFadeIn`, `RestagePulse`,
-`RestageStagger`) and number and price formatting (`RestagePrice`,
-`RestageFormattedNumber`).
+`restage_core` adds motion widgets (`RestageMotion`, `RestageFadeIn`, `RestagePulse`, `RestageStagger`) and number and price formatting (`RestagePrice`, `RestageFormattedNumber`).
 
 ## Your own widgets
 
-To use a widget from your design system in a surface, annotate it with
-`@RestageWidget` and it joins the catalog. See [Custom widgets](/authoring/custom-widgets).
+A surface can use a widget from your design system with no annotation. Annotate it with `@RestageWidget` to add it to the catalog and the editor's palette. See [Custom widgets](/authoring/custom-widgets).
 
 ## One catalog for every surface
 
-The same widgets build an onboarding flow, a message, a survey, a paywall, a single
-card, or a whole screen. There is no separate catalog per surface type.
+Onboarding flows, messages, surveys, paywalls, single cards and whole screens all use the same widgets. There's no separate catalog per surface type.

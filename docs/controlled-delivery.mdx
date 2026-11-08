@@ -3,51 +3,47 @@ title: Controlled delivery
 description: How versions, publishing, rollback, freeze, kill, and the audit log control what installed apps receive.
 ---
 
-Publishing UI to installed apps still needs a release process. Restage splits it in two:
-the SDK decides whether it can render a version, and Restage Cloud decides which version
-is live.
+Changing UI in installed apps still needs a release process. Restage splits the job in two: the SDK decides whether it can render a version, and Restage Cloud decides which version is live.
 
 ## What the SDK checks
 
 The SDK fetches the live version and checks it against the widgets and declarations in
-the installed app. It renders the version only if those checks pass. Otherwise it keeps a
-version it already accepted, or uses its bundled or compiled fallback. Measurement
-and delivery diagnostics distinguish published content from a local fallback.
+the installed app. It renders the version only if the checks pass. Otherwise it keeps a
+version it already accepted, or falls back to a bundled copy or your compiled widget. Measurement and
+delivery diagnostics tell published content apart from a local fallback.
 
-These checks are part of the open-source SDK. They work with Restage Cloud or with
-your own server.
+The checks are part of the open-source SDK. They work with Restage Cloud or with your own
+server.
 
 ## What Restage Cloud records
 
-Each push creates a new version, and a version is never edited after that. A publish
-makes one version live. The other operations change which version is live without
-touching any version:
+Each push creates a new version that's never edited after that, and a publish makes one version live. The other operations change which version is live and leave every
+version as it was:
 
 - **Rollback** makes an earlier version live again.
 - **Freeze** stops any version from being published until you unfreeze the surface.
-- **Kill** stops hosted serving in an environment; mounts use their fallback.
-- **Archive** stops serving a surface across environments and removes it from the
-  active list. Restore returns it to the list; publish a version to serve it again.
-- **History and audit** record each change, who made it, and which version it affected.
+- **Kill** stops hosted serving in an environment. Mounts use their fallback.
+- **Archive** stops serving a surface across environments and removes it from the active
+  list. Restore puts it back on the list. Publish a version to serve it again.
+- **History and audit** record each change, who made it and which version it affected.
 
-The CLI has `status`, `history`, `push`, `publish`, `rollback`, `freeze`, `unfreeze`, and
-`kill` under `restage surface`, and `restage audit` reads and exports the audit log. The
+`restage surface` has `status`, `history`, `push`, `publish`, `rollback`, `freeze`,
+`unfreeze` and `kill`. `restage audit` reads and exports the audit log. The
 [CLI guide](/tools/cli) covers installation and the full command list.
 
 ## Placements and delivery plans
 
-A [placement](/delivery/placements) names where content appears in your app. A
-delivery plan chooses compatible content for it. Use `restage delivery map` to
-compare routing with what app builds actually rendered, and `restage where` to
-find where a surface version is being served. Review a plan before publishing it; the
-publish operation applies the exact reviewed change.
+A [placement](/delivery/placements) names where content appears in your app. A delivery plan picks compatible content for it. Review a plan before you publish it, and publishing applies exactly the change you reviewed.
+
+Use `restage delivery map` to compare routing with what app builds actually rendered.
+Use `restage where` to find where a surface version is being served.
 
 ## Client and server responsibilities
 
-Apps ask for the live version and report the version they rendered. Who changed what,
-freeze state, and the audit log stay on the server, out of the version the app renders.
-Older app builds keep the same checks and fallbacks.
+Apps ask for the live version and report the version they rendered. Who changed what, the
+freeze state and the audit log stay on the server. They aren't part of the version the app
+renders. Older app builds keep the same checks and fallbacks.
 
 If you serve surfaces yourself, keep the same basics: versions that never change, an
-explicit selection of compatible content, and a fallback in the app. The
+explicit choice of compatible content, and a fallback in the app. The
 [Hosted delivery](/delivery/hosted-delivery) page shows the SDK configuration.

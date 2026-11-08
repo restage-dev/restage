@@ -1,0 +1,50 @@
+---
+title: Governance and audit
+description: Who can change what users see, what Restage records about each change, and how delivered content is protected. Written for security and compliance reviews.
+---
+
+This page is for whoever reviews Restage before your team adopts it. It covers who can change what users see, what gets recorded, and how delivered content is protected. It also lists what isn't there yet.
+
+## What a published version can do
+
+A published version is data your app's widgets draw, written in a small, closed language the compiler checks. It can't add behavior your app doesn't already have. New behavior ships as an app release, through your normal review. [App Store compliance](/app-store-compliance) covers the same boundary from the store's side.
+
+## Who can change what
+
+| Role | Can |
+| --- | --- |
+| Member | Read everything and save drafts. |
+| Admin | Also push, publish, roll back, freeze and kill surfaces, manage API keys and read the audit log. |
+| Owner | Also set up single sign-on and delete the organization. |
+
+Users sign in with an emailed code or a social provider, and Restage stores no passwords. Single sign-on is available on the Custom plan. API keys belong to one environment, are stored hashed, and can be revoked at any time.
+
+## The audit log
+
+Every change to what users see is recorded, along with sign-ins, membership changes and API key changes. Each entry records what changed, who made it, which version it affected and why. Entries can't be edited or deleted, and each organization's log is a hash chain that's checked every night.
+
+Admins read the log in the dashboard or with `restage audit log`. On a paid plan you can export it with `restage audit export`.
+
+## Change controls
+
+- **Review before publish.** Publishing applies exactly the change you reviewed. See [Controlled delivery](/controlled-delivery).
+- **Rollback** makes an earlier version live again, exactly as it was.
+- **Freeze** stops any version from going live until you lift it.
+- **Kill** stops delivery. Devices fall back to a saved copy, a bundled copy or your compiled widget.
+
+## Signed delivery
+
+Every version Restage delivers is signed. The SDK renders a delivered version only after its signature checks out against a key built into your app. See [Signed delivery](/trust/signing).
+
+## Data
+
+The SDK sends nothing until you configure it, and measurement can be turned off. [Telemetry and data](/trust/telemetry) lists exactly what's sent. Each organization's data is isolated in the database, and an owner can export it and delete the organization from the dashboard.
+
+## What isn't there yet
+
+- SOC 2, ISO 27001 or HIPAA certification
+- Two-person approval for publishing
+- Per-app roles
+- Erasing one end user's data on request
+- Requiring multi-factor authentication for an organization
+- A self-hosted backend. You can serve the generated artifacts yourself, and the SDK works without Restage Cloud.

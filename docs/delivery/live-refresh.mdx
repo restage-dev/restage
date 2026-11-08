@@ -3,14 +3,14 @@ title: Live refresh
 description: Update a surface that is already on screen when the app resumes, when an update signal arrives, or when your app asks.
 ---
 
-A surface picks up a newly published version the next time it mounts. That covers most
-changes. Live refresh goes further: a surface that is already on screen fetches the new
-version and updates in place, with no navigation and no app restart. It works the same
-for an onboarding flow, a message, a survey, a paywall, or any screen.
+A surface picks up a newly published version the next time it mounts. Live refresh
+updates a surface that's already on screen. It fetches the new version and swaps it in
+place, with no navigation and no app restart. It works the same for an onboarding flow,
+a message, a survey, a paywall or any screen.
 
-Live refresh is off until you turn it on. It uses no polling timer, and it fetches
-through the same delivery path and checks as a first render. If a refresh can't produce
-a version that is safe to show, the surface keeps what it has.
+Live refresh is off until you turn it on. It uses no polling timer. It fetches through
+the same delivery path and runs the same checks as a first render. If a refresh can't
+produce a version that's safe to show, the surface keeps what it has.
 
 ## Choose the triggers
 
@@ -32,12 +32,11 @@ Restage.configure(
   app is in the foreground.
 
 With `updateChannel` on, the SDK connects to the update channel your Restage server
-names, so a surface on screen updates shortly after you publish. It needs `baseUrl`
+names. A surface on screen then updates shortly after you publish. It needs `baseUrl`
 too. To connect to a different address, pass `liveRefreshEdgeUrl`. To use your own
 signal instead, see [Bring your own update channel](#bring-your-own-update-channel).
 
-New triggers may be added in future releases. When your code branches on a trigger,
-use `contains` or an `if` instead of a `switch` that lists every value.
+Future releases may add triggers. If your code branches on a trigger, use `contains` or an `if` instead of a `switch` that lists every value.
 
 ## Set triggers per surface
 
@@ -55,8 +54,8 @@ Restage.configure(
 );
 ```
 
-A `liveRefresh` value on the generated mount overrides both. This example uses
-the flow from [Flows](/flows/overview); direct mounts accept the same option:
+A `liveRefresh` value on the generated mount overrides both. This example uses the
+flow from [Flows](/flows/overview). Direct mounts take the same option:
 
 ```dart
 WelcomeFlowSurface(
@@ -64,12 +63,11 @@ WelcomeFlowSurface(
 )
 ```
 
-The most specific set wins; sets aren't merged. An empty set turns live refresh off for
-that surface or widget.
+The most specific set wins, and sets aren't merged. An empty set turns live refresh off for that surface or widget.
 
 ## Refresh from your app
 
-Your app can start a refresh itself, with or without any trigger turned on:
+Your app can start a refresh itself. This works with or without any trigger turned on:
 
 ```dart
 await Restage.reloadSurfaces();
@@ -77,7 +75,7 @@ await Restage.reloadSurfaces(surfaceId: 'pro_upgrade');
 ```
 
 The first call checks every surface on screen. The second checks one surface id. Both
-use the configured delivery and the same checks as any other fetch.
+use your configured delivery and run the same checks as any other fetch.
 
 ## Bring your own update channel
 
@@ -103,18 +101,27 @@ Restage.configure(
 ```
 
 A signal only means a surface may have changed. The SDK fetches again and ignores a
-version it already shows. If you set both `updateChannel` and `liveRefreshEdgeUrl`,
-your channel is used.
+version it already shows. If you set both `updateChannel` and `liveRefreshEdgeUrl`, the
+SDK uses your channel.
 
 ## When an update waits
 
-The current surface stays on screen while the new version loads and is checked. The SDK
-doesn't swap a surface once the user has started interacting with it, while a flow step
-or host action is in progress, or while the surface is showing an experiment variant.
-It also never moves a surface that is already on screen into an experiment. The update
+The current surface stays on screen while the new version loads and gets checked. The
+SDK doesn't swap a surface in these cases:
+
+- The user has started interacting with it. A drag, a scroll or focusing a text field counts. On paywalls and screens, a tap that fires an event or changes local state counts too. A tap that does neither doesn't. In a flow, a tap counts only when it moves past the first screen or records an answer.
+- A flow step or host action is in progress.
+- The surface is showing an experiment variant.
+
+It also never moves a surface that's already on screen into an experiment. The update
 shows on the next mount instead.
 
-Update channels are open only while a surface that uses them is on screen and the app is
-in the foreground. When the app returns from the background, the SDK reopens them and
-checks every surface with either trigger turned on, so an update published while the app
-was in the background isn't missed.
+When a swap does happen, parts that render from your app keep their `State`. Scroll
+positions and text fields survive, and a widget value your build places in several spots
+keeps a separate `State` at each one. A version that's staged beside the current one
+builds those parts only when it's promoted.
+
+Update channels are open only while a surface that uses them is on screen and the app
+is in the foreground. When the app returns from the background, the SDK reopens them
+and checks every surface with either trigger turned on. An update published while the
+app was in the background isn't missed.

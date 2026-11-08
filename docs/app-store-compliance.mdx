@@ -3,30 +3,40 @@ title: App Store compliance
 description: How published surfaces relate to Apple App Review and Google Play policies.
 ---
 
-This page explains what a published Restage surface can and can't change, and how that
-relates to the store rules that usually come up. It isn't legal advice, and it doesn't
-guarantee approval. You remain responsible for your app and how it uses remote content.
+This page covers what a published Restage surface can and can't change, and how that
+relates to the store rules that usually come up. It isn't legal advice and it doesn't
+guarantee approval. You're still responsible for your app and how it uses remote content.
 
 ## What a published surface contains
 
 A Restage surface uses the [Remote Flutter Widgets](https://pub.dev/packages/rfw) format.
-What ships is a description your app's widgets draw, in a small closed language the
-compiler checks. It can carry simple logic, like conditions over data your app supplies.
+What ships is a description that your app's widgets draw. It's written in a small closed
+language that the compiler checks. It can carry simple logic, like conditions over data
+your app supplies.
+
 Gestures, drawing, network calls and native work stay in Dart compiled into your app. New
 kinds of behavior still ship as an app release.
 
-An update can change copy, layout, style values, flow routing, conditions and loops over
-data your app supplies, and which registered event or action a control uses. Widget
-implementations, gesture handlers, network clients, and native operations all come from
-your app build.
+An update can change:
+
+- Copy, layout and style values.
+- Flow routing.
+- Conditions and loops over data your app supplies.
+- Which registered event or action a control uses.
+- Where the parts of a screen that render from your app go, and what's in their slots.
+
+Widget implementations, gesture handlers, network clients and native operations all come
+from your app build. The parts of a screen the build couldn't deliver also render from
+your app's compiled code, and your own callbacks run there. A published version never
+carries that code. The boundary on this page stays the same.
 
 ## Apple App Review
 
 [Apple's App Review Guideline 2.5.2](https://developer.apple.com/app-store/review/guidelines/#software-requirements)
-addresses downloading, installing, or executing code that introduces or changes
-application features or functionality. A Restage surface carries no Dart and no script. It is a
-description in a closed language the compiler checks, drawn by widgets and typed actions
-compiled into the app.
+covers downloading, installing or executing code that introduces or changes application
+features or functionality. A Restage surface carries no Dart and no script. It's a
+description in a closed language the compiler checks. Widgets and typed actions compiled
+into the app draw it.
 
 [Guideline 4.7](https://developer.apple.com/app-store/review/guidelines/#mini-apps-mini-games-streaming-games-chatbots-plug-ins-and-game-emulators)
 covers apps that offer certain forms of software not embedded in the binary, including
@@ -37,22 +47,25 @@ under any part of that guideline.
 ## Hidden and dormant features
 
 [Guideline 2.5.19](https://developer.apple.com/app-store/review/guidelines/#software-requirements)
-asks that an app contain no hidden, dormant, or undocumented features, and that its
-functionality be clear to users and to App Review.
+asks that an app contain no hidden, dormant or undocumented features. Its functionality
+should be clear to users and to App Review.
 [Guideline 2.3.1](https://developer.apple.com/app-store/review/guidelines/#accurate-metadata)
 asks that new features be described with specificity in the Notes for Review and be
-accessible for review. Until October 16, 2026 both sentences lived in 2.3.1, so older
-rejections cite that number. These are the guidelines most likely to come up for an app
-that changes screens over the air, whichever tool delivers them.
+accessible for review. Until October 16, 2026 both sentences lived in 2.3.1. Older
+rejections cite that number.
 
-Two properties of Restage help here. The surface you wrote is compiled into the build, so
-a reviewer reaches it like any other screen. A published update arranges widgets and
-actions already in that reviewed build, and new behavior ships as an app release.
+These are the guidelines most likely to come up for an app that changes screens over the
+air, whichever tool delivers them. Two things about Restage help:
+
+- The surface you wrote is compiled into the build. A reviewer reaches it like any other
+  screen.
+- A published update arranges widgets and actions already in that reviewed build. New
+  behavior ships as an app release.
 
 The rest is yours to do:
 
-- **Declare it.** Name Restage in the Notes for Review, list the screens it delivers,
-  and say what a delivered update can change. A starting point:
+- **Declare it.** Name Restage in the Notes for Review. List the screens it delivers and
+  say what a delivered update can change. A starting point:
 
   ```text
   This app uses Restage (restage.dev) to deliver layout and copy updates to these
@@ -64,96 +77,101 @@ The rest is yours to do:
   The review device is assigned like any other.
   ```
 
-- **Keep every surface reachable.** Give the reviewer a route to each delivered screen:
-  a demo account, no sign-up wall in front of it, no targeting rule that excludes the
-  reviewer's device or region. The review device is a fresh install on a new device, so
-  a rule on country, platform, device class or app build that such an install cannot
-  match keeps the version from the reviewer too.
-- **Keep review state out of host data.** Your app can pass values into a surface as host data. If
-  the app computes a value to recognize a review device, from a sandbox receipt,
-  TestFlight, an IP range or a remote "review mode" flag, and passes it in so the surface
-  shows something different, that is review-environment detection, whatever delivers the
-  flag. Third-party starter kits sometimes ship such a switch. Remove it before you
-  submit.
-- **Mind the names.** App Review reads the binary and what the app fetches during
-  review, and a name is enough to raise a flag even when the code that carries it is
-  unreachable on that platform. Flutter compiles every platform's branches into every
-  build, so an Android-only switch is present in the iOS binary. Do not name a surface,
-  version, audience, event, host data key or Dart symbol after review, reviewers or
-  bypassing, and remember that a workaround built for one store's review ships to the
-  other store's reviewers in the same build. Renaming or obfuscating such a switch makes
-  it worse: 2.5.19 names hiding features in the binary "through code obfuscation or
-  other methods" as grounds for removal and termination of the developer account.
+- **Keep every surface reachable.** Give the reviewer a route to each delivered screen.
+  That means a demo account, no sign-up wall in front of it, and no targeting rule that
+  excludes the reviewer's device or region. The review device is a fresh install on
+  a new device. A rule on country, platform, device class or app build that such an
+  install can't match keeps the version from the reviewer too.
+- **Keep review state out of host data.** Your app can pass values into a surface as host
+  data. Say the app computes a value to recognize a review device, from a sandbox
+  receipt, TestFlight, an IP range or a remote "review mode" flag. If it passes that value
+  in so the surface shows something different, that's review-environment detection. It doesn't matter what delivers the flag. Third-party starter kits sometimes ship such a switch, and you should remove it before you submit.
+- **Mind the names.** App Review reads the binary and what the app fetches during review.
+  A name is enough to raise a flag, even when the code that carries it is unreachable on
+  that platform. Flutter compiles every platform's branches into every build. An
+  Android-only switch is present in the iOS binary. A workaround built for one store's
+  review also ships to the other store's reviewers in the same build. Don't name a
+  surface, version, audience, event, host data key or Dart symbol after review, reviewers
+  or bypassing. Renaming or obfuscating such a switch makes it worse. Guideline 2.5.19
+  names hiding features in the binary "through code obfuscation or other methods" as
+  grounds for removal and termination of the developer account.
 - **Stay inside what was reviewed.** Copy, layout, ordering, styling and the choice among
   products and actions the reviewed build already offers are updates. A delivered surface
-  that introduces a feature, a product or a claim the reviewed build did not have is a new
-  feature under this guideline, and it belongs in a release with its own review notes.
+  that introduces a feature, a product or a claim the reviewed build didn't have is a new
+  feature under this guideline. It belongs in a release with its own review notes.
 - **Serve App Review what your users get.** Audience routing and experiments choose among
   published versions for your users. Using them to show a reviewer something different
   from what users receive can end a developer account. The guidelines' Introduction names
-  trying to trick the review process as grounds for removal, and Guideline 2.3.1(b) makes
+  trying to trick the review process as grounds for removal. Guideline 2.3.1(b) makes
   repeated behavior grounds for removal from the Apple Developer Program.
 - **Keep subscription disclosures in every version.** A published paywall keeps the
   disclosures [Guideline 3.1.2](https://developer.apple.com/app-store/review/guidelines/#subscriptions)
   requires in every version: the price, the billing period, what renews, and how to
   cancel. A version that drops them breaks the rule even when reviewers and users see the
   same screen.
-- **Treat reserved widgets as building blocks.** Carrying catalog widgets your app has not
-  drawn yet, or a [reserve screen](/delivery/app-size), is ordinary: buttons, sliders,
-  cards and layout are parts, and every design system ships parts it does not use on
-  every screen. A widget that is itself a feature, such as a chat panel, a camera capture
-  or a checkout, should be visible in the reviewed build or described in the notes before
-  any delivered surface uses it.
+- **Treat reserved widgets as building blocks.** It's ordinary to carry catalog widgets
+  your app hasn't drawn yet, or a [reserve screen](/delivery/app-size). Buttons, sliders,
+  cards and layout are parts, and every design system ships parts it doesn't use on every
+  screen. A widget that is itself a feature, such as a chat panel, a camera capture or a
+  checkout, should be visible in the reviewed build or described in the notes before any
+  delivered surface uses it.
 
 ### If App Review cites 2.5.19 or 2.3.1
 
 App Review uses the phrase "review-environment detection" for code or configuration that
-behaves differently when the app is under review. Rejections before October 16, 2026
-cite 2.3.1(a) for it; newer ones cite 2.5.19, with 2.3.1(a) for the Notes for Review.
-Check these in order: any condition on
-sandbox receipts or TestFlight; routing rules a fresh install cannot match; host data
-passed into a surface that depends on such a condition; third-party kits with a
-review-mode switch; and your Notes for Review. In Resolution Center, name Restage, list
-the delivered screens, and state how versions are assigned. The dashboard keeps the
-version history and the routing rules for each surface; offer them as the record of what
-was served to which audience.
+behaves differently when the app is under review. Rejections before October 16, 2026 cite
+2.3.1(a) for it. Newer ones cite 2.5.19, with 2.3.1(a) for the Notes for Review.
+
+Check these in order:
+
+- Any condition on sandbox receipts or TestFlight.
+- Routing rules a fresh install can't match.
+- Host data passed into a surface that depends on such a condition.
+- Third-party kits with a review-mode switch.
+- Your Notes for Review.
+
+In Resolution Center, name Restage, list the delivered screens and say how versions are
+assigned. The dashboard keeps the version history and the routing rules for each surface.
+Offer them as the record of what was served to which audience.
 
 ## Google Play
 
 [Google Play's device and network abuse policy](https://support.google.com/googleplay/android-developer/answer/16559646)
 restricts applications that download executable code outside Google Play, such as dex,
-JAR, and native library files. The Restage SDK reads surface data and renders it with
+JAR and native library files. The Restage SDK reads surface data and renders it with
 widgets compiled into the app.
 
 For purchases during testing, add the accounts that will test your app as
 [license testers](https://developer.android.com/google/play/billing/test) in Play
-Console. Their purchases complete with test payment methods and are never charged, and
-test subscriptions renew on an accelerated schedule. When your app gates content behind
-a subscription or membership, Google asks for access details in the
+Console. Their purchases complete with test payment methods and are never charged. Test
+subscriptions renew on an accelerated schedule.
+
+When your app gates content behind a subscription or membership, Google asks for access
+details in the
 [App access](https://support.google.com/googleplay/android-developer/answer/9859455)
-section of Play Console: a test account and instructions, with up to five sets. Give the
-reviewer an account that already holds the subscription, through a license tester
-purchase or an entitlement you grant on the server. Do not add a way past the paywall
-in the app itself. A bypass key or flag is what review systems look for, and it reaches
-Apple's reviewers in the same build.
+section of Play Console. You give it a test account and instructions, with up to five
+sets. Give the reviewer an account that already holds the subscription, through a license
+tester purchase or an entitlement you grant on the server. Don't add a way past the
+paywall in the app itself. A bypass key or flag is what review systems look for, and it
+reaches Apple's reviewers in the same build.
 
 ## Interaction stays in your app
 
-Interactive catalog widgets can contain gesture, animation, or navigation logic. That
-code ships with the app. The surface sets the widget's properties and receives its
-events.
+Interactive catalog widgets can contain gesture, animation or navigation logic, and that code ships with the app. The surface sets the widget's properties and receives its events.
 
-Host actions follow the same rule. Your app registers a named, versioned action with
-typed arguments and results, and a flow can call it. The handler is Dart code compiled
-into the app, so adding or changing one needs an app release.
+Host actions work the same way. Your app registers a named, versioned action with typed
+arguments and results, and a flow can call it. The handler is Dart code compiled into the
+app. Adding or changing one needs an app release.
 
 ## Compatibility and fallback
 
-The compiler refuses source it can't express. On the device, the SDK refuses a published
-version that doesn't match the widgets, custom widgets, or flow declarations in the
-installed app. The app then shows the last version it accepted, the bundled copy, or its
-fallback, and never a partial render.
+Source the compiler can't express stays in your app binary and renders from there. A
+published version never carries it. On the device, the SDK refuses a published version
+that doesn't match the widgets, custom widgets, app-rendered parts or flow declarations in
+the installed app. It also refuses one that reads a value or part the build doesn't
+produce in that layout. The app then shows the last version it accepted, the bundled copy
+or its fallback. It never shows a partial render.
 
 These checks lower the chance of a broken update. They don't replace your own content
 review or your reading of store policy. [Controlled delivery](/controlled-delivery)
-describes rollback, freeze, and the audit log.
+covers rollback, freeze and the audit log.

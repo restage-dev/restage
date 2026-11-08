@@ -3,20 +3,20 @@ title: Signed delivery
 description: How the SDK checks that delivered content came from your Restage organization, and what that check does and does not protect against.
 ---
 
-Every version Restage delivers is signed, and the SDK renders delivered content only
-after the signature checks out against a key built into your app. HTTPS protects the
-connection. The signature protects the content itself, wherever it travels: the
-origin, the edge, saved copies on the device, and live refresh.
+Restage signs every version it delivers. The SDK renders delivered content only after the
+signature checks out against a key built into your app. HTTPS protects the connection.
+The signature protects the content itself wherever it travels: the origin, the edge,
+saved copies on the device, and live refresh.
 
 ## Set it up
 
-Print your app's keys with the CLI:
+Print your app's keys with the CLI. Each line is `<organizationId>:<public key>`:
 
 ```bash
 restage keys delivery
 ```
 
-Each line is `<organizationId>:<public key>`. Pass them to `Restage.configure`:
+Pass them to `Restage.configure`:
 
 ```dart
 Restage.configureWithInstalledCatalog(
@@ -31,47 +31,52 @@ The keys are public. They can live in source control.
 
 ## What the SDK checks
 
-Each delivered version carries an Ed25519 signature over its organization, surface,
-version number, publication time, the time the server last made it servable, the
-SHA-256 of its content, and the hash of its fit requirement: what it needs from the app
-that mounts it. The content hash covers the version's capability floor and the custom
-libraries it needs. Before anything renders, the SDK:
+Each delivered version carries an Ed25519 signature. It covers these fields:
 
-- refuses content with no signature, a signature from a key you did not configure, or
-  a signature that does not match the content;
-- refuses content the server authorized before the newest content that surface has
-  shown. Every version served at the same time carries the same authorization, so
-  delivery rules and experiments can serve older versions. Rolling back, changing a
-  rule, or starting an experiment authorizes the versions it serves again, so those
-  changes reach your users and an old answer replayed by someone else does not.
+- The organization, the surface and the version number.
+- The publication time, and the time the server last made it servable.
+- The SHA-256 of the content.
+- The hash of its fit requirement (what it needs from the app that mounts it).
 
-A refused version falls back the way a failed render does: to the copy the device
-accepted last, then to the version compiled into your app. Saved copies are checked
-again each time they are read.
+The content hash covers the version's capability floor and the custom libraries it needs.
+
+Before anything renders, the SDK refuses:
+
+- Content with no signature, a signature from a key you didn't configure, or a signature
+  that doesn't match the content.
+- Content the server authorized before the newest content that surface has shown.
+
+Every version served at the same time carries the same authorization. That's how delivery
+rules and experiments can serve older versions. Rolling back, changing a rule or starting
+an experiment authorizes the versions it serves again. That way those changes reach your
+users, and an old answer replayed by someone else doesn't.
+
+A refused version falls back the way a failed render does. The SDK uses the copy the
+device accepted last, then the version compiled into your app. Saved copies are checked
+again each time they're read.
 
 ## What it protects against
 
-- A compromised certificate authority. Restage verifies every payload's signature on
-  the device, so a compromised certificate authority can't substitute content.
+- A compromised certificate authority. The SDK verifies every payload's signature on the device, and a compromised certificate authority can't substitute content.
 - Changes to content in transit or in storage between Restage and the device.
 - Replaying an answer Restage did sign, after a newer one has shown.
 
 ## What it does not protect against
 
 - **A compromised Restage, or a stolen publishing credential.** Restage holds your
-  organization's signing key in a managed key service and signs what an authorized account publishes.
-  The private key never leaves that service, but anyone who can publish as you can publish signed
-  content.
-- **A first launch fed an older signed version.** A fresh install has no newer version
-  to compare against. It still refuses anything unsigned or altered.
+  organization's signing key in a managed key service and signs what an authorized account
+  publishes. The private key never leaves that service, but anyone who can publish as you can
+  still publish signed content.
+- **A first launch fed an older signed version.** A fresh install has no newer version to
+  compare against. It still refuses anything unsigned or altered.
 
 ## TLS pinning
 
-Restage does no TLS pinning. Restage's edge rotates its certificates, and an SDK must
-not pin on behalf of your app. Your app can still pin its own connections.
+Restage does no TLS pinning. Its edge rotates its certificates, and an SDK must not pin
+on behalf of your app. Your app can still pin its own connections.
 
 ## Rotating keys
 
 The SDK accepts every key you pass. To rotate, ship an app release that lists both the
-current key and the new one. Restage switches to the new key afterwards, and you can
-drop the old key from a later release.
+current key and the new one. Restage then switches to the new key. You can drop the old
+key in a later release.

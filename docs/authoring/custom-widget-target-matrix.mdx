@@ -3,21 +3,13 @@ title: Custom widget target matrix
 description: What RFW, A2UI, and Widgetbook each accept from your custom widgets.
 ---
 
-One `@RestageWidget` can produce three separate outputs: an RFW catalog entry for your
-widget, an A2UI catalog entry, and a Widgetbook story. Turning one on doesn't turn on
-the others, and support in one doesn't mean support in another. Your package's
-`build.yaml` picks the targets. A widget or an optional input that needs different
-handling can leave specific targets in Dart, without moving to another package.
+One `@RestageWidget` can produce three separate outputs: an RFW catalog entry, an A2UI catalog entry and a Widgetbook story. Turning one on doesn't turn on the others, and support in one target doesn't mean support in another. Your package's `build.yaml` picks the targets.
 
-In the tables below, **Supported** says whether the target accepts that kind of input,
-and **How it works** says what the generated code does with it. Every supported row is
-covered by tests that compile and run the generated code. Everything else stops the
-build with its own error, with one exception: an optional input a target can't handle
-is left out when leaving it out gives the same result as its default.
+A widget, or an optional input, can opt out of specific targets in Dart. It doesn't have to move to another package.
 
-All three targets read the same facts from the constructor: the order of the inputs,
-named or positional, required or optional, nullable or not, defaults, types, and
-callback signatures.
+In the tables, **Supported** says whether the target accepts that kind of input. **How it works** says what the generated code does with it. Tests compile and run the generated code for every supported row. Any other constructor input stops the build with its own error. What a widget's `build()` does never fails the build. It's split or rendered from your app. The one exception is an optional input a target can't handle. It's left out when that gives the same result as its default.
+
+All three targets read the same facts from the constructor: input order, named or positional, required or optional, nullable or not, defaults, types and callback signatures.
 
 ## RFW catalog
 
@@ -48,11 +40,7 @@ Only RFW accepts map and record properties directly. A2UI and Widgetbook don't.
 | Constructor defaults | Yes, when every value inside is supported | The generated code repeats your default, or leaves the argument out when ordinary Dart applies the same default |
 | Optional inputs A2UI can't handle, and `@ignore` | Same rule as RFW; `@Ignore(...)` affects A2UI only when you list it | The generated catalog lists what was left out, in `$RestageExclusions` |
 
-The A2UI builder writes `lib/generated/restage_a2ui_catalog.g.dart` and
-`.restage/build/a2ui/restage_a2ui_catalog.a2ui.json`. Every custom widget and screen
-takes one required `props` object: A2UI's `id` and `component` stay at the top level,
-and every constructor input goes inside `props`. A property of your own named `id` or
-`component` is fine and keeps its name.
+The A2UI builder writes `lib/generated/restage_a2ui_catalog.g.dart` and `.restage/build/a2ui/restage_a2ui_catalog.a2ui.json`. A2UI's `id` and `component` stay at the top level. Each constructor input becomes a top-level property named `props_<DartName>`. A property of your own named `id` or `component` is fine, because it becomes `props_id` or `props_component`. [Custom widgets](/authoring/custom-widgets#4-add-useful-target-specific-configuration) covers names that need encoding.
 
 ## Widgetbook story
 
@@ -67,13 +55,11 @@ and every constructor input goes inside `props`. A property of your own named `i
 | Constructor defaults | Yes, when the property and every value inside are supported | The story repeats your default exactly, with its imports |
 | Optional inputs Widgetbook can't handle, and `@ignore` | Same rule as RFW; `@Ignore(...)` affects Widgetbook only when you list it | The story source lists what was left out, in `restageExclusions` |
 
-Widgetbook output is opt-in and doesn't need A2UI. Restage writes ordinary
-`*.stories.dart` source; Widgetbook's own generator, app, and deployment do the rest.
+Widgetbook output is opt-in and doesn't need A2UI. Restage writes ordinary `*.stories.dart` source, and Widgetbook's own generator, app and deployment do the rest.
 
 ## Leaving a target out
 
-Every `@RestageWidget` joins every target your package turns on, unless its own
-settings say otherwise:
+Every `@RestageWidget` joins every target your package turns on, unless its own settings say otherwise:
 
 ```dart
 @RestageWidget()
@@ -84,12 +70,9 @@ class RfwOnlyCard extends StatelessWidget {
 }
 ```
 
-`Config(enabled: false)` and `Config.enabled(false)` do the same thing for `rfw`,
-`a2ui`, and `wb`. Use this for the odd widget; your package's `build.yaml` is still
-the normal place to choose targets.
+`Config(enabled: false)` and `Config.enabled(false)` do the same thing for `rfw`, `a2ui` and `wb`. Use them for the odd widget. Your package's `build.yaml` is still the normal place to choose targets.
 
-`@ignore` and `@Ignore()` leave one optional input out of every target, when leaving it
-out is safe. Pass a const list or set to leave it out of only some targets:
+`@ignore` and `@Ignore()` leave one optional input out of every target, when that's safe. Pass a const list or set to leave it out of only some targets:
 
 ```dart
 const StatusCard({
@@ -98,43 +81,24 @@ const StatusCard({
 });
 ```
 
-An empty list is an error. A required input, an input an `assert` requires, or an
-optional positional input with later positional inputs after it still stops the build, but only in the
-targets you list. The other targets keep the input and check it as usual. Leaving a
-target out doesn't make a required input optional.
+An empty list is an error. Some inputs still stop the build in the targets you list: a required input, an input an `assert` requires, and an optional positional input that has later positional inputs after it. The other targets keep the input and check it as usual. Leaving a target out doesn't make a required input optional.
 
 ## @Screen in A2UI and Widgetbook
 
-A `@Screen` keeps its delivered surface and can also appear in the A2UI and Widgetbook
-output. It can be a flow step (`@Screen()`) or published on its own
-(`@Screen(surface: Surface.<category>)`). All three outputs are checked together, and
-invalid source stops the build before any output is written. The targets stay
-separate:
+A `@Screen` keeps its delivered surface and can also appear in the A2UI and Widgetbook output. It can be a flow step (`@Screen()`) or published on its own (`@Screen(surface: Surface.<category>)`). All three outputs are checked together, and invalid source stops the build before any output is written. The targets stay separate:
 
 | Target | What the screen becomes | Limits |
 |---|---|---|
-| RFW | The delivered surface: the `build()` tree, state reads, `SurfaceEvent` calls, and the screen reference | Constructor fields are part of the surface only when the `build()` tree reads them |
+| RFW | The delivered surface: the `build()` tree, state reads, `SurfaceEvent` calls, app-rendered widget placements with their slots and properties, reads of the values your app records, and the screen reference | Constructor fields are part of the surface only when the `build()` tree reads them |
 | A2UI | One component, named by the screen id, that builds the real screen from its constructor inputs and forwards its events | No breakdown of the widget tree, no built-in Flutter, Material, or Cupertino entries, and no second catalog |
 | Widgetbook | One story under `Screens/<screen-id>`, with typed controls and generated event handling | No hand-written `Config.appBuilder`, custom host, or scenario file |
 
-Turning on A2UI or Widgetbook doesn't change the delivered surface: its RFW files and
-the screen reference are byte-for-byte the same with or without them.
+Turning on A2UI or Widgetbook doesn't change the delivered surface. Its RFW files and the screen reference are byte-for-byte the same with or without them.
 
-This covers your own `@Screen` classes only. `@FlowGraph` and `@Paywall` don't appear
-in A2UI or Widgetbook. Per-widget `Config.enabled` applies to `@RestageWidget` and has
-no effect on a screen. Each target reports its own errors: turning on A2UI doesn't make
-a Widgetbook setting an A2UI requirement, or the other way around.
+This covers your own `@Screen` classes only. `@FlowGraph` and `@Paywall` don't appear in A2UI or Widgetbook. Per-widget `Config.enabled` applies to `@RestageWidget` and has no effect on a screen. Each target reports its own errors. Turning on A2UI doesn't make a Widgetbook setting an A2UI requirement, or the other way around.
 
 ### Watch mode
 
-`dart run build_runner build` scans everything. Under watch, edits to an annotated
-widget or screen regenerate its output right away, but adding, removing, or renaming
-an annotated class changes which files the build writes, so restart
-`dart run build_runner watch` after that. The next full build removes story files and
-registrations that are no longer needed. A class with a target turned off keeps a
-small placeholder story file, so you can turn the target back on without adding a
-file.
+`dart run build_runner build` scans everything. Under watch, editing an annotated widget or screen regenerates its output right away, but adding, removing or renaming an annotated class changes which files the build writes. Restart `dart run build_runner watch` after that. The next full build removes story files and registrations that are no longer needed. A class with a target turned off keeps a small placeholder story file. That lets you turn the target back on without adding a file.
 
-The annotation sets a screen's id; when omitted, it defaults to the file name. The
-generated reference and publication manifest record that identity. Folders organize
-source and output but don't set the category.
+A screen's id comes from the annotation, and defaults to the file name when omitted. The generated reference and publication manifest record that identity. Folders organize source and output but don't set the category.
