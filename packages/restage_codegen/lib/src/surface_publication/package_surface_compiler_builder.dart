@@ -42,6 +42,7 @@ import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:restage_codegen/src/surface_publication/split_widgets.dart';
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
+import 'package:restage_codegen/src/surface_publication/compilation_provenance.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/output_location.dart';
@@ -718,8 +719,15 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       ],
     },
   );
+  final compilationProvenance = contracts.isEmpty && legacyContracts.isEmpty
+      ? null
+      : await collectCompilationProvenance(
+          buildStep,
+          rendered.map((artifact) => artifact.declaration.library),
+        );
   final provisionalResult = compilePackageSurfacePublications(
     PackageSurfaceCompilationInput(
+      compilationProvenance: compilationProvenance,
       roster: roster,
       catalog: await mergedCatalog(),
       splitWidgets: ownSplits,
@@ -956,6 +964,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
 
   final finalizedDraftResult = compilePackageSurfacePublications(
     PackageSurfaceCompilationInput(
+      compilationProvenance: compilationProvenance,
       roster: roster,
       catalog: await mergedCatalog(),
       splitWidgets: ownSplits,
@@ -1027,6 +1036,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
 
   final result = compilePackageSurfacePublications(
     PackageSurfaceCompilationInput(
+      compilationProvenance: compilationProvenance,
       roster: roster,
       catalog: await mergedCatalog(),
       splitWidgets: ownSplits,

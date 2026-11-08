@@ -49,8 +49,10 @@ final class SurfacePublicationScreenContractFacts {
     required this.capabilities,
     required this.eventContract,
     this.hostDataContract = const SurfaceScreenHostDataSchema.empty(),
+    this.compilationProvenance,
   });
 
+  final SurfaceCompilationProvenance? compilationProvenance;
   final int contractVersion;
   final CapabilityManifest capabilities;
   final SurfaceScreenEventSchema eventContract;
@@ -505,6 +507,7 @@ abstract final class SurfacePublicationManifestAssembler {
       payloadContentHash: payload.contentHash,
       deliveryMode: input.flowFacts?.deliveryMode,
       contractVersion: contractFacts?.contractVersion,
+      compilationProvenance: contractFacts?.compilationProvenance,
       capabilities: contractFacts?.capabilities,
       eventContract: contractFacts?.eventContract,
       eventContractHash: contractFacts?.eventContractHash,

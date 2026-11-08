@@ -226,6 +226,7 @@ final class PackageSurfaceCompilationInput {
     required Iterable<CompiledSurfaceArtifact> renderedSources,
     required Iterable<ResolvedStandaloneScreenContract> standaloneScreens,
     this.catalog,
+    this.compilationProvenance,
     this.splitWidgets = const [],
     Iterable<LegacyStandaloneScreenContract> legacyStandaloneScreens = const [],
     Iterable<CompiledFlowArtifact> precompiledFlows = const [],
@@ -267,6 +268,9 @@ final class PackageSurfaceCompilationInput {
 
   /// The same validated catalog used by source translation and blob admission.
   final Catalog? catalog;
+
+  /// Diagnostic build inputs shared by this package compilation.
+  final SurfaceCompilationProvenance? compilationProvenance;
 
   /// The package's own custom widgets split whether or not a surface uses
   /// them, so a design-system package ships their wrappers.
@@ -1920,6 +1924,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     }
 
     final publication = _assembleStandalonePublication(
+      compilationProvenance: input.compilationProvenance,
       artifact: artifact,
       contract: contract,
       issues: issues,
@@ -2002,6 +2007,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       continue;
     }
     final publication = _assembleLegacyStandalonePublication(
+      compilationProvenance: input.compilationProvenance,
       artifact: artifact,
       contract: contract,
       issues: issues,
@@ -3340,6 +3346,7 @@ SurfacePublicationAssemblyInput? _assemblePaywallPublication({
 }
 
 SurfacePublicationAssemblyInput? _assembleStandalonePublication({
+  required SurfaceCompilationProvenance? compilationProvenance,
   required _ResolvedArtifact artifact,
   required ResolvedStandaloneScreenContract contract,
   required List<Issue> issues,
@@ -3366,6 +3373,7 @@ SurfacePublicationAssemblyInput? _assembleStandalonePublication({
       sources: _authoringSources([source]),
       screenContractFacts: SurfacePublicationScreenContractFacts(
         contractVersion: contract.contractVersion,
+        compilationProvenance: compilationProvenance,
         capabilities: contract.capabilities,
         eventContract: contract.eventSchema,
         hostDataContract: contract.hostDataContract,
@@ -3384,6 +3392,7 @@ SurfacePublicationAssemblyInput? _assembleStandalonePublication({
 }
 
 SurfacePublicationAssemblyInput? _assembleLegacyStandalonePublication({
+  required SurfaceCompilationProvenance? compilationProvenance,
   required _ResolvedArtifact artifact,
   required LegacyStandaloneScreenContract contract,
   required List<Issue> issues,
@@ -3410,6 +3419,7 @@ SurfacePublicationAssemblyInput? _assembleLegacyStandalonePublication({
       sources: _authoringSources([source]),
       screenContractFacts: SurfacePublicationScreenContractFacts(
         contractVersion: contract.contractVersion,
+        compilationProvenance: compilationProvenance,
         capabilities: contract.capabilities,
         eventContract: contract.eventSchema,
       ),

@@ -5,6 +5,14 @@
 - **Breaking:** `A2uiDartCoverageReason` gains `unsupportedScalarCallback`; exhaustive switches must handle it.
 - **Breaking:** `A2uiDartWidgetPlan.usesPropsNamespace` is removed; A2UI 1.0 components carry their properties at the top level.
 - **Breaking:** exhaustive switches over `IssueCode` must handle the new app-rendered widget and opt-out codes.
+- Upgrading can change a published screen's compiled contract even when its
+  Dart source is unchanged. Colors now pass as native `Color` values where
+  earlier generated code passed numbers. Affected published screens need a
+  higher `@Screen(version:)`: regenerate the app, release it with the new
+  screen version, and push that version. Older installed apps keep using
+  their existing screen version. Push refusals describe the changed inputs
+  and identify compiler or SDK changes when both builds recorded provenance.
+
 - A design that omits a required argument Flutter can't take as null is refused. Generated builders pass Flutter's own default for an omitted argument: no catalog literal, theme lookup or no-op callback stands in.
 - Widgets the compiler cannot deliver render from the app's code. Each mount
   lists them with a fit token in its host contract, each published version
