@@ -55,7 +55,6 @@ class _MinimalNoticeDemoState extends State<MinimalNoticeDemo> {
     return MinimalNoticeFlowSurface(
       // A one-screen surface draws nothing if it can't load, rather than a
       // fallback; `onFlowUnavailable` then routes away from the blank surface.
-      unavailable: const FlowUnavailablePolicy.hide(),
       onComplete: (result) => _open(),
       onFlowUnavailable: (error) => _close(),
     );

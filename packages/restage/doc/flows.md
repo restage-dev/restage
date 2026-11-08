@@ -86,9 +86,7 @@ class FlowEntry extends StatelessWidget {
           return const NotificationResult(granted: true);
         },
       ),
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => Text(error.message),
-      ),
+      fallbackBuilder: (context) => const Text('Welcome'),
       onComplete: (result) {
         Navigator.of(context).pushReplacementNamed('/home');
       },
@@ -97,7 +95,9 @@ class FlowEntry extends StatelessWidget {
 }
 ```
 
-`FlowUnavailablePolicy` is required. Missing assets, incompatible versions, flow features the app doesn't support, actions that don't match the app's, and render failures all fall back or hide the flow instead of running it partway. Generated result decoders reject missing, extra, or mistyped fields, so a bad result stops the flow before `onComplete` runs.
+Missing assets, incompatible versions, flow features the app doesn't support, actions that don't match the app's, and render failures all fall back instead of running the flow partway: to the last good copy on the device, then the bundled copy, then the flow's compiled original. A `fallbackBuilder` shows your widget in place of the compiled original. A flow without a compiled original and without a `fallbackBuilder` shows its `errorBuilder` for a failure, and nothing while it waits for content. Generated result decoders reject missing, extra, or mistyped fields, so a bad result stops the flow before `onComplete` runs.
+
+Pass an `errorBuilder` to show an error screen instead of restarting the user when the flow fails after they entered a second screen, interacted with it, or a host action ran. With no fallback and no compiled original below it, it shows for any failure. Every surface host takes the same `fallbackBuilder` and `errorBuilder`, and `onFlowUnavailable` receives the failure.
 
 ## Host actions
 

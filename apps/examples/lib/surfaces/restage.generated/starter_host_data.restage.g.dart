@@ -159,7 +159,8 @@ final class StarterChecklistSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   })  : _restageStored0 = owner,
         _restageStored1 = items,
         _restagePlacementName = placement;
@@ -176,7 +177,8 @@ final class StarterChecklistSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   })  : _restageStored0 = owner,
         _restageStored1 = items,
         _restagePlacementName = restagePlacementId;
@@ -196,7 +198,10 @@ final class StarterChecklistSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
-  final SurfaceScreenUnavailablePolicy? unavailable;
+  final WidgetBuilder? fallbackBuilder;
+
+  final Widget Function(BuildContext, SurfaceScreenUnavailableError)?
+      errorBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -221,13 +226,11 @@ final class StarterChecklistSurface extends StatelessWidget {
               }
           ],
         },
-        unavailable: unavailable ??
-            SurfaceScreenUnavailablePolicy.fallback(
-              builder: (_, error) => _restageBuilt,
-            ),
+        fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
+        errorBuilder: errorBuilder,
+        onUnavailable: onUnavailable,
         onEvent: onEvent,
         resolver: resolver,
-        onUnavailable: onUnavailable,
         loadingBuilder: loadingBuilder,
       );
     }

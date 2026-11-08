@@ -583,7 +583,7 @@ void main() {
         resolver: resolver,
         onEvent: events.add,
         loadingBuilder: (_) => const Text('Retry still loading'),
-        errorBuilder: (_, __) => const Text('Retained retry failed'),
+        fallbackBuilder: (_) => const Text('Retained retry failed'),
       ),
     ));
     await tester.pump();
@@ -617,7 +617,8 @@ void main() {
         loading: 0,
         error: 1,
         failed: 1,
-        viewed: 0,
+        // The fallback is the paywall's original, so it is viewed.
+        viewed: 1,
         reported: 1,
       ),
     );
@@ -772,7 +773,7 @@ void main() {
         resolver: resolver,
         onEvent: events.add,
         loadingBuilder: (_) => const Text('Still loading'),
-        errorBuilder: (_, __) => const Text('Terminal error'),
+        fallbackBuilder: (_) => const Text('Terminal error'),
       ),
     ));
     await tester.pump();
@@ -850,7 +851,7 @@ void main() {
         resolver: resolver,
         onEvent: events.add,
         loadingBuilder: (_) => const Text('Still loading'),
-        errorBuilder: (_, __) => const Text('Terminal error'),
+        fallbackBuilder: (_) => const Text('Terminal error'),
       ),
     ));
     await tester.pump();
@@ -1015,7 +1016,7 @@ void main() {
           id: 'pro_upgrade',
           resolver: resolver,
           loadingBuilder: (_) => const Text('Loading'),
-          errorBuilder: (_, __) => const Text('Error'),
+          fallbackBuilder: (_) => const Text('Error'),
         ),
       ),
     );
@@ -1216,7 +1217,7 @@ void main() {
         home: RestagePaywall(
           id: 'pro_upgrade',
           resolver: failing,
-          errorBuilder: (_, __) => const Text('Current actor error'),
+          fallbackBuilder: (_) => const Text('Current actor error'),
         ),
       ),
     );
@@ -1260,7 +1261,7 @@ void main() {
         id: 'pro_upgrade',
         resolver: resolver,
         onEvent: events.add,
-        errorBuilder: (_, __) => const Text('Hosted render unavailable'),
+        fallbackBuilder: (_) => const Text('Hosted render unavailable'),
       ),
     ));
     await pumpUntil(tester, () => server.requests.length == 1,
@@ -1295,7 +1296,7 @@ void main() {
         id: 'pro_upgrade',
         resolver: resolver,
         onEvent: events.add,
-        errorBuilder: (_, __) => const Text('Hosted render unavailable'),
+        fallbackBuilder: (_) => const Text('Hosted render unavailable'),
       ),
     ));
     await pumpUntil(tester, () => server.requests.length == 3,
@@ -1325,7 +1326,8 @@ void main() {
         error: 1,
       ),
     );
-    expect(observed.viewedVersions, isEmpty);
+    // The fallback is the paywall's original, so it is viewed unversioned.
+    expect(observed.viewedVersions, [null]);
     expect(observed.failureCodes,
         orderedEquals(<String>[RestageErrorCodes.deliveryUnavailable]));
   });

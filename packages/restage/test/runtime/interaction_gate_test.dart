@@ -9,9 +9,20 @@ import 'package:restage/src/delivery/raced_surface_resolver.dart';
 import 'package:restage/src/delivery/surface_artifact_store.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
+import 'package:rfw/rfw.dart' show RemoteWidget;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../flow/flow_test_support.dart';
+
+// A tappable [mark] that fires `go`, as the root widget [root].
+Uint8List _tappable(String root, String mark) =>
+    Uint8List.fromList(encodeLibraryBlob(parseLibraryFile('''
+      import restage.core;
+      widget $root = GestureDetector(
+        onTap: event "go" { },
+        child: Text(text: "$mark"),
+      );
+    ''')));
 
 // A long list headed by [mark], as the root widget [root].
 Uint8List _list(String root, String mark) =>
@@ -148,7 +159,6 @@ void main() {
           body: RestageOnboarding<FirstRunResult>(
             flow: firstRunFlowRef,
             resolver: resolver,
-            unavailable: const FlowUnavailablePolicy.hide(),
           ),
         ),
       ));
@@ -201,9 +211,7 @@ void main() {
           body: RestageOnboarding<FirstRunResult>(
             flow: firstRunFlowRef,
             resolver: resolver,
-            unavailable: FlowUnavailablePolicy.fallback(
-              builder: (_, __) => _appList('fallback'),
-            ),
+            fallbackBuilder: (_) => _appList('fallback'),
           ),
         ),
       ));
@@ -237,5 +245,74 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.text('v2', skipOffstage: false), findsOneWidget);
+  });
+
+  // Progress without a drag holds a swap too: an event or a second screen.
+  group('progress gate', () {
+    Future<void> fire(WidgetTester tester, String name) async {
+      tester.widget<RemoteWidget>(find.byType(RemoteWidget).last).onEvent!(
+          name, const <String, Object?>{});
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a paywall swap after an event reached the app is held',
+        (tester) async {
+      final resolver = _Resolver(_tappable('Paywall', 'v1'), 1);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: RestagePaywall(id: 'p', resolver: resolver)),
+      ));
+      await tester.pumpAndSettle();
+      await fire(tester, 'go');
+      resolver
+        ..bytes = _tappable('Paywall', 'v2')
+        ..version = 2;
+      await Restage.reloadSurfaces();
+      await tester.pumpAndSettle();
+      expect(find.text('v1'), findsOneWidget);
+      expect(find.text('v2'), findsNothing);
+    });
+
+    testWidgets('a flow swap after the user went forward and back is held',
+        (tester) async {
+      ResolvedFlow flow(String mark) => resolvedFlow(screenBlobs: {
+            'welcome': screenBlob(mark, 'next'),
+            'profile': screenBlob('Profile', 'back'),
+          });
+      final resolver = _FlowResolver(flow('v1'));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: RestageOnboarding<FirstRunResult>(
+            flow: firstRunFlowRef,
+            resolver: resolver,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await fire(tester, 'next');
+      await fire(tester, 'back');
+      expect(find.text('v1'), findsOneWidget);
+      resolver.flow = flow('v2');
+      await Restage.reloadSurfaces();
+      await tester.pumpAndSettle();
+      expect(find.text('v1'), findsOneWidget);
+      expect(find.text('v2'), findsNothing);
+    });
+
+    testWidgets('a flow swap with no progress lands', (tester) async {
+      final resolver = _FlowResolver(_flow('v1'));
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: RestageOnboarding<FirstRunResult>(
+            flow: firstRunFlowRef,
+            resolver: resolver,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      resolver.flow = _flow('v2');
+      await Restage.reloadSurfaces();
+      await tester.pumpAndSettle();
+      expect(find.text('v2', skipOffstage: false), findsOneWidget);
+    });
   });
 }

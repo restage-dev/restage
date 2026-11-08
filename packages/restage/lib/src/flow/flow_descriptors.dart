@@ -581,6 +581,54 @@ final class FlowActionBinding<A, R> {
       schema: resultSchema,
     );
   }
+
+  /// A copy that runs the binding [current] returns on each call, so a host
+  /// can install new handlers for the same contract. It throws
+  /// [FlowActionWithdrawn] when [current] no longer implements this contract.
+  @internal
+  FlowActionBinding<A, R> forwardingTo(
+    FlowActionBinding<dynamic, dynamic>? Function() current,
+  ) =>
+      FlowActionBinding<A, R>(
+        descriptor: descriptor,
+        actionName: actionName,
+        contractVersion: contractVersion,
+        argsSchema: argsSchema,
+        resultSchema: resultSchema,
+        minClient: minClient,
+        idempotent: idempotent,
+        decodeArgs: decodeArgs,
+        encodeResult: encodeResult,
+        handler: (args, context) {
+          final live = current();
+          if (live == null || !_sameContractAs(live)) {
+            throw FlowActionWithdrawn(actionName);
+          }
+          return live.invokeRuntimeHandler(args, context) as FutureOr<R>;
+        },
+      );
+
+  bool _sameContractAs(FlowActionBinding<dynamic, dynamic> other) =>
+      other.actionName == actionName &&
+      other.contractVersion == contractVersion &&
+      other.minClient == minClient &&
+      other.idempotent == idempotent &&
+      other.argsSchemaHash == argsSchemaHash &&
+      other.resultSchemaHash == resultSchemaHash;
+}
+
+/// Thrown when a host no longer installs an action with the contract its flow
+/// validated.
+@internal
+final class FlowActionWithdrawn implements Exception {
+  /// Creates the error for [actionName].
+  const FlowActionWithdrawn(this.actionName);
+
+  /// The withdrawn action.
+  final String actionName;
+
+  @override
+  String toString() => 'Action "$actionName" is no longer installed.';
 }
 
 /// Registry implemented by generated action collections.

@@ -27,6 +27,11 @@ import 'flow_seed.dart';
 typedef _FlowRootResolvedAdmission = Future<void> Function(ResolvedFlow root);
 typedef _FlowEventMeasurementSanitizer = Object? Function(Object? rawValue);
 
+/// The failure reason a controller reports when the first-launch wait passes
+/// and its host shows its own fallback.
+@internal
+const firstLaunchWaitReason = 'first_launch_wait';
+
 /// SDK-owned onboarding flow runtime controller.
 ///
 /// Interprets validated flow documents, enforces action contracts and outbound
@@ -413,11 +418,16 @@ final class RestageFlowController<R> extends ChangeNotifier {
       } on FlowUnavailableError {
         // Only a delivery failure falls back to the authored original; a
         // resolver defect must surface as a failure, not as an outage.
-        final compiled = flow.compiled;
+        final compiled = _compiledOriginal;
         if (compiled == null) rethrow;
         resolved = compiled.resolve();
       }
       if (_isDisposed) return;
+      // A host that replaces the original never runs it, even from a resolver.
+      if (resolved.compiled != null && !usesCompiledOriginal) {
+        throw _error('delivery_unavailable',
+            'No content is available for flow "${flow.id}".');
+      }
       _validateResolved(resolved, active: active);
       // Anchor the surface mode ONCE from the root document. Every later cap /
       // filter decision reads this, not a per-frame marker.
@@ -510,21 +520,32 @@ final class RestageFlowController<R> extends ChangeNotifier {
   @internal
   void reportOriginalPainted() => _emitLoadEvent(_surfaceLoad?.complete(null));
 
+  /// Settles the load: the widget the host showed in place of the flow threw.
+  @internal
+  void reportOriginalFailed() => _emitLoadEvent(_surfaceLoad
+      ?.fail(SurfaceLoadFailureReason.renderError, detail: 'render_failed'));
+
   /// Whether the user entered a second screen or a host action ran. Never
   /// cleared: going back does not undo it.
   @internal
   bool get hasAdvanced => _advanced;
 
-  /// Carries [previous]'s progress into this controller when it replaces
-  /// [previous] within one load.
-  @internal
-  void inheritProgress(RestageFlowController<Object?> previous) {
-    if (previous.hasAdvanced) _advanced = true;
-  }
-
   bool _advanced = false;
   int _screensEntered = 0;
   bool _handlerInFlight = false;
+
+  /// Whether the compiled original fills the host's last rung; false when the
+  /// host shows its own fallback or nothing there instead.
+  @internal
+  bool usesCompiledOriginal = true;
+
+  /// Whether the host shows its own fallback once the first-launch wait
+  /// passes with nothing ready.
+  @internal
+  bool hostShowsOriginal = false;
+
+  CompiledFlow? get _compiledOriginal =>
+      usesCompiledOriginal ? flow.compiled : null;
 
   /// Settles the load: the host painted nothing in place of the flow.
   @internal
@@ -593,10 +614,15 @@ final class RestageFlowController<R> extends ChangeNotifier {
         report(value);
         return value;
       case RaceNone(freshPending: true):
-        final compiled = flow.compiled;
+        final compiled = _compiledOriginal;
         if (compiled != null) {
           report(null);
           return compiled.resolve();
+        }
+        if (hostShowsOriginal) {
+          report(null);
+          throw _error(firstLaunchWaitReason,
+              'No content was ready by the first-launch wait.');
         }
         // Nothing to show yet: the root is whatever fresh settles on.
         adoptsLateRoot = true;
@@ -616,7 +642,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       case RaceNone(:final freshError):
         report(null);
         // A failed hosted fetch is an outage: the compiled flow stays the floor.
-        final compiled = flow.compiled;
+        final compiled = _compiledOriginal;
         if (raced != null && compiled != null) return compiled.resolve();
         if (freshError != null) throw freshError;
         throw _error(
@@ -2321,6 +2347,14 @@ final class RestageFlowController<R> extends ChangeNotifier {
     } on FlowUnavailableError catch (e) {
       if (_isActiveAction(token, frame)) {
         await _handleFrameUnavailable(frame, e);
+      }
+    } on FlowActionWithdrawn catch (e) {
+      // The host withdrew the action this frame validated: fail closed.
+      if (_isActiveAction(token, frame)) {
+        await _handleFrameUnavailable(
+          frame,
+          _errorForFrame(frame, 'action_contract_mismatch', '$e'),
+        );
       }
     } on Object catch (e) {
       if (_isActiveAction(token, frame)) {

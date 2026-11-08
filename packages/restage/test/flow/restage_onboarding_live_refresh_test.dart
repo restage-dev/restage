@@ -110,7 +110,6 @@ Widget _host(
         flow: firstRunFlowRef,
         resolver: resolver,
         context: context,
-        unavailable: const FlowUnavailablePolicy.hide(),
       ),
     );
 
@@ -164,9 +163,7 @@ void main() {
       child: RestageOnboarding<FirstRunResult>(
         flow: firstRunFlowRef,
         resolver: resolver,
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, __) => const Text('FALLBACK'),
-        ),
+        fallbackBuilder: (_) => const Text('FALLBACK'),
         onFlowUnavailable: (_) => unavailableCalls++,
       ),
     ));
@@ -195,9 +192,7 @@ void main() {
       child: RestageOnboarding<FirstRunResult>(
         flow: firstRunFlowRef,
         resolver: resolver,
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, __) => const Text('FALLBACK'),
-        ),
+        fallbackBuilder: (_) => const Text('FALLBACK'),
         onFlowUnavailable: (_) => unavailableCalls++,
       ),
     ));
@@ -297,7 +292,6 @@ void main() {
       child: RestageOnboarding<FirstRunResult>(
         flow: firstRunFlowRef,
         resolver: resolver,
-        unavailable: const FlowUnavailablePolicy.hide(),
       ),
     ));
     await tester.pumpAndSettle();
@@ -341,7 +335,6 @@ void main() {
       textDirection: TextDirection.ltr,
       child: RestageOnboarding<FirstRunResult>(
         flow: firstRunFlowRef,
-        unavailable: FlowUnavailablePolicy.hide(),
       ),
     ));
     await tester.pumpAndSettle();

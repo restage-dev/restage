@@ -79,7 +79,8 @@ void main() {
       final events = await mount(
           tester,
           RestagePlacement(
-              id: 'home_banner', fallback: (_) => const Text('Original')));
+              id: 'home_banner',
+              fallbackBuilder: (_) => const Text('Original')));
       final started = events.whereType<SurfaceLoadStarted>().single;
       expect((started.surfaceId, started.surface),
           ('home_banner', Surface.general));
@@ -91,7 +92,7 @@ void main() {
           RestagePlacement.forSurface(
               surfaceType: Surface.message,
               surfaceId: 'welcome_back',
-              fallback: (_) => const Text('Original')));
+              fallbackBuilder: (_) => const Text('Original')));
       final started = events.whereType<SurfaceLoadStarted>().single;
       expect((started.surfaceId, started.surface),
           ('welcome_back', Surface.message));

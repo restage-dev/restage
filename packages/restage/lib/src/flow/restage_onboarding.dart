@@ -5,15 +5,13 @@ import 'package:restage_shared/restage_shared.dart' show Surface;
 
 import '../refresh/surface_refresh_trigger.dart';
 import '../runtime/context_data.dart';
+import '../runtime/surface_unavailable_policy.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
 import 'flow_seed.dart';
 import 'flow_transitions.dart';
 import 'restage_surface_flow.dart';
 import 'system_back_policy.dart';
-
-export 'restage_surface_flow.dart'
-    show FlowUnavailableBuilder, FlowUnavailablePolicy;
 
 /// Backward-compatible onboarding-only facade over [RestageFlowGraph].
 ///
@@ -25,7 +23,8 @@ final class RestageOnboarding<R> extends StatefulWidget {
     super.key,
     required this.flow,
     this.initialState,
-    required this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
     this.actions,
     this.installedSignalNames = const <String>{},
     this.resolver,
@@ -44,16 +43,28 @@ final class RestageOnboarding<R> extends StatefulWidget {
   /// Optional host-supplied initial flow-state values.
   final FlowSeed? initialState;
 
-  /// Required policy for unavailable flows.
-  final FlowUnavailablePolicy unavailable;
+  /// Shown in place of the compiled original when no published, saved or
+  /// bundled version of the flow can render. Null shows the compiled
+  /// original; without one, nothing shows while the host waits for content.
+  final WidgetBuilder? fallbackBuilder;
 
-  /// Optional host action registry for action-backed flow transitions.
+  /// Shown instead of restarting the user when the flow fails after they
+  /// made progress in this load, and for any failure when neither a fallback
+  /// nor a compiled original is left to show. Null shows the fallback, the
+  /// original, or nothing.
+  final Widget Function(BuildContext context, FlowUnavailableError error)?
+      errorBuilder;
+
+  /// Optional host action registry for action-backed flow transitions. A new
+  /// registry with the same contracts takes effect without reloading; one with
+  /// changed contracts reloads the flow.
   final FlowActionRegistry? actions;
 
   /// Installed custom-event and host-signal names reviewed by the host.
   final Set<String> installedSignalNames;
 
-  /// Optional resolver used to load the flow descriptor.
+  /// Optional resolver used to load the flow descriptor. A new resolver object
+  /// reloads the flow, so hold one rather than creating it in `build`.
   final FlowResolver? resolver;
 
   /// Called when the flow cannot be made available.
@@ -169,17 +180,26 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
   Widget build(BuildContext context) {
     final error = _unsupportedError;
     if (error != null) {
-      if (widget.unavailable.isFallback) {
-        return widget.unavailable.fallbackBuilder!(context, error);
-      }
-      return const SizedBox.shrink();
+      // Nothing loaded, so nothing advanced.
+      final builder = surfaceUnavailableBuilder(
+          SurfaceUnavailablePolicy<FlowUnavailableError>(
+              fallbackBuilder: widget.fallbackBuilder,
+              errorBuilder: widget.errorBuilder),
+          advanced: false);
+      if (builder == null) return const SizedBox.shrink();
+      // Nothing loaded, so a builder that throws only shows nothing.
+      return guardSurfaceUnavailableWidget(
+          debugLabel: widget.flow.id,
+          onFailed: () {},
+          child: Builder(builder: (context) => builder(context, error)));
     }
     return RestageContextSnapshotScope(
       snapshot: _context,
       child: RestageFlowGraph<R>(
         flow: widget.flow,
         initialState: widget.initialState,
-        unavailable: widget.unavailable,
+        fallbackBuilder: widget.fallbackBuilder,
+        errorBuilder: widget.errorBuilder,
         actions: widget.actions,
         installedSignalNames: widget.installedSignalNames,
         resolver: widget.resolver,

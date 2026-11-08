@@ -32,7 +32,7 @@ void main() {
     expect(readme, contains('`bundled_runtime` at its default, `false`'));
     // Lower-level mounts and optional asset resolvers remain documented.
     expect(readme, contains('RestageFlowGraph'));
-    expect(readme, contains('FlowUnavailablePolicy'));
+    expect(readme, contains('fallbackBuilder'));
     expect(readme, contains('Leave `flowResolver` unset for ordinary setup'));
     expect(readme, isNot(contains('?? false')));
 
@@ -244,9 +244,7 @@ final class PublicOnboardingUsage extends StatelessWidget {
           return NotificationResult(granted: operationId.isNotEmpty);
         },
       ),
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => Text(error.reason),
-      ),
+      fallbackBuilder: (context) => const Text('unavailable'),
       onFlowUnavailable: (error) {
         final events = <RestageEvent>[
           FlowUnavailable(
@@ -294,7 +292,6 @@ final class PublicSurfaceUsage extends StatelessWidget {
       onEvent: onEvent,
       child: RestageFlowGraph<FirstRunResult>(
         flow: messageRef,
-        unavailable: const FlowUnavailablePolicy.hide(),
       ),
     );
   }

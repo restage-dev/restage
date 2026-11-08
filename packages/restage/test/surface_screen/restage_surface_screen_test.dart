@@ -9,7 +9,10 @@ import 'package:rfw/rfw.dart' show DynamicContent, RemoteWidget;
 import 'surface_screen_test_support.dart';
 
 void main() {
-  setUp(resetSurfaceScreenTestState);
+  setUp(() {
+    resetSurfaceScreenTestState();
+    _lastReason = null;
+  });
 
   testWidgets(
       'renders a screen-category publication on the paywall category and dispatches only its typed event',
@@ -133,7 +136,8 @@ widget OnboardingScreen = Text(text: data.context.label);
     await tester.pumpAndSettle();
 
     expect(resolver.calls, 1);
-    expect(find.text('fallback:identityMismatch'), findsOneWidget);
+    expect(find.text('fallback:'), findsOneWidget);
+    expect(_lastReason, SurfaceScreenUnavailableReason.identityMismatch);
   });
 
   testWidgets('rejects an unknown RFW event without calling the typed callback',
@@ -165,7 +169,8 @@ widget OnboardingScreen = Text(text: data.context.label);
     await tester.pumpAndSettle();
 
     expect(events, isEmpty);
-    expect(find.text('fallback:eventRejected'), findsOneWidget);
+    expect(find.text('fallback:'), findsOneWidget);
+    expect(_lastReason, SurfaceScreenUnavailableReason.eventRejected);
   });
 
   testWidgets('rejects malformed RFW arguments before conversion',
@@ -201,7 +206,8 @@ widget OnboardingScreen = Text(text: data.context.label);
     await tester.pumpAndSettle();
 
     expect(events, isEmpty);
-    expect(find.text('fallback:eventRejected'), findsOneWidget);
+    expect(find.text('fallback:'), findsOneWidget);
+    expect(_lastReason, SurfaceScreenUnavailableReason.eventRejected);
   });
 
   testWidgets('rejects absent and throwing typed event consumers',
@@ -216,7 +222,8 @@ widget OnboardingScreen = Text(text: data.context.label);
     await tester.pumpAndSettle();
     await tester.tap(find.text('No callback'));
     await tester.pumpAndSettle();
-    expect(find.text('fallback:eventRejected'), findsOneWidget);
+    expect(find.text('fallback:'), findsOneWidget);
+    expect(_lastReason, SurfaceScreenUnavailableReason.eventRejected);
 
     final decoderThrows = stringScreenFixture(
       slug: 'throwing_decoder',
@@ -235,7 +242,8 @@ widget OnboardingScreen = Text(text: data.context.label);
     await tester.tap(find.text('Throwing decoder'));
     await tester.pumpAndSettle();
 
-    expect(find.text('fallback:eventRejected'), findsOneWidget);
+    expect(find.text('fallback:'), findsOneWidget);
+    expect(_lastReason, SurfaceScreenUnavailableReason.eventRejected);
   });
 
   testWidgets('rejects every event for an event-free Never reference',
@@ -252,7 +260,8 @@ widget OnboardingScreen = Text(text: data.context.label);
     await tester.tap(find.text('Never event'));
     await tester.pumpAndSettle();
 
-    expect(find.text('fallback:eventRejected'), findsOneWidget);
+    expect(find.text('fallback:'), findsOneWidget);
+    expect(_lastReason, SurfaceScreenUnavailableReason.eventRejected);
   });
 
   testWidgets('uses explicit hide behavior when resolution is unavailable',
@@ -273,7 +282,6 @@ widget OnboardingScreen = Text(text: data.context.label);
                   message: 'Unavailable for test.',
                 ),
               ),
-              unavailable: const SurfaceScreenUnavailablePolicy.hide(),
               onUnavailable: errors.add,
             ),
           ],
@@ -317,7 +325,8 @@ widget OnboardingScreen = Throwing();
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNotNull);
-    expect(find.text('fallback:renderFailure'), findsOneWidget);
+    expect(find.text('fallback:'), findsOneWidget);
+    expect(_lastReason, SurfaceScreenUnavailableReason.renderFailure);
   });
 }
 
@@ -336,12 +345,14 @@ Widget _host<E>({
           resolver: resolver,
           onEvent: onEvent,
           context: context,
-          unavailable: SurfaceScreenUnavailablePolicy.fallback(
-            builder: (_, error) => Text('fallback:${error.reason.name}'),
-          ),
+          onUnavailable: (error) => _lastReason = error.reason,
+          fallbackBuilder: (_) => const Text('fallback:'),
         ),
       ),
     );
+
+// The reason the last failed screen reported.
+SurfaceScreenUnavailableReason? _lastReason;
 
 Map<Object?, Object?> _readContext(DynamicContent data) {
   void noop(Object _) {}

@@ -80,9 +80,7 @@ Widget _screen(
       screen: fixture.ref,
       resolver: resolver,
       onEvent: onEvent,
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (_, __) => original,
-      ),
+      fallbackBuilder: (_) => original,
     );
 
 const _dismiss = SurfaceEvent<void>('dismiss');
@@ -215,7 +213,6 @@ void main() {
     await tester.pumpWidget(MaterialApp(
       home: RestageFlowGraph<NativeClassResult>(
         flow: flow,
-        unavailable: const FlowUnavailablePolicy.hide(),
         onComplete: (r) => result = r,
       ),
     ));

@@ -91,71 +91,15 @@ void main() {
     expect(action.resultPredicate(false), isFalse);
   });
 
-  test('RestageOnboarding requires an explicit unavailable policy', () {
+  test('RestageOnboarding needs no fallback builders', () {
     const widget = RestageOnboarding<_FirstRunResult>(
       flow: flowRef,
-      unavailable: FlowUnavailablePolicy.hide(),
     );
 
     expect(widget.flow, flowRef);
-    expect(widget.unavailable.isHide, isTrue);
+    expect(widget.fallbackBuilder, isNull);
+    expect(widget.errorBuilder, isNull);
   });
-
-  testWidgets('FlowUnavailablePolicy fallback stores and invokes its builder',
-      (tester) async {
-    final error = FlowUnavailableError(
-      flowId: flowRef.id,
-      flowVersion: flowRef.version,
-      reason: 'missing_descriptor',
-      message: 'Flow descriptor was not found.',
-    );
-    Widget fallbackBuilder(BuildContext context, FlowUnavailableError error) {
-      return Text(error.reason, textDirection: TextDirection.ltr);
-    }
-
-    final policy = FlowUnavailablePolicy.fallback(builder: fallbackBuilder);
-    BuildContext? context;
-    await tester.pumpWidget(Builder(
-      builder: (builderContext) {
-        context = builderContext;
-        return const SizedBox.shrink();
-      },
-    ));
-
-    expect(policy.isFallback, isTrue);
-    expect(policy.isHide, isFalse);
-    expect(policy.fallbackBuilder, same(fallbackBuilder));
-    expect(policy.fallbackBuilder!(context!, error), isA<Text>());
-  });
-
-  test('FlowUnavailablePolicy hide is explicit and has no fallback builder',
-      () {
-    const policy = FlowUnavailablePolicy.hide();
-
-    expect(policy.isHide, isTrue);
-    expect(policy.isFallback, isFalse);
-    expect(policy.fallbackBuilder, isNull);
-  });
-
-  test('FlowUnavailablePolicy fallback requires a builder', () async {
-    final result = await staticAnalysisErrors(
-      fileName: 'missing_fallback_builder.dart',
-      source: '''
-import 'package:restage/restage.dart';
-
-void main() {
-  FlowUnavailablePolicy.fallback();
-}
-''',
-    );
-
-    expect(
-      result.map((d) => d.diagnosticCode.lowerCaseName),
-      ['missing_required_argument'],
-      reason: describeDiagnostics(result),
-    );
-    expect(result.single.message, contains("'builder'"));
-  }, timeout: staticAnalysisTimeout);
 
   testWidgets('RestageOnboarding renders loading while resolving',
       (tester) async {
@@ -164,7 +108,6 @@ void main() {
       child: RestageOnboarding<_FirstRunResult>(
         flow: flowRef,
         resolver: _PendingResolver(),
-        unavailable: const FlowUnavailablePolicy.hide(),
         loadingBuilder: (_) => const Text('Loading'),
       ),
     ));
@@ -179,7 +122,6 @@ void main() {
       child: RestageOnboarding<_FirstRunResult>(
         flow: flowRef,
         resolver: _PendingResolver(),
-        unavailable: const FlowUnavailablePolicy.hide(),
       ),
     ));
 
@@ -200,7 +142,6 @@ void main() {
       child: RestageOnboarding<_FirstRunResult>(
         flow: flowRef,
         resolver: _StaticFlowResolver(_resolvedFlow()),
-        unavailable: const FlowUnavailablePolicy.hide(),
         onComplete: (result) => completed = result,
       ),
     ));
@@ -229,9 +170,7 @@ void main() {
           _resolvedFlow(document: _hostSeedDecisionDocument()),
         ),
         initialState: const _MapSeed({'isReturningUser': true}),
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text('fallback:${error.reason}'),
-        ),
+        fallbackBuilder: (_) => const Text('fallback:'),
       ),
     ));
     await tester.pumpAndSettle();
@@ -251,11 +190,7 @@ void main() {
         flow: flowRef,
         resolver: _StaticFlowResolver(_resolvedFlow()),
         initialState: const _MapSeed({'nope': true}),
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text(
-            'fallback:${error.reason}:${error.message}',
-          ),
-        ),
+        fallbackBuilder: (_) => const Text('fallback:'),
         onFlowUnavailable: (error) => callbackError = error,
       ),
     ));
@@ -263,8 +198,7 @@ void main() {
 
     expect(callbackError?.reason, 'seed_unknown_key');
     expect(callbackError?.message, contains('nope'));
-    expect(find.textContaining('fallback:seed_unknown_key'), findsOneWidget);
-    expect(find.textContaining('nope'), findsOneWidget);
+    expect(find.text('fallback:'), findsOneWidget);
     expect(find.text('Welcome'), findsNothing);
   });
 
@@ -281,7 +215,6 @@ void main() {
             flow: flowRef,
             resolver: resolver,
             initialState: seed,
-            unavailable: const FlowUnavailablePolicy.hide(),
           ),
         );
 
@@ -303,7 +236,6 @@ void main() {
       child: RestageOnboarding<_FirstRunResult>(
         flow: flowRef,
         resolver: _StaticFlowResolver(_resolvedFlow()),
-        unavailable: const FlowUnavailablePolicy.hide(),
       ),
     ));
     await tester.pumpAndSettle();
@@ -323,15 +255,14 @@ void main() {
         resolver: _StaticFlowResolver(
           _resolvedFlow(actions: {'create_profile': _actionContract()}),
         ),
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text(error.reason),
-        ),
+        fallbackBuilder: (_) => const Text('unavailable'),
         onFlowUnavailable: (error) => callbackError = error,
       ),
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('action_contract_mismatch'), findsOneWidget);
+    expect(callbackError?.reason, 'action_contract_mismatch');
+    expect(find.text('unavailable'), findsOneWidget);
     expect(callbackError?.message, contains('actions'));
     expect(find.text('Welcome'), findsNothing);
   });
@@ -353,7 +284,6 @@ void main() {
   RestageOnboarding<_Result>(
     flow: flow,
     actions: Object(),
-    unavailable: FlowUnavailablePolicy.hide(),
   );
 }
 
@@ -373,6 +303,85 @@ final class _Result {
     expect(result.single.message, contains('FlowActionRegistry'));
   }, timeout: staticAnalysisTimeout);
 
+  group('a rebuilt host', () {
+    final document = _flowDocument(
+      actions: {'create_profile': _actionContract()},
+      states: const {
+        'welcome': ScreenFlowState(
+          screen: 'welcome',
+          on: {
+            'next': ActionFlowTransition(
+              action: 'create_profile',
+              resultPredicate: BoolEqualsActionResultPredicate(value: true),
+              target: 'done',
+            ),
+          },
+        ),
+        'done': EndFlowState(result: {'completed': true}),
+      },
+    );
+
+    testWidgets('runs a new actions object in place, without reloading',
+        (tester) async {
+      final resolver = _CountingResolver(_resolvedFlow(document: document));
+      final calls = <String>[];
+      Widget host(String name, {Set<String>? signals}) => Directionality(
+            textDirection: TextDirection.ltr,
+            child: RestageOnboarding<_FirstRunResult>(
+              flow: flowRef,
+              resolver: resolver,
+              actions: _GeneratedActions(handler: (_, __) {
+                calls.add(name);
+                return true;
+              }),
+              installedSignalNames: signals ?? {'ping'},
+            ),
+          );
+      await tester.pumpWidget(host('first'));
+      await tester.pumpAndSettle();
+      // An equal set of signals is the same flow too.
+      await tester.pumpWidget(host('second', signals: {'ping'}));
+      await tester.pumpAndSettle();
+      expect(resolver.calls, 1);
+
+      await tester.tap(find.text('Welcome'));
+      await tester.pumpAndSettle();
+      expect(calls, ['second']);
+
+      // A different set of signals is a different flow.
+      await tester.pumpWidget(host('third', signals: {'pong'}));
+      await tester.pumpAndSettle();
+      expect(resolver.calls, 2);
+    });
+
+    for (final graph in [false, true]) {
+      testWidgets(
+          '${graph ? 'RestageFlowGraph' : 'RestageOnboarding'} that records '
+          'its failure in state with inline actions loads once',
+          (tester) async {
+        final resolver = _CountingResolver.failing(const FlowUnavailableError(
+          flowId: 'first_run',
+          flowVersion: 1,
+          reason: 'delivery_unavailable',
+          message: 'offline',
+        ));
+        await tester.pumpWidget(Directionality(
+          textDirection: TextDirection.ltr,
+          child: _FailureRecordingHost(
+            flow: flowRef,
+            graph: graph,
+            resolver: resolver,
+          ),
+        ));
+        for (var i = 0; i < 60; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(resolver.calls, 1);
+        expect(find.text('failed: delivery_unavailable'), findsOneWidget);
+      });
+    }
+  });
+
   testWidgets('document requiring actions accepts generated-style registry',
       (tester) async {
     await tester.pumpWidget(Directionality(
@@ -383,15 +392,13 @@ final class _Result {
           _resolvedFlow(actions: {'create_profile': _actionContract()}),
         ),
         actions: _GeneratedActions(),
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text(error.reason),
-        ),
+        fallbackBuilder: (_) => const Text('unavailable'),
       ),
     ));
     await tester.pumpAndSettle();
 
     expect(find.text('Welcome'), findsOneWidget);
-    expect(find.text('action_contract_mismatch'), findsNothing);
+    expect(find.text('unavailable'), findsNothing);
   });
 
   testWidgets('bad terminal result emits unavailable and skips completion',
@@ -417,9 +424,7 @@ final class _Result {
             },
           ),
         ),
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text(error.reason),
-        ),
+        fallbackBuilder: (_) => const Text('unavailable'),
         onComplete: (result) => completed = result,
         onFlowUnavailable: (error) => callbackError = error,
       ),
@@ -431,7 +436,7 @@ final class _Result {
 
     expect(completed, isNull);
     expect(callbackError?.reason, 'result_decode_failed');
-    expect(find.text('result_decode_failed'), findsOneWidget);
+    expect(find.text('unavailable'), findsOneWidget);
     expect(
       globalEvents.whereType<FlowUnavailable>().single.reason,
       'result_decode_failed',
@@ -457,16 +462,14 @@ final class _Result {
       child: RestageOnboarding<_FirstRunResult>(
         flow: flowRef,
         resolver: const _FailingResolver(error),
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text('fallback:${error.reason}'),
-        ),
+        fallbackBuilder: (_) => const Text('fallback:'),
         onFlowUnavailable: (error) => callbackError = error,
       ),
     ));
     await tester.pumpAndSettle();
 
     final event = globalEvents.whereType<FlowUnavailable>().single;
-    expect(find.text('fallback:unsupported_feature'), findsOneWidget);
+    expect(find.text('fallback:'), findsOneWidget);
     expect(callbackError, same(error));
     expect(event.reason, callbackError?.reason);
     expect(event.message, callbackError?.message);
@@ -489,7 +492,6 @@ final class _Result {
       child: RestageOnboarding<_FirstRunResult>(
         flow: flowRef,
         resolver: _FailingResolver(error),
-        unavailable: FlowUnavailablePolicy.hide(),
       ),
     ));
     await tester.pumpAndSettle();
@@ -537,9 +539,7 @@ final class _Result {
             cacheHit: false,
           ),
         ),
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text('fallback:${error.reason}'),
-        ),
+        fallbackBuilder: (_) => const Text('fallback:'),
         onFlowUnavailable: (error) => callbackError = error,
       ),
     ));
@@ -547,7 +547,7 @@ final class _Result {
 
     expect(tester.takeException(), isNotNull);
     expect(callbackError?.reason, 'render_failed');
-    expect(find.text('fallback:render_failed'), findsOneWidget);
+    expect(find.text('fallback:'), findsOneWidget);
     expect(
       globalEvents.whereType<FlowUnavailable>().single.reason,
       'render_failed',
@@ -597,10 +597,7 @@ final class _Result {
                   cacheHit: false,
                 ),
               ),
-              unavailable: FlowUnavailablePolicy.fallback(
-                builder: (_, error) =>
-                    Text('fallback:${error.flowId}:${error.reason}'),
-              ),
+              fallbackBuilder: (_) => const Text('fallback:'),
               onFlowUnavailable: firstErrors.add,
             ),
           ),
@@ -623,10 +620,7 @@ final class _Result {
                   cacheHit: false,
                 ),
               ),
-              unavailable: FlowUnavailablePolicy.fallback(
-                builder: (_, error) =>
-                    Text('fallback:${error.flowId}:${error.reason}'),
-              ),
+              fallbackBuilder: (_) => const Text('fallback:'),
               onFlowUnavailable: secondErrors.add,
             ),
           ),
@@ -639,8 +633,7 @@ final class _Result {
     await tester.pumpAndSettle();
 
     final exception = tester.takeException();
-    final firstFallbackCount =
-        find.text('fallback:first_run:render_failed').evaluate().length;
+    final firstFallbackCount = find.text('fallback:').evaluate().length;
     final secondTextCount = find.text('Second').evaluate().length;
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -668,7 +661,6 @@ final class _Result {
       child: RestageOnboarding<_FirstRunResult>(
         flow: flowRef,
         resolver: resolver,
-        unavailable: const FlowUnavailablePolicy.hide(),
         onFlowUnavailable: (_) => callbackCalled = true,
         onComplete: (_) => callbackCalled = true,
       ),
@@ -788,7 +780,6 @@ final class _Result {
           ),
         }),
         actions: _GeneratedActions(handler: (_, __) => actionCompleter.future),
-        unavailable: const FlowUnavailablePolicy.hide(),
         onComplete: (_) => callbacks += 1,
         onFlowUnavailable: (_) => callbacks += 1,
       ),
@@ -822,9 +813,7 @@ final class _Result {
       child: RestageOnboarding<_FirstRunResult>(
         flow: flowRef,
         resolver: oldResolver,
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text('fallback:${error.reason}'),
-        ),
+        fallbackBuilder: (_) => const Text('fallback:'),
         onFlowUnavailable: callbackErrors.add,
       ),
     ));
@@ -834,9 +823,7 @@ final class _Result {
       child: RestageOnboarding<_FirstRunResult>(
         flow: flowRef,
         resolver: _StaticFlowResolver(_resolvedFlow(welcomeText: 'New')),
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text('fallback:${error.reason}'),
-        ),
+        fallbackBuilder: (_) => const Text('fallback:'),
         onFlowUnavailable: callbackErrors.add,
       ),
     ));
@@ -851,7 +838,7 @@ final class _Result {
     await tester.pump();
 
     expect(find.text('New'), findsOneWidget);
-    expect(find.text('fallback:missing_flow_json'), findsNothing);
+    expect(find.text('fallback:'), findsNothing);
     expect(callbackErrors, isEmpty);
     expect(globalEvents.whereType<FlowUnavailable>(), isEmpty);
   });
@@ -874,7 +861,6 @@ final class _Result {
       child: RestageOnboarding<_FirstRunResult>(
         flow: flowRef,
         resolver: _StaticFlowResolver(directCompletionFlow),
-        unavailable: const FlowUnavailablePolicy.hide(),
         onComplete: (_) => completions += 1,
       ),
     ));
@@ -886,7 +872,6 @@ final class _Result {
       child: RestageOnboarding<_FirstRunResult>(
         flow: flowRef,
         resolver: _StaticFlowResolver(_resolvedFlow(welcomeText: 'New')),
-        unavailable: const FlowUnavailablePolicy.hide(),
         onComplete: (_) => completions += 1,
       ),
     ));
@@ -1190,4 +1175,63 @@ Uint8List _throwingScreenBlob() {
     widget OnboardingScreen = ThrowingWidget();
   ''';
   return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+}
+
+final class _CountingResolver implements FlowResolver {
+  _CountingResolver(ResolvedFlow this._flow) : _error = null;
+  _CountingResolver.failing(FlowUnavailableError this._error) : _flow = null;
+
+  final ResolvedFlow? _flow;
+  final FlowUnavailableError? _error;
+  int calls = 0;
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
+    calls++;
+    if (_error case final error?) throw error;
+    return _flow!;
+  }
+}
+
+/// Records each failure with setState and builds its actions inline.
+final class _FailureRecordingHost extends StatefulWidget {
+  const _FailureRecordingHost({
+    required this.flow,
+    required this.graph,
+    required this.resolver,
+  });
+
+  final OnboardingFlowRef<_FirstRunResult> flow;
+  final bool graph;
+  final FlowResolver resolver;
+
+  @override
+  State<_FailureRecordingHost> createState() => _FailureRecordingHostState();
+}
+
+final class _FailureRecordingHostState extends State<_FailureRecordingHost> {
+  FlowUnavailableError? _failure;
+
+  void _record(FlowUnavailableError error) {
+    if (mounted) setState(() => _failure = error);
+  }
+
+  Widget _fallback(BuildContext context) => Text('failed: ${_failure?.reason}');
+
+  @override
+  Widget build(BuildContext context) => widget.graph
+      ? RestageFlowGraph<_FirstRunResult>(
+          flow: widget.flow,
+          resolver: widget.resolver,
+          actions: _GeneratedActions(),
+          onFlowUnavailable: _record,
+          fallbackBuilder: _fallback,
+        )
+      : RestageOnboarding<_FirstRunResult>(
+          flow: widget.flow,
+          resolver: widget.resolver,
+          actions: _GeneratedActions(),
+          onFlowUnavailable: _record,
+          fallbackBuilder: _fallback,
+        );
 }

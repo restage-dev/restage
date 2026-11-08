@@ -60,7 +60,7 @@ void main() {
             textDirection: direction,
             child: RestagePaywall(
               id: 'legacy-icon',
-              errorBuilder: (_, error) => Text('ERROR: ${error.message}'),
+              fallbackBuilder: (_) => const Text('ERROR: '),
             ),
           ),
         ));

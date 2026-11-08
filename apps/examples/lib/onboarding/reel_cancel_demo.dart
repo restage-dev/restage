@@ -70,18 +70,6 @@ class _ReelCancelDemoState extends State<ReelCancelDemo> {
       actions: _actions,
       onComplete: (result) => _settle(_Outcome.retained),
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFF141414)),
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => Scaffold(
-          backgroundColor: const Color(0xFF141414),
-          body: Center(
-            child: Text(
-              error.message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

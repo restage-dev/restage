@@ -94,16 +94,17 @@ published, the network fails, or a version can't render on this app:
 
 | Surface | Generated mount | Lower-level mount |
 | --- | --- | --- |
-| `@Screen(surface: ...)` | `<Class>Surface(...)` | `RestageScreen<E>(screen: <name>Ref, unavailable: ...)` |
+| `@Screen(surface: ...)` | `<Class>Surface(...)` | `RestageScreen<E>(screen: <name>Ref, fallbackBuilder: ...)` |
 | `@Paywall()` | `<Class>Surface(...)` | `RestagePaywall(id: '...')` |
-| `@FlowGraph` | `<FlowName>Surface(onComplete: ...)` | `RestageFlowGraph<R>(flow: <name>Ref, unavailable: ...)` |
+| `@FlowGraph` | `<FlowName>Surface(onComplete: ...)` | `RestageFlowGraph<R>(flow: <name>Ref, fallbackBuilder: ...)` |
 
 Every generated mount is an implicit placement. Use its ordinary constructor;
 `.atPlacement('name', ...)` is an optional naming override.
 
-Lower-level mounts require you to supply the fallback setup, such as an
-`unavailable` policy, `fallbackBuilder` or bundled assets. Use them when you need
-to manage that setup yourself.
+Lower-level mounts require you to supply the fallback setup, such as a
+`fallbackBuilder` or bundled assets. A generated flow reference carries its
+compiled flow, so `RestageFlowGraph` given one needs none. Use them when you
+need to manage that setup yourself.
 
 `RestagePaywall(id: ...)` in an app with no generated mounts needs
 `registerRestageWidgets()` (from the generated `user_factories.g.dart`) once at startup.

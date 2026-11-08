@@ -242,7 +242,6 @@ widget OnboardingScreen = AuthoredProbe();
             resolver: StaticFlowResolver(
               _resolvedCaptureFlow(blob, captureKey: 'business'),
             ),
-            unavailable: const FlowUnavailablePolicy.hide(),
             onComplete: completed.add,
           ),
         ),
@@ -319,9 +318,7 @@ Widget _screenHost({
         body: RestageScreen<String>(
           screen: fixture.ref,
           resolver: FixedScreenResolver(fixture.bundled()),
-          unavailable: SurfaceScreenUnavailablePolicy.fallback(
-            builder: (_, error) => Text('fallback:${error.reason.name}'),
-          ),
+          fallbackBuilder: (_) => const Text('fallback:'),
           onEvent: onEvent,
         ),
       ),

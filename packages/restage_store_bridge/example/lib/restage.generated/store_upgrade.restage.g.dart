@@ -68,8 +68,9 @@ final class StorePaywallSurface extends StatelessWidget {
     String? placement,
     this.onEvent,
     this.resolver,
-    this.errorBuilder,
     this.loadingBuilder,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restageStored0 = packages,
        _restagePlacementName = placement;
 
@@ -82,8 +83,9 @@ final class StorePaywallSurface extends StatelessWidget {
     super.key,
     this.onEvent,
     this.resolver,
-    this.errorBuilder,
     this.loadingBuilder,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restageStored0 = packages,
        _restagePlacementName = restagePlacementId;
 
@@ -95,9 +97,11 @@ final class StorePaywallSurface extends StatelessWidget {
 
   final VariantResolver? resolver;
 
-  final Widget Function(BuildContext, RestagePaywallError)? errorBuilder;
-
   final WidgetBuilder? loadingBuilder;
+
+  final WidgetBuilder? fallbackBuilder;
+
+  final Widget Function(BuildContext, RestagePaywallError)? errorBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -135,10 +139,10 @@ final class StorePaywallSurface extends StatelessWidget {
               },
           ],
         },
-        fallbackBuilder: (_) => _restageBuilt,
+        fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
+        errorBuilder: errorBuilder,
         onEvent: onEvent,
         resolver: resolver,
-        errorBuilder: errorBuilder,
         loadingBuilder: loadingBuilder,
       );
     }

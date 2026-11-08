@@ -110,9 +110,9 @@ void main() {
               .first,
           vocabulary: SurfaceVocabulary.none);
       final host = RestageScreen(
-          screen: original.ref,
-          placementBinding: PlacementMountBinding(definition: () => definition),
-          unavailable: const SurfaceScreenUnavailablePolicy.hide());
+        screen: original.ref,
+        placementBinding: PlacementMountBinding(definition: () => definition),
+      );
       final previousOnError = FlutterError.onError;
       try {
         await tester.pumpWidget(MaterialApp(home: host));
@@ -156,6 +156,202 @@ void main() {
       }
     });
   }
+
+  for (final acted in [false, true]) {
+    testWidgets(
+        acted
+            ? 'a screen whose fallback sent an event is never swapped by a '
+                'refresh'
+            : 'a screen showing its fallback untouched takes a refresh',
+        (tester) async {
+      Restage.debugReset();
+      addTearDown(Restage.debugReset);
+      SharedPreferences.setMockInitialValues({});
+      PackageInfo.setMockInitialValues(
+          appName: 'test',
+          packageName: 'test',
+          version: '1',
+          buildNumber: '42',
+          buildSignature: '');
+      debugResetAppBuildOrdinal();
+      sharedSurfaceArtifactStore = MemorySurfaceArtifactStore();
+      addTearDown(() => sharedSurfaceArtifactStore = null);
+      final original = stringScreenFixture(slug: 'original_notice');
+      Restage.configure(
+          apiKey: 'rs_pk_test',
+          baseUrl: 'https://example.com',
+          analyticsEnabled: false,
+          measurementEnabled: false,
+          deliveryReceiptsEnabled: false);
+      debugResetInstallObservations();
+      debugSetOsVersion(19);
+      SurfaceMeteringKeyProvider.clear();
+      Restage.debugPlacementNow = () => DateTime.utc(2026, 10, 4, 12);
+      var hosted = false;
+      final client = RestageRpcClient(
+          baseUrl: 'https://example.com',
+          apiKey: 'rs_pk_test',
+          httpClient: MockClient((outgoing) async {
+            final fixtureArtifact = placementFixtureArtifact(outgoing);
+            if (fixtureArtifact != null) return fixtureArtifact;
+            final request = sentPlacementRequest(outgoing.bodyBytes);
+            if (!hosted) {
+              return http.Response.bytes(
+                  _watchedFallback(request).canonicalBytes, 200);
+            }
+            return http.Response.bytes(
+                placementFixtureResponse(request,
+                        family: DeliveryFamilySelectorV1.screenContract(
+                            contractVersion: 7))
+                    .canonicalBytes,
+                200);
+          }));
+      addTearDown(client.close);
+      Restage.debugRestageRpcClient = client;
+      final definition = GeneratedPlacementDefinition(
+          defaultSurface: original.ref,
+          defaultSurfaceLocator: DeliverySurfaceLocatorV1(
+              surfaceType: DeliverySurfaceTypeId('general'),
+              slug: original.ref.slug,
+              family: DeliveryFamilySelectorV1.screenContract(
+                  contractVersion: original.ref.contractVersion)),
+          key: PlacementKeyV1.generatedDefault(
+              surfaceType: DeliverySurfaceTypeId('general'),
+              slug: original.ref.slug),
+          hostContract: readPlacementDeliveryFixture()
+              .request
+              .buildContract
+              .contractsByHash
+              .values
+              .first,
+          vocabulary: SurfaceVocabulary.none);
+      final handled = <String>[];
+      try {
+        await tester.pumpWidget(MaterialApp(
+            home: RestageScreen<String>(
+                screen: original.ref,
+                placementBinding:
+                    PlacementMountBinding(definition: () => definition),
+                onEvent: handled.add,
+                fallbackBuilder: (_) => Builder(
+                    builder: (context) => TextButton(
+                        onPressed:
+                            surfaceEvent(const SurfaceEvent<void>('tap')),
+                        child: const Text('Fallback'))))));
+        await _finishScreenFrames(tester);
+        await tester.pump(const Duration(seconds: 4));
+        await _finishScreenFrames(tester);
+        expect(find.text('Fallback'), findsOneWidget);
+        if (acted) {
+          // A call without a pointer: only the event counts as progress.
+          tester.widget<TextButton>(find.byType(TextButton)).onPressed!();
+          await tester.pump();
+          expect(handled, ['tap']);
+        }
+        hosted = true;
+        await SurfaceRefreshRegistry.instance.reload();
+        await _finishScreenFrames(tester);
+        expect(find.text('Fallback'), acted ? findsOneWidget : findsNothing);
+        expect(find.text('Welcome'), acted ? findsNothing : findsOneWidget);
+      } finally {
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+  }
+
+  testWidgets('a screen the user interacted with keeps its content at expiry',
+      (tester) async {
+    Restage.debugReset();
+    addTearDown(Restage.debugReset);
+    SharedPreferences.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+        appName: 'test',
+        packageName: 'test',
+        version: '1',
+        buildNumber: '42',
+        buildSignature: '');
+    debugResetAppBuildOrdinal();
+    sharedSurfaceArtifactStore = MemorySurfaceArtifactStore();
+    addTearDown(() => sharedSurfaceArtifactStore = null);
+    final original = stringScreenFixture(
+        slug: 'original_notice', schema: SurfaceScreenEventSchema(events: []));
+    final bundleBytes = original.bundleBytes();
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMessageHandler('flutter/assets', (message) async {
+      if (const StringCodec().decodeMessage(message) !=
+          original.locator.assetKey) {
+        return null;
+      }
+      return ByteData.sublistView(bundleBytes);
+    });
+    addTearDown(() => messenger.setMockMessageHandler('flutter/assets', null));
+    Restage.configure(
+        apiKey: 'rs_pk_test',
+        baseUrl: 'https://example.com',
+        analyticsEnabled: false,
+        measurementEnabled: false,
+        deliveryReceiptsEnabled: false);
+    debugResetInstallObservations();
+    debugSetOsVersion(19);
+    SurfaceMeteringKeyProvider.clear();
+    var now = DateTime.utc(2026, 10, 4, 12);
+    Restage.debugPlacementNow = () => now;
+    final expiry = now.add(const Duration(seconds: 10));
+    final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient((outgoing) async {
+          final fixtureArtifact = placementFixtureArtifact(outgoing);
+          if (fixtureArtifact != null) return fixtureArtifact;
+          final request = sentPlacementRequest(outgoing.bodyBytes);
+          return http.Response.bytes(
+              placementFixtureResponse(request,
+                  family: DeliveryFamilySelectorV1.screenContract(
+                      contractVersion: 7),
+                  cacheValidityOverrides: {
+                    'contentExpiresAtMicros': expiry.microsecondsSinceEpoch
+                  }).canonicalBytes,
+              200);
+        }));
+    addTearDown(client.close);
+    Restage.debugRestageRpcClient = client;
+    final definition = GeneratedPlacementDefinition(
+        defaultSurface: original.ref,
+        defaultSurfaceLocator: DeliverySurfaceLocatorV1(
+            surfaceType: DeliverySurfaceTypeId('general'),
+            slug: original.ref.slug,
+            family: DeliveryFamilySelectorV1.screenContract(
+                contractVersion: original.ref.contractVersion)),
+        key: PlacementKeyV1.generatedDefault(
+            surfaceType: DeliverySurfaceTypeId('general'),
+            slug: original.ref.slug),
+        hostContract: readPlacementDeliveryFixture()
+            .request
+            .buildContract
+            .contractsByHash
+            .values
+            .first,
+        vocabulary: SurfaceVocabulary.none);
+    try {
+      await tester.pumpWidget(MaterialApp(
+          home: RestageScreen(
+              screen: original.ref,
+              placementBinding:
+                  PlacementMountBinding(definition: () => definition))));
+      await _finishScreenFrames(tester);
+      expect(find.text('Welcome'), findsOneWidget);
+      // Progress in this load: the user dragged the screen.
+      await tester.drag(find.text('Welcome'), const Offset(0, 40));
+      await tester.pump();
+      now = expiry;
+      await tester.pump(const Duration(seconds: 11));
+      await _finishScreenFrames(tester);
+      expect(find.text('Welcome'), findsOneWidget);
+      expect(find.text('Bundled screen'), findsNothing);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
 
   for (final assigned in [false, true]) {
     testWidgets(
@@ -539,4 +735,31 @@ DeliveryCacheValidityV1 _validity(
       selectionIdentityDigest: original.selectionIdentityDigest,
       notBeforeLocal: notBeforeLocal,
       expiresBeforeLocal: expiresBeforeLocal);
+}
+
+/// The service's answer that the mount shows its fallback, with a watch.
+PlacementBatchResolvedV1 _watchedFallback(PlacementBatchRequestV1 request) {
+  final target = readPlacementDeliveryFixture().target;
+  final mount = request.mounts.single;
+  final descriptor = PlacementMountDescriptorV1(
+      placement: PlacementIdentityV1(target: target, key: mount.key),
+      hostContractHash: mount.hostContractHash);
+  return PlacementBatchResolvedV1(
+    request: request,
+    expectedTarget: target,
+    decisions: [
+      PlacementBatchEntryV1.useFallback(
+          descriptor, PlacementBatchRefusalReasonV1.unavailable, const [],
+          watch: PlacementDeliveryWatchV1(
+              decisionIdentityDigest: CanonicalDigest('f' * 64),
+              channels: [
+                PlacementDeliveryWatchChannelV1(
+                    scope: DeliveryPolicyScopeV1(
+                        root: DeliveryRootIdentityV1.placement(
+                            descriptor.placement),
+                        family: const DeliveryFamilySelectorV1.none()),
+                    token: _watchToken)
+              ]))
+    ],
+  );
 }

@@ -457,7 +457,7 @@ final class MaintenanceNotice extends ArgumentBase {
         expect(emitted, isNot(contains(contract.contractFingerprint)));
         expect(
           sha256.convert(utf8.encode(emitted)).toString(),
-          '6a5b9813f875236a63f1de39b23ab3c8de29e481a0169fabd2ec885d8b3a4f5d',
+          'a13a4df351f9e70d9d46ac5075f2a8e1246e2d008c9ccab7673e507b9b4d9f9d',
           reason: emitted,
         );
       },
@@ -686,7 +686,8 @@ final class TypedNoticeSurface extends fw.StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   })  : _restageStored0 = count,
         _restageStored1 = groups,
         _restageStored2 = message,
@@ -723,23 +724,21 @@ final class TypedNoticeSurface extends fw.StatelessWidget {
           isTrue,
           reason: emitted,
         );
+        expect(emitted, contains('this.fallbackBuilder'));
         expect(
-          emitted,
-          contains('rs.SurfaceScreenUnavailablePolicy.fallback('),
-        );
-        expect(emitted, contains('this.unavailable'));
-        expect(
-          emitted,
+          emitted.replaceAll(RegExp(r'\s+'), ' '),
           contains(
-            'final fw.WidgetBuilder? loadingBuilder;\n\n'
-            '  final rs.SurfaceScreenUnavailablePolicy? unavailable;',
+            'final fw.WidgetBuilder? loadingBuilder; '
+            'final fw.WidgetBuilder? fallbackBuilder; '
+            'final fw.Widget Function(fw.BuildContext, '
+            'rs.SurfaceScreenUnavailableError)? errorBuilder;',
           ),
         );
         expect(
           emitted.replaceAll(RegExp(r'\s+'), ' '),
           contains(
-            'unavailable: unavailable ?? '
-            'rs.SurfaceScreenUnavailablePolicy.fallback(',
+            'fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt), '
+            'errorBuilder: errorBuilder,',
           ),
         );
         await _assertGeneratedPartAnalyzes(
@@ -907,7 +906,8 @@ final class HabitNotice extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   ])  : _restageStored0 = title,
         _restageStored1 = count,
         _restagePlacementName = null,
@@ -933,10 +933,11 @@ $source
 const originalCall = PositionalNoticeSurface('original', 3);
 const defaultCall = PositionalNoticeSurface('default');
 const namedCall = PositionalNoticeSurface.atPlacement('settings_card', 'named', 4);
+Widget hidden(BuildContext context) => const SizedBox.shrink();
 const hiddenCall = PositionalNoticeSurface('hidden', 5, null, null, null, null,
-  null, SurfaceScreenUnavailablePolicy.hide());
+  null, hidden);
 const hiddenPlacement = PositionalNoticeSurface.atPlacement('settings_card',
-  'hidden', 5, null, null, null, null, null, SurfaceScreenUnavailablePolicy.hide());
+  'hidden', 5, null, null, null, null, null, hidden);
 ''',
           emitted,
           constantFields: const {
@@ -994,11 +995,11 @@ $source
 void handleNotice(NamedNoticeSurfaceEvent event) {}
 const originalCall = NamedNoticeSurface('original', count: 3,
   key: ValueKey('original'), onEvent: handleNotice,
-  unavailable: SurfaceScreenUnavailablePolicy.hide());
+);
 const namedCall = NamedNoticeSurface('named', count: 4, placement: 'settings_card');
 const universalCall = NamedNoticeSurface.atPlacement('profile_card', 'universal',
   count: 5, subtitle: 'more', key: ValueKey('universal'), onEvent: handleNotice,
-  unavailable: SurfaceScreenUnavailablePolicy.hide());
+);
 ''',
           emitted,
           constantFields: const {
@@ -1074,7 +1075,8 @@ const namedCall = CampaignNoticeSurface.atPlacement('settings_card', $arguments)
         'resolver',
         'onUnavailable',
         'loadingBuilder',
-        'unavailable',
+        'fallbackBuilder',
+        'errorBuilder',
       ]) {
         final source =
             '''
@@ -4347,7 +4349,8 @@ final class StoredKeyNotice extends StatelessWidget {
         'resolver',
         'onUnavailable',
         'loadingBuilder',
-        'unavailable',
+        'fallbackBuilder',
+        'errorBuilder',
       ]) {
         final source = _screenSource(
           className: 'ReservedKeyNotice',
@@ -4817,7 +4820,6 @@ import 'package:restage/restage.dart' as rs
         RestageScreen;
 import 'package:restage/restage.dart' as rs
     show
-        SurfaceScreenUnavailablePolicy,
         SurfaceScreenResolver,
         SurfaceScreenUnavailableError,
         RestageRecording;
@@ -4868,7 +4870,6 @@ export 'package:flutter/widgets.dart'
 export 'package:restage/restage.dart'
     show
         RestageScreen,
-        SurfaceScreenUnavailablePolicy,
         SurfaceScreenResolver,
         SurfaceScreenUnavailableError,
         RestageRecording;
@@ -4927,14 +4928,12 @@ export 'package:restage/restage.dart'
 export 'package:restage/restage.dart'
     show
         RestageScreen,
-        SurfaceScreenUnavailablePolicy,
         SurfaceScreenResolver,
         SurfaceScreenUnavailableError,
         RestageRecording;
 ''';
       const wrongOrigin = '''
 final class RestageScreen {}
-final class SurfaceScreenUnavailablePolicy {}
 final class SurfaceScreenResolver {}
 final class SurfaceScreenUnavailableError {}
 ''';
@@ -4971,7 +4970,7 @@ final class SurfaceScreenUnavailableError {}
               name: 'split restricted',
               imports: '''
 import 'package:restage/restage.dart' as app
-    show RestageScreen, SurfaceScreenUnavailablePolicy;
+    show RestageScreen;
 import 'package:restage/restage.dart' as app
     show SurfaceScreenResolver, SurfaceScreenUnavailableError, RestageRecording;
 ''',
@@ -5021,7 +5020,6 @@ import 'package:restage/restage.dart' deferred as app
     show RestageScreen;
 import 'package:restage/restage.dart' as app
     show
-        SurfaceScreenUnavailablePolicy,
         SurfaceScreenResolver,
         SurfaceScreenUnavailableError,
         RestageRecording;
@@ -5726,7 +5724,6 @@ String _directMountImport(String prefix) =>
 import 'package:restage/restage.dart' as $prefix
     show
         RestageScreen,
-        SurfaceScreenUnavailablePolicy,
         SurfaceScreenResolver,
         SurfaceScreenUnavailableError,
         RestageRecording;

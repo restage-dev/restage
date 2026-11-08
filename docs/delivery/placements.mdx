@@ -123,15 +123,16 @@ Register the widgets the host can render before you mount it:
 ```dart
 RestagePlacement(
   id: 'home_announcement',
-  fallback: (_) => const Text('Welcome back'),
+  fallbackBuilder: (_) => const Text('Welcome back'),
   onEvent: (event) => debugPrint('$event'),
 )
 ```
 
-A direct mount requires a `fallback`. Pass `contract:` when the host provides
+Without a `fallbackBuilder`, the placement shows nothing until content arrives,
+and its `errorBuilder`, if you pass one, when delivery fails. Pass `contract:` when the host provides
 specific data or handles declared events. `RestagePlacement.forSurface` addresses a surface's default placement and also takes `surfaceType` and `surfaceId`.
 
-`RestagePlacement.flow` hosts a named flow and requires a `SurfaceHostContractV1` and a fallback. Supply actions, initial state and installed signals when you need them.
+`RestagePlacement.flow` hosts a named flow and requires a `SurfaceHostContractV1`. Supply actions, initial state and installed signals when you need them.
 `surfaceType` defaults to `Surface.onboarding`, and only that category is delivered.
 `onComplete` receives a `Map<String, Object?>`.
 

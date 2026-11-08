@@ -129,7 +129,8 @@ final class GeneralStatusSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restagePlacementName = placement;
 
   /// Overrides the implicit placement with an explicit name.
@@ -142,7 +143,8 @@ final class GeneralStatusSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restagePlacementName = restagePlacementId;
 
   final String? _restagePlacementName;
@@ -155,7 +157,10 @@ final class GeneralStatusSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
-  final SurfaceScreenUnavailablePolicy? unavailable;
+  final WidgetBuilder? fallbackBuilder;
+
+  final Widget Function(BuildContext, SurfaceScreenUnavailableError)?
+      errorBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -168,13 +173,11 @@ final class GeneralStatusSurface extends StatelessWidget {
           definition: generalStatusPlacementDefinition,
           name: _restagePlacementName,
         ),
-        unavailable: unavailable ??
-            SurfaceScreenUnavailablePolicy.fallback(
-              builder: (_, error) => _restageBuilt,
-            ),
+        fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
+        errorBuilder: errorBuilder,
+        onUnavailable: onUnavailable,
         onEvent: onEvent,
         resolver: resolver,
-        onUnavailable: onUnavailable,
         loadingBuilder: loadingBuilder,
       );
     }
@@ -311,7 +314,8 @@ final class MessageNoticeSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restagePlacementName = placement;
 
   /// Overrides the implicit placement with an explicit name.
@@ -324,7 +328,8 @@ final class MessageNoticeSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restagePlacementName = restagePlacementId;
 
   final String? _restagePlacementName;
@@ -337,7 +342,10 @@ final class MessageNoticeSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
-  final SurfaceScreenUnavailablePolicy? unavailable;
+  final WidgetBuilder? fallbackBuilder;
+
+  final Widget Function(BuildContext, SurfaceScreenUnavailableError)?
+      errorBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -350,13 +358,11 @@ final class MessageNoticeSurface extends StatelessWidget {
           definition: messageNoticePlacementDefinition,
           name: _restagePlacementName,
         ),
-        unavailable: unavailable ??
-            SurfaceScreenUnavailablePolicy.fallback(
-              builder: (_, error) => _restageBuilt,
-            ),
+        fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
+        errorBuilder: errorBuilder,
+        onUnavailable: onUnavailable,
         onEvent: onEvent,
         resolver: resolver,
-        onUnavailable: onUnavailable,
         loadingBuilder: loadingBuilder,
       );
     }
@@ -492,7 +498,8 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restagePlacementName = placement;
 
   /// Overrides the implicit placement with an explicit name.
@@ -505,7 +512,8 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restagePlacementName = restagePlacementId;
 
   final String? _restagePlacementName;
@@ -518,7 +526,10 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
-  final SurfaceScreenUnavailablePolicy? unavailable;
+  final WidgetBuilder? fallbackBuilder;
+
+  final Widget Function(BuildContext, SurfaceScreenUnavailableError)?
+      errorBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -531,13 +542,11 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
           definition: onboardingWelcomePlacementDefinition,
           name: _restagePlacementName,
         ),
-        unavailable: unavailable ??
-            SurfaceScreenUnavailablePolicy.fallback(
-              builder: (_, error) => _restageBuilt,
-            ),
+        fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
+        errorBuilder: errorBuilder,
+        onUnavailable: onUnavailable,
         onEvent: onEvent,
         resolver: resolver,
-        onUnavailable: onUnavailable,
         loadingBuilder: loadingBuilder,
       );
     }

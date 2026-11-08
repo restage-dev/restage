@@ -19,7 +19,6 @@ String? _sdkPrefix(OwningLibraryNamespace namespace) =>
       'CompiledFlow',
       'CompiledFlowScreenBuilder',
       'RestageFlowGraph',
-      'FlowUnavailablePolicy',
     });
 
 /// Retains the existing canonical documents and original Flutter constructors.
@@ -144,7 +143,8 @@ ${sdk}CompiledFlow(
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const ${sdk}FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   }) : _restagePlacementName = ${atPlacement ? 'restagePlacementId' : 'placement'},
        super(flow: $refName$bindings);
 ''';

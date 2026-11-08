@@ -66,7 +66,7 @@ void main() {
         home: Scaffold(
             body: RestagePaywall(
                 id: 'new-ota-content',
-                errorBuilder: (_, error) => Text('ERROR: ${error.message}')))));
+                fallbackBuilder: (_) => const Text('ERROR: ')))));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.textContaining('ERROR:'), findsNothing);
@@ -96,9 +96,7 @@ widget OnboardingScreen = CupertinoButton(child: Text(text: "delivered screen"))
     await tester.pumpWidget(MaterialApp(
         home: RestageScreen<String>(
       screen: fixture.ref,
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-        builder: (_, error) => Text('fallback:${error.reason.name}'),
-      ),
+      fallbackBuilder: (_) => const Text('fallback:'),
     )));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
@@ -131,9 +129,7 @@ widget OnboardingScreen = ${custom ? 'CustomLabel' : 'Text'}(text: "selected ren
       await tester.pumpWidget(MaterialApp(
           home: RestageScreen<String>(
         screen: fixture.ref,
-        unavailable: SurfaceScreenUnavailablePolicy.fallback(
-          builder: (_, error) => Text('fallback:${error.reason.name}'),
-        ),
+        fallbackBuilder: (_) => const Text('fallback:'),
       )));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);

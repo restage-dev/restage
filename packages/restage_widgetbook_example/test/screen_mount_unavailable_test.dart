@@ -69,54 +69,48 @@ void main() {
       );
     });
 
-    testWidgets('$constructor mount can hide an unavailable screen', (
-      tester,
-    ) async {
-      final resolver = _UnavailableResolver();
-      final errors = <SurfaceScreenUnavailableError>[];
-      const policy = SurfaceScreenUnavailablePolicy.hide();
+    testWidgets(
+      '$constructor mount can show nothing for an unavailable screen',
+      (tester) async {
+        final resolver = _UnavailableResolver();
+        final errors = <SurfaceScreenUnavailableError>[];
+        Widget nothing(BuildContext context) => const SizedBox.shrink();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: _mount(
-            atPlacement: atPlacement,
-            resolver: resolver,
-            unavailable: policy,
-            onUnavailable: errors.add,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: _mount(
+              atPlacement: atPlacement,
+              resolver: resolver,
+              fallbackBuilder: nothing,
+              onUnavailable: errors.add,
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.byType(GetStartedScreen), findsNothing);
-      expect(find.text('Get started'), findsNothing);
-      expect(resolver.calls, 1);
-      expect(errors, [_missing]);
-      final host = tester.widget<RestageScreen<GetStartedScreenSurfaceEvent>>(
-        find.byType(RestageScreen<GetStartedScreenSurfaceEvent>),
-      );
-      expect(host.unavailable, same(policy));
-      expect(host.context!['title'], 'Welcome');
-    });
+        expect(find.byType(GetStartedScreen), findsNothing);
+        expect(find.text('Get started'), findsNothing);
+        expect(resolver.calls, 1);
+        expect(errors, [_missing]);
+        final host = tester.widget<RestageScreen<GetStartedScreenSurfaceEvent>>(
+          find.byType(RestageScreen<GetStartedScreenSurfaceEvent>),
+        );
+        expect(host.fallbackBuilder, same(nothing));
+        expect(host.context!['title'], 'Welcome');
+      },
+    );
 
     testWidgets('$constructor mount can replace the unavailable fallback', (
       tester,
     ) async {
-      SurfaceScreenUnavailableError? received;
       final errors = <SurfaceScreenUnavailableError>[];
-      final policy = SurfaceScreenUnavailablePolicy.fallback(
-        builder: (context, error) {
-          received = error;
-          return Text('Unavailable: ${error.reason.name}');
-        },
-      );
 
       await tester.pumpWidget(
         MaterialApp(
           home: _mount(
             atPlacement: atPlacement,
             resolver: _UnavailableResolver(),
-            unavailable: policy,
+            fallbackBuilder: (_) => const Text('Unavailable'),
             onUnavailable: errors.add,
           ),
         ),
@@ -124,8 +118,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(GetStartedScreen), findsNothing);
-      expect(find.text('Unavailable: missing'), findsOneWidget);
-      expect(received, same(_missing));
+      expect(find.text('Unavailable'), findsOneWidget);
       expect(errors, [_missing]);
     });
   }
@@ -134,7 +127,7 @@ void main() {
 GetStartedScreenSurface _mount({
   required bool atPlacement,
   required SurfaceScreenResolver resolver,
-  SurfaceScreenUnavailablePolicy? unavailable,
+  WidgetBuilder? fallbackBuilder,
   ValueChanged<SurfaceScreenUnavailableError>? onUnavailable,
   ValueChanged<GetStartedScreenSurfaceEvent>? onEvent,
 }) => atPlacement
@@ -151,7 +144,7 @@ GetStartedScreenSurface _mount({
         description: 'Host description',
         usage: 'Host usage',
         resolver: resolver,
-        unavailable: unavailable,
+        fallbackBuilder: fallbackBuilder,
         onUnavailable: onUnavailable,
         onEvent: onEvent,
         loadingBuilder: _loading,
@@ -168,7 +161,7 @@ GetStartedScreenSurface _mount({
         description: 'Host description',
         usage: 'Host usage',
         resolver: resolver,
-        unavailable: unavailable,
+        fallbackBuilder: fallbackBuilder,
         onUnavailable: onUnavailable,
         onEvent: onEvent,
         loadingBuilder: _loading,

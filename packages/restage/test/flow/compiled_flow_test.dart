@@ -208,7 +208,10 @@ void main() {
       final result = await resolver.resolveActiveRoot(nativeWelcomeFlowRef);
       expect(result.document.version, compatible ? 2 : 1);
       expect(result.compiled == null, compatible);
-      expect(bundle.reads, isEmpty);
+      // The bundled copy is tried first; with none, the compiled original
+      // is the baseline and no screen asset is read.
+      expect(bundle.reads.where((path) => path.contains('/screens/')), isEmpty);
+      expect(bundle.reads, contains(contains('/flows/')));
     });
   }
 
@@ -232,7 +235,10 @@ void main() {
     await tester.pump();
     expect(deliveredCount, 1);
     expect(originalCount, 0);
-    expect(bundle.reads, isEmpty);
+    // The bundled copy is tried first; with none, the compiled original
+    // is the baseline and no screen asset is read.
+    expect(bundle.reads.where((path) => path.contains('/screens/')), isEmpty);
+    expect(bundle.reads, contains(contains('/flows/')));
   });
 
   testWidgets(
@@ -259,11 +265,14 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
     expect(renderedOriginal, 1);
-    expect(bundle.reads, isEmpty);
+    // The bundled copy is tried first; with none, the compiled original
+    // is the baseline and no screen asset is read.
+    expect(bundle.reads.where((path) => path.contains('/screens/')), isEmpty);
+    expect(bundle.reads, contains(contains('/flows/')));
   });
 
   testWidgets(
-      'a resolver defect fails the flow instead of rendering its original',
+      'a resolver defect is reported, then the flow restarts in its original',
       (tester) async {
     FlowUnavailableError? unavailable;
     await tester.pumpWidget(MaterialApp(
@@ -276,13 +285,13 @@ void main() {
     final originalVisible = find.text('Welcome original').evaluate().length;
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
-    expect(originalVisible, 0);
+    expect(originalVisible, 1);
     expect(unavailable?.reason, 'resolve_failed');
   });
 
   testWidgets(
-      'a running delivered flow fails closed without replaying its original',
-      (tester) async {
+      'a running delivered flow that fails after progress restarts in its '
+      'original without an error builder', (tester) async {
     final original = nativeWelcomeFlowRef.compiled!;
     final delivered = _delivered(original.document);
     final missingNext = ResolvedFlow(
@@ -309,8 +318,47 @@ void main() {
     await tester.pump();
     expect(actions, 1);
     expect(unavailable?.reason, 'missing_screen_blob');
-    expect(originalVisible, 0);
+    expect(originalVisible, 1);
   });
+
+  testWidgets(
+      'a flow restarted in its original after progress is never swapped by a '
+      'refresh', (tester) async {
+    final original = nativeWelcomeFlowRef.compiled!;
+    final delivered = _delivered(original.document);
+    final resolver = _MutableFlowResolver(ResolvedFlow(
+      document: delivered.document,
+      screenBlobs: {'native_welcome': delivered.screenBlobs['native_welcome']!},
+      cacheHit: false,
+    ));
+    await tester.pumpWidget(MaterialApp(
+        home: NativeWelcomeFlowSurface(
+      resolver: resolver,
+      actions: NativeWelcomeFlowActions(permission: (_, __) => true),
+    )));
+    await tester.pumpAndSettle();
+    // A tap fires the event without counting as interaction; the action that
+    // runs is the load's progress.
+    await tester.tap(find.text('Delivered native_welcome'));
+    await tester.pumpAndSettle();
+    expect(find.text('Welcome original'), findsOneWidget);
+    resolver.flow = delivered;
+    await Restage.reloadSurfaces();
+    await tester.pumpAndSettle();
+    final swapped = find.text('Delivered native_welcome').evaluate().length;
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(swapped, 0);
+  });
+}
+
+final class _MutableFlowResolver implements FlowResolver {
+  _MutableFlowResolver(this.flow);
+
+  ResolvedFlow flow;
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async => this.flow;
 }
 
 ResolvedFlow _delivered(FlowDocument document, {int? version}) {

@@ -1102,7 +1102,7 @@ void main() {
         body: RestagePaywall(
           id: 'ouch',
           resolver: _BadLayoutResolver(),
-          errorBuilder: (_, __) {
+          fallbackBuilder: (_) {
             errorBuilderHit = true;
             return const Text('Caught');
           },

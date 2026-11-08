@@ -3,15 +3,33 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../flow/flow_descriptors.dart';
+import '../flow/flow_resolver.dart' show FlowUnavailableError;
 import '../flow/flow_seed.dart';
 import '../flow/restage_surface_flow.dart';
 import '../events/restage_event.dart' show RestageEvent;
 import '../flow/system_back_policy.dart';
 import '../refresh/surface_refresh_trigger.dart';
+import 'paywall_error.dart' show RestagePaywallError;
 import 'placement_event_scope.dart';
 import 'placement_mount.dart';
 import 'restage.dart' show Restage;
 import 'restage_paywall.dart';
+
+/// The error a placement's `errorBuilder` receives.
+///
+/// [cause] is the error of the host the placement mounted: a
+/// [RestagePaywallError] or a [FlowUnavailableError].
+@immutable
+final class PlacementUnavailableError implements Exception {
+  /// Wraps the mounted host's [cause].
+  const PlacementUnavailableError(this.cause);
+
+  /// The mounted host's error.
+  final Object cause;
+
+  @override
+  String toString() => 'PlacementUnavailableError($cause)';
+}
 
 /// A placement mounted through the SDK's existing surface hosts.
 ///
@@ -19,7 +37,10 @@ import 'restage_paywall.dart';
 /// compiled fallbacks and implicit placements.
 ///
 /// `onEvent` receives the events this placement fires; they also flow
-/// through [Restage.events] for app-wide listeners. A flow placement's
+/// through [Restage.events] for app-wide listeners. A placement has no
+/// compiled original, so with no `fallbackBuilder` it shows nothing, and
+/// waits for a late answer, when no published, saved or bundled content can
+/// render. A flow placement's
 /// `surfaceType` selects the host its content needs, and only content of
 /// that type is delivered to it.
 final class RestagePlacement extends StatelessWidget
@@ -27,7 +48,10 @@ final class RestagePlacement extends StatelessWidget
   factory RestagePlacement(
           {Key? key,
           required String id,
-          required WidgetBuilder fallback,
+          WidgetBuilder? fallbackBuilder,
+          Widget Function(
+                  BuildContext context, PlacementUnavailableError error)?
+              errorBuilder,
           SurfaceHostContractV1? contract,
           Map<String, Object?>? context,
           WidgetBuilder? loadingBuilder,
@@ -35,7 +59,8 @@ final class RestagePlacement extends StatelessWidget
       RestagePlacement._single(
           key: key,
           placement: PlacementKeyV1.named(slug: id),
-          fallback: fallback,
+          fallbackBuilder: fallbackBuilder,
+          errorBuilder: errorBuilder,
           contract: contract,
           context: context,
           loadingBuilder: loadingBuilder,
@@ -47,7 +72,10 @@ final class RestagePlacement extends StatelessWidget
           required String surfaceId,
           DeliveryFamilySelectorV1 family =
               const DeliveryFamilySelectorV1.general(),
-          required WidgetBuilder fallback,
+          WidgetBuilder? fallbackBuilder,
+          Widget Function(
+                  BuildContext context, PlacementUnavailableError error)?
+              errorBuilder,
           SurfaceHostContractV1? contract,
           Map<String, Object?>? context,
           WidgetBuilder? loadingBuilder,
@@ -61,7 +89,8 @@ final class RestagePlacement extends StatelessWidget
               surfaceType: DeliverySurfaceTypeId(surfaceType.wireName),
               slug: surfaceId,
               family: family),
-          fallback: fallback,
+          fallbackBuilder: fallbackBuilder,
+          errorBuilder: errorBuilder,
           contract: contract,
           context: context,
           loadingBuilder: loadingBuilder,
@@ -73,7 +102,10 @@ final class RestagePlacement extends StatelessWidget
           {Key? key,
           required String id,
           Surface surfaceType = Surface.onboarding,
-          required WidgetBuilder fallback,
+          WidgetBuilder? fallbackBuilder,
+          Widget Function(
+                  BuildContext context, PlacementUnavailableError error)?
+              errorBuilder,
           required SurfaceHostContractV1 contract,
           FlowSeed? initialState,
           FlowActionRegistry? actions,
@@ -89,7 +121,8 @@ final class RestagePlacement extends StatelessWidget
           onEvent: onEvent,
           placement: PlacementKeyV1.named(slug: id),
           surface: surfaceType,
-          fallback: fallback,
+          fallbackBuilder: fallbackBuilder,
+          errorBuilder: errorBuilder,
           contract: contract,
           initialState: initialState,
           actions: actions,
@@ -104,7 +137,10 @@ final class RestagePlacement extends StatelessWidget
           {Key? key,
           required Surface surfaceType,
           required String surfaceId,
-          required WidgetBuilder fallback,
+          WidgetBuilder? fallbackBuilder,
+          Widget Function(
+                  BuildContext context, PlacementUnavailableError error)?
+              errorBuilder,
           required SurfaceHostContractV1 contract,
           FlowSeed? initialState,
           FlowActionRegistry? actions,
@@ -126,7 +162,8 @@ final class RestagePlacement extends StatelessWidget
               slug: surfaceId,
               family: const DeliveryFamilySelectorV1.general()),
           surface: surfaceType,
-          fallback: fallback,
+          fallbackBuilder: fallbackBuilder,
+          errorBuilder: errorBuilder,
           contract: contract,
           initialState: initialState,
           actions: actions,
@@ -148,7 +185,9 @@ final class RestagePlacement extends StatelessWidget
       {Key? key,
       required PlacementKeyV1 placement,
       DeliverySurfaceLocatorV1? defaultSurface,
-      required WidgetBuilder fallback,
+      WidgetBuilder? fallbackBuilder,
+      Widget Function(BuildContext context, PlacementUnavailableError error)?
+          errorBuilder,
       SurfaceHostContractV1? contract,
       Map<String, Object?>? context,
       WidgetBuilder? loadingBuilder,
@@ -176,7 +215,8 @@ final class RestagePlacement extends StatelessWidget
         host: RestagePaywall(
             id: defaultSurface?.slug ?? placement.slug,
             placementBinding: binding,
-            fallbackBuilder: fallback,
+            fallbackBuilder: fallbackBuilder,
+            errorBuilder: _forHost(errorBuilder),
             loadingBuilder: loadingBuilder,
             onEvent: onEvent,
             context: context));
@@ -187,7 +227,9 @@ final class RestagePlacement extends StatelessWidget
       required PlacementKeyV1 placement,
       DeliverySurfaceLocatorV1? defaultSurface,
       required Surface surface,
-      required WidgetBuilder fallback,
+      WidgetBuilder? fallbackBuilder,
+      Widget Function(BuildContext context, PlacementUnavailableError error)?
+          errorBuilder,
       required SurfaceHostContractV1 contract,
       FlowSeed? initialState,
       FlowActionRegistry? actions,
@@ -227,7 +269,8 @@ final class RestagePlacement extends StatelessWidget
           host: RestagePaywall(
               id: defaultSurface?.slug ?? placement.slug,
               placementBinding: binding,
-              fallbackBuilder: fallback,
+              fallbackBuilder: fallbackBuilder,
+              errorBuilder: _forHost(errorBuilder),
               loadingBuilder: loadingBuilder,
               liveRefresh: liveRefresh,
               onEvent: onEvent,
@@ -252,8 +295,8 @@ final class RestagePlacement extends StatelessWidget
         actions: actions,
         installedSignalNames: installedSignalNames,
         onComplete: onComplete,
-        unavailable: FlowUnavailablePolicy.fallback(
-            builder: (context, _) => fallback(context)),
+        fallbackBuilder: fallbackBuilder,
+        errorBuilder: _forHost(errorBuilder),
         context: context,
         loadingBuilder: loadingBuilder,
         systemBack: systemBack,
@@ -318,3 +361,11 @@ void _validateFlowInputs(FlowHostBoundaryV1 boundary, FlowSeed? seed,
     }
   }
 }
+
+/// [builder] for a host whose errors are [E], each wrapped for the placement.
+Widget Function(BuildContext, E)? _forHost<E extends Object>(
+        Widget Function(BuildContext, PlacementUnavailableError)? builder) =>
+    builder == null
+        ? null
+        : (context, error) =>
+            builder(context, PlacementUnavailableError(error));

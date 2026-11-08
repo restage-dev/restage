@@ -828,7 +828,6 @@ widget OnboardingScreen = SizedBox(
                 RestageScreen<String>(
                   screen: fixture.ref,
                   resolver: hostedResolver,
-                  unavailable: const SurfaceScreenUnavailablePolicy.hide(),
                   onEvent: (_) {},
                 ),
               ],
@@ -952,7 +951,6 @@ widget OnboardingScreen = SizedBox(
           RestageScreen<String>(
             screen: fixture.ref,
             resolver: hostedResolver,
-            unavailable: const SurfaceScreenUnavailablePolicy.hide(),
             onEvent: (_) {},
             loadingBuilder: (_) => const Text('screen-loading'),
           )
@@ -1021,10 +1019,7 @@ widget OnboardingScreen = SizedBox(
             RestageScreen<String>(
               screen: fixture.ref,
               resolver: resolver,
-              unavailable: SurfaceScreenUnavailablePolicy.fallback(
-                builder: (_, error) =>
-                    Text('screen-unavailable:${error.reason.name}'),
-              ),
+              fallbackBuilder: (_) => const Text('screen-unavailable:'),
               onUnavailable: unavailable.add,
               onEvent: (_) {},
               loadingBuilder: (_) => const Text('screen-loading'),
@@ -1047,10 +1042,8 @@ widget OnboardingScreen = SizedBox(
     final unavailableSnapshot = List<SurfaceScreenUnavailableError>.of(
       unavailable,
     );
-    final unavailableFallbackCount = find
-        .text('screen-unavailable:missing', skipOffstage: false)
-        .evaluate()
-        .length;
+    final unavailableFallbackCount =
+        find.text('screen-unavailable:', skipOffstage: false).evaluate().length;
     final loadingCount =
         find.text('screen-loading', skipOffstage: false).evaluate().length;
     await tester.pumpWidget(const SizedBox());

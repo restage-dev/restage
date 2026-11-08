@@ -133,10 +133,9 @@ void main() {
       try {
         await tester.pumpWidget(MaterialApp(
             home: RestageScreen(
-                screen: original.ref,
-                placementBinding:
-                    PlacementMountBinding(definition: () => definition),
-                unavailable: const SurfaceScreenUnavailablePolicy.hide())));
+          screen: original.ref,
+          placementBinding: PlacementMountBinding(definition: () => definition),
+        )));
         await _finishScreenFrames(tester);
         if (late) {
           await tester.pump(const Duration(milliseconds: 400));

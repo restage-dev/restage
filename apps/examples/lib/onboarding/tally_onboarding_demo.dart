@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:restage/restage.dart';
 
 import 'flows/tally_onboarding.dart';
 
@@ -26,18 +25,6 @@ class _TallyOnboardingDemoState extends State<TallyOnboardingDemo> {
         if (mounted) setState(() => _completed = true);
       },
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFFFBF7F0)),
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => Scaffold(
-          backgroundColor: const Color(0xFFFBF7F0),
-          body: Center(
-            child: Text(
-              error.message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF1F2421)),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

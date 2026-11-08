@@ -156,9 +156,7 @@ void main() {
           environment: RestageEnvironment.values.first,
           rpcClientProvider: () => client,
         ),
-        unavailable: SurfaceScreenUnavailablePolicy.fallback(
-          builder: (_, error) => const SizedBox.shrink(),
-        ),
+        fallbackBuilder: (_) => const Text('unavailable'),
       )));
       await tester.pumpAndSettle();
       expect(surfaceRequests, hasLength(1));
@@ -319,9 +317,7 @@ void main() {
           home: RestageScreen(
             screen: fixture.ref,
             resolver: resolver,
-            unavailable: SurfaceScreenUnavailablePolicy.fallback(
-              builder: (_, error) => Text('$error'),
-            ),
+            fallbackBuilder: (_) => const Text('unavailable'),
           ),
         ));
         await tester.pumpAndSettle();
@@ -379,9 +375,7 @@ void main() {
             environment: RestageEnvironment.values.first,
             rpcClientProvider: () => client,
           ),
-          unavailable: SurfaceScreenUnavailablePolicy.fallback(
-            builder: (_, error) => const SizedBox.shrink(),
-          ),
+          fallbackBuilder: (_) => const Text('unavailable'),
         )));
         await tester.pumpAndSettle();
         await tester.pumpWidget(const SizedBox.shrink());
@@ -411,9 +405,7 @@ Widget _host(
         flow: _flowRef,
         resolver: resolver,
         onFlowUnavailable: onFlowUnavailable,
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text('UNAVAILABLE:${error.reason}'),
-        ),
+        fallbackBuilder: (_) => const Text('UNAVAILABLE:'),
       ),
     );
 

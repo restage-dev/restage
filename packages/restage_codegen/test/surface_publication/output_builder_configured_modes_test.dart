@@ -126,8 +126,8 @@ void main() {
             'lib/legacy_mounts.dart': '''
 import 'package:restage/restage.dart' as rs;
 List<Object> mounts(rs.SurfaceFlowRef<void> flow, rs.SurfaceScreenRef<void> screen) => [
-  rs.RestageSurfaceFlow(flow: flow, unavailable: const rs.FlowUnavailablePolicy.hide()),
-  rs.RestageSurfaceScreen(screen: screen, unavailable: const rs.SurfaceScreenUnavailablePolicy.hide()),
+  rs.RestageSurfaceFlow(flow: flow),
+  rs.RestageSurfaceScreen(screen: screen),
 ];
 ''',
           },
@@ -140,10 +140,10 @@ List<Object> mounts(rs.SurfaceFlowRef<void> flow, rs.SurfaceScreenRef<void> scre
         if (bundled) {
           expect(warnings, isEmpty);
         } else {
-          expect(warnings, hasLength(8));
+          expect(warnings, hasLength(10));
           expect(
             warnings.where((warning) => warning.contains('main.dart:')),
-            hasLength(6),
+            hasLength(8),
           );
           expect(
             warnings.where(
@@ -155,7 +155,19 @@ List<Object> mounts(rs.SurfaceFlowRef<void> flow, rs.SurfaceScreenRef<void> scre
           expect(warnings, everyElement(isNot(contains('/apps_examples/'))));
           expect(warnings, contains(contains("RestagePaywall(id: 'offer')")));
           expect(warnings, contains(contains("RestagePaywall(id: 'null_ui')")));
-          expect(warnings, contains(contains('RestageScreen(screen: screen)')));
+          expect(
+            warnings,
+            contains(contains("RestagePaywall(id: 'error_ui')")),
+          );
+          // The bare screen and the one whose builder may be null.
+          expect(
+            warnings.where(
+              (warning) =>
+                  warning.contains('main.dart:') &&
+                  warning.contains('RestageScreen(screen: screen)'),
+            ),
+            hasLength(2),
+          );
           expect(
             warnings,
             contains(contains('RestageFlowGraph(flow: oldFlow)')),
@@ -178,7 +190,7 @@ List<Object> mounts(rs.SurfaceFlowRef<void> flow, rs.SurfaceScreenRef<void> scre
       (
         'names the widget generated for the flow, read through any name',
         "  surfaceWidget: 'WelcomeTourSurface',",
-        "`lib/main.dart:23:19`: `RestageFlowGraph(flow: f)` shows steps that "
+        "`lib/main.dart:22:19`: `RestageFlowGraph(flow: f)` shows steps that "
             "need the app's code: `Start`. No screen builder is bound for "
             'them. Try using the generated `WelcomeTourSurface` widget '
             'instead.',
@@ -186,7 +198,7 @@ List<Object> mounts(rs.SurfaceFlowRef<void> flow, rs.SurfaceScreenRef<void> scre
       (
         'leaves out a widget the reference does not name',
         '',
-        "`lib/main.dart:23:19`: `RestageFlowGraph(flow: f)` shows steps that "
+        "`lib/main.dart:22:19`: `RestageFlowGraph(flow: f)` shows steps that "
             "need the app's code: `Start`. No screen builder is bound for "
             'them.',
       ),
@@ -221,8 +233,7 @@ class Start extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 Widget stepMount(BuildContext context, Widget child, Widget original) => child;
-Widget fallback(BuildContext context, rs.FlowUnavailableError error) =>
-    const SizedBox.shrink();
+Widget fallback(BuildContext context) => const SizedBox.shrink();
 const startFlowRef = rs.SurfaceFlowRef<void>(
   id: 'alpha', version: 1, minClient: 1,
   surface: rs.Surface.onboarding, decodeResult: decode,
@@ -232,7 +243,7 @@ $declared
 );
 const f = startFlowRef;
 Widget mount() => const rs.RestageFlowGraph(
-    flow: f, unavailable: rs.FlowUnavailablePolicy.fallback(builder: fallback));
+    flow: f, fallbackBuilder: fallback);
 ''',
           },
         );
@@ -528,9 +539,7 @@ const incompleteFlow = rs.SurfaceFlowRef<void>(
   compiled: rs.CompiledFlow(documentJson: $documentJson, screens: {}),
 );
 Widget fallback(BuildContext context) => const SizedBox.shrink();
-Widget flowFallback(BuildContext context, rs.FlowUnavailableError error) =>
-    const SizedBox.shrink();
-const explicitFlowFallback = rs.FlowUnavailablePolicy.fallback(builder: flowFallback);
+WidgetBuilder? maybeFallback;
 
 // The generated mount pattern supplies the original constructor via super.
 class OfferSurface extends rs.RestagePaywall {
@@ -543,19 +552,22 @@ const lookalike = RestagePaywall(id: 'unrelated');
 
 List<Widget> mounts(rs.SurfaceScreenRef<void> screen) => [
   const rs.RestagePaywall(id: 'offer'),
-  const rs.RestagePaywall(id: 'null_ui', errorBuilder: null),
-  rs.RestageScreen(screen: screen, unavailable: const rs.SurfaceScreenUnavailablePolicy.hide()),
-  const rs.RestageFlowGraph(flow: oldFlow, unavailable: rs.FlowUnavailablePolicy.hide()),
-  const rs.RestageOnboarding(flow: oldFlow, unavailable: rs.FlowUnavailablePolicy.hide()),
-  const rs.RestageFlowGraph(flow: incompleteFlow, unavailable: rs.FlowUnavailablePolicy.hide()),
+  const rs.RestagePaywall(id: 'null_ui', fallbackBuilder: null),
+  rs.RestageScreen(screen: screen),
+  const rs.RestageFlowGraph(flow: oldFlow),
+  const rs.RestageOnboarding(flow: oldFlow),
+  const rs.RestageFlowGraph(flow: incompleteFlow),
+  // An error builder shows only after progress, so it handles nothing here.
+  rs.RestagePaywall(id: 'error_ui', errorBuilder: (context, error) => const SizedBox.shrink()),
+  // A builder that may be null may show nothing.
+  rs.RestageScreen(screen: screen, fallbackBuilder: maybeFallback),
 
   // Each of these already retains native content or explicit fallback UI.
   const OfferSurface(),
   const rs.RestagePaywall(id: 'native', fallbackBuilder: fallback),
-  rs.RestagePaywall(id: 'error_ui', errorBuilder: (context, error) => const SizedBox.shrink()),
-  rs.RestageScreen(screen: screen, unavailable: rs.SurfaceScreenUnavailablePolicy.fallback(builder: (context, error) => const SizedBox.shrink())),
-  const rs.RestageFlowGraph(flow: oldFlow, unavailable: explicitFlowFallback),
-  rs.RestageOnboarding(flow: oldFlow, unavailable: rs.FlowUnavailablePolicy.fallback(builder: (context, error) => const SizedBox.shrink())),
-  const rs.RestageFlowGraph(flow: compiledFlow, unavailable: rs.FlowUnavailablePolicy.hide()),
+  rs.RestageScreen(screen: screen, fallbackBuilder: (context) => const SizedBox.shrink()),
+  const rs.RestageFlowGraph(flow: oldFlow, fallbackBuilder: fallback),
+  rs.RestageOnboarding(flow: oldFlow, fallbackBuilder: (context) => const SizedBox.shrink()),
+  const rs.RestageFlowGraph(flow: compiledFlow),
 ];
 ''';

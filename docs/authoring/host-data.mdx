@@ -124,7 +124,7 @@ HabitListSurface(
 
 The generated widget puts the host-data arguments into `context:` and shows the delivered surface. Your compiled `HabitList(habits: habits)` stays as the fallback. If delivery, rendering or an event fails, the user sees your widget with the same data.
 
-To change the fallback, set an `unavailable` policy. See [Write a surface](/authoring/write-a-surface#typed-mounts).
+To change the fallback, pass a `fallbackBuilder`. See [Write a surface](/authoring/write-a-surface#typed-mounts).
 
 A `@Paywall` class gets a generated widget too. [Write a surface](/authoring/write-a-surface#typed-mounts) lists the options it takes.
 
@@ -135,7 +135,6 @@ Direct runtime mounts take an optional `context:` map. Use it when you want to b
 ```dart
 RestageScreen(
   screen: accountSummaryScreenRef,
-  unavailable: const SurfaceScreenUnavailablePolicy.hide(),
   context: <String, Object?>{
     'profile': <String, Object?>{
       'displayName': profile.displayName,

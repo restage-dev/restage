@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:restage/restage.dart';
 
 import 'flows/bare_surface.dart';
 
@@ -10,12 +9,6 @@ class BareSurfaceDemo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BareSurfaceFlowSurface(
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => const Scaffold(
-          body: Center(child: Text('Surface is unavailable right now.')),
-        ),
-      ),
-    );
+    return BareSurfaceFlowSurface();
   }
 }

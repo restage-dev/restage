@@ -492,7 +492,7 @@ void main() {
           id: 'p',
           resolver: resolver,
           onEvent: events.add,
-          errorBuilder: (_, __) => const Text('Refresh failed visibly'),
+          fallbackBuilder: (_) => const Text('Refresh failed visibly'),
         ),
       ),
     ));
@@ -835,7 +835,7 @@ void main() {
         id: 'p',
         resolver: resolver,
         onEvent: events.add,
-        errorBuilder: (_, __) => const Text('Throwing blob escaped'),
+        fallbackBuilder: (_) => const Text('Throwing blob escaped'),
       ),
     );
     events.clear();

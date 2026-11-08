@@ -59,7 +59,7 @@ delivery and measurement stay off.
 ## First-launch wait
 
 A mount with nothing saved waits up to 3 s for delivered content before it shows its
-fallback or applies its unavailable policy. A mount with a saved version waits up to
+fallback. A mount with a saved version waits up to
 150 ms for a newer one before it shows the saved version.
 
 The mount uses a saved version only if it matches the surface and the installed
@@ -103,9 +103,9 @@ What shows when the server can't deliver a version depends on the widget you mou
 | Generated screen mount, `FeatureAnnouncementSurface()` | Yes, with its original constructor arguments | No |
 | Generated paywall mount, `ProUpgradePaywallSurface()` | Yes, with its original constructor arguments | No |
 | Generated flow mount, `WelcomeFlowSurface(...)` | Yes, your compiled screens | No |
-| `RestageScreen(screen: featureAnnouncementRef, unavailable: ...)` | No; your `unavailable` policy decides | Only for a bundled fallback |
+| `RestageScreen(screen: featureAnnouncementRef, fallbackBuilder: ...)` | No; your `fallbackBuilder` decides | Only for a bundled fallback |
 | `RestagePaywall(id: 'pro_upgrade')` | Only if you supply `fallbackBuilder` | For a bundled fallback, and for a paywall that navigates between screens |
-| `RestageFlowGraph(flow: welcomeFlowRef, ...)` | No; your `unavailable` policy decides | Yes: the bundled flow is what the SDK checks published versions against, and the fallback |
+| `RestageFlowGraph(flow: welcomeFlowRef, ...)` | Yes, the compiled screens of a generated reference, unless your `fallbackBuilder` replaces them | No: a generated reference carries its compiled flow. Bundled flow assets, when present, are tried before it |
 
 ### Generated paywall and flow mounts
 
@@ -160,7 +160,7 @@ to fall back to.
 
 ## Direct mounts and custom resolvers
 
-Use generated mounts for authored screens, paywalls and flows. The lower-level APIs below are supported, for apps that supply their own references, resolvers and unavailable policies. The deprecated names are listed under
+Use generated mounts for authored screens, paywalls and flows. The lower-level APIs below are supported, for apps that supply their own references, resolvers and fallbacks. The deprecated names are listed under
 [Older names](/authoring/write-a-surface#older-names). A custom resolver returns
 blobs without icon fonts, so the app must register every icon those surfaces draw.
 See [App size](/delivery/app-size#icons-delivered-over-the-air).
@@ -172,9 +172,7 @@ See [App size](/delivery/app-size#icons-delivered-over-the-air).
 ```dart
 RestageScreen<MaintenanceNoticeSurfaceEvent>(
   screen: maintenanceNoticeRef,
-  unavailable: SurfaceScreenUnavailablePolicy.fallback(
-    builder: (context, error) => const Text('Notice unavailable'),
-  ),
+  fallbackBuilder: (context) => const Text('Notice unavailable'),
   onEvent: (event) {
     if (event is MaintenanceNoticeSurfaceDismissEvent) {
       Navigator.of(context).maybePop();
@@ -186,9 +184,9 @@ RestageScreen<MaintenanceNoticeSurfaceEvent>(
 Before `RestageScreen` renders a version from the server, it checks that the version
 matches the generated screen: its id, category, contract version, events, islands and
 the widgets it needs. It also checks that each value and island the version reads is
-produced in that layout. If the server has nothing or can't be reached, it uses the bundled
-copy when there is one. It never shows a version that fails a check. The screen goes
-to your `unavailable` policy instead.
+produced in that layout. It never shows a version that fails a check. When the server
+has nothing, can't be reached, or sends a version that fails a check, the screen shows
+the last good copy on the device, then the bundled copy, then your `fallbackBuilder`.
 
 ## Hosted flows
 
@@ -203,9 +201,7 @@ RestageFlowGraph<AccountRecoveryResult>(
     apiKey: apiKey,
     active: true,
   ),
-  unavailable: FlowUnavailablePolicy.fallback(
-    builder: (context, error) => const Text('Flow unavailable'),
-  ),
+  fallbackBuilder: (context) => const Text('Flow unavailable'),
   onComplete: (result) {
     Navigator.of(context).pushReplacementNamed('/home');
   },
@@ -228,15 +224,16 @@ screens show but not the shape of the graph. To change the graph over the air, s
 ## When a version can't be shown
 
 Local content counts only if it's ready within the wait. Within that limit, the
-mount's resolver and fallback policy decide what appears:
+mount's resolver and fallback builders decide what appears:
 
 - **Paywalls** use fresh content that's ready in time. Then they try a saved version that still qualifies, or a bundle, and then `fallbackBuilder`, where generated mounts supply the compiled widget. A direct mount with no usable fallback uses
   `errorBuilder` for a load failure.
-- **Flows** use hosted or saved content that qualifies. Then they use the flow built
-  into the app or the bundled flow. If none can run, `RestageFlowGraph` applies your
-  `FlowUnavailablePolicy`.
+- **Flows** use hosted or saved content that qualifies. Then they use the bundled flow,
+  then the flow built into the app. A `fallbackBuilder` you pass replaces the built-in
+  flow. With neither, `RestageFlowGraph` shows your `errorBuilder`, or nothing.
 - **Standalone screens** with a generated mount can show your compiled widget. A
-  `RestageScreen` uses your `unavailable` policy when nothing can render.
+  `RestageScreen` shows your `fallbackBuilder` when nothing can render, or without one
+  its `errorBuilder`, or nothing.
 
 A malformed response, a server error, a widget your app doesn't have, or a version
 built for a newer app never reaches the screen. No surface renders a version that

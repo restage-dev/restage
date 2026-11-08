@@ -36,7 +36,7 @@ enum SurfaceScreenUnavailableReason {
   renderFailure,
 }
 
-/// The fail-closed error supplied to a standalone screen's unavailable policy.
+/// The fail-closed error a standalone screen reports when it is unavailable.
 @immutable
 final class SurfaceScreenUnavailableError implements Exception {
   /// Creates an unavailable standalone-screen error.

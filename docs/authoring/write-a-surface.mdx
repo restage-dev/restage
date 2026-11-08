@@ -284,13 +284,13 @@ The event field here is `continueEvent`. Its class is `WelcomeScreenSurfaceConti
 - It shows the published screen through `RestageScreen<E>`.
 - It builds your own widget with the same arguments and keeps it as the fallback. If delivery, rendering or an event fails, users see that compiled widget.
 
-Besides your own parameters, it takes `onEvent`, `resolver`, `onUnavailable` (called when the screen is unavailable), `loadingBuilder` and an optional `unavailable` policy. Leave `unavailable` out and users see the compiled widget. To hide an unavailable card or banner instead:
+Besides your own parameters, it takes `onEvent`, `resolver`, `onUnavailable` (called when the screen is unavailable), `loadingBuilder`, `fallbackBuilder` and `errorBuilder`. Leave `fallbackBuilder` out and users see the compiled widget. To hide an unavailable card or banner instead:
 
 ```dart
 WelcomeScreenSurface(
   title: 'Welcome',
   // Show nothing when the screen is unavailable.
-  unavailable: const SurfaceScreenUnavailablePolicy.hide(),
+  fallbackBuilder: (_) => const SizedBox.shrink(),
 )
 ```
 
@@ -299,17 +299,24 @@ To show something else, pass your own fallback. The generated host data still ap
 ```dart
 WelcomeScreenSurface(
   title: 'Welcome',
-  unavailable: SurfaceScreenUnavailablePolicy.fallback(
-    builder: (_, error) => Text('Screen unavailable: ${error.reason.name}'),
-  ),
+  fallbackBuilder: (_) => const Text('Screen unavailable'),
+)
+```
+
+To keep the compiled widget and show an error widget only when the screen fails after the user started using it, pass an `errorBuilder`:
+
+```dart
+WelcomeScreenSurface(
+  title: 'Welcome',
+  errorBuilder: (_, error) => const Text('Something went wrong'),
 )
 ```
 
 Flows get a generated `<FlowName>Surface` too. See [Mount the flow](/flows/overview#mount-the-flow).
 
-`RestageScreen` and `RestageFlowGraph<R>` still work when you want to pass references and fallback policies yourself. See [API choices](#recommended-authoring-and-mounting-apis).
+`RestageScreen` and `RestageFlowGraph<R>` still work when you want to pass references and fallbacks yourself. See [API choices](#recommended-authoring-and-mounting-apis).
 
-A `@Paywall()` class gets its own `<ClassName>Surface`. It shows the paywall through `RestagePaywall` and keeps your widget as the fallback. It takes `onEvent`, `resolver`, `errorBuilder` and `loadingBuilder`.
+A `@Paywall()` class gets its own `<ClassName>Surface`. It shows the paywall through `RestagePaywall` and keeps your widget as the fallback. It takes `onEvent`, `resolver`, `loadingBuilder`, `fallbackBuilder` and `errorBuilder`.
 
 The build skips generating the widget, and tells you why, in two cases. One is when its name would clash with one of your own declarations. The other is when it can't tell where a constructor argument comes from. If the screen needs values, app-rendered widgets, kept wrappers or `State` from that widget, the build reports an error for each instead, and names it.
 

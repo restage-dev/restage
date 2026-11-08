@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:restage/restage.dart';
 
 import '../paywalls/lumen_welcome_offer.dart';
 import 'flows/lumen_onboarding.dart';
@@ -52,18 +51,6 @@ class _LumenOnboardingDemoState extends State<LumenOnboardingDemo> {
         if (mounted) setState(() => _completed = result.completed);
       },
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFFF7F5FB)),
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => ColoredBox(
-          color: const Color(0xFFF7F5FB),
-          child: Center(
-            child: Text(
-              error.message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF2A2833)),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

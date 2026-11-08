@@ -127,10 +127,8 @@ void main() {
                 surface: Surface.survey,
                 decodeResult: _decode),
             resolver: StaticFlowResolver(resolved),
-            unavailable: FlowUnavailablePolicy.fallback(builder: (_, error) {
-              stage('flow unavailable: $error');
-              return Text('unavailable:${error.reason}');
-            }),
+            onFlowUnavailable: (error) => stage('flow unavailable: $error'),
+            fallbackBuilder: (_) => const Text('unavailable:'),
             onComplete: (_) {
               completed = true;
             });

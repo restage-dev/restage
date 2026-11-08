@@ -1353,14 +1353,12 @@ void main() {
             child: RestageFlowGraph<Map<String, Object?>>(
               flow: messageRef,
               resolver: resolver,
-              unavailable: const FlowUnavailablePolicy.hide(),
             ),
           ),
           Expanded(
             child: RestageFlowGraph<Map<String, Object?>>(
               flow: surveyRef,
               resolver: resolver,
-              unavailable: const FlowUnavailablePolicy.hide(),
             ),
           ),
         ],
@@ -1644,9 +1642,7 @@ Widget _host(
         flow: _flowRef,
         resolver: resolver,
         onFlowUnavailable: onFlowUnavailable,
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text('UNAVAILABLE:${error.reason}'),
-        ),
+        fallbackBuilder: (_) => const Text('UNAVAILABLE:'),
       ),
     );
 

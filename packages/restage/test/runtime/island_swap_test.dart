@@ -268,7 +268,6 @@ void main() {
         RestageOnboarding<FirstRunResult>(
           flow: firstRunFlowRef,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
         ),
       ),
     ));

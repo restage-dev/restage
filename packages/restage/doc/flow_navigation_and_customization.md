@@ -244,7 +244,6 @@ paywall are distinct stages.
 RestageFlowGraph<FirstRunResult>(
   flow: firstRunFlowRef,
   actions: FirstRunActions(/* ... */),
-  unavailable: FlowUnavailablePolicy.hide(),
   onComplete: (result) => Navigator.of(context).pushReplacement(
     MaterialPageRoute<void>(builder: (_) => const MyPaywall()),
   ),

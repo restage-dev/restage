@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:restage/restage.dart';
 
 import '../onboarding/flows/minimal_stats.dart';
 
@@ -12,7 +11,6 @@ class MinimalCustomWidgetDemo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MinimalStatsFlowSurface(
-      unavailable: const FlowUnavailablePolicy.hide(),
       onComplete: (result) => Navigator.of(context).maybePop(),
       onFlowUnavailable: (error) => Navigator.of(context).maybePop(),
     );

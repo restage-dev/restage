@@ -66,18 +66,6 @@ class _CravePermissionDemoState extends State<CravePermissionDemo> {
       actions: _actions,
       onComplete: (result) => _enterApp(),
       loadingBuilder: (context) => const ColoredBox(color: Colors.white),
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => Scaffold(
-          backgroundColor: Colors.white,
-          body: Center(
-            child: Text(
-              error.message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF1F1B16)),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

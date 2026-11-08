@@ -283,7 +283,7 @@ class GradientLabel extends StatelessWidget {
         bundle.ownedOutputs['lib/restage.generated/masked.restage.g.dart']!,
       );
       // The fallback is the widget the app built: the authored screen.
-      expect(generated, contains('builder: (_, error) => _restageBuilt'));
+      expect(generated, contains('fallbackBuilder ?? ((_) => _restageBuilt)'));
       expect(generated, contains('_restageDesign(Masked(title: '));
       expect(generated, isNot(contains('_restageDesign(RestageShaderMask(')));
     },

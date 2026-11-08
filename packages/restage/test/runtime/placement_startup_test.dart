@@ -31,6 +31,7 @@ import 'package:restage/src/refresh/surface_refresh_registry.dart';
 import 'package:restage/src/runtime/placement_discovery.dart';
 import 'package:restage/src/runtime/installed_widget_vocabulary.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:rfw/rfw.dart' show RemoteWidget;
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -2446,7 +2447,7 @@ void main() {
     }
   });
 
-  testWidgets('a hidden screen fallback still reports its placement',
+  testWidgets('an empty screen fallback still reports its placement',
       (tester) async {
     final requests = <PlacementBatchRequestV1>[];
     _configure(requests, respond: _watchedFallback);
@@ -2469,12 +2470,13 @@ void main() {
               null,
               null,
               null,
-              const SurfaceScreenUnavailablePolicy.hide())));
+              (_) => const SizedBox.shrink())));
       await _finish(tester);
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Notice original'), findsNothing);
       expect(reports.last.mounts.single.key.slug, 'notice_slot');
-      expect(reports.last.bounds, isEmpty);
+      // The empty fallback is shown content, so it reports bounds.
+      expect(reports.last.bounds, hasLength(1));
     } finally {
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(milliseconds: 300));
@@ -2764,7 +2766,7 @@ void main() {
 
     Widget slot() => MaterialApp(
         home: RestagePlacement(
-            id: 'slow_card', fallback: (_) => const Text('Original')));
+            id: 'slow_card', fallbackBuilder: (_) => const Text('Original')));
 
     testWidgets('counts one view with the signed decision', (tester) async {
       final requests = <PlacementBatchRequestV1>[];
@@ -2781,7 +2783,7 @@ void main() {
             home: RestagePlacement.forSurface(
                 surfaceType: Surface.paywall,
                 surfaceId: 'promo',
-                fallback: (_) => const Text('Original'))));
+                fallbackBuilder: (_) => const Text('Original'))));
         await _finish(tester);
         expect(find.text('Original'), findsOneWidget);
         final receipts = await fallbacks();
@@ -3670,8 +3672,7 @@ void main() {
             screen: original.ref,
             placementBinding:
                 PlacementMountBinding(definition: () => definition),
-            unavailable: SurfaceScreenUnavailablePolicy.fallback(
-                builder: (_, __) => const Text('Original')))));
+            fallbackBuilder: (_) => const Text('Original'))));
     await _finish(tester);
     expect(requests, hasLength(1));
     expect(find.text('Welcome'), findsOneWidget);
@@ -3715,7 +3716,8 @@ void main() {
     });
     await tester.pumpWidget(MaterialApp(
         home: RestagePlacement(
-            id: 'expiring_card', fallback: (_) => const Text('Original'))));
+            id: 'expiring_card',
+            fallbackBuilder: (_) => const Text('Original'))));
     await _finish(tester);
     final selectedBefore = find.text('Welcome').evaluate().length;
     now = now.add(const Duration(seconds: 1));
@@ -3729,6 +3731,202 @@ void main() {
     expect(selectedAfter, 0);
     expect(requests, hasLength(1));
     expect(requests.single.mounts.single.surfaceType, isNull);
+  });
+
+  testWidgets(
+      'a hiding paywall keeps its content when it expires with no original',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    var now = DateTime.utc(2026, 10, 4, 12);
+    _configure(requests, now: () => now, cacheValidityOverrides: {
+      'contentExpiresAtMicros':
+          now.add(const Duration(seconds: 1)).microsecondsSinceEpoch
+    });
+    final contract = SurfaceHostContractV1(
+        hosting: const SurfaceHostingV1(
+            contentKind: SurfaceContentKindV1.single,
+            presentation: SurfacePresentationV1.inline),
+        providedContext: const SurfaceScreenHostDataSchema.empty(),
+        handledEvents: SurfaceScreenEventSchema(events: const []));
+    await tester.pumpWidget(MaterialApp(
+        home: RestagePaywall(
+            id: 'expiring_card',
+            placementBinding: PlacementMountBinding.request(
+                mount: PlacementMountRequestV1(
+                    key: PlacementKeyV1.named(slug: 'expiring_card'),
+                    hostContractHash: contract.contentHash),
+                hostContract: contract))));
+    await _finish(tester);
+    final before = find.text('Welcome').evaluate().length;
+    now = now.add(const Duration(seconds: 1));
+    await SurfaceRefreshRegistry.instance.onAppResumed();
+    await _finish(tester);
+    final after = find.text('Welcome').evaluate().length;
+    await tester.pumpWidget(const SizedBox());
+    expect(before, 1);
+    expect(after, 1);
+  });
+
+  testWidgets(
+      'an expired flow placement the user went forward and back in keeps its '
+      'content', (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    var now = DateTime.utc(2026, 10, 4, 12);
+    final welcome = flows.screenBlob('Welcome', 'next');
+    final profile = flows.screenBlob('Profile', 'back');
+    final document =
+        flows.flowDocument(flow: 'expiring_journey', screenHashes: {
+      'welcome': FlowContentHash.compute(welcome),
+      'profile': FlowContentHash.compute(profile),
+    });
+    final boundary = FlowHostBoundaryV1.fromDocument(document, signals: {});
+    _configure(requests,
+        now: () => now,
+        payload: FlowSurfacePayload(
+            flowDocument: document,
+            screenBlobs: {'welcome': welcome, 'profile': profile},
+            requiredLibraries: []),
+        requirement: SurfaceFitRequirementV1(
+            hosting: SurfaceHostingRequirementV1(
+                contentKind: SurfaceContentKindV1.flow,
+                allowedPresentations: {SurfacePresentationV1.inline}),
+            requiredContext: const SurfaceScreenHostDataSchema.empty(),
+            emittedEvents: SurfaceScreenEventSchema(events: []),
+            capabilities:
+                CapabilityManifest(builtInFloor: 3, requiredLibraries: []),
+            requiredVocabulary: WidgetVocabulary(widgetNames: {
+              'restage.core:Text',
+              'restage.core:GestureDetector'
+            }),
+            flowBoundary: boundary),
+        family: const DeliveryFamilySelectorV1.general(),
+        cacheValidityOverrides: {
+          'contentExpiresAtMicros':
+              now.add(const Duration(seconds: 5)).microsecondsSinceEpoch
+        });
+    const flow = SurfaceFlowRef<void>(
+        id: 'expiring_journey',
+        version: 1,
+        minClient: 3,
+        surface: Surface.onboarding,
+        decodeResult: _decodeVoid);
+    final definition = GeneratedPlacementDefinition(
+        defaultSurface: flow,
+        defaultSurfaceLocator: DeliverySurfaceLocatorV1(
+            surfaceType: DeliverySurfaceTypeId('onboarding'),
+            slug: flow.id,
+            family: const DeliveryFamilySelectorV1.general()),
+        key: PlacementKeyV1.generatedDefault(
+            surfaceType: DeliverySurfaceTypeId('onboarding'), slug: flow.id),
+        hostContract: SurfaceHostContractV1(
+            hosting: const SurfaceHostingV1(
+                contentKind: SurfaceContentKindV1.flow,
+                presentation: SurfacePresentationV1.inline),
+            providedContext: const SurfaceScreenHostDataSchema.empty(),
+            handledEvents: SurfaceScreenEventSchema(events: []),
+            flowBoundary: boundary),
+        vocabulary: SurfaceVocabulary.none);
+    Future<void> fire(String name) async {
+      tester.widget<RemoteWidget>(find.byType(RemoteWidget).last).onEvent!(
+          name, const <String, Object?>{});
+      await tester.pump(const Duration(seconds: 1));
+      await _finish(tester);
+    }
+
+    try {
+      await tester.pumpWidget(MaterialApp(
+          home: RestageFlowGraph<void>(
+              flow: flow,
+              placementBinding:
+                  PlacementMountBinding(definition: () => definition),
+              fallbackBuilder: (_) => const Text('Original'),
+              errorBuilder: (_, __) => const Text('Error'))));
+      await _finish(tester);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Welcome'), findsOneWidget);
+      // Events without a pointer: progress without interaction.
+      await fire('next');
+      expect(find.text('Profile'), findsOneWidget);
+      await fire('back');
+      expect(find.text('Welcome'), findsOneWidget);
+      now = now.add(const Duration(seconds: 5));
+      await SurfaceRefreshRegistry.instance.onAppResumed();
+      await _finish(tester);
+      // The load advanced, so expiry never swaps it out.
+      expect(find.text('Welcome'), findsOneWidget);
+      expect(find.text('Error'), findsNothing);
+      expect(find.text('Original'), findsNothing);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  testWidgets('a flow that shows its error builder reports its painted spot',
+      (tester) async {
+    Restage.configure(analyticsEnabled: false, measurementEnabled: false);
+    final reports = <PlacementDiscoveryReportV1>[];
+    PlacementDiscovery.instance.configure(
+        installedCapability: currentInstalledCapability,
+        platform: 'android',
+        report: (report) async {
+          reports.add(report);
+          return true;
+        });
+    const flow = SurfaceFlowRef<void>(
+        id: 'fallback_journey',
+        version: 1,
+        minClient: 3,
+        surface: Surface.onboarding,
+        decodeResult: _decodeVoid);
+    final document = flows.childScreenFlow().document;
+    final definition = GeneratedPlacementDefinition(
+        defaultSurface: flow,
+        defaultSurfaceLocator: DeliverySurfaceLocatorV1(
+            surfaceType: DeliverySurfaceTypeId('onboarding'),
+            slug: flow.id,
+            family: const DeliveryFamilySelectorV1.general()),
+        key: PlacementKeyV1.generatedDefault(
+            surfaceType: DeliverySurfaceTypeId('onboarding'), slug: flow.id),
+        hostContract: SurfaceHostContractV1(
+            hosting: const SurfaceHostingV1(
+                contentKind: SurfaceContentKindV1.flow,
+                presentation: SurfacePresentationV1.inline),
+            providedContext: const SurfaceScreenHostDataSchema.empty(),
+            handledEvents: SurfaceScreenEventSchema(events: []),
+            flowBoundary:
+                FlowHostBoundaryV1.fromDocument(document, signals: {})),
+        vocabulary: SurfaceVocabulary.none);
+    final gate = Completer<void>();
+    await tester.pumpWidget(MaterialApp(
+        home: Column(children: [
+      RestageFlowGraph<void>(
+          flow: flow,
+          placementBinding: PlacementMountBinding(definition: () => definition),
+          resolver: _GatedUnavailableFlow(gate.future),
+          loadingBuilder: (_) => const SizedBox(
+              key: ValueKey('loading'),
+              height: 100,
+              width: 100,
+              child: ColoredBox(color: Colors.white)),
+          fallbackBuilder: (_) => const Expanded(child: Text('Flow original')),
+          errorBuilder: (_, __) => const Expanded(child: Text('Flow error'))),
+    ])));
+    await tester.pump();
+    // A drag on the loading state is progress.
+    await tester.drag(
+        find.byKey(const ValueKey('loading')), const Offset(0, 30));
+    gate.complete();
+    await _finish(tester);
+    await tester.pump(const Duration(milliseconds: 251));
+    await tester.pump(const Duration(milliseconds: 251));
+    final shown = find.text('Flow error').evaluate().length;
+    final painted = reports.isEmpty ? null : reports.last;
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(shown, 1);
+    expect(
+        painted?.mounts.map((mount) => mount.key.slug), ['fallback_journey']);
+    expect(painted?.bounds, hasLength(1));
   });
 
   testWidgets('screen and flow fallbacks report their painted placements',
@@ -3793,17 +3991,14 @@ void main() {
           placementBinding:
               PlacementMountBinding(definition: () => screenDefinition),
           resolver: const _UnavailableScreen(),
-          unavailable: SurfaceScreenUnavailablePolicy.fallback(
-              builder: (_, __) =>
-                  const Expanded(child: Text('Screen fallback')))),
+          fallbackBuilder: (_) =>
+              const Expanded(child: Text('Screen fallback'))),
       RestageFlowGraph<void>(
           flow: flow,
           placementBinding:
               PlacementMountBinding(definition: () => flowDefinition),
           resolver: const _UnavailableFlow(),
-          unavailable: FlowUnavailablePolicy.fallback(
-              builder: (_, __) =>
-                  const Expanded(child: Text('Flow fallback')))),
+          fallbackBuilder: (_) => const Expanded(child: Text('Flow fallback'))),
     ])));
     await _finish(tester);
     await tester.pump(const Duration(milliseconds: 251));
@@ -3837,7 +4032,7 @@ void main() {
           home: RestagePlacement(
               id: 'slow_card',
               loadingBuilder: (_) => const Text('Loading'),
-              fallback: (_) => const Text('Original'))));
+              fallbackBuilder: (_) => const Text('Original'))));
       await tester.pump(Duration(milliseconds: milliseconds - 1));
       expect(find.text('Original'), findsNothing);
       await tester.pump(const Duration(milliseconds: 1));
@@ -3912,8 +4107,7 @@ void main() {
             onFlowUnavailable: failures.add,
             placementBinding: PlacementMountBinding(
                 definition: () => definition, name: 'journey_slot'),
-            unavailable: FlowUnavailablePolicy.fallback(
-                builder: (_, __) => const Text('Original journey')))));
+            fallbackBuilder: (_) => const Text('Original journey'))));
     await _finish(tester);
     final selectedCount = find.text('Selected journey').evaluate().length;
     final originalCount = find.text('Original journey').evaluate().length;
@@ -3988,8 +4182,7 @@ void main() {
             onFlowUnavailable: failures.add,
             placementBinding: PlacementMountBinding(
                 definition: () => definition, name: 'journey_slot'),
-            unavailable: FlowUnavailablePolicy.fallback(
-                builder: (_, __) => const Text('Original journey')))));
+            fallbackBuilder: (_) => const Text('Original journey'))));
     await _finish(tester);
     expect(find.text('Original journey'), findsOneWidget);
     expect(requests, hasLength(1), reason: failures.toString());
@@ -4030,7 +4223,7 @@ void main() {
             contract: served.host,
             onComplete: results.add,
             onEvent: received.add,
-            fallback: (_) => const Text('Original journey'))));
+            fallbackBuilder: (_) => const Text('Original journey'))));
     await _finish(tester);
     expect(find.text('Selected journey'), findsOneWidget);
     await tester.tap(find.text('Selected journey'));
@@ -4068,7 +4261,7 @@ void main() {
             surfaceId: 'plus_offer',
             contract: served.host,
             onEvent: received.add,
-            fallback: (_) => const Text('Original offer'))));
+            fallbackBuilder: (_) => const Text('Original offer'))));
     await _finish(tester);
     expect(find.text('Get Plus'), findsOneWidget);
     await tester.tap(find.text('Get Plus'));
@@ -4089,7 +4282,7 @@ void main() {
             surfaceId: 'plus_offer',
             contract: _flowHost(document).host,
             onComplete: (_) {},
-            fallback: (_) => const SizedBox()),
+            fallbackBuilder: (_) => const SizedBox()),
         throwsArgumentError);
   });
 
@@ -4114,7 +4307,7 @@ void main() {
             surfaceType: Surface.paywall,
             contract: served.host,
             onEvent: received.add,
-            fallback: (_) => const Text('Original offer'))));
+            fallbackBuilder: (_) => const Text('Original offer'))));
     await _finish(tester);
     await tester.tap(find.text('Get Plus'));
     await _finish(tester);
@@ -4179,7 +4372,7 @@ void main() {
             id: 'journey_slot',
             contract: served.host,
             onComplete: results.add,
-            fallback: (_) => const Text('Original journey'))));
+            fallbackBuilder: (_) => const Text('Original journey'))));
     await _finish(tester);
     await tester.tap(find.text('Selected journey'));
     await _finish(tester);
@@ -4259,7 +4452,7 @@ void main() {
           id: 'journey_slot',
           contract: served.host,
           onComplete: (_) {},
-          fallback: (_) => const Text('Original journey'));
+          fallbackBuilder: (_) => const Text('Original journey'));
       configure();
       await tester.pumpWidget(MaterialApp(home: host()));
       await _finish(tester);
@@ -4476,6 +4669,16 @@ final class _PlacementWatchRecorder implements DeliveryUpdateChannel {
       Future<PlacementRefreshProbeV1> Function()? reconnectProbe}) {
     watches.add(watch!);
     return const Stream.empty();
+  }
+}
+
+final class _GatedUnavailableFlow implements FlowResolver {
+  const _GatedUnavailableFlow(this.gate);
+  final Future<void> gate;
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
+    await gate;
+    throw StateError('Unavailable');
   }
 }
 

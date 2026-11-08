@@ -126,7 +126,6 @@ Widget _host(SurfaceFlowRef<_Result> flow) => MaterialApp(
       home: RestageFlowGraph<_Result>(
         flow: flow,
         resolver: _EitherFlowResolver(),
-        unavailable: const FlowUnavailablePolicy.hide(),
       ),
     );
 

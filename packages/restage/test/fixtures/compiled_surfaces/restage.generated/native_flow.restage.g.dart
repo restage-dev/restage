@@ -130,7 +130,8 @@ final class NativeClassFlowSurface extends RestageFlowGraph<NativeClassResult> {
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = placement,
         super(flow: nativeClassFlowRef);
 
@@ -151,7 +152,8 @@ final class NativeClassFlowSurface extends RestageFlowGraph<NativeClassResult> {
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = restagePlacementId,
         super(flow: nativeClassFlowRef);
 
@@ -262,7 +264,8 @@ final class NativeNamedFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = placement,
         super(
           flow: nativeNamedFlowRef,
@@ -287,7 +290,8 @@ final class NativeNamedFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = restagePlacementId,
         super(
           flow: nativeNamedFlowRef,
@@ -414,7 +418,8 @@ final class NativeOfferFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = placement,
         super(flow: nativeOfferFlowRef);
 
@@ -435,7 +440,8 @@ final class NativeOfferFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = restagePlacementId,
         super(flow: nativeOfferFlowRef);
 
@@ -588,7 +594,8 @@ final class NativeWelcomeFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = placement,
         super(flow: nativeWelcomeFlowRef);
 
@@ -609,7 +616,8 @@ final class NativeWelcomeFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = restagePlacementId,
         super(flow: nativeWelcomeFlowRef);
 
@@ -749,7 +757,8 @@ final class NativeNoticeSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   ])  : _restageStored0 = title,
         _restageStored1 = count,
         _restagePlacementName = null,
@@ -767,7 +776,8 @@ final class NativeNoticeSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   ])  : _restageStored0 = title,
         _restageStored1 = count,
         _restagePlacementName = restagePlacementId,
@@ -788,7 +798,10 @@ final class NativeNoticeSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
-  final SurfaceScreenUnavailablePolicy? unavailable;
+  final WidgetBuilder? fallbackBuilder;
+
+  final Widget Function(BuildContext, SurfaceScreenUnavailableError)?
+      errorBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -806,13 +819,11 @@ final class NativeNoticeSurface extends StatelessWidget {
           'title': _restageArgument0,
           'count': _restageArgument1,
         },
-        unavailable: unavailable ??
-            SurfaceScreenUnavailablePolicy.fallback(
-              builder: (_, error) => _restageBuilt,
-            ),
+        fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
+        errorBuilder: errorBuilder,
+        onUnavailable: onUnavailable,
         onEvent: onEvent,
         resolver: resolver,
-        onUnavailable: onUnavailable,
         loadingBuilder: loadingBuilder,
       );
     }
@@ -867,8 +878,9 @@ final class NativeOfferSurface extends StatelessWidget {
     String? placement,
     this.onEvent,
     this.resolver,
-    this.errorBuilder,
     this.loadingBuilder,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restagePlacementName = placement;
 
   /// Overrides the implicit placement with an explicit name.
@@ -879,8 +891,9 @@ final class NativeOfferSurface extends StatelessWidget {
     super.key,
     this.onEvent,
     this.resolver,
-    this.errorBuilder,
     this.loadingBuilder,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restagePlacementName = restagePlacementId;
 
   final String? _restagePlacementName;
@@ -889,9 +902,11 @@ final class NativeOfferSurface extends StatelessWidget {
 
   final VariantResolver? resolver;
 
-  final Widget Function(BuildContext, RestagePaywallError)? errorBuilder;
-
   final WidgetBuilder? loadingBuilder;
+
+  final WidgetBuilder? fallbackBuilder;
+
+  final Widget Function(BuildContext, RestagePaywallError)? errorBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -910,10 +925,10 @@ final class NativeOfferSurface extends StatelessWidget {
           definition: nativeOfferPlacementDefinition,
           name: _restagePlacementName,
         ),
-        fallbackBuilder: (_) => _restageBuilt,
+        fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
+        errorBuilder: errorBuilder,
         onEvent: onEvent,
         resolver: resolver,
-        errorBuilder: errorBuilder,
         loadingBuilder: loadingBuilder,
       );
     }

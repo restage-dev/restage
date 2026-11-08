@@ -158,11 +158,11 @@ class _HostedSurfaceDemoApp extends StatelessWidget {
               const Center(child: CircularProgressIndicator()),
           // If the fetch, the saved copy and the bundled asset all fail, show
           // a plain message instead of a blank screen.
-          errorBuilder: (context, error) => Center(
+          fallbackBuilder: (context) => Center(
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Text(
-                'Paywall "$slug" is unavailable right now.\n\n$error',
+                'Paywall "$slug" is unavailable right now.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
@@ -273,7 +273,7 @@ class _HostedPaywallDemoState extends State<HostedPaywallDemo> {
                 const Center(child: CircularProgressIndicator()),
             // If every source fails, show a plain message instead of a blank
             // screen.
-            errorBuilder: (context, error) => Center(
+            fallbackBuilder: (context) => Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
                 child: Text(

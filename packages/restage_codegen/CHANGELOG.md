@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Breaking:** generated flow and screen mounts take optional
+  `fallbackBuilder` and `errorBuilder` in place of `unavailable:`; generated
+  paywall mounts add `fallbackBuilder` beside `errorBuilder`. Omitting
+  `fallbackBuilder` shows the compiled original; a generated flow mount no
+  longer shows nothing by default. With the compiled original below it, an
+  `errorBuilder` shows only after the user made progress.
+
 - **Breaking:** `A2uiDartCoverageReason` gains `unsupportedScalarCallback`; exhaustive switches must handle it.
 - **Breaking:** `A2uiDartWidgetPlan.usesPropsNamespace` is removed; A2UI 1.0 components carry their properties at the top level.
 - **Breaking:** exhaustive switches over `IssueCode` must handle the new app-rendered widget and opt-out codes.

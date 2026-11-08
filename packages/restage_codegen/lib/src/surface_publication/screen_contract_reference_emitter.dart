@@ -1258,7 +1258,6 @@ _resolveScreenMount(
         }
       : const {
           'RestageScreen',
-          'SurfaceScreenUnavailablePolicy',
           'SurfaceScreenResolver',
           'SurfaceScreenUnavailableError',
         };
@@ -1953,9 +1952,10 @@ String _emitReferenceDart(
 Set<String> _mountControlNames({required bool paywall}) => {
   'onEvent',
   'resolver',
-  if (paywall) 'errorBuilder' else 'onUnavailable',
+  if (!paywall) 'onUnavailable',
   'loadingBuilder',
-  if (!paywall) 'unavailable',
+  'fallbackBuilder',
+  'errorBuilder',
 };
 
 void _emitScreenMount(
@@ -1991,7 +1991,6 @@ void _emitScreenMount(
           : read(parameter.slotName),
   };
   final paywall = paywallId != null;
-  final unavailableControl = paywall ? 'errorBuilder' : 'onUnavailable';
   final mountName = generatedSurfaceName(
     screenName,
     fallback: 'SurfaceScreen',
@@ -2012,6 +2011,9 @@ void _emitScreenMount(
     (parameter) => parameter.kind == RootContextParamKind.named,
   );
   final sdk = mount.sdk;
+  final errorType = paywall
+      ? '${sdk}RestagePaywallError'
+      : '${sdk}SurfaceScreenUnavailableError';
   final flutter = mount.flutter;
   final names = {
     ...mount.reservedNativeNames,
@@ -2266,12 +2268,12 @@ void _emitScreenMount(
       }
       buffer
         ..writeln('    this.onEvent,')
-        ..writeln('    this.resolver,')
-        ..writeln('    this.$unavailableControl,')
-        ..writeln('    this.loadingBuilder,');
-      if (!paywall) {
-        buffer.writeln('    this.unavailable,');
-      }
+        ..writeln('    this.resolver,');
+      if (!paywall) buffer.writeln('    this.onUnavailable,');
+      buffer
+        ..writeln('    this.loadingBuilder,')
+        ..writeln('    this.fallbackBuilder,')
+        ..writeln('    this.errorBuilder,');
       buffer.writeln(optionalPositional.isNotEmpty ? '    ]' : '    }');
       final placementValue = atPlacement
           ? placementArgument
@@ -2321,21 +2323,25 @@ void _emitScreenMount(
         '  final $sdk${paywall ? 'VariantResolver' : 'SurfaceScreenResolver'}'
         '? resolver;',
       )
-      ..writeln()
-      ..writeln(
-        paywall
-            ? '  final ${flutter}Widget Function(${flutter}BuildContext, '
-                  '${sdk}RestagePaywallError)? errorBuilder;'
-            : '  final ${flutter}ValueChanged<'
-                  '${sdk}SurfaceScreenUnavailableError>? onUnavailable;',
-      )
-      ..writeln()
-      ..writeln('  final ${flutter}WidgetBuilder? loadingBuilder;');
+      ..writeln();
     if (!paywall) {
       buffer
-        ..writeln()
-        ..writeln('  final ${sdk}SurfaceScreenUnavailablePolicy? unavailable;');
+        ..writeln(
+          '  final ${flutter}ValueChanged<$errorType>? onUnavailable;',
+        )
+        ..writeln();
     }
+    buffer
+      ..writeln('  final ${flutter}WidgetBuilder? loadingBuilder;')
+      ..writeln()
+      ..writeln(
+        '  final ${flutter}WidgetBuilder? fallbackBuilder;',
+      )
+      ..writeln()
+      ..writeln(
+        '  final ${flutter}Widget Function(${flutter}BuildContext, '
+        '$errorType)? errorBuilder;',
+      );
     if (stateful) {
       buffer
         ..writeln()
@@ -2550,22 +2556,18 @@ void _emitScreenMount(
       ..writeln('      child: $stepChild,')
       ..writeln(!hasNativeScope ? '    );' : '      ),\n    );');
   } else {
-    // The fallback is the widget the build returned.
+    // The widget the build returned is the fallback unless the app passed one.
+    buffer.writeln(
+      '      fallbackBuilder: ${read('fallbackBuilder')} ?? '
+      '((_) => _restageBuilt),\n'
+      '      errorBuilder: ${read('errorBuilder')},',
+    );
+    if (!paywall) {
+      buffer.writeln('      onUnavailable: ${read('onUnavailable')},');
+    }
     buffer
-      ..writeln(
-        paywall
-            ? '      fallbackBuilder: (_) => _restageBuilt,'
-            : '      unavailable: ${read('unavailable')} ?? '
-                  '${sdk}SurfaceScreenUnavailablePolicy.fallback(',
-      )
-      ..write(
-        paywall ? '' : '        builder: (_, error) => _restageBuilt,\n',
-      );
-    buffer
-      ..write(paywall ? '' : '      ),\n')
       ..writeln('      onEvent: ${read('onEvent')},')
       ..writeln('      resolver: ${read('resolver')},')
-      ..writeln('      $unavailableControl: ${read(unavailableControl)},')
       ..writeln('      loadingBuilder: ${read('loadingBuilder')},')
       ..writeln(!hasNativeScope ? '    );' : '      ),\n    );');
   }

@@ -288,7 +288,6 @@ Widget _host(FlowResolver resolver) => Directionality(
       child: RestageOnboarding<FirstRunResult>(
         flow: firstRunFlowRef,
         resolver: resolver,
-        unavailable: const FlowUnavailablePolicy.hide(),
       ),
     );
 

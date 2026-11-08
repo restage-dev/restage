@@ -201,7 +201,8 @@ final class CravePermissionFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = placement,
         super(flow: cravePermissionFlowRef);
 
@@ -222,7 +223,8 @@ final class CravePermissionFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = restagePlacementId,
         super(flow: cravePermissionFlowRef);
 

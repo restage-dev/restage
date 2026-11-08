@@ -24,7 +24,8 @@ class RuntimeErrorBoundary extends StatefulWidget {
     this.onFirstBuildSuccess,
     this.onFirstPaintSuccess,
     this.debugLabel,
-  });
+    this.guardsRendering = true,
+  }) : assert(guardsRendering || onFirstPaintSuccess == null);
 
   /// The subtree to guard.
   final Widget child;
@@ -58,6 +59,11 @@ class RuntimeErrorBoundary extends StatefulWidget {
 
   /// Names the guarded surface in the debug log line printed on fallback.
   final String? debugLabel;
+
+  /// Whether the boundary also owns layout and paint failures. Without it the
+  /// boundary adds no render object, so a parent-data child keeps its parent,
+  /// and it contains only build failures.
+  final bool guardsRendering;
 
   @override
   State<RuntimeErrorBoundary> createState() => _RuntimeErrorBoundaryState();
@@ -291,6 +297,7 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
     // framework reports a descendant layout or paint exception instead of
     // rethrowing it, so without the marker such a failure is indistinguishable
     // from a clean frame and would be reported as one.
+    if (!widget.guardsRendering) return guarded;
     return _RuntimeErrorBoundaryPaintProbe(boundary: this, child: guarded);
   }
 

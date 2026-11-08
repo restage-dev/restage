@@ -142,8 +142,7 @@ void main() {
               home: RestageScreen(
             screen: fixture.ref,
             resolver: resolver,
-            unavailable: SurfaceScreenUnavailablePolicy.fallback(
-                builder: (_, error) => Text('$error')),
+            fallbackBuilder: (_) => const Text('unavailable'),
           )));
           await tester.pumpAndSettle();
           expect(find.text('Bundled screen'), findsOneWidget);
@@ -394,8 +393,7 @@ void main() {
           surface: Surface.onboarding,
           decodeResult: (result) => result),
       resolver: resolver,
-      unavailable:
-          FlowUnavailablePolicy.fallback(builder: (_, error) => Text('$error')),
+      fallbackBuilder: (_) => const Text('unavailable'),
     )));
     await tester.pumpAndSettle();
     expect(find.text('Hosted flow'), findsOneWidget);
@@ -480,8 +478,7 @@ void main() {
           apiKey: 'rs_pk_test',
           environment: RestageEnvironment.sandbox,
           rpcClientProvider: () => client),
-      unavailable: SurfaceScreenUnavailablePolicy.fallback(
-          builder: (_, error) => Text('$error')),
+      fallbackBuilder: (_) => const Text('unavailable'),
     )));
     await tester.pumpAndSettle();
     expect(find.text('Bundled screen'), findsOneWidget);

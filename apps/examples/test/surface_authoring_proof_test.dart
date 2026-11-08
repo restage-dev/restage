@@ -72,9 +72,7 @@ void main() {
         home: Scaffold(
           body: RestageFlowGraph<GeneralJourneyResult>(
             flow: generalJourneyRef,
-            unavailable: FlowUnavailablePolicy.fallback(
-              builder: (_, error) => Text('flow fallback:${error.reason}'),
-            ),
+            fallbackBuilder: (_) => const Text('flow fallback:'),
             resolver: const AssetFlowResolver(),
             onFlowUnavailable: unavailable.add,
             onComplete: completed.add,
@@ -100,9 +98,7 @@ void main() {
         home: Scaffold(
           body: RestageFlowGraph<MessageOfferResult>(
             flow: messageOfferRef,
-            unavailable: FlowUnavailablePolicy.fallback(
-              builder: (_, error) => Text('flow fallback:${error.reason}'),
-            ),
+            fallbackBuilder: (_) => const Text('flow fallback:'),
             resolver: const AssetFlowResolver(),
             onFlowUnavailable: unavailable.add,
           ),
@@ -181,9 +177,7 @@ Widget _surfaceHost<E>({
           screen: screen,
           onEvent: onEvent,
           onUnavailable: onUnavailable,
-          unavailable: SurfaceScreenUnavailablePolicy.fallback(
-            builder: (_, error) => Text('fallback:${error.reason.name}'),
-          ),
+          fallbackBuilder: (_) => const Text('fallback:'),
         ),
       ),
     );

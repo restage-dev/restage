@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:restage/restage.dart';
 
 import 'lumen_trial_ending_flow.dart';
 
@@ -25,9 +24,6 @@ class _LumenTrialEndingDemoState extends State<LumenTrialEndingDemo> {
       onComplete: (result) {
         if (mounted) setState(() => _completed = true);
       },
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => _DoneScreen(message: error.message),
-      ),
     );
   }
 }
