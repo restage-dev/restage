@@ -17,6 +17,7 @@ import 'package:restage_shared/src/flow_document/flow_document.dart';
 import 'package:restage_shared/src/flow_document/flow_document_codec.dart';
 import 'package:restage_shared/src/generated_output_path_order.dart';
 import 'package:restage_shared/src/surface_contract/screen_event_names.dart';
+import 'package:restage_shared/src/surface_contract/surface_compilation_provenance.dart';
 import 'package:restage_shared/src/surface_contract/surface_contract_json.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_contract_fingerprint.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_event_schema.dart';
@@ -214,6 +215,7 @@ final class SurfacePublication {
     Map<String, SurfaceCompiledScreenContractV1> compiledScreenContracts =
         const {},
     SurfacePresentationV1? declaredPresentation,
+    SurfaceCompilationProvenance? compilationProvenance,
   }) {
     _requireIdentity(slug, 'publication.slug');
     final frozenScreenContracts = <String, SurfaceCompiledScreenContractV1>{};
@@ -371,6 +373,7 @@ final class SurfacePublication {
       fitRequirementHash: fitRequirementHash,
       compiledScreenContracts: Map.unmodifiable(frozenScreenContracts),
       declaredPresentation: declaredPresentation,
+      compilationProvenance: compilationProvenance,
     );
   }
 
@@ -393,6 +396,7 @@ final class SurfacePublication {
     required this.fitRequirementHash,
     required this.compiledScreenContracts,
     required this.declaredPresentation,
+    required this.compilationProvenance,
   });
 
   final Surface surface;
@@ -430,6 +434,9 @@ final class SurfacePublication {
   /// Explicit authored presentation constraint; absence means infer from body.
   final SurfacePresentationV1? declaredPresentation;
 
+  /// Build inputs retained for explaining changed contracts, never admission.
+  final SurfaceCompilationProvenance? compilationProvenance;
+
   Map<String, Object?> toJson() {
     if (sourceKind == SurfaceSourceKind.screen) {
       return <String, Object?>{
@@ -459,6 +466,8 @@ final class SurfacePublication {
         if (fitRequirement != null) 'fitRequirement': fitRequirement!.toJson(),
         if (fitRequirementHash != null)
           'fitRequirementHash': fitRequirementHash,
+        if (compilationProvenance != null)
+          'compilationProvenance': compilationProvenance!.toJson(),
         'payloadContentHash': payloadContentHash,
         'payloadKind': payloadKind.wireName,
         'slug': slug,
@@ -485,6 +494,8 @@ final class SurfacePublication {
         'declaredPresentation': declaredPresentation!.name,
       if (fitRequirement != null) 'fitRequirement': fitRequirement!.toJson(),
       if (fitRequirementHash != null) 'fitRequirementHash': fitRequirementHash,
+      if (compilationProvenance != null)
+        'compilationProvenance': compilationProvenance!.toJson(),
       'payloadContentHash': payloadContentHash,
       'payloadKind': payloadKind.wireName,
       'slug': slug,
@@ -519,6 +530,8 @@ final class SurfacePublication {
         ..add('hostDataContractHash');
     }
     if (json.containsKey('mountName')) expected.add('mountName');
+    if (json.containsKey('compilationProvenance'))
+      expected.add('compilationProvenance');
     if (json.containsKey('compiledScreenContracts'))
       expected.add('compiledScreenContracts');
     if (json.containsKey('declaredPresentation'))
@@ -586,6 +599,9 @@ final class SurfacePublication {
               'hostDataContractHash',
               path,
             )
+          : null,
+      compilationProvenance: json.containsKey('compilationProvenance')
+          ? SurfaceCompilationProvenance.fromJson(json['compilationProvenance'])
           : null,
       mountName: json.containsKey('mountName')
           ? SurfaceContractJson.requiredString(json, 'mountName', path)
@@ -2121,6 +2137,7 @@ void _requireOutcomeLinkCarrier(String value, String path) {
 }
 
 const Set<String> _publicationFields = <String>{
+  'compilationProvenance',
   'capabilities',
   'contractFingerprint',
   'contractVersion',

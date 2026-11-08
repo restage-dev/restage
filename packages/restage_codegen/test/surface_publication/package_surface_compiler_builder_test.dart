@@ -23,11 +23,102 @@ import 'package:restage_codegen/src/user_catalog_json_builder.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import '../helpers.dart';
 import '../support/native_flow_fixture_generation.dart';
 
 void main() {
+  test(
+    'production builder retains compilation provenance on screen uploads',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final config = await findPackageConfig(Directory.current);
+      for (final package in config!.packages) {
+        final pubspec = File.fromUri(package.root.resolve('pubspec.yaml'));
+        if (pubspec.existsSync()) {
+          readerWriter.testing.writeString(
+            AssetId(package.name, 'pubspec.yaml'),
+            pubspec.readAsStringSync(),
+          );
+        }
+      }
+      final pending = ['restage_codegen', 'restage', 'rfw_catalog_compiler'];
+      final visited = <String>{};
+      while (pending.isNotEmpty) {
+        final name = pending.removeLast();
+        if (!visited.add(name)) continue;
+        final package = config[name]!;
+        final pubspec =
+            loadYaml(
+                  File.fromUri(
+                    package.root.resolve('pubspec.yaml'),
+                  ).readAsStringSync(),
+                )
+                as Map<Object?, Object?>;
+        if (pubspec['dependencies']
+            case final Map<Object?, Object?> dependencies) {
+          pending.addAll(dependencies.keys.cast<String>());
+        }
+        final directory = Directory.fromUri(package.packageUriRoot);
+        if (!directory.existsSync()) continue;
+        await for (final file in directory.list(
+          recursive: true,
+          followLinks: false,
+        )) {
+          if (file is! File ||
+              !(file.path.endsWith('.dart') ||
+                  file.path.endsWith('.json') ||
+                  file.path.endsWith('.yaml'))) {
+            continue;
+          }
+          readerWriter.testing.writeBytes(
+            AssetId(name, file.uri.path.substring(package.root.path.length)),
+            file.readAsBytesSync(),
+          );
+        }
+      }
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'pubspec.yaml'),
+        'name: apps_examples\n',
+      );
+      const source = """
+import 'package:flutter/material.dart' as f;
+import 'package:restage/restage.dart' as r;
+part 'restage.generated/notice.restage.g.dart';
+@r.Screen(id: 'notice', version: 1, surface: r.Surface.general)
+class Notice extends f.StatelessWidget {
+  const Notice({super.key});
+  @override
+  f.Widget build(f.BuildContext context) => const f.Text('Notice');
+}
+""";
+      final result = await testBuilder(
+        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/notice.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final bundle = _readBundle(readerWriter);
+      final entry = bundle.manifest!.publications.single;
+      final provenance = entry.publication.compilationProvenance;
+      expect(provenance, isNotNull);
+      expect(provenance!.packageVersions, contains('restage_codegen'));
+      final roundTrip = SurfacePublicationManifestV1Codec.decodeJson(
+        SurfacePublicationManifestV1Codec.encodeCanonicalJson(bundle.manifest!),
+      );
+      expect(
+        roundTrip.publications.single.publication.compilationProvenance!
+            .toJson(),
+        provenance.toJson(),
+      );
+    },
+  );
+
   test(
     'canonical paywall threads installed native declarations through artifacts',
     () async {
