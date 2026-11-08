@@ -11,11 +11,7 @@ void validateRfwScalarContract(
   Object? value,
   ScalarCallbackContract contract, {
   RfwProgramScope? scope,
-  Map<String, ValueOperation> operations = const {
-    ...kCollectionValueOperations,
-    ...kGridValueOperations,
-    ...kIntlValueOperations
-  },
+  Map<String, ValueOperation> operations = kStandardValueOperations,
 }) {
   if (value is Map && value.containsKey('nativeKeyIndex')) {
     if (value.length != 1 ||
@@ -69,11 +65,7 @@ int validateRfwPropertyCallbacks(
   PropertyEntry property,
   Catalog catalog, {
   RfwProgramScope? scope,
-  Map<String, ValueOperation> operations = const {
-    ...kCollectionValueOperations,
-    ...kGridValueOperations,
-    ...kIntlValueOperations
-  },
+  Map<String, ValueOperation> operations = kStandardValueOperations,
 }) {
   value = normalizeRfwCallbackPresence(value, property);
   final structured = {

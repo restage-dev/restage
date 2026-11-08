@@ -22,14 +22,12 @@ import 'package:restage_shared/restage_shared.dart'
         WidgetVocabulary,
         colorValueType,
         canonicalMaterialColorNames,
-        kGridValueOperations,
-        kCollectionValueOperations,
         kGroupedWidgetListClientFloor,
         kIconThemeDataFallbackKey,
         kIconThemeDataLerpKey,
-        kIntlValueOperations,
         kJoinedStringClientFloor,
         kNativeVoidCallbackType,
+        kStandardValueOperations,
         kStructuredCopyWithKey,
         kTextSpanRecognizerDetailCallbacks,
         kTextSpanRecognizerVoidCallbacks,
@@ -165,11 +163,7 @@ SurfaceCapabilityDerivation deriveSurfaceCapability(
   bool requiresSurfaceFeatureFloor = false,
   SurfaceScreenHostDataSchema hostDataContract =
       const SurfaceScreenHostDataSchema.empty(),
-  Map<String, ValueOperation> operations = const {
-    ...kCollectionValueOperations,
-    ...kGridValueOperations,
-    ...kIntlValueOperations
-  },
+  Map<String, ValueOperation> operations = kStandardValueOperations,
 }) {
   final programScope = RfwProgramScope([
     for (final widget in library.widgets) ...[widget.initialState, widget.root]
@@ -426,11 +420,7 @@ _NativeValueUse _inspectNativeBindings(
   void Function(Object? value, String type, ValueOperationContext? context,
           bool nativeOnly)?
       onNativeReference,
-  Map<String, ValueOperation> operations = const {
-    ...kCollectionValueOperations,
-    ...kGridValueOperations,
-    ...kIntlValueOperations
-  },
+  Map<String, ValueOperation> operations = kStandardValueOperations,
 }) {
   final programScope = scope ??
       RfwProgramScope([
@@ -2677,11 +2667,7 @@ int surfaceFeatureClientFloor(
   RemoteWidgetLibrary library, {
   SurfaceScreenHostDataSchema hostDataContract =
       const SurfaceScreenHostDataSchema.empty(),
-  Map<String, ValueOperation> operations = const {
-    ...kCollectionValueOperations,
-    ...kGridValueOperations,
-    ...kIntlValueOperations
-  },
+  Map<String, ValueOperation> operations = kStandardValueOperations,
 }) {
   final programScope = RfwProgramScope([
     for (final widget in library.widgets) ...[widget.initialState, widget.root]

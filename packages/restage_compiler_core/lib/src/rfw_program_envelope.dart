@@ -291,11 +291,7 @@ RfwProgramEnvelope? decodeRfwProgramEnvelope(
   Object? value, {
   RfwProgramScope? scope,
   ValueOperationContext? context,
-  Map<String, ValueOperation> operations = const {
-    ...kCollectionValueOperations,
-    ...kGridValueOperations,
-    ...kIntlValueOperations
-  },
+  Map<String, ValueOperation> operations = kStandardValueOperations,
 }) {
   if (scope != null) return scope.decode(value);
   final continuation = value is rfw.ConstructorCall &&
@@ -410,11 +406,7 @@ void validateRfwBuilderContract(
   Object? value,
   WidgetBuilderContract contract, {
   RfwProgramScope? scope,
-  Map<String, ValueOperation> operations = const {
-    ...kCollectionValueOperations,
-    ...kGridValueOperations,
-    ...kIntlValueOperations
-  },
+  Map<String, ValueOperation> operations = kStandardValueOperations,
 }) {
   final envelope =
       decodeRfwProgramEnvelope(value, operations: operations, scope: scope);

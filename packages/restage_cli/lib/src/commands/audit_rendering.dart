@@ -1,11 +1,4 @@
-import 'dart:convert';
-
 import 'package:restage_cli/src/api/surface_models.dart';
-
-/// Render audit timeline rows as JSON.
-void writeAuditLogJson(StringSink stdout, List<SurfaceAuditLogEntry> rows) {
-  stdout.writeln(jsonEncode([for (final row in rows) row.toJson()]));
-}
 
 /// Render audit timeline rows as a tab-separated table.
 void writeAuditLogTable(StringSink stdout, List<SurfaceAuditLogEntry> rows) {
@@ -17,14 +10,6 @@ void writeAuditLogTable(StringSink stdout, List<SurfaceAuditLogEntry> rows) {
       '\t${row.outcome}\t${auditChainLabel(row)}\t${row.reason ?? '-'}',
     );
   }
-}
-
-/// Render export rows as JSON.
-void writeComplianceExportJson(
-  StringSink stdout,
-  List<SurfaceComplianceExportRow> rows,
-) {
-  stdout.writeln(jsonEncode([for (final row in rows) row.toJson()]));
 }
 
 /// Render export rows as RFC-4180-style CSV.
@@ -52,11 +37,6 @@ void writeComplianceExportCsv(
       ].map(_csvCell).join(','),
     );
   }
-}
-
-/// Render a chain verdict as JSON.
-void writeVerdictJson(StringSink stdout, SurfaceChainVerdictResult verdict) {
-  stdout.writeln(jsonEncode(verdict.toJson()));
 }
 
 /// Render a chain verdict as human-readable lines.

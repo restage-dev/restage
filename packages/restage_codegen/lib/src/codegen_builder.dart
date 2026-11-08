@@ -276,23 +276,27 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
     final declarationIdentity = '${library.identifier}#${source.className}';
     final routePlan = measurementRoutePlans[declarationIdentity];
     final routeOwnership = measurementRouteOwnership[declarationIdentity];
-    TranslationResult probeOf(PaywallSourceFound source) =>
-        translatorFor(source, null).translate(
-          source.rootExpression,
-          entryId: source.id,
-          sourcePath: assetId.path,
-          lineInfo: lineInfo,
-          rootState: source.build.state,
-          rootParams: source.build.rootParams,
-          rootEventHandlers: source.build.eventHandlers,
-          buildContextParameter: source.build.buildContextParameter,
-          rootInlined: source.build.inlined,
-          hoistInMount: true,
-          liftedState: source.build.liftedState,
-          contentFree: source.build.contentFree,
-          rootBuildArguments: source.build.buildArguments,
-        );
-    var probe = probeOf(source);
+    TranslationResult translateWith(
+      PaywallSourceFound source,
+      MeasurementRouteEmissionPlan? routePlan, {
+      bool flowScreenContext = false,
+    }) => translatorFor(source, routePlan).translate(
+      source.rootExpression,
+      entryId: source.id,
+      sourcePath: assetId.path,
+      lineInfo: lineInfo,
+      rootState: source.build.state,
+      rootParams: source.build.rootParams,
+      rootEventHandlers: source.build.eventHandlers,
+      buildContextParameter: source.build.buildContextParameter,
+      flowScreenContext: flowScreenContext,
+      rootInlined: source.build.inlined,
+      hoistInMount: true,
+      liftedState: source.build.liftedState,
+      contentFree: source.build.contentFree,
+      rootBuildArguments: source.build.buildArguments,
+    );
+    var probe = translateWith(source, null);
     // An island that needs a lowerable State's members moves the State into
     // the mount.
     if (source.build.liftable case final lifted?
@@ -302,7 +306,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
               (element) => isInstanceMemberOf(lifted.liftedState!, element),
             )) {
       source = source.withBuild(lifted);
-      probe = probeOf(source);
+      probe = translateWith(source, null);
     }
     final usesFlowForm = probe.navigation != null || probe.suppressed;
     final emitStandalone = routeOwnership?.standalone ?? !usesFlowForm;
@@ -311,56 +315,16 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
         routePlan != null && emitStandalone;
     final requireAdapterFrozenOccurrenceSet = routePlan != null && emitAdapter;
     final standalone = routePlan != null && emitStandalone
-        ? translatorFor(source, routePlan).translate(
-            source.rootExpression,
-            entryId: source.id,
-            sourcePath: assetId.path,
-            lineInfo: lineInfo,
-            rootState: source.build.state,
-            rootParams: source.build.rootParams,
-            rootEventHandlers: source.build.eventHandlers,
-            buildContextParameter: source.build.buildContextParameter,
-            rootInlined: source.build.inlined,
-            hoistInMount: true,
-            liftedState: source.build.liftedState,
-            contentFree: source.build.contentFree,
-            rootBuildArguments: source.build.buildArguments,
-          )
+        ? translateWith(source, routePlan)
         : probe;
     final adapter = usesFlowForm
-        ? translatorFor(source, emitAdapter ? routePlan : null).translate(
-            source.rootExpression,
-            entryId: source.id,
-            sourcePath: assetId.path,
-            lineInfo: lineInfo,
-            rootState: source.build.state,
-            rootParams: source.build.rootParams,
-            rootEventHandlers: source.build.eventHandlers,
-            buildContextParameter: source.build.buildContextParameter,
+        ? translateWith(
+            source,
+            emitAdapter ? routePlan : null,
             flowScreenContext: true,
-            rootInlined: source.build.inlined,
-            hoistInMount: true,
-            liftedState: source.build.liftedState,
-            contentFree: source.build.contentFree,
-            rootBuildArguments: source.build.buildArguments,
           )
         : routePlan != null && emitAdapter
-        ? translatorFor(source, routePlan).translate(
-            source.rootExpression,
-            entryId: source.id,
-            sourcePath: assetId.path,
-            lineInfo: lineInfo,
-            rootState: source.build.state,
-            rootParams: source.build.rootParams,
-            rootEventHandlers: source.build.eventHandlers,
-            buildContextParameter: source.build.buildContextParameter,
-            flowScreenContext: true,
-            rootInlined: source.build.inlined,
-            hoistInMount: true,
-            liftedState: source.build.liftedState,
-            contentFree: source.build.contentFree,
-            rootBuildArguments: source.build.buildArguments,
-          )
+        ? translateWith(source, routePlan, flowScreenContext: true)
         : probe;
     _addFatalTranslationIssues(
       issues,

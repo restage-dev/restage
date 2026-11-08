@@ -21,9 +21,7 @@ import 'package:restage_shared/restage_shared.dart'
         SurfaceScreenHostDataObjectShapeV1,
         SurfaceScreenHostDataListShapeV1,
         SurfaceScreenHostDataMapShapeV1,
-        kCollectionValueOperations,
-        kGridValueOperations,
-        kIntlValueOperations;
+        kStandardValueOperations;
 import 'package:restage_shared/rfw_formats.dart' hide WidgetLibrary;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -61,11 +59,7 @@ List<Issue> validateModelAgainstCatalog(
   Map<String, String> rootLabels = const {},
   SurfaceScreenHostDataSchema hostDataContract =
       const SurfaceScreenHostDataSchema.empty(),
-  Map<String, ValueOperation> operations = const {
-    ...kCollectionValueOperations,
-    ...kGridValueOperations,
-    ...kIntlValueOperations,
-  },
+  Map<String, ValueOperation> operations = kStandardValueOperations,
 }) {
   // Validate nested programs with the same lexical ownership as the runtime.
   // Isolated re-decodes lose outer locals declared by an enclosing builder.
