@@ -1,0 +1,22 @@
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+Widget fallback(BuildContext context) => const SizedBox.shrink();
+
+final slot = RestagePlacement(id: 'home', fallbackBuilder: fallback);
+
+final surface = RestagePlacement.forSurface(
+  surfaceType: Surface.message,
+  surfaceId: 'welcome',
+  fallbackBuilder: fallback,
+);
+
+Widget journey(SurfaceHostContractV1 contract) => RestagePlacement.flow(
+    id: 'journey', contract: contract, fallbackBuilder: fallback);
+
+Widget offer(SurfaceHostContractV1 contract) => RestagePlacement.flowForSurface(
+      surfaceType: Surface.paywall,
+      surfaceId: 'offer',
+      contract: contract,
+      fallbackBuilder: fallback,
+    );

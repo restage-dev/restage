@@ -90,7 +90,7 @@ Use the generated `<ClassName>Surface` widget for an authored surface. It loads 
 bundled artifact when there is one, installs its widgets and keeps your compiled
 Flutter widget as the fallback. The [Quickstart](/quickstart) shows this setup.
 
-The examples below use direct mounts to show explicit asset resolvers, generated references and unavailable policies. Use them when your app needs that control.
+The examples below use direct mounts to show explicit asset resolvers, generated references and fallback builders. Use them when your app needs that control.
 
 ## Register widgets for direct mounts
 
@@ -136,9 +136,7 @@ category:
 ```dart
 RestageScreen<FeatureAnnouncementSurfaceEvent>(
   screen: featureAnnouncementRef,
-  unavailable: SurfaceScreenUnavailablePolicy.fallback(
-    builder: (context, error) => const Text('Announcement unavailable'),
-  ),
+  fallbackBuilder: (context) => const Text('Announcement unavailable'),
   onEvent: (event) {
     if (event is FeatureAnnouncementSurfaceDismissEvent) {
       Navigator.of(context).maybePop();
@@ -149,8 +147,8 @@ RestageScreen<FeatureAnnouncementSurfaceEvent>(
 
 `RestageScreen` loads the bundled screen and delivers its events as the typed classes
 the build generated. If the bundle is missing or doesn't match the generated screen,
-your `unavailable` policy decides what shows. That's your fallback widget, or nothing
-with `SurfaceScreenUnavailablePolicy.hide()`.
+your `fallbackBuilder` shows instead. Without one, your `errorBuilder` shows, or
+nothing.
 
 ## Mount a bundled flow
 
@@ -161,9 +159,7 @@ Mount a `@FlowGraph`, whatever its category, with `RestageFlowGraph` and an
 RestageFlowGraph<WelcomeFlowResult>(
   flow: welcomeFlowRef,
   resolver: const AssetFlowResolver(),
-  unavailable: FlowUnavailablePolicy.fallback(
-    builder: (context, error) => Text(error.message),
-  ),
+  fallbackBuilder: (context) => const Text('Welcome'),
   onComplete: (result) {
     Navigator.of(context).pushReplacementNamed('/home');
   },
@@ -172,7 +168,7 @@ RestageFlowGraph<WelcomeFlowResult>(
 
 The resolver loads the flow and each of its screens from the bundle. If any part is
 missing or doesn't match the generated reference, the whole flow goes to its
-`FlowUnavailablePolicy`. A flow never runs with missing screens.
+`fallbackBuilder`. A flow never runs with missing screens.
 
 ## Mount a bundled paywall
 

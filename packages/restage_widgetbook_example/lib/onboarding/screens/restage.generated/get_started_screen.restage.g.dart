@@ -159,7 +159,8 @@ final class GetStartedScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restageStored1 = title,
        _restageStored2 = enabled,
        _restageStored4 = data,
@@ -188,7 +189,8 @@ final class GetStartedScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restageStored1 = title,
        _restageStored2 = enabled,
        _restageStored4 = data,
@@ -228,7 +230,10 @@ final class GetStartedScreenSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
-  final SurfaceScreenUnavailablePolicy? unavailable;
+  final WidgetBuilder? fallbackBuilder;
+
+  final Widget Function(BuildContext, SurfaceScreenUnavailableError)?
+  errorBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -273,14 +278,11 @@ final class GetStartedScreenSurface extends StatelessWidget {
               "nullable": false,
             },
           },
-          unavailable:
-              unavailable ??
-              SurfaceScreenUnavailablePolicy.fallback(
-                builder: (_, error) => _restageBuilt,
-              ),
+          fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
+          errorBuilder: errorBuilder,
+          onUnavailable: onUnavailable,
           onEvent: onEvent,
           resolver: resolver,
-          onUnavailable: onUnavailable,
           loadingBuilder: loadingBuilder,
         ),
       );

@@ -97,9 +97,7 @@ widget $root = Icon(iconCodepoint: $codePoint);
               decoded,
             ),
           ),
-          unavailable: SurfaceScreenUnavailablePolicy.fallback(
-            builder: (_, error) => Text('unavailable: ${error.reason.name}'),
-          ),
+          fallbackBuilder: (_) => const Text('unavailable:'),
         );
       } else if (mount == 'screenView') {
         final controller = RestageFlowController<void>(
@@ -117,7 +115,6 @@ widget $root = Icon(iconCodepoint: $codePoint);
         child = RestageFlowGraph<void>(
           flow: _flowRef,
           resolver: _FlowResolver(attachSurfacePayload(flow!, decoded)),
-          unavailable: const FlowUnavailablePolicy.hide(),
         );
       }
 

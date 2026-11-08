@@ -63,9 +63,7 @@ Widget _host(ScreenFixture<String> fixture) => MaterialApp(
         body: RestageScreen<String>(
           screen: fixture.ref,
           resolver: FixedScreenResolver(fixture.bundled()),
-          unavailable: SurfaceScreenUnavailablePolicy.fallback(
-            builder: (_, error) => Text('fallback:${error.reason.name}'),
-          ),
+          fallbackBuilder: (_) => const Text('fallback:'),
         ),
       ),
     );

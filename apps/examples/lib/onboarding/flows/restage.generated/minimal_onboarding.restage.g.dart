@@ -149,7 +149,8 @@ final class MinimalOnboardingFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = placement,
         super(flow: minimalOnboardingFlowRef);
 
@@ -170,7 +171,8 @@ final class MinimalOnboardingFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = restagePlacementId,
         super(flow: minimalOnboardingFlowRef);
 

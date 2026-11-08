@@ -28,3 +28,43 @@ transforms:
     changes:
       - kind: 'rename'
         newName: 'flowState'
+  - title: "Rename to 'fallbackBuilder'"
+    date: 2026-11-08
+    element:
+      uris: ['package:restage/restage.dart']
+      constructor: ''
+      inClass: 'RestagePlacement'
+    changes:
+      - kind: 'renameParameter'
+        oldName: 'fallback'
+        newName: 'fallbackBuilder'
+  - title: "Rename to 'fallbackBuilder'"
+    date: 2026-11-08
+    element:
+      uris: ['package:restage/restage.dart']
+      constructor: 'flow'
+      inClass: 'RestagePlacement'
+    changes:
+      - kind: 'renameParameter'
+        oldName: 'fallback'
+        newName: 'fallbackBuilder'
+  - title: "Rename to 'fallbackBuilder'"
+    date: 2026-11-08
+    element:
+      uris: ['package:restage/restage.dart']
+      constructor: 'flowForSurface'
+      inClass: 'RestagePlacement'
+    changes:
+      - kind: 'renameParameter'
+        oldName: 'fallback'
+        newName: 'fallbackBuilder'
+  - title: "Rename to 'fallbackBuilder'"
+    date: 2026-11-08
+    element:
+      uris: ['package:restage/restage.dart']
+      constructor: 'forSurface'
+      inClass: 'RestagePlacement'
+    changes:
+      - kind: 'renameParameter'
+        oldName: 'fallback'
+        newName: 'fallbackBuilder'

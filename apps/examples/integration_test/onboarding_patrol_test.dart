@@ -136,9 +136,7 @@ class _FirstRunOnboardingHost extends StatelessWidget {
       flow: firstRunFlowRef,
       actions: actions,
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFF0E1B33)),
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => const ColoredBox(color: Color(0xFF0E1B33)),
-      ),
+      fallbackBuilder: (context) => const ColoredBox(color: Color(0xFF0E1B33)),
     );
   }
 }

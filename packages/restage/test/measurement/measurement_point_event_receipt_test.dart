@@ -337,7 +337,7 @@ void main() {
         home: RestagePaywall(
           id: 'checkout',
           resolver: _AssignedResolver(binding, failPaint: true),
-          errorBuilder: (_, __) => const Text('failed'),
+          fallbackBuilder: (_) => const Text('failed'),
         ),
       ),
     );

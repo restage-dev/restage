@@ -221,7 +221,7 @@ surface that uses a widget outside your set doesn't render that widget.
 
 A generated mount falls back to your compiled widget. The user sees the screen
 that shipped with the release. A paywall mounted by id shows its
-`errorBuilder`, or nothing if you didn't set one.
+`fallbackBuilder`, its `errorBuilder` without one, or nothing if you set neither.
 
 Once you opt down, adding a widget takes an app release. The widgets in your current build
 set what you can change over the air.

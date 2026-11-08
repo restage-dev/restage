@@ -192,11 +192,10 @@ void main() {
     host = RestageScreen(
         screen: original.ref,
         placementBinding: PlacementMountBinding(definition: () => definition),
-        unavailable: SurfaceScreenUnavailablePolicy.fallback(
-            builder: (_, __) => Column(children: [
-                  const Text('fallback'),
-                  RestageIslandScope.keyed(host, 'tally_0', const _Counter()),
-                ])));
+        fallbackBuilder: (_) => Column(children: [
+              const Text('fallback'),
+              RestageIslandScope.keyed(host, 'tally_0', const _Counter()),
+            ]));
     _starts = 0;
     try {
       await tester.pumpWidget(MaterialApp(
@@ -296,9 +295,9 @@ void main() {
             .first,
         vocabulary: SurfaceVocabulary.none);
     final host = RestageScreen(
-        screen: original.ref,
-        placementBinding: PlacementMountBinding(definition: () => definition),
-        unavailable: const SurfaceScreenUnavailablePolicy.hide());
+      screen: original.ref,
+      placementBinding: PlacementMountBinding(definition: () => definition),
+    );
     _starts = 0;
     try {
       await tester.pumpWidget(MaterialApp(

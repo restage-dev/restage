@@ -56,6 +56,7 @@ import 'flow_resolver.dart';
 import '../resolver/placement_mount_resolver.dart';
 import '../runtime/placement_presentation.dart';
 import '../runtime/source_badge.dart';
+import '../runtime/surface_unavailable_policy.dart';
 import '../runtime/user_interaction.dart';
 import 'flow_runtime_support.dart' show normalizeEventArgs;
 import 'flow_screen_builders.dart';
@@ -63,44 +64,6 @@ import 'flow_seed.dart';
 import 'flow_transitions.dart';
 import 'restage_flow_view.dart';
 import 'system_back_policy.dart';
-
-/// Builds host UI when a flow is unavailable.
-typedef FlowUnavailableBuilder = Widget Function(
-  BuildContext context,
-  FlowUnavailableError error,
-);
-
-/// Explicit policies for unavailable flows.
-///
-/// Every `RestageFlowGraph` must choose a policy so missing, incompatible, or
-/// unrenderable artifacts fail closed in a visible way.
-final class FlowUnavailablePolicy {
-  /// Presents host-provided UI when the flow is unavailable.
-  const FlowUnavailablePolicy.fallback({
-    required FlowUnavailableBuilder builder,
-  })  : _kind = _FlowUnavailablePolicyKind.fallback,
-        fallbackBuilder = builder;
-
-  /// Hides the surface when the flow is unavailable.
-  ///
-  /// Use this only when an absent flow UI is an intentional app state.
-  const FlowUnavailablePolicy.hide()
-      : _kind = _FlowUnavailablePolicyKind.hide,
-        fallbackBuilder = null;
-
-  final _FlowUnavailablePolicyKind _kind;
-
-  /// Builder used when [isFallback] is true.
-  final FlowUnavailableBuilder? fallbackBuilder;
-
-  /// Whether this policy should present host-provided fallback UI.
-  bool get isFallback => _kind == _FlowUnavailablePolicyKind.fallback;
-
-  /// Whether this policy should hide unavailable flow UI.
-  bool get isHide => _kind == _FlowUnavailablePolicyKind.hide;
-}
-
-enum _FlowUnavailablePolicyKind { fallback, hide }
 
 /// Fail-closed surface flow host.
 ///
@@ -119,7 +82,8 @@ class RestageFlowGraph<R> extends StatefulWidget
     this.placementBinding,
     this.screenBuilders = const {},
     this.initialState,
-    required this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
     this.actions,
     this.installedSignalNames = const <String>{},
     this.resolver,
@@ -177,12 +141,23 @@ class RestageFlowGraph<R> extends StatefulWidget
   /// the widget (for example via a new [key]) to apply a different seed.
   final FlowSeed? initialState;
 
-  /// Required policy for unavailable flows.
-  final FlowUnavailablePolicy unavailable;
+  /// Shown in place of the compiled original when no published, saved or
+  /// bundled version of the flow can render. Null shows the compiled
+  /// original; without one, nothing shows while the host waits for content.
+  final WidgetBuilder? fallbackBuilder;
+
+  /// Shown instead of restarting the user when the flow fails after they
+  /// made progress in this load, and for any failure when neither a fallback
+  /// nor a compiled original is left to show. Null shows the fallback, the
+  /// original, or nothing.
+  final Widget Function(BuildContext context, FlowUnavailableError error)?
+      errorBuilder;
 
   /// Optional host action registry for action-backed flow transitions.
   ///
-  /// Required only when the resolved flow document declares host actions.
+  /// Required only when the resolved flow document declares host actions. A
+  /// new registry with the same contracts takes effect without reloading; one
+  /// with changed contracts reloads the flow.
   final FlowActionRegistry? actions;
 
   /// The installed custom-event / host-signal names the host has a reviewed
@@ -200,7 +175,8 @@ class RestageFlowGraph<R> extends StatefulWidget
   /// Optional resolver used to load the flow descriptor.
   ///
   /// Defaults to `Restage.defaultFlowResolver`, which currently uses bundled
-  /// assets under the descriptor's surface directory.
+  /// assets under the descriptor's surface directory. A new resolver object
+  /// reloads the flow, so hold one rather than creating it in `build`.
   final FlowResolver? resolver;
 
   /// Called when the flow cannot be made available.
@@ -291,6 +267,9 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   FirstPaintLeaseTransaction? _transactionToDisposeAfterPromotion;
   RootAnalyticsPresentation? _presentationToDisposeAfterPromotion;
   FlowUnavailableError? _unavailableError;
+
+  /// Whether this load advanced; read when it fails.
+  bool _loadAdvanced = false;
   SurfaceRefreshHandle? _refreshHandle;
   ContextSnapshot? _widgetContext;
   ContextSnapshot? _context;
@@ -402,15 +381,72 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     SurfaceRefreshRegistry.instance.unregister(handle);
   }
 
-  /// Whether the user touched or scrolled what this mount shows, its fallback
+  /// Whether the user touched or scrolled what this load shows, its fallback
   /// included.
   bool _userInteracted = false;
+
+  /// Whether the user made progress in this load; a live swap never replaces
+  /// such a load.
+  bool get _progressed =>
+      _loadAdvanced || (_controller?.hasAdvanced ?? false) || _userInteracted;
+
+  void _noteAdvanced(RestageFlowController<R>? controller) => _loadAdvanced =
+      _loadAdvanced || (controller?.hasAdvanced ?? false) || _userInteracted;
+
+  SurfaceUnavailablePolicy<FlowUnavailableError> get _unavailable =>
+      SurfaceUnavailablePolicy(
+          fallbackBuilder: widget.fallbackBuilder,
+          errorBuilder: widget.errorBuilder);
+
+  // The registry the controller reads, so a new actions object needs no
+  // reload.
+  late final _CurrentActions _currentActions =
+      _CurrentActions(() => widget.actions);
+
+  // The contracts the current load was started with.
+  FlowHostRegistryFingerprint? _loadedRegistry;
+
+  FlowActionRegistry? get _actions =>
+      widget.actions == null ? null : _currentActions;
+
+  /// Whether this load already fell back to the compiled original.
+  bool _restartedInOriginal = false;
+
+  /// Restarts a failed flow in its compiled original, once per load, unless
+  /// the error builder shows or a fallback builder replaces the original.
+  bool _restartInOriginal(RestageFlowController<R> failed) {
+    final compiled = widget.flow.compiled;
+    final policy = _unavailable;
+    if (compiled == null ||
+        _restartedInOriginal ||
+        !surfaceUnavailableUsesCompiledOriginal(policy) ||
+        surfaceUnavailableView(policy,
+                advanced: _loadAdvanced, hasOriginal: true) ==
+            SurfaceUnavailableView.error) {
+      return false;
+    }
+    final ResolvedFlow original;
+    try {
+      original = compiled.resolve();
+    } on Object {
+      return false;
+    }
+    _restartedInOriginal = true;
+    // The broken content's load fails before the original takes its place.
+    failed.reportNothingPainted();
+    scheduleMicrotask(() {
+      if (!mounted || !identical(_controller, failed)) return;
+      _start(identityRetry: true, original: original);
+      setState(() {});
+    });
+    return true;
+  }
 
   /// The swap-safety gate: a flow is safe to re-host only while it is pristine
   /// (no interaction or user-contributed state), idle (no transition/action in
   /// flight), and not yet complete.
   bool _canSwap() =>
-      !_userInteracted &&
+      !_progressed &&
       !(_renderedPlacementAdmission?.isAssigned ?? false) &&
       !(_controller?.hasUserContributedState ?? false) &&
       !(_controller?.isBusy ?? false) &&
@@ -465,8 +501,10 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         }
         if (!mounted || !identical(_controller, pending)) return;
         _finalizeMeasurementSessionFor(pending);
-        setState(() => _unavailableError = error);
+        _noteAdvanced(pending);
         widget.onFlowUnavailable?.call(error);
+        if (_restartInOriginal(pending)) return;
+        setState(() => _unavailableError = error);
       },
     );
     final presentation = RootAnalyticsRuntime.createPresentation(
@@ -564,6 +602,8 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     final old = _controllerToDisposeAfterPromotion;
     final oldTransaction = _transactionToDisposeAfterPromotion;
     final oldPresentation = _presentationToDisposeAfterPromotion;
+    // New content may fail too, and then restarts in the original again.
+    _restartedInOriginal = false;
     _removePendingReadinessListener(pending);
     _pendingController = null;
     _pendingTransaction = null;
@@ -685,16 +725,17 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
             oldWidget.flow.id != widget.flow.id ||
             !_sameRefreshTriggers(oldWidget.liveRefresh, widget.liveRefresh) ||
             (oldWidget.resolver == null) != (widget.resolver == null);
+    // A registry with the contracts this load validated is read in place, as a
+    // widget reads a new callback; any other registry is a new load.
     final restartController = !identical(oldWidget.flow, widget.flow) ||
         !identical(oldWidget.resolver, widget.resolver) ||
         !(oldWidget.placementBinding
                 ?.sameDeclarationAs(widget.placementBinding) ??
             widget.placementBinding == null) ||
-        !identical(oldWidget.actions, widget.actions) ||
-        !identical(
-          oldWidget.installedSignalNames,
+        !FlowHostRegistryFingerprint.of(
+          widget.actions,
           widget.installedSignalNames,
-        );
+        ).sameAs(_loadedRegistry);
     if (replaceRefreshHandle) _unregisterRefreshHandle();
     if (restartController) {
       _start();
@@ -729,7 +770,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     await _loadInScope(controller);
   }
 
-  void _start({bool identityRetry = false}) {
+  void _start({bool identityRetry = false, ResolvedFlow? original}) {
     // A new first load is fresh, so a refresh it superseded is answered.
     _refreshAfterFirstLoad = false;
     // An identity retry is the same presentation, so it keeps its device reading.
@@ -748,11 +789,26 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     _disposePending();
     _disposeController();
     _unavailableError = null;
+    _loadedRegistry = FlowHostRegistryFingerprint.of(
+      widget.actions,
+      widget.installedSignalNames,
+    );
+    if (!identityRetry) {
+      // A new load starts unadvanced, as on a first mount.
+      _loadAdvanced = false;
+      _userInteracted = false;
+      _restartedInOriginal = false;
+    }
     late final RestageFlowController<R> controller;
     controller = _buildController(
+      original: original,
       onEvent: (event) {
         _rememberRootFlowStart(controller, event);
         if (!mounted || !identical(_controller, controller)) return;
+        // The first-launch wait passing is not a failure.
+        if (event is FlowUnavailable && event.reason == firstLaunchWaitReason) {
+          return;
+        }
         if (event is FlowUnavailable &&
             _shouldConvertUnstableInitialHostedFailure(
               controller,
@@ -779,8 +835,14 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
           return;
         }
         _finalizeMeasurementSessionFor(controller);
-        setState(() => _unavailableError = error);
+        if (error.reason == firstLaunchWaitReason) {
+          setState(() => _unavailableError = error);
+          return;
+        }
+        _noteAdvanced(controller);
         widget.onFlowUnavailable?.call(error);
+        if (_restartInOriginal(controller)) return;
+        setState(() => _unavailableError = error);
         _runDeferredRefresh();
       },
     );
@@ -923,6 +985,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
 
   RestageFlowController<R> _buildController({
     ResolvedFlow? adoptedRoot,
+    ResolvedFlow? original,
     required void Function(RestageEvent) onEvent,
     required void Function(R result) onComplete,
     required void Function(FlowUnavailableError error) onUnavailable,
@@ -935,7 +998,15 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     final experimentFactory = configuredResolver is FlowExperimentMountFactory
         ? configuredResolver as FlowExperimentMountFactory
         : null;
-    if (adoptedRoot != null && configuredResolver is PlacementFlowResolver) {
+    if (original != null) {
+      // A restart renders the compiled original as is, whatever the resolver.
+      resolver = _AdoptedRootResolver(
+          original,
+          configuredResolver is PlacementFlowResolver
+              ? configuredResolver.originalResolver
+              : configuredResolver);
+    } else if (adoptedRoot != null &&
+        configuredResolver is PlacementFlowResolver) {
       resolver = _AdoptedRootResolver(
           adoptedRoot, configuredResolver.originalResolver);
     } else if (_forceUnassignedFallback &&
@@ -944,7 +1015,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     } else if (experimentFactory?.experimentMountsEnabled ?? false) {
       final seedSource = FlowMountRuntimeSeedSource(
         flow: boundFlow,
-        actions: widget.actions,
+        actions: _actions,
         installedSignalNames: widget.installedSignalNames,
       );
       resolver = experimentFactory!.createExperimentPresentation(
@@ -962,7 +1033,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       flow: boundFlow,
       resolver: resolver,
       initialState: widget.initialState,
-      actions: widget.actions,
+      actions: _actions,
       installedSignalNames: widget.installedSignalNames,
       onEvent: onEvent,
       onComplete: onComplete,
@@ -993,6 +1064,11 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       sanitizeAndRecordEvent: (rawValue) =>
           _sanitizeAndRecordEvent(controller, rawValue),
     );
+    final policy = _unavailable;
+    controller
+      ..usesCompiledOriginal = surfaceUnavailableUsesCompiledOriginal(policy)
+      ..hostShowsOriginal = surfaceUnavailableView(policy, advanced: false) ==
+          SurfaceUnavailableView.original;
     _ownedControllers.add(controller);
     return controller;
   }
@@ -1383,18 +1459,25 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   Widget _buildContent(BuildContext context) {
     final error = _unavailableError;
     if (error != null) {
-      if (widget.unavailable.isFallback &&
+      final policy = _unavailable;
+      final view = surfaceUnavailableView(policy, advanced: _loadAdvanced);
+      final original = view == SurfaceUnavailableView.original;
+      if (view != SurfaceUnavailableView.nothing &&
           (!identical(_fallbackReadError, error) ||
-              _fallbackReadOwner?.surfaceId != widget.flow.id ||
-              _fallbackReadOwner?.surface !=
-                  widget.flow.surfaceType.wireName)) {
+              original &&
+                  (_fallbackReadOwner?.surfaceId != widget.flow.id ||
+                      _fallbackReadOwner?.surface !=
+                          widget.flow.surfaceType.wireName))) {
         _fallbackReadError = error;
         _fallbackReadOwner?.dispose();
-        _fallbackReadOwner = RootAnalyticsRuntime.createPresentation(
-          surface: widget.flow.surfaceType.wireName,
-          surfaceId: widget.flow.id,
-          owner: this,
-        )..markAssignmentUnknown();
+        // Only the original reads as this surface.
+        _fallbackReadOwner = original
+            ? (RootAnalyticsRuntime.createPresentation(
+                surface: widget.flow.surfaceType.wireName,
+                surfaceId: widget.flow.id,
+                owner: this,
+              )..markAssignmentUnknown())
+            : null;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && identical(_unavailableError, error)) {
             _placementDiscovery.markPainted();
@@ -1402,18 +1485,31 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         });
       }
       final controller = _controller;
-      final shown = widget.unavailable.isFallback
-          ? withSourceBadge(() => sourceBadgeLabel(null, null),
-              widget.unavailable.fallbackBuilder!(context, error))
-          : const SizedBox.shrink();
-      final fallback = controller == null
+      final builder =
+          surfaceUnavailableBuilder(policy, advanced: _loadAdvanced);
+      Widget painted(Widget shown) => controller == null
           ? shown
           : SurfaceLoadPaint(
               load: controller.surfaceLoadToken,
-              onPainted: widget.unavailable.isFallback
+              // Content that failed to render still reports its failure.
+              onPainted: original && error.reason != 'render_failed'
                   ? controller.reportOriginalPainted
                   : controller.reportNothingPainted,
               child: shown);
+      final fallback = builder == null
+          ? painted(const SizedBox.shrink())
+          : guardSurfaceUnavailableWidget(
+              debugLabel: widget.flow.id,
+              onFailed: () {
+                if (mounted && identical(_unavailableError, error)) {
+                  controller?.reportOriginalFailed();
+                }
+              },
+              // The guard also catches a builder that throws.
+              child: Builder(
+                  builder: (context) => painted(withSourceBadge(
+                      () => sourceBadgeLabel(null, null),
+                      builder(context, error)))));
       // A refresh stages its candidate beside the fallback until it paints.
       final staged = _pendingIsStaged ? _pendingController : null;
       if (staged == null) return fallback;
@@ -1581,4 +1677,26 @@ final class _AdoptedRootResolver
   @override
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) =>
       _delegate.resolve(flow);
+}
+
+/// The host's current action registry, read each time the flow uses it.
+final class _CurrentActions implements FlowActionRegistry, FlowSignalRegistry {
+  _CurrentActions(this._read);
+
+  final FlowActionRegistry? Function() _read;
+
+  // Each binding runs the host's current handler for its contract, and fails
+  // closed once the host no longer installs that contract.
+  @override
+  Map<String, FlowActionBinding<dynamic, dynamic>> get flowActionBindings => {
+        for (final MapEntry(:key, :value)
+            in (_read()?.flowActionBindings ?? const {}).entries)
+          key: value.forwardingTo(() => _read()?.flowActionBindings[key]),
+      };
+
+  @override
+  Set<String> get installedSignalNames => switch (_read()) {
+        final FlowSignalRegistry registry => registry.installedSignalNames,
+        _ => const <String>{},
+      };
 }

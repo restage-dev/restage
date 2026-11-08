@@ -138,7 +138,7 @@ or result types, takes an app release.
 If a published flow asks for an action your app doesn't provide, or for one with
 different types, your app won't run that version. It uses a compatible version it
 already has, or the flow built into the generated mount. Direct mounts use their configured
-bundle and `FlowUnavailablePolicy`. The app never runs part of a graph.
+bundle and `fallbackBuilder`. The app never runs part of a graph.
 
 ## Push and publish
 

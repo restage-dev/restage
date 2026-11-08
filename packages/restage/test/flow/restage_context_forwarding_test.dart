@@ -108,9 +108,7 @@ void main() {
         flow: firstRunFlowRef,
         resolver: resolver,
         context: hostContext,
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text(error.reason),
-        ),
+        fallbackBuilder: (_) => const Text('unavailable'),
       ),
     );
   });
@@ -124,9 +122,7 @@ void main() {
         flow: firstRunFlowRef,
         resolver: resolver,
         context: hostContext,
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: (_, error) => Text(error.reason),
-        ),
+        fallbackBuilder: (_) => const Text('unavailable'),
       ),
     );
   });
@@ -149,9 +145,7 @@ void main() {
                 flow: firstRunFlowRef,
                 resolver: resolver,
                 context: hostContext,
-                unavailable: FlowUnavailablePolicy.fallback(
-                  builder: (_, error) => Text(error.reason),
-                ),
+                fallbackBuilder: (_) => const Text('unavailable'),
               ),
             );
           },
@@ -237,9 +231,7 @@ void main() {
             flow: firstRunFlowRef,
             resolver: resolver,
             context: const <String, Object?>{'label': 'own'},
-            unavailable: FlowUnavailablePolicy.fallback(
-              builder: (_, error) => Text(error.reason),
-            ),
+            fallbackBuilder: (_) => const Text('unavailable'),
           ),
         ),
       ),
@@ -272,9 +264,7 @@ void main() {
                 flow: firstRunFlowRef,
                 resolver: resolver,
                 context: const <String, Object?>{'label': 'own'},
-                unavailable: FlowUnavailablePolicy.fallback(
-                  builder: (_, error) => Text(error.reason),
-                ),
+                fallbackBuilder: (_) => const Text('unavailable'),
               ),
             );
           },

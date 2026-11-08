@@ -739,13 +739,13 @@ class _RemotePaywallScreen extends StatelessWidget {
         }
         // Give every other delivered-paywall tap a visible result so no
         // affordance reads as broken in the demo. Load failures are surfaced
-        // by errorBuilder below, not as a SnackBar.
+        // by the unavailable policy below, not as a SnackBar.
         showDemoPaywallEventFeedback(context, event);
       },
       // Model graceful failure: if the artifact can't be resolved or decoded, show
       // a plain message instead of a blank screen. A real app would offer a
       // retry or fall back to a hard-coded paywall here.
-      errorBuilder: (context, error) => Scaffold(
+      fallbackBuilder: (context) => Scaffold(
         appBar: AppBar(),
         body: Center(
           child: Padding(

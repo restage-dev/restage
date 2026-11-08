@@ -11,4 +11,3 @@ export 'surface_screen_runtime_provenance.dart'
         SurfaceScreenContractSource,
         decodeSurfaceScreenContract;
 export 'surface_screen_types.dart';
-export 'surface_screen_unavailable_policy.dart';

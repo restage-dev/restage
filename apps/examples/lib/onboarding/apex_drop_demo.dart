@@ -56,7 +56,6 @@ class _ApexDropDemoState extends State<ApexDropDemo> {
       onComplete: (result) => _act(),
       onFlowUnavailable: (error) => _close(),
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFF0A0A0A)),
-      unavailable: const FlowUnavailablePolicy.hide(),
     );
   }
 }

@@ -102,7 +102,7 @@ Future<void> _mount(WidgetTester tester, String id, Finder ready) async {
         home: Scaffold(
           body: RestagePaywall(
             id: id,
-            errorBuilder: (_, __) => const Text('unavailable'),
+            fallbackBuilder: (_) => const Text('unavailable'),
           ),
         ),
       ),

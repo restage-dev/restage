@@ -50,10 +50,10 @@ import '../runtime/placement_mount.dart';
 import '../runtime/surface_vocabulary.dart';
 import '../runtime/restage.dart';
 import '../runtime/source_badge.dart';
+import '../runtime/surface_unavailable_policy.dart';
 import '../runtime/state_variables.dart'
     show currentDevicePlatform, populateDeviceData, populateThemeData;
 import 'surface_screen_runtime_provenance.dart';
-import 'surface_screen_unavailable_policy.dart';
 import 'surface_screen_types.dart';
 
 /// Category-neutral host for one independently published screen.
@@ -72,7 +72,8 @@ final class RestageScreen<E> extends StatefulWidget
   const RestageScreen({
     super.key,
     required this.screen,
-    required this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
     this.placementBinding,
     this.onEvent,
     this.resolver,
@@ -114,13 +115,26 @@ final class RestageScreen<E> extends StatefulWidget
   @override
   final PlacementMountBinding? placementBinding;
 
-  /// Required behavior if the screen cannot be made available.
-  final SurfaceScreenUnavailablePolicy unavailable;
+  /// Shown in place of the compiled original when no published, saved or
+  /// bundled version of the screen can render. Null shows the compiled
+  /// original; without one, nothing shows while the host waits for content.
+  /// Events these widgets fire with `surfaceEvent` reach [onEvent] through the
+  /// screen's generated event contract.
+  final WidgetBuilder? fallbackBuilder;
+
+  /// Shown instead of restarting the user when the screen fails after they
+  /// made progress in this load, and for any failure when neither a fallback
+  /// nor a compiled original is left to show. Null shows the fallback, the
+  /// original, or nothing.
+  final Widget Function(
+      BuildContext context, SurfaceScreenUnavailableError error)? errorBuilder;
 
   /// Receives only generated, schema-validated event values.
   final ValueChanged<E>? onEvent;
 
-  /// Optional resolver. The configured default is used when omitted.
+  /// Optional resolver. The configured default is used when omitted. A new
+  /// resolver object reloads the screen, so hold one rather than creating it
+  /// in `build`.
   final SurfaceScreenResolver? resolver;
 
   /// Observes a classified unavailable condition.
@@ -239,6 +253,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     _observationCell = null;
     _declaredEventIds = null;
     _placementInteracted = false;
+    _loadAdvanced = false;
     final epoch = ++_resolutionEpoch;
     _renderDeadline?.cancel();
     final deadline = _renderDeadline = RenderDeadline.start(
@@ -286,6 +301,10 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   SurfaceRefreshHandle? _placementValidityHandle;
   bool _placementInteracted = false;
+
+  /// Whether this load advanced: the user interacted or an event reached the
+  /// host. Read when the load fails.
+  bool _loadAdvanced = false;
   SurfaceScreenResolver? _placementResolver;
   PlacementMountBinding? _capturedBinding;
   int _placementGeneration = -1;
@@ -494,7 +513,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
           final original = await resolver.original();
           if (!mounted ||
               !identical(_stage, _acceptedStage) ||
-              _placementInteracted ||
+              _progressed ||
               (_acceptedAdmission?.isAssigned ?? false)) {
             return;
           }
@@ -516,9 +535,18 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   bool get _showsFallback =>
       _stage == null && (_unavailableError != null || _showDeadlineFallback);
 
+  /// Whether the user made progress in this load; a live swap never replaces
+  /// such a load. The failure latch only ever copies this.
+  bool get _progressed => _placementInteracted;
+
+  SurfaceUnavailablePolicy<SurfaceScreenUnavailableError> get _unavailable =>
+      SurfaceUnavailablePolicy(
+          fallbackBuilder: widget.fallbackBuilder,
+          errorBuilder: widget.errorBuilder);
+
   bool _canRefreshPlacement() =>
       mounted &&
-      !_placementInteracted &&
+      !_progressed &&
       (_acceptedStage == null
           ? _showsFallback
           : !(_acceptedAdmission?.isAssigned ?? false));
@@ -641,15 +669,15 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     );
     if (!_isCurrent(epoch)) return null;
     switch (outcome) {
-      case RaceLocal(:final freshError?):
-        // A hosted response that failed its checks never falls back.
-        report(null);
-        throw freshError;
+      // A rejected or failed fetch falls back to the local copies, as on
+      // every host.
       case RaceFresh(:final value) || RaceLocal(:final value):
         report(value);
         return value;
       case RaceNone(freshPending: true):
-        if (!widget.unavailable.hide) {
+        // Only a fallback shows at the wait; an error builder needs a failure.
+        if (surfaceUnavailableView(_unavailable, advanced: false) ==
+            SurfaceUnavailableView.original) {
           report(null);
           setState(() => _showDeadlineFallback = true);
           _registerPlacementValidity();
@@ -1010,6 +1038,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       return;
     }
     _disposeStage();
+    _loadAdvanced = _loadAdvanced || _placementInteracted;
     setState(() => _unavailableError = error);
     _registerPlacementValidity();
     widget.onUnavailable?.call(error);
@@ -1067,6 +1096,12 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   bool _isCurrent(int epoch) => mounted && epoch == _resolutionEpoch;
 
+  static const SurfaceScreenUnavailableError _policyWidgetFailed =
+      SurfaceScreenUnavailableError(
+    reason: SurfaceScreenUnavailableReason.renderFailure,
+    message: 'The widget shown in place of the screen threw.',
+  );
+
   static const SurfaceScreenUnavailableError _deadlineFallbackError =
       SurfaceScreenUnavailableError(
     reason: SurfaceScreenUnavailableReason.missing,
@@ -1098,12 +1133,18 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
             : null);
     if (error != null) {
       final load = _surfaceLoad;
-      if (widget.unavailable.hide) {
+      // Only a failure sets the latch, so the deadline's original never reads
+      // as advanced.
+      final advanced = _loadAdvanced;
+      final policy = _unavailable;
+      final view = surfaceUnavailableView(policy, advanced: advanced);
+      if (view == SurfaceUnavailableView.nothing) {
         return SurfaceLoadPaint(
             load: load,
             onPainted: () => _failLoad(load, error),
             child: const SizedBox.shrink());
       }
+      final builder = surfaceUnavailableBuilder(policy, advanced: advanced)!;
       if (_fallbackAttributionEpoch != _resolutionEpoch) {
         _fallbackAttributionEpoch = _resolutionEpoch;
         _fallbackReadOwner?.dispose();
@@ -1126,24 +1167,32 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         surfaceName: screen.slug,
         declares: _declares,
         onEvent: _fallbackEventHandler,
-        child: Builder(builder: (context) {
-          final fallback = widget.unavailable.fallbackBuilder!(context, error);
-          Widget painted(Widget child) => SurfaceLoadPaint(
-              load: load,
-              onPainted: () => _completeLoadWithOriginal(load),
-              child: child);
-          // A parent-data fallback stays the direct child of its parent.
-          if (fallback is ParentDataWidget) return painted(fallback);
-          final late = _late;
-          return painted(withSourceBadge(
-              () => late == null
-                  ? sourceBadgeLabel(null, null)
-                  : lateSourceBadgeLabel(late.version),
-              fallback,
-              description: () => late == null
-                  ? null
-                  : lateSourceBadgeDescription(late.version)));
-        }),
+        child: guardSurfaceUnavailableWidget(
+          debugLabel: screen.slug,
+          onFailed: () => _failLoad(load, _policyWidgetFailed),
+          child: Builder(builder: (context) {
+            final fallback = builder(context, error);
+            Widget painted(Widget child) => SurfaceLoadPaint(
+                load: load,
+                onPainted: view == SurfaceUnavailableView.original &&
+                        error.reason !=
+                            SurfaceScreenUnavailableReason.renderFailure
+                    ? () => _completeLoadWithOriginal(load)
+                    : () => _failLoad(load, error),
+                child: child);
+            // A parent-data fallback stays the direct child of its parent.
+            if (fallback is ParentDataWidget) return painted(fallback);
+            final late = _late;
+            return painted(withSourceBadge(
+                () => late == null
+                    ? sourceBadgeLabel(null, null)
+                    : lateSourceBadgeLabel(late.version),
+                fallback,
+                description: () => late == null
+                    ? null
+                    : lateSourceBadgeDescription(late.version)));
+          }),
+        ),
       );
     }
     final stage = _stage;

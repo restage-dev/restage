@@ -39,7 +39,6 @@ void main() {
       Widget hosted() => RestageFlowGraph(
             flow: ref,
             resolver: StaticFlowResolver(assigned),
-            unavailable: const FlowUnavailablePolicy.hide(),
           );
       final events = <RestageEvent>[];
       final subscription = Restage.events.listen(events.add);
@@ -57,8 +56,7 @@ void main() {
             RestageFlowGraph(
               flow: ref,
               resolver: const _UnavailableFlow(),
-              unavailable: FlowUnavailablePolicy.fallback(
-                  builder: (_, __) => const Expanded(child: Text('Fallback'))),
+              fallbackBuilder: (_) => const Expanded(child: Text('Fallback')),
             ),
           ]),
         ),
@@ -100,8 +98,7 @@ void main() {
             RestageScreen(
               screen: fixture.ref,
               resolver: resolver,
-              unavailable: SurfaceScreenUnavailablePolicy.fallback(
-                  builder: (_, __) => const Expanded(child: Text('Fallback'))),
+              fallbackBuilder: (_) => const Expanded(child: Text('Fallback')),
             ),
           ]),
         );
@@ -142,7 +139,6 @@ void main() {
     Widget hosted() => RestageScreen(
           screen: fixture.ref,
           resolver: FixedScreenResolver(assigned),
-          unavailable: const SurfaceScreenUnavailablePolicy.hide(),
         );
     await tester.pumpWidget(MaterialApp(home: hosted()));
     await tester.pumpAndSettle();
@@ -160,8 +156,7 @@ void main() {
             resolver: FailingScreenResolver(const SurfaceScreenUnavailableError(
                 reason: SurfaceScreenUnavailableReason.missing,
                 message: 'Unavailable')),
-            unavailable: SurfaceScreenUnavailablePolicy.fallback(
-                builder: (_, __) => const Expanded(child: Text('Fallback'))),
+            fallbackBuilder: (_) => const Expanded(child: Text('Fallback')),
           ),
         ]),
       ),

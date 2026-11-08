@@ -187,7 +187,7 @@ void main() {
         child: RestageOnboarding<FirstRunResult>(
           flow: ref,
           resolver: _ActiveResolver(delivered),
-          unavailable: const FlowUnavailablePolicy.hide(),
+          fallbackBuilder: _nothing,
           onFlowUnavailable: unavailable.add,
         ),
       ));
@@ -256,7 +256,7 @@ void main() {
                 : RestageOnboarding<FirstRunResult>(
                     flow: ref,
                     resolver: StaticFlowResolver(delivered),
-                    unavailable: const FlowUnavailablePolicy.hide(),
+                    fallbackBuilder: _nothing,
                   ),
           );
       await tester.pumpWidget(Directionality(
@@ -304,7 +304,7 @@ void main() {
       child: RestageOnboarding<FirstRunResult>(
         flow: ref,
         resolver: resolver,
-        unavailable: const FlowUnavailablePolicy.hide(),
+        fallbackBuilder: _nothing,
       ),
     ));
     await tester.pumpAndSettle();
@@ -378,7 +378,7 @@ void main() {
       child: RestageOnboarding<FirstRunResult>(
         flow: ref,
         resolver: StaticFlowResolver(delivered),
-        unavailable: const FlowUnavailablePolicy.hide(),
+        fallbackBuilder: _nothing,
       ),
     ));
     await tester.pumpAndSettle();
@@ -419,7 +419,7 @@ void main() {
         surfaceWidget: 'FirstRunSurface',
       );
       final unavailable = <FlowUnavailableError>[];
-      const policy = FlowUnavailablePolicy.hide();
+      // An empty fallback takes the compiled original's place.
       final resolver = StaticFlowResolver(delivered);
       await tester.pumpWidget(Directionality(
         textDirection: TextDirection.ltr,
@@ -427,13 +427,13 @@ void main() {
           'RestageOnboarding' => RestageOnboarding<FirstRunResult>(
               flow: ref,
               resolver: resolver,
-              unavailable: policy,
+              fallbackBuilder: _nothing,
               onFlowUnavailable: unavailable.add,
             ),
           'RestageFlowGraph' => RestageFlowGraph<FirstRunResult>(
               flow: ref,
               resolver: resolver,
-              unavailable: policy,
+              fallbackBuilder: _nothing,
               onFlowUnavailable: unavailable.add,
             ),
           _ => RestageFlowView<FirstRunResult>(
@@ -461,3 +461,5 @@ void main() {
     });
   }
 }
+
+Widget _nothing(BuildContext context) => const SizedBox.shrink();

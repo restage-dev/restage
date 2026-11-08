@@ -28,7 +28,8 @@ export 'src/events/restage_event.dart' hide snapshotRestageEventForEmission;
 export 'src/events/surface_assignment.dart';
 export 'src/flow/compiled_flow.dart';
 export 'src/flow/flow_controller.dart' show RestageFlowController;
-export 'src/flow/flow_descriptors.dart' hide nameSurfaceScreenWidget;
+export 'src/flow/flow_descriptors.dart'
+    hide FlowActionWithdrawn, nameSurfaceScreenWidget;
 export 'src/flow/flow_experiment_artifact_metadata.dart'
     show FlowExperimentArtifactMetadata;
 export 'src/flow/flow_predicates.dart';

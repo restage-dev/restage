@@ -125,9 +125,7 @@ void main() {
             flow: _welcomeFlow,
             resolver: _StaticResolver(_resolvedFlow()),
             onFlowUnavailable: (error) => unavailable = error,
-            unavailable: FlowUnavailablePolicy.fallback(
-              builder: (_, __) => const Text('Unavailable'),
-            ),
+            fallbackBuilder: (_) => const Text('Unavailable'),
           ),
         ),
       );

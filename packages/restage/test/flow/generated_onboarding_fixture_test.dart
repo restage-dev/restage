@@ -48,9 +48,7 @@ void main() {
           bundle: _GeneratedFixtureBundle(assets),
         ),
         actions: _generatedActions(),
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: fallbackBuilder,
-        ),
+        fallbackBuilder: fallbackBuilder,
         onComplete: (result) => completed = result,
       ),
     ));
@@ -103,7 +101,6 @@ void main() {
         flow: fixture.ref,
         resolver:
             AssetFlowResolver(bundle: _GeneratedFixtureBundle(fixture.assets)),
-        unavailable: FlowUnavailablePolicy.hide(),
         onComplete: (result) => capturedResult = result,
       ),
     ));
@@ -223,14 +220,12 @@ void main() {
           bundle: _GeneratedFixtureBundle.missingReadyBlob(),
         ),
         actions: _generatedActions(),
-        unavailable: FlowUnavailablePolicy.fallback(
-          builder: fallbackBuilder,
-        ),
+        fallbackBuilder: fallbackBuilder,
       ),
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('fallback:missing_screen_blob'), findsOneWidget);
+    expect(find.text('fallback'), findsOneWidget);
     expect(
       globalEvents.whereType<FlowUnavailable>().single.reason,
       'missing_screen_blob',
@@ -239,12 +234,8 @@ void main() {
   });
 }
 
-Widget fallbackBuilder(BuildContext context, FlowUnavailableError error) {
-  return Text(
-    'fallback:${error.reason}',
-    textDirection: TextDirection.ltr,
-  );
-}
+Widget fallbackBuilder(BuildContext context) =>
+    const Text('fallback', textDirection: TextDirection.ltr);
 
 // Mirrors what the build emits for a typed `@FlowGraph`: one top-level
 // `<className>Ref` handle and a top-level decoder, with no holder class.

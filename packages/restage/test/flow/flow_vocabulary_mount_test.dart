@@ -143,7 +143,6 @@ void main() {
         home: RestageFlowGraph<_WelcomeResult>(
           flow: _welcomeFlow,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
         ),
       ),
     );
@@ -163,7 +162,6 @@ void main() {
         home: RestageFlowGraph<_WelcomeResult>(
           flow: _welcomeFlow,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
         ),
       ),
     );
@@ -189,7 +187,6 @@ void main() {
         home: RestageFlowGraph<_WelcomeResult>(
           flow: _welcomeFlow,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
         ),
       ),
     );

@@ -235,8 +235,7 @@ void main() {
           home: RestageScreen<String>(
         screen: fixture.ref,
         resolver: observed,
-        unavailable: SurfaceScreenUnavailablePolicy.fallback(
-            builder: (_, __) => const Text('Compiled screen')),
+        fallbackBuilder: (_) => const Text('Compiled screen'),
       )));
       await tester.pump();
       expect(observed.local, isNotNull);

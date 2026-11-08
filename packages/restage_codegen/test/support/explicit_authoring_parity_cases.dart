@@ -105,7 +105,10 @@ void defineExplicitAuthoringParity(String only) {
               'lib/paywalls/restage.generated/premium.restage.g.dart',
             );
             expect(mount, contains('class PremiumPaywallSurface'));
-            expect(mount, contains('fallbackBuilder:'));
+            expect(
+              mount,
+              contains('fallbackBuilder: fallbackBuilder ?? ((_) =>'),
+            );
           }
           expect(newDescriptors.keys, orderedEquals(oldDescriptors.keys));
           for (final path in oldDescriptors.keys) {

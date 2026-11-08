@@ -58,7 +58,7 @@ void main() {
             apiKey: apiKey,
             httpClient: _server(envelope),
           ),
-          unavailable: FlowUnavailablePolicy.fallback(builder: _fallback),
+          fallbackBuilder: _fallback,
           onComplete: (result) => completed = result,
         ),
       ),
@@ -82,11 +82,12 @@ void main() {
 
   testWidgets('server unavailable (404) fails closed to the policy fallback',
       (tester) async {
-    await _pumpUnavailable(
+    final reason = await _pumpUnavailable(
       tester,
       _delivery.client((_) async => http.Response('', 404)),
     );
-    expect(find.text('fallback:unavailable'), findsOneWidget);
+    expect(find.text('fallback'), findsOneWidget);
+    expect(reason, 'unavailable');
   });
 
   testWidgets('a below-floor flow fails closed to the policy fallback',
@@ -94,8 +95,9 @@ void main() {
     // A delivered flow requiring more than the host's compiled ref floor must
     // fail closed.
     final envelope = _proofEnvelope(minClient: _aboveRefFloorMinClient);
-    await _pumpUnavailable(tester, _server(envelope));
-    expect(find.text('fallback:unsupported_min_client'), findsOneWidget);
+    final reason = await _pumpUnavailable(tester, _server(envelope));
+    expect(find.text('fallback'), findsOneWidget);
+    expect(reason, 'unsupported_min_client');
   });
 
   testWidgets('a wrong-version surface fails closed to the policy fallback',
@@ -104,12 +106,17 @@ void main() {
     // envelope fails the envelope-identity gate (surface_mismatch) — the wrong
     // surface must not render as this flow.
     final envelope = _proofEnvelope(version: 2);
-    await _pumpUnavailable(tester, _server(envelope));
-    expect(find.text('fallback:surface_mismatch'), findsOneWidget);
+    final reason = await _pumpUnavailable(tester, _server(envelope));
+    expect(find.text('fallback'), findsOneWidget);
+    expect(reason, 'surface_mismatch');
   });
 }
 
-Future<void> _pumpUnavailable(WidgetTester tester, http.Client client) async {
+Future<String?> _pumpUnavailable(
+  WidgetTester tester,
+  http.Client client,
+) async {
+  String? reason;
   await tester.pumpWidget(
     Directionality(
       textDirection: TextDirection.ltr,
@@ -120,16 +127,17 @@ Future<void> _pumpUnavailable(WidgetTester tester, http.Client client) async {
           apiKey: 'rs_pk_test_proof',
           httpClient: client,
         ),
-        unavailable: FlowUnavailablePolicy.fallback(builder: _fallback),
+        fallbackBuilder: _fallback,
+        onFlowUnavailable: (error) => reason = error.reason,
       ),
     ),
   );
   await tester.pumpAndSettle();
+  return reason;
 }
 
-Widget _fallback(BuildContext context, FlowUnavailableError error) {
-  return Text('fallback:${error.reason}', textDirection: TextDirection.ltr);
-}
+Widget _fallback(BuildContext context) =>
+    const Text('fallback', textDirection: TextDirection.ltr);
 
 const _proofRef = OnboardingFlowRef<ProofResult>(
   id: 'proof',

@@ -132,7 +132,8 @@ final class BareSurfaceFlowSurface extends RestageFlowGraph<BareSurfaceResult> {
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = placement,
         super(flow: bareSurfaceFlowRef);
 
@@ -153,7 +154,8 @@ final class BareSurfaceFlowSurface extends RestageFlowGraph<BareSurfaceResult> {
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = restagePlacementId,
         super(flow: bareSurfaceFlowRef);
 

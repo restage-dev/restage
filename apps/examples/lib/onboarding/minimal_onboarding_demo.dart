@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:restage/restage.dart';
 
 import 'flows/minimal_onboarding.dart';
 
@@ -14,11 +13,6 @@ class MinimalOnboardingDemo extends StatelessWidget {
     return MinimalOnboardingFlowSurface(
       // If the flow can't be resolved, show a plain message instead of a
       // broken or partial surface.
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => const Scaffold(
-          body: Center(child: Text('Onboarding is unavailable right now.')),
-        ),
-      ),
       // The user reached the end (tapped finish on an ending screen) —
       // return to the gallery. A real app would route into itself here.
       onComplete: (result) => Navigator.of(context).maybePop(),

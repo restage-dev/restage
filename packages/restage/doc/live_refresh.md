@@ -34,7 +34,6 @@ Restage.configure(
 RestageFlowGraph<FirstRunResult>(
   flow: welcomeFlow,
   liveRefresh: const {SurfaceRefreshTrigger.updateChannel},
-  unavailable: const FlowUnavailablePolicy.hide(),
 );
 ```
 

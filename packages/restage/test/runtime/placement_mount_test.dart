@@ -109,7 +109,6 @@ void main() {
     );
     final host = RestageScreen(
       screen: screen.defaultSurface as SurfaceScreenRef<Never>,
-      unavailable: const SurfaceScreenUnavailablePolicy.hide(),
       placementBinding: binding,
     );
     expect((host as RestagePlacementMount).placementBinding, same(binding));
@@ -169,7 +168,6 @@ void main() {
       );
       final host = RestageFlowGraph(
         flow: ref,
-        unavailable: const FlowUnavailablePolicy.hide(),
         placementBinding: binding,
       );
       expect((host as RestagePlacementMount).placementBinding, same(binding));

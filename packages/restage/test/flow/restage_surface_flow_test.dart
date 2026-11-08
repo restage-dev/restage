@@ -206,7 +206,6 @@ void main() {
     final widget = RestageFlowGraph<FirstRunResult>(
       flow: _messageFlowRef,
       initialState: null,
-      unavailable: const FlowUnavailablePolicy.hide(),
       actions: null,
       installedSignalNames: const {'signal'},
       resolver: resolver,
@@ -241,7 +240,6 @@ void main() {
           child: RestageFlowGraph<FirstRunResult>(
             flow: testCase.ref,
             resolver: resolver,
-            unavailable: const FlowUnavailablePolicy.hide(),
           ),
         ),
       );
@@ -276,13 +274,11 @@ void main() {
             const Expanded(
               child: RestageFlowGraph<FirstRunResult>(
                 flow: _messageFlowRef,
-                unavailable: FlowUnavailablePolicy.hide(),
               ),
             ),
             const Expanded(
               child: RestageFlowGraph<FirstRunResult>(
                 flow: _surveyFlowRef,
-                unavailable: FlowUnavailablePolicy.hide(),
               ),
             ),
           ],
@@ -324,7 +320,6 @@ void main() {
             updateHost = setState;
             return RestageFlowGraph<FirstRunResult>(
               flow: flow,
-              unavailable: const FlowUnavailablePolicy.hide(),
             );
           },
         ),
@@ -382,7 +377,6 @@ void main() {
             updateHost = setState;
             return RestageFlowGraph<FirstRunResult>(
               flow: flow,
-              unavailable: const FlowUnavailablePolicy.hide(),
             );
           },
         ),
@@ -436,7 +430,6 @@ void main() {
             updateHost = setState;
             return RestageFlowGraph<FirstRunResult>(
               flow: flow,
-              unavailable: const FlowUnavailablePolicy.hide(),
             );
           },
         ),
@@ -482,7 +475,6 @@ void main() {
             return RestageFlowGraph<FirstRunResult>(
               flow: _messageFlowRef,
               liveRefresh: liveRefresh,
-              unavailable: const FlowUnavailablePolicy.hide(),
             );
           },
         ),
@@ -555,7 +547,6 @@ void main() {
           flow: _messageFlowRef,
           resolver: resolver,
           liveRefresh: const {SurfaceRefreshTrigger.updateChannel},
-          unavailable: const FlowUnavailablePolicy.hide(),
         ),
       ),
     );
@@ -608,7 +599,6 @@ void main() {
         child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
         ),
       ),
     );
@@ -663,7 +653,6 @@ void main() {
         child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
         ),
       ),
     );
@@ -718,7 +707,6 @@ void main() {
         child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
         ),
       ),
     );
@@ -752,7 +740,6 @@ void main() {
         child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
         ),
       ),
     );
@@ -790,7 +777,6 @@ void main() {
             return RestageFlowGraph<FirstRunResult>(
               flow: _messageFlowRef,
               resolver: widgetResolver,
-              unavailable: const FlowUnavailablePolicy.hide(),
             );
           },
         ),
@@ -835,9 +821,7 @@ void main() {
           child: RestageOnboarding<FirstRunResult>(
             flow: _messageFlowRef,
             resolver: resolver,
-            unavailable: FlowUnavailablePolicy.fallback(
-              builder: (_, error) => Text(error.reason),
-            ),
+            fallbackBuilder: (_) => const Text('unavailable'),
             onFlowUnavailable: (error) {
               unavailableCalls++;
               expect(error.reason, 'unsupported_surface_type');
@@ -849,7 +833,7 @@ void main() {
     await tester.pumpWidget(host());
     await tester.pump();
 
-    expect(find.text('unsupported_surface_type'), findsOneWidget);
+    expect(find.text('unavailable'), findsOneWidget);
     expect(unavailableCalls, 1);
     expect(completionCalls, 0);
     expect(resolver.requested, isEmpty);
@@ -874,7 +858,6 @@ void main() {
         child: RestageOnboarding<FirstRunResult>(
           flow: _surveyFlowRef,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
           onFlowUnavailable: (error) => unavailable = error,
         ),
       ),
@@ -1132,7 +1115,6 @@ RestageOnboarding<FirstRunResult> _facade(
   return RestageOnboarding<FirstRunResult>(
     flow: flow,
     resolver: resolver,
-    unavailable: const FlowUnavailablePolicy.hide(),
     onFlowUnavailable: (error) {
       onUnavailable?.call('${flow.surfaceType.wireName}/${flow.id}');
     },

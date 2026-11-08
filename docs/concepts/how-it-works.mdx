@@ -69,11 +69,11 @@ version waits 150 ms for a newer one. The fetch continues after a fallback appea
 - A generated `<ClassName>Surface` or `RestageScreen<E>` checks the version's id,
   category, required widgets, islands and events against what the build generated. It also
   checks that each value and island the version reads is produced in that layout. The SDK
-  remembers each result per mount and app build. If a check fails, the generated mount shows your compiled widget unless you pass an `unavailable`
-  policy. `RestageScreen` follows the policy you pass it.
+  remembers each result per mount and app build. If a check fails, the generated mount shows your compiled widget unless you pass a
+  `fallbackBuilder`. `RestageScreen` shows the `fallbackBuilder` you pass it.
 - A generated flow mount checks the flow's declarations. It can fall back to a version it
   accepted earlier, a bundle or the authored flow. The lower-level `RestageFlowGraph<R>`
-  uses the available content and the `FlowUnavailablePolicy` your app supplies.
+  uses the available content and the `fallbackBuilder` your app supplies.
 - `RestagePaywall` uses an accepted version saved on the device, a bundled copy or its
   `fallbackBuilder`. Generated paywall mounts supply the compiled widget.
 

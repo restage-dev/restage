@@ -25,7 +25,6 @@ import 'package:restage/restage.dart'
         RestageEvent,
         RestagePaywallError,
         RestageScreen,
-        SurfaceScreenUnavailablePolicy,
         SurfaceScreenResolver,
         SurfaceScreenUnavailableError,
         SurfaceScreenRef,
@@ -41,8 +40,8 @@ part 'restage.generated/offer.restage.g.dart';
 
 @Paywall(id: 'offer')
 final class Offer extends StatelessWidget {
-  const Offer({this.unavailable = false, super.key});
-  final bool unavailable;
+  const Offer({this.dimmed = false, super.key});
+  final bool dimmed;
   @override
   Widget build(BuildContext context) => const Text('Offer');
 }

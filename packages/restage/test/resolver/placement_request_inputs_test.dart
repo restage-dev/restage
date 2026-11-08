@@ -491,7 +491,6 @@ void main() {
           home: RestageScreen(
         screen: fixture.ref,
         resolver: resolver,
-        unavailable: const SurfaceScreenUnavailablePolicy.hide(),
       )));
       await tester.pump(wait - const Duration(milliseconds: 1));
       expect(find.text('Bundled screen'), findsNothing);

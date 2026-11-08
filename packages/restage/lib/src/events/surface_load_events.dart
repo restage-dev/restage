@@ -46,9 +46,12 @@ enum SurfaceLoadFailureReason {
 /// Placements, paywalls, generated surfaces, screens and flows fire it. A
 /// paywall or placement rebuilt with a different placement starts a new load,
 /// and so does a screen or flow rebuilt with a different surface or a new
-/// resolver object, and a flow also for a different placement or a new
-/// `actions` or installed-signals object. Each load is followed by at most one
-/// [SurfaceLoadCompleted] or [SurfaceLoadFailed], and by none if the mount is disposed before it first
+/// resolver object, and a flow also for a different placement, a different set
+/// of installed signals, or an `actions` registry with different contracts,
+/// including a change between none and one. A new `actions` object with the
+/// same contracts does not start one. Each
+/// load is followed by at most one [SurfaceLoadCompleted] or
+/// [SurfaceLoadFailed], and by none if the mount is disposed before it first
 /// paints or a flow finishes without showing a screen. A mount that never
 /// paints, such as one kept offstage, reports no terminal until it paints.
 /// Callbacks receive it after the current frame's work, never during a build.

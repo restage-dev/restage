@@ -874,6 +874,47 @@ bool _actionBindingsEqual(
   return true;
 }
 
+/// The contracts a host's action registry and installed signals offer a
+/// flow. Two hosts with equal fingerprints run the same flow.
+@internal
+@immutable
+final class FlowHostRegistryFingerprint {
+  /// The fingerprint of [actions] and [installedSignalNames].
+  factory FlowHostRegistryFingerprint.of(
+    FlowActionRegistry? actions,
+    Set<String> installedSignalNames,
+  ) {
+    final signals = <String>{...installedSignalNames};
+    if (actions case final FlowSignalRegistry registry) {
+      signals.addAll(registry.installedSignalNames);
+    }
+    return FlowHostRegistryFingerprint._(
+      actions == null
+          ? null
+          : _fingerprintActionBindings(actions.flowActionBindings),
+      signals.toList()..sort(),
+    );
+  }
+
+  const FlowHostRegistryFingerprint._(this._bindings, this._signals);
+
+  // Null when the host passes no registry at all.
+  final List<FlowActionBindingFingerprint>? _bindings;
+  final List<String> _signals;
+
+  /// Whether [other] offers the same contracts.
+  bool sameAs(FlowHostRegistryFingerprint? other) {
+    if (other == null) return false;
+    final bindings = _bindings;
+    final otherBindings = other._bindings;
+    if ((bindings == null) != (otherBindings == null)) return false;
+    if (bindings != null && !_actionBindingsEqual(bindings, otherBindings!)) {
+      return false;
+    }
+    return _stringsEqual(_signals, other._signals);
+  }
+}
+
 List<FlowActionBindingFingerprint> _fingerprintActionBindings(
   Map<String, FlowActionBinding<dynamic, dynamic>> bindings,
 ) {

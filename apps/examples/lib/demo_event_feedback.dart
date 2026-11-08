@@ -9,7 +9,7 @@ import 'package:restage/restage.dart';
 /// confirms the tap was received so the surface never reads as broken.
 ///
 /// Returns `null` for events the host handles elsewhere (a [PaywallLoadFailed]
-/// is shown through the paywall's `errorBuilder`, not a SnackBar) or does not
+/// is shown through the paywall's `unavailable` policy, not a SnackBar) or does not
 /// surface, so the caller can skip the SnackBar for those.
 String? demoPaywallEventLabel(RestageEvent event) {
   if (event is PaywallCustomEvent) {
@@ -27,7 +27,7 @@ String? demoPaywallEventLabel(RestageEvent event) {
 /// Shows a `SnackBar` for [event] (via [demoPaywallEventLabel]) so a tap on a
 /// delivered paywall has a visible result in the demo. No-ops for events that
 /// produce no label (for example a load failure, surfaced through the paywall's
-/// `errorBuilder` instead).
+/// `unavailable` policy instead).
 void showDemoPaywallEventFeedback(BuildContext context, RestageEvent event) {
   final label = demoPaywallEventLabel(event);
   if (label == null) return;

@@ -110,7 +110,8 @@ final class MessageOfferSurface extends RestageFlowGraph<MessageOfferResult> {
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = placement,
         super(flow: messageOfferRef);
 
@@ -131,7 +132,8 @@ final class MessageOfferSurface extends RestageFlowGraph<MessageOfferResult> {
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = restagePlacementId,
         super(flow: messageOfferRef);
 

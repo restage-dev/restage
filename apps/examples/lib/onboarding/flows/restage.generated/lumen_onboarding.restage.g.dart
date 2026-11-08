@@ -224,7 +224,8 @@ final class LumenOnboardingFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = placement,
         super(flow: lumenOnboardingFlowRef, screenBuilders: {
           'paywall_lumen_welcome_offer': paywallLumenWelcomeOfferScreenBuilder,
@@ -248,7 +249,8 @@ final class LumenOnboardingFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = restagePlacementId,
         super(flow: lumenOnboardingFlowRef, screenBuilders: {
           'paywall_lumen_welcome_offer': paywallLumenWelcomeOfferScreenBuilder,

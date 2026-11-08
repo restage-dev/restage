@@ -131,7 +131,8 @@ final class MinimalStatsFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = placement,
         super(flow: minimalStatsFlowRef);
 
@@ -152,7 +153,8 @@ final class MinimalStatsFlowSurface
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = restagePlacementId,
         super(flow: minimalStatsFlowRef);
 

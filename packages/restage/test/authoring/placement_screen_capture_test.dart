@@ -607,12 +607,12 @@ class _OfflinePlacementPair extends StatelessWidget {
         children: [
           RestagePlacement(
               id: 'home_card',
-              fallback: (_) => const ColoredBox(
+              fallbackBuilder: (_) => const ColoredBox(
                   color: Color(0xfff44336),
                   child: SizedBox(width: 80, height: 20))),
           RestagePlacement(
               id: 'home_card',
-              fallback: (_) => const ColoredBox(
+              fallbackBuilder: (_) => const ColoredBox(
                   color: Color(0xff4caf50),
                   child: SizedBox(width: 80, height: 30))),
         ],

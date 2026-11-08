@@ -325,9 +325,7 @@ widget OnboardingScreen = Icon(iconCodepoint: ${CupertinoIcons.star.codePoint}, 
     await tester.pumpWidget(MaterialApp(
       home: RestageScreen<String>(
         screen: fixture.ref,
-        unavailable: SurfaceScreenUnavailablePolicy.fallback(
-          builder: (_, error) => Text('fallback:${error.reason.name}'),
-        ),
+        fallbackBuilder: (_) => const Text('fallback:'),
       ),
     ));
     await tester.pumpAndSettle();

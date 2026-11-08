@@ -538,14 +538,15 @@ final class ServerFlowResolver
     );
   }
 
-  /// Selects the compiler-retained original, or the legacy bundled baseline.
+  /// Selects the verified bundled baseline, or the compiler-retained original
+  /// when the app ships no bundled copy.
   Future<ResolvedFlow?> _loadClientBaseline<R>(OnboardingFlowRef<R> flow,
       {CompiledFlow? compiledClosure}) async {
     final compiled =
         flow.compiled ?? compiledClosure?.find(flow.id, flow.version);
-    if (compiled != null && compiled.hasCompleteScreenBuilders) {
-      return _own(compiled.resolve(), requiredLibraries: const []);
-    }
+    final original = compiled != null && compiled.hasCompleteScreenBuilders
+        ? compiled
+        : null;
     try {
       final surface = flow.surfaceType.wireName;
       final bundled = await loadBundledFlowArtifacts(
@@ -565,6 +566,9 @@ final class ServerFlowResolver
       );
       return _bundledResolvedFlow(bundled);
     } on FlowUnavailableError catch (error) {
+      if (original != null) {
+        return _own(original.resolve(), requiredLibraries: const []);
+      }
       debugPrint(
         '[restage] rejected bundled ${flow.surfaceType.wireName} flow baseline '
         '"${flow.id}" (${error.reason}); active selection failed closed.',

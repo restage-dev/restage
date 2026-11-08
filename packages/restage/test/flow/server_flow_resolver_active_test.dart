@@ -229,7 +229,6 @@ void main() {
         home: RestageFlowGraph<Map<String, Object?>>(
           flow: flowRef,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
         ),
       ));
       await tester.pump();

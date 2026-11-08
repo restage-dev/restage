@@ -122,7 +122,8 @@ final class WelcomeScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restageStored1 = title,
        _restageStored2 = tone,
        _restagePlacementName = placement;
@@ -139,7 +140,8 @@ final class WelcomeScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restageStored1 = title,
        _restageStored2 = tone,
        _restagePlacementName = restagePlacementId;
@@ -159,7 +161,10 @@ final class WelcomeScreenSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
-  final SurfaceScreenUnavailablePolicy? unavailable;
+  final WidgetBuilder? fallbackBuilder;
+
+  final Widget Function(BuildContext, SurfaceScreenUnavailableError)?
+  errorBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -176,14 +181,11 @@ final class WelcomeScreenSurface extends StatelessWidget {
           ..._restageRecording.values,
           'title': _restageArgument1,
         },
-        unavailable:
-            unavailable ??
-            SurfaceScreenUnavailablePolicy.fallback(
-              builder: (_, error) => _restageBuilt,
-            ),
+        fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
+        errorBuilder: errorBuilder,
+        onUnavailable: onUnavailable,
         onEvent: onEvent,
         resolver: resolver,
-        onUnavailable: onUnavailable,
         loadingBuilder: loadingBuilder,
       );
     }

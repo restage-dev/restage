@@ -341,6 +341,76 @@ void main() {
     ]);
   });
 
+  for (final create in <_PaywallLike Function()>[
+    _PaywallHost.new,
+    _PlacementHost.new,
+    _GeneratedHost.new,
+  ]) {
+    final name = create().name;
+    testWidgets(
+        'a $name whose content fails to render reports the failure, then '
+        'views its original', (tester) async {
+      final host = create();
+      final events = _observe(tester, resolver: host.globalResolver);
+      await tester.pumpWidget(host.mount());
+      await tester.pump(const Duration(milliseconds: 50));
+      host.deliverBroken();
+      await _settle(tester);
+      tester.takeException();
+      await _settle(tester);
+      expect(_lifecycle(events), ['started', 'failed render_error', 'viewed']);
+    });
+  }
+
+  // Every host walks fresh, then the copy on the device, then the bundled
+  // copy, then the policy's rung.
+  group('the fallback ladder', () {
+    for (final create in hosts) {
+      final name = create().name;
+      testWidgets('$name: fresh content comes first', (tester) async {
+        final host = create();
+        _observe(tester, resolver: host.globalResolver);
+        host.holdLocal(SurfaceResolutionSource.holdLastGood);
+        await tester.pumpWidget(host.mount());
+        await tester.pump(const Duration(milliseconds: 50));
+        host.deliver();
+        await _settle(tester);
+        expect(find.text('holdLastGood'), findsNothing);
+        expect(find.text(host.original), findsNothing);
+      });
+
+      for (final source in [
+        SurfaceResolutionSource.holdLastGood,
+        SurfaceResolutionSource.bundled,
+      ]) {
+        testWidgets('$name: a ${source.name} copy comes before the policy',
+            (tester) async {
+          final host = create();
+          _observe(tester, resolver: host.globalResolver);
+          final shown = host.holdLocal(source);
+          await tester.pumpWidget(host.mount());
+          await tester.pump(const Duration(milliseconds: 50));
+          // Offline: the resolver answers nothing.
+          host.publishNothing();
+          await _settle(tester);
+          expect(find.text(shown), findsOneWidget);
+          expect(find.text(host.original), findsNothing);
+        });
+      }
+
+      testWidgets('$name: the policy rung shows when nothing else can',
+          (tester) async {
+        final host = create();
+        _observe(tester, resolver: host.globalResolver);
+        await tester.pumpWidget(host.mount());
+        await tester.pump(const Duration(milliseconds: 50));
+        host.fail();
+        await _settle(tester);
+        expect(find.text(host.original), findsOneWidget);
+      });
+    }
+  });
+
   testWidgets('a screen that fails after painting shows its original',
       (tester) async {
     final host = _ScreenHost();
@@ -378,7 +448,10 @@ void main() {
           final subscription = Restage.events.listen(events.add);
           addTearDown(subscription.cancel);
           await row.drive(tester, host);
-          if (row == _Row.renderFailure || row == _Row.paintFailure) {
+          if (row == _Row.renderFailure ||
+              row == _Row.paintFailure ||
+              row == _Row.renderFailureWithOriginal ||
+              row == _Row.paintFailureWithOriginal) {
             tester.takeException();
           }
           final loads = [
@@ -470,6 +543,14 @@ enum _Row {
       ['started', 'failed render_error']),
   paintFailure('delivered content that fails while painting',
       ['started', 'failed render_error']),
+  renderFailureWithOriginal(
+      'delivered content that fails to render reports it and shows the '
+      'original',
+      ['started', 'failed render_error']),
+  paintFailureWithOriginal(
+      'delivered content that fails while painting reports it and shows the '
+      'original',
+      ['started', 'failed render_error']),
   rebind('a rebind starts a new load', [
     'started',
     'completed delivered wait=false window=false',
@@ -485,6 +566,9 @@ enum _Row {
   ]);
 
   const _Row(this.label, this.expected);
+
+  /// Rows that mount a host without an original.
+  static const needNoOriginal = {nothingPaints, renderFailure, paintFailure};
 
   final String label;
   final List<String> expected;
@@ -517,13 +601,15 @@ enum _Row {
         await tester.pump(const Duration(milliseconds: 50));
         host.fail();
         await _settle(tester);
-      case renderFailure:
-        await tester.pumpWidget(host.mount(original: false));
+      case renderFailure || renderFailureWithOriginal:
+        await tester.pumpWidget(
+            host.mount(original: this == renderFailureWithOriginal));
         await tester.pump(const Duration(milliseconds: 50));
         host.deliverBroken();
         await _settle(tester);
-      case paintFailure:
-        await tester.pumpWidget(host.mount(original: false));
+      case paintFailure || paintFailureWithOriginal:
+        await tester
+            .pumpWidget(host.mount(original: this == paintFailureWithOriginal));
         await tester.pump(const Duration(milliseconds: 50));
         host.deliverBroken(widget: 'PaintThrow');
         await _settle(tester);
@@ -561,6 +647,12 @@ abstract class _Host {
   void save();
   void fail();
   void deliverBroken({String widget = 'LayoutThrow'});
+
+  /// Holds a local copy from [source] and returns the text it shows.
+  String holdLocal(SurfaceResolutionSource source);
+
+  /// The text of what fills the policy rung by default.
+  String get original => 'Original';
 }
 
 /// A raced resolver whose answers the test supplies, one per fetch.
@@ -650,6 +742,12 @@ abstract class _PaywallLike extends _Host {
       resolver.local = _blob('Saved', SurfaceResolutionSource.holdLastGood);
 
   @override
+  String holdLocal(SurfaceResolutionSource source) {
+    resolver.local = _blob(source.name, source);
+    return source.name;
+  }
+
+  @override
   void fail() => resolver.refuse(const RestagePaywallError(
       code: RestageErrorCodes.deliveryUnavailable, message: 'offline'));
 
@@ -701,14 +799,14 @@ final class _PlacementHost extends _PaywallLike {
 
   // A placement always has its fallback to paint.
   @override
-  bool supports(_Row row) => row != _Row.nothingPaints;
+  bool supports(_Row row) => !_Row.needNoOriginal.contains(row);
 
   @override
   Widget mount({bool original = true, bool rebound = false}) => MaterialApp(
         home: RestagePlacement.forSurface(
           surfaceType: Surface.message,
           surfaceId: rebound ? 'welcome_again' : 'welcome_back',
-          fallback: (_) => const Text('Original'),
+          fallbackBuilder: (_) => const Text('Original'),
         ),
       );
 }
@@ -718,11 +816,14 @@ final class _GeneratedHost extends _PaywallLike {
   String get name => 'generated surface';
 
   @override
+  String get original => 'Offer original';
+
+  @override
   Surface get surface => Surface.paywall;
 
   // A generated surface always has its compiled original to paint.
   @override
-  bool supports(_Row row) => row != _Row.nothingPaints;
+  bool supports(_Row row) => !_Row.needNoOriginal.contains(row);
 
   @override
   Widget mount({bool original = true, bool rebound = false}) => MaterialApp(
@@ -766,10 +867,7 @@ final class _ScreenHost extends _Host {
       home: RestageScreen<String>(
         screen: fixture.ref,
         resolver: resolver,
-        unavailable: original
-            ? SurfaceScreenUnavailablePolicy.fallback(
-                builder: (_, __) => const Text('Original'))
-            : const SurfaceScreenUnavailablePolicy.hide(),
+        fallbackBuilder: original ? (_) => const Text('Original') : null,
       ),
     );
   }
@@ -784,6 +882,20 @@ final class _ScreenHost extends _Host {
   @override
   void save() => resolver.local = labelSurfaceSource(
       fixture.bundled(), SurfaceResolutionSource.holdLastGood);
+
+  @override
+  String holdLocal(SurfaceResolutionSource source) {
+    // A bundled copy is verified against the generated bytes.
+    if (source == SurfaceResolutionSource.bundled) {
+      resolver.local = labelSurfaceSource(fixture.bundled(), source);
+      return 'Screen';
+    }
+    resolver.local = labelSurfaceSource(
+        fixture.hosted(
+            hostedBlob: rfwScreenBlob(text: source.name, event: 'tap')),
+        source);
+    return source.name;
+  }
 
   @override
   void fail() => resolver.refuse(const SurfaceScreenUnavailableError(
@@ -823,24 +935,17 @@ final class _FlowHost extends _Host {
   Surface get surface => Surface.onboarding;
 
   ResolvedFlow _content(SurfaceResolutionSource source) =>
-      labelSurfaceSource(nativeOfferFlowRef.compiled!.resolve(), source);
+      labelSurfaceSource(flows.resolvedFlow(), source);
 
   @override
   Widget mount({bool original = true, bool rebound = false}) {
     if (rebound) resolver = _FlowResolver();
     return MaterialApp(
-      home: original
-          ? RestageOnboarding(
-              flow: nativeOfferFlowRef,
-              resolver: resolver,
-              unavailable: FlowUnavailablePolicy.fallback(
-                  builder: (_, __) => const Text('Original')),
-            )
-          : RestageOnboarding(
-              flow: flows.firstRunFlowRef,
-              resolver: resolver,
-              unavailable: const FlowUnavailablePolicy.hide(),
-            ),
+      home: RestageOnboarding(
+        flow: flows.firstRunFlowRef,
+        resolver: resolver,
+        fallbackBuilder: original ? (_) => const Text('Original') : null,
+      ),
     );
   }
 
@@ -853,6 +958,13 @@ final class _FlowHost extends _Host {
   @override
   void save() =>
       resolver.local = _content(SurfaceResolutionSource.holdLastGood);
+
+  @override
+  String holdLocal(SurfaceResolutionSource source) {
+    resolver.local = labelSurfaceSource(
+        flows.resolvedFlow(welcomeText: source.name), source);
+    return source.name;
+  }
 
   @override
   void fail() => resolver.refuse(const FlowUnavailableError(

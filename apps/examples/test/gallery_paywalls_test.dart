@@ -31,7 +31,7 @@ class _StaticResolver implements VariantResolver {
 /// instead of returning a variant. Throwing a [RestagePaywallError] drives the
 /// runtime's `on RestagePaywallError` branch (the same path a resolver hitting
 /// a 404 / network error takes), which surfaces `PaywallLoadFailed` and the
-/// host's `errorBuilder` without reporting to `FlutterError` — so the failure
+/// host's `unavailable` fallback without reporting to `FlutterError` — so the failure
 /// stays inside the contract under test rather than tripping the test harness.
 class _FailingResolver implements VariantResolver {
   const _FailingResolver();
@@ -788,13 +788,13 @@ void main() {
     });
   });
 
-  group('delivered-blob load failure (errorBuilder fallback)', () {
-    // The gallery's delivered-paywall host gives RestagePaywall an errorBuilder
+  group('delivered-blob load failure (unavailable fallback)', () {
+    // The gallery's delivered-paywall host gives RestagePaywall a fallback
     // that paints a plain "unavailable" surface (not a blank/crashed screen)
     // when the blob can't be resolved or decoded. This pins that contract: a
     // resolver that fails paints the SAME fallback string the gallery uses, the
     // normal heading never appears, and — because a load failure surfaces
-    // through errorBuilder, not the SnackBar host-feedback channel — no
+    // through the fallback, not the SnackBar host-feedback channel — no
     // feedback SnackBar is shown for the failure.
     const fallbackText = 'This paywall is unavailable right now.';
 
@@ -811,12 +811,12 @@ void main() {
               id: 'pulse_premium',
               resolver: const _FailingResolver(),
               // Same wiring as the gallery host: feedback SnackBars for taps,
-              // load failures handled by errorBuilder below — never a SnackBar.
+              // load failures handled by the fallback below — never a SnackBar.
               onEvent: (event) {
                 if (event is PaywallLoadFailed) failures.add(event);
                 showDemoPaywallEventFeedback(context, event);
               },
-              errorBuilder: (context, error) => Scaffold(
+              fallbackBuilder: (context) => Scaffold(
                 appBar: AppBar(),
                 body: Center(child: Text(fallbackText)),
               ),
@@ -831,8 +831,8 @@ void main() {
       expect(find.text(fallbackText), findsOneWidget);
       expect(find.text('Pulse'), findsNothing);
 
-      // The failure did flow through PaywallLoadFailed (errorBuilder is driven
-      // by the same error), but it surfaces ONLY through errorBuilder — the
+      // The failure did flow through PaywallLoadFailed (the fallback is driven
+      // by the same error), but it surfaces ONLY through the fallback — the
       // SnackBar host-feedback channel stays silent for a load failure.
       expect(failures, isNotEmpty,
           reason: 'expected a PaywallLoadFailed event');

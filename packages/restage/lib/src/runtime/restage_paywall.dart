@@ -69,6 +69,7 @@ import 'restage.dart';
 import 'paywall_controller.dart';
 import 'paywall_error.dart';
 import 'placement_mount.dart';
+import 'surface_unavailable_policy.dart';
 import 'surface_vocabulary.dart';
 import 'state_variables.dart';
 
@@ -106,12 +107,6 @@ void debugClearRestagePaywallCache() => resetRestagePaywallCache();
 ///   },
 /// )
 /// ```
-///
-/// Constructor note: the presentation-related parameters ([loadingBuilder],
-/// [errorBuilder], [cacheLastRender]) are intentionally kept as flat named
-/// parameters. If a fourth presentation knob is ever added, they would be
-/// grouped into a single `RestagePaywallPresentation` value object (passed as
-/// a `presentation:` parameter) to keep the call site readable.
 class RestagePaywall extends StatefulWidget implements RestagePlacementMount {
   /// Const constructor.
   const RestagePaywall({
@@ -191,19 +186,20 @@ class RestagePaywall extends StatefulWidget implements RestagePlacementMount {
   @Deprecated('Has no effect; the last accepted content is always kept.')
   final bool cacheLastRender;
 
-  /// Builder shown while the paywall is loading, for at most the render
-  /// deadline when [fallbackBuilder] is set. Default: [SizedBox.shrink].
+  /// Builder shown while the paywall is loading, for at most the first-launch
+  /// wait when [fallbackBuilder] is set. Default: [SizedBox.shrink].
   final WidgetBuilder? loadingBuilder;
 
-  /// Builder shown when the paywall fails to load. Default: [SizedBox.shrink].
+  /// Shown instead of restarting the user when the paywall fails after they
+  /// made progress in this load, and for any failure when [fallbackBuilder] is
+  /// null. Null shows [fallbackBuilder], or nothing.
   final Widget Function(BuildContext context, RestagePaywallError error)?
       errorBuilder;
 
-  /// Compiled authored widget used if initial delivery is unavailable.
-  /// Once the user leaves a navigation paywall's first screen or taps its
-  /// content, a failure in that load shows [errorBuilder] instead, when one is
-  /// set. Generated paywall mounts supply the original constructor here. Events
-  /// retain the paywall dispatcher; no hosted attribution is invented.
+  /// Shown when no published, saved or bundled version of the paywall can
+  /// render. Generated paywall mounts supply the compiled original here. Null
+  /// shows nothing and waits for a late answer. Events from the widget it
+  /// shows reach [onEvent].
   final WidgetBuilder? fallbackBuilder;
 
   /// Locale to use when resolving and rendering the paywall.
@@ -238,7 +234,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
   SurfaceDeliveryObservationCell? _observationCell;
   int _loadEpoch = 0;
   RestagePaywallError? _error;
-  bool _useAuthoredFallback = false;
+
+  /// Whether the failed load shows [RestagePaywall.fallbackBuilder], read from
+  /// the current widget so changed builders apply at once.
+  bool get _useAuthoredFallback =>
+      _error != null && _failureShowsOriginal(advanced: _loadAdvanced);
   late RenderDeadline _renderDeadline;
   late SurfaceLoad _surfaceLoad;
 
@@ -477,7 +477,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
           stopwatch: Stopwatch()..start(),
           epoch: ++_loadEpoch,
           isRefresh: true);
-    } else if (widget.fallbackBuilder != null) {
+    } else if (_failureShowsOriginal()) {
       final blob = _blobPresentation;
       final flow = _flowController;
       setState(() {
@@ -492,8 +492,15 @@ class _RestagePaywallState extends State<RestagePaywall> {
     }
   }
 
+  /// Whether the user made progress in this load; a live swap never replaces
+  /// such a load.
+  bool get _progressed =>
+      _loadAdvanced ||
+      (_flowController?.hasAdvanced ?? false) ||
+      _userInteracted;
+
   bool _canSwap() =>
-      !_userInteracted &&
+      !_progressed &&
       !(_renderedPlacementAdmission()?.isAssigned ?? false) &&
       (_renderedAssignmentLease?.isCurrent ?? true) &&
       _controllerPresentationIsCurrent(
@@ -902,7 +909,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _renderedAssignmentLease = null;
     _renderedSurfaceVersion = null;
     _error = null;
-    _useAuthoredFallback = false;
     _showDeadlineFallback = false;
     _fallbackLoad = null;
     _late = null;
@@ -1384,17 +1390,22 @@ class _RestagePaywallState extends State<RestagePaywall> {
     ));
   }
 
-  void _setInitialError(RestagePaywallError error, {bool advanced = false}) {
+  void _setInitialError(RestagePaywallError error) {
     _error = error;
     _fallbackLoad = _surfaceLoad;
-    _useAuthoredFallback = _failureShowsOriginal(advanced: advanced);
+    _loadAdvanced = _loadAdvanced || _userInteracted;
   }
 
-  /// A load that [advanced] shows [RestagePaywall.errorBuilder] when one is
-  /// set, and the original otherwise, so a failure never goes blank.
+  SurfaceUnavailablePolicy<RestagePaywallError> get _unavailable =>
+      SurfaceUnavailablePolicy(
+          fallbackBuilder: widget.fallbackBuilder,
+          errorBuilder: widget.errorBuilder);
+
+  /// Whether a load that [advanced] shows the fallback builder rather than the
+  /// error builder or nothing.
   bool _failureShowsOriginal({bool advanced = false}) =>
-      widget.fallbackBuilder != null &&
-      (!advanced || widget.errorBuilder == null);
+      surfaceUnavailableView(_unavailable, advanced: advanced) ==
+      SurfaceUnavailableView.original;
 
   void _reportUnexpectedLoadFailure(Object error, StackTrace stackTrace) {
     // Surface the original exception + stack to the developer console so
@@ -1693,7 +1704,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
   ) {
     _flowToDisposeAfterPromotion = _flowController;
     _blobToDisposeAfterPromotion = _blobPresentation;
-    if (_flowController case final previous?) pending.inheritProgress(previous);
     _flowController = pending;
     _flowTransaction = transaction;
     _flowEpoch = epoch;
@@ -2577,7 +2587,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _flowTransaction = null;
       _flowEpoch = null;
       _initialFlowIsStaged = false;
-      _setInitialError(err, advanced: advanced);
+      _setInitialError(err);
     });
     _disposeFlowControllerAfterDetach(controller);
     _fireEvent(PaywallLoadFailed(
@@ -2846,6 +2856,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
   void _handleBlobBuildFailure(_BlobStage stage, Object error) {
     _forgetStoredCandidate();
     if (stage.transaction.isCommitted) {
+      if (identical(_blobPresentation, stage)) {
+        _failShownBlob(stage, error);
+      }
       _fireEvent(PaywallLoadFailed(
         paywallId: widget.id,
         errorCode: RestageErrorCodes.renderError,
@@ -2889,6 +2902,24 @@ class _RestagePaywallState extends State<RestagePaywall> {
       message: failure.message,
       retryable: false,
     ));
+  }
+
+  /// Content that failed after it was shown gives way to the fallback or error
+  /// builder for this load, as a flow's failure does.
+  void _failShownBlob(_BlobStage stage, Object error) {
+    final failure = RestagePaywallError(
+      code: RestageErrorCodes.renderError,
+      message: 'A widget in the paywall threw during build.',
+      cause: error,
+    );
+    final advanced = _loadAdvanced = _loadAdvanced || _userInteracted;
+    // The original replaces the viewed content, so that view ends first.
+    if (_failureShowsOriginal(advanced: advanced)) _endView();
+    setState(() {
+      _blobPresentation = null;
+      _setInitialError(failure);
+    });
+    _disposeBlobStageAfterDetach(stage);
   }
 
   void _disposeBlobStageAfterDetach(_BlobStage stage) {
@@ -3091,18 +3122,29 @@ class _RestagePaywallState extends State<RestagePaywall> {
   Widget _buildContent(BuildContext context) {
     if (_error != null) {
       final error = _error!;
-      final builder = widget.errorBuilder;
-      final fallback = _useAuthoredFallback && widget.fallbackBuilder != null
+      final builder =
+          surfaceUnavailableBuilder(_unavailable, advanced: _loadAdvanced);
+      final fallback = _useAuthoredFallback
           ? _buildAuthoredFallback(
               error,
               isCurrent: () =>
                   mounted && _useAuthoredFallback && identical(_error, error),
             )
-          : _failSurfaceLoadOnPaint(
-              error,
-              builder == null
-                  ? const SizedBox.shrink()
-                  : _markErrorPainted(error, builder(context, error)));
+          : builder == null
+              ? _failSurfaceLoadOnPaint(error, const SizedBox.shrink())
+              : guardSurfaceUnavailableWidget(
+                  debugLabel: widget.id,
+                  onFailed: () {
+                    if (!mounted || !identical(_error, error)) return;
+                    final event = (_fallbackLoad ?? _surfaceLoad).fail(
+                        SurfaceLoadFailureReason.renderError,
+                        detail: RestageErrorCodes.renderError);
+                    if (event != null) _fireEvent(event);
+                  },
+                  // The guard also catches a builder that throws.
+                  child: Builder(
+                      builder: (context) => _failSurfaceLoadOnPaint(error,
+                          _markErrorPainted(error, builder(context, error)))));
       // A staged design replaces the fallback once it is shown.
       if (_pendingBlobStage case final stage?) {
         return Stack(
@@ -3135,7 +3177,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
             ? _buildHostedFlowLayer(flowController, staged: false)
             : _blobPresentation != null
                 ? _buildBlobLayer(_blobPresentation!, staged: false)
-                : _showDeadlineFallback && widget.fallbackBuilder != null
+                : _showDeadlineFallback && _failureShowsOriginal()
                     ? _buildAuthoredFallback(
                         _deadlineFallbackError,
                         isCurrent: () =>
@@ -3171,6 +3213,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
       ],
     );
   }
+
+  static bool _isRenderFailure(RestagePaywallError error) =>
+      switch (error.cause) {
+        FlowUnavailableError(:final reason) => reason == 'render_failed',
+        _ => error.code == RestageErrorCodes.renderError,
+      };
 
   Widget _markErrorPainted(RestagePaywallError error, Widget child) {
     if (!identical(_errorPaintMarkedFor, error)) {
@@ -3218,6 +3266,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
       };
     }
     _fallbackIsCurrent = isCurrent;
+    final original =
+        Builder(builder: (context) => widget.fallbackBuilder!(context));
     final mount = _eventMount;
     final load = _fallbackLoad ?? _surfaceLoad;
     return RestageContextSnapshotScope(
@@ -3240,19 +3290,23 @@ class _RestagePaywallState extends State<RestagePaywall> {
               _viewedFired = true;
               _fireEvent(PaywallViewed(paywallId: widget.id));
             },
+            // A policy widget that throws shows nothing and fails the load,
+            // as on every host; the error reaches FlutterError.onError once.
             onError: (exception, stack) {
               if (!isCurrent()) return;
-              _reportUnexpectedLoadFailure(exception, stack);
+              final event = load.fail(SurfaceLoadFailureReason.renderError,
+                  detail: RestageErrorCodes.renderError);
+              if (event != null) _fireEvent(event);
             },
-            errorReplacement: (context, exception, stack) =>
-                widget.errorBuilder
-                    ?.call(context, _unexpectedLoadError(exception, stack)) ??
-                const SizedBox.shrink(),
-            child: SurfaceLoadPaint(
-              load: load,
-              onPainted: () => _completeSurfaceLoadWithOriginal(load),
-              child: Builder(builder: widget.fallbackBuilder!),
-            ),
+            errorReplacement: (_, __, ___) => const SizedBox.shrink(),
+            // Content that failed to render still reports its failure.
+            child: _isRenderFailure(error)
+                ? _failSurfaceLoadOnPaint(error, original, load: load)
+                : SurfaceLoadPaint(
+                    load: load,
+                    onPainted: () => _completeSurfaceLoadWithOriginal(load),
+                    child: original,
+                  ),
           ),
         ),
       ),
@@ -3361,13 +3415,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
                         code: RestageErrorCodes.renderError,
                         message: 'A widget in the paywall threw during build.',
                       );
-                      final eb = widget.errorBuilder;
-                      // Content that failed after it committed paints this.
+                      // Shown until the fallback or error builder replaces it
+                      // after this frame.
                       return _failSurfaceLoadOnPaint(
-                          error,
-                          eb == null
-                              ? const SizedBox.shrink()
-                              : eb(context, error),
+                          error, const SizedBox.shrink(),
                           load: stage.load);
                     },
                     child: stage.measurementSession.wrapRootSubtree(

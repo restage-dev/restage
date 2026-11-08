@@ -226,6 +226,22 @@ class _PublishedFlowResolver
 
 /// A flow-capable resolver whose every payload response stays under explicit
 /// test control.
+/// Reloads surfaces and answers any refetch with a candidate design.
+Future<void> _refreshWithCandidate(
+    WidgetTester tester, _ControlledFlowPayloadResolver resolver) async {
+  final refresh = Restage.reloadSurfaces();
+  await tester.pump();
+  for (final response in resolver.responses.skip(1)) {
+    response.complete(FlowPaywallPayload(
+      flow: _navResolvedFlowOf(_armedEntryBlob(const {}, label: 'Candidate'),
+          _screenBlob({'Back': 'back'})),
+      paywallId: 'pro_upgrade',
+    ));
+  }
+  await refresh;
+  await tester.pumpAndSettle();
+}
+
 final class _ControlledFlowPayloadResolver
     implements VariantResolver, FlowCapableVariantResolver {
   final List<Completer<ResolvedPaywallPayload>> responses = [];
@@ -723,8 +739,8 @@ void main() {
     });
 
     testWidgets(
-        'promoted by a refresh over its error state keeps that load advanced',
-        (tester) async {
+        'is never replaced by a refresh once its load advanced into its error '
+        'state', (tester) async {
       registerThrowingWidget();
       final resolver = _ControlledFlowPayloadResolver();
       addTearDown(() async {
@@ -750,21 +766,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNotNull);
       expect(find.text('Unavailable'), findsOneWidget);
-      final refresh = Restage.reloadSurfaces();
-      await tester.pump();
-      expect(resolver.responses, hasLength(2));
-      resolver.responses[1].complete(FlowPaywallPayload(
-        flow: _navResolvedFlowOf(_armedEntryBlob(const {}, label: 'Candidate'),
-            _screenBlob({'Back': 'back'})),
-        paywallId: 'pro_upgrade',
-      ));
-      await refresh;
-      await tester.pumpAndSettle();
-      expect(find.text('Candidate'), findsOneWidget);
-      await _throwOnRebuild(tester);
-      expect(tester.takeException(), isNotNull);
+      await _refreshWithCandidate(tester, resolver);
+      expect(find.text('Candidate'), findsNothing);
       expect(find.text('Unavailable'), findsOneWidget);
-      expect(find.text('Original'), findsNothing);
     });
 
     testWidgets(
@@ -800,7 +804,7 @@ void main() {
     });
 
     testWidgets(
-        'promoted by a refresh keeps the progress of the flow it replaced',
+        'is never replaced by a refresh after the user went forward and back',
         (tester) async {
       final resolver = _ControlledFlowPayloadResolver();
       addTearDown(() async {
@@ -826,21 +830,9 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
-      final refresh = Restage.reloadSurfaces();
-      await tester.pump();
-      expect(resolver.responses, hasLength(2));
-      resolver.responses[1].complete(FlowPaywallPayload(
-        flow: _navResolvedFlowOf(_armedEntryBlob(const {}, label: 'Candidate'),
-            _screenBlob({'Back': 'back'})),
-        paywallId: 'pro_upgrade',
-      ));
-      await refresh;
-      await tester.pumpAndSettle();
-      expect(find.text('Candidate'), findsOneWidget);
-      await _throwOnRebuild(tester);
-      expect(tester.takeException(), isNotNull);
-      expect(find.text('Unavailable'), findsOneWidget);
-      expect(find.text('Original'), findsNothing);
+      await _refreshWithCandidate(tester, resolver);
+      expect(find.text('Candidate'), findsNothing);
+      expect(find.text('See plans'), findsOneWidget);
     });
   });
 

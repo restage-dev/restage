@@ -319,9 +319,7 @@ final class _Harness {
           assetFallback: FixedBundledScreenResolver(fixture.bundled()),
           rpcClientProvider: () => client,
         ),
-        unavailable: SurfaceScreenUnavailablePolicy.fallback(
-          builder: (_, error) => Text('fallback:${error.reason.name}'),
-        ),
+        fallbackBuilder: (_) => const Text('fallback:'),
       ),
     );
   }

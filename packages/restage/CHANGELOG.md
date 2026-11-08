@@ -25,6 +25,10 @@ A generated surface can render parts of its widget tree from the app's own code.
 - Add `RestageIslandScope.hostOf`. Generated step code uses it to keep a separate copy of a step's widgets for each place the step is shown.
 - **Breaking:** Rename the flow function `state` to `flowState`, so it no longer hides the `state` a `Cubit` or `Notifier` inherits in files that import Restage. `dart fix --apply` renames existing calls.
 - Add `@RenderInApp`, which leaves a widget to the app's code instead of putting it in the design. Put it on a widget class, a `library` directive or a local variable in `build`.
+- **Breaking:** `RestageFlowGraph`, `RestageOnboarding`, `RestageScreen` and generated screen and flow mounts take optional `fallbackBuilder` and `errorBuilder` in place of `unavailable:`, as `RestagePaywall` does. `FlowUnavailablePolicy`, `SurfaceScreenUnavailablePolicy`, `FlowUnavailableBuilder` and `SurfaceScreenUnavailableBuilder` are removed. `dart fix` can't rewrite these, so change them by hand: `unavailable: FlowUnavailablePolicy.fallback(builder: (context, error) => w)` becomes `fallbackBuilder: (context) => w`. To show the error itself on a host with no compiled original, pass an `errorBuilder` and no `fallbackBuilder`; it then receives every failure. A rebuilt flow host reads a new `actions` registry with the same contracts in place and compares `installedSignalNames` by value, so neither reloads the flow; a registry with changed contracts reloads it, and so does a new `resolver` object, so hold the resolver rather than creating it in `build`. Drop `unavailable: ...hide()` on a host without a compiled original; on a generated mount or a flow with a compiled original, pass `fallbackBuilder: (_) => const SizedBox.shrink()` to show nothing instead of the original.
+- **Breaking:** `RestagePlacement` and its factories take an optional `fallbackBuilder` in place of the required `fallback`, and an `errorBuilder` that receives a `PlacementUnavailableError`, whose `cause` is the mounted host's error. `dart fix --apply` renames `fallback:`.
+- **Breaking:** `RestagePaywall.errorBuilder`, and the `errorBuilder` of every other host, shows for a failure after the user made progress, and for any failure when the host has neither a `fallbackBuilder` nor a compiled original. Otherwise a failure before progress shows the `fallbackBuilder` or the compiled original, so a paywall given both builders now shows its fallback for a failure before progress. A paywall given only an `errorBuilder` behaves as before. Showing nothing on a host with a compiled original takes `fallbackBuilder: (_) => const SizedBox.shrink()`, which counts as a shown fallback: the load completes, its bounds are reported, and a late answer is kept for the next mount.
+- `RuntimeErrorBoundary` takes `guardsRendering`. With `false` it guards only building, so a parent-data child stays the direct child of its parent.
 
 A navigation paywall that fails after the user left its first screen, or after
 the user tapped its content, shows `errorBuilder` when one is set, and its
@@ -32,9 +36,33 @@ fallback otherwise (nothing if it has none, as before). Going back to the first
 screen does not change this. A failure on the first screen before that shows the
 original, even after the screen painted: the paywall fires
 `PaywallDismissed` for the delivered view, then `PaywallLoadFailed`, then
-`PaywallViewed` for the original. A single-screen paywall whose delivered
-content fails after it painted still shows `errorBuilder`, or nothing when none
-is set.
+`PaywallViewed` for the original.
+
+Every surface host takes the same optional `fallbackBuilder` and `errorBuilder`
+and walks the same fallbacks: fresh published content, then the last good copy
+on the device, then the bundled copy, then `fallbackBuilder`. Without one, a
+host shows its compiled original, or nothing on a host without one. The
+`errorBuilder` shows instead of restarting the user when a load fails after they
+made progress: entered a second screen, dragged, scrolled or typed in the
+surface, or an event or host action reached the app. It also shows for any
+failure on a host with no fallback and no original, rather than nothing. A rebind starts a new load
+with no progress. A flow whose delivered content fails restarts in its compiled
+original. Delivered content that fails to render reports `SurfaceLoadFailed`
+with `render_error` before the original shows, on every host; a paywall then
+fires `PaywallViewed` for the original. A paywall that fails after the user
+interacted with its loading state shows its error builder. A screen whose
+fetched version fails its checks now falls back to the last good copy and then
+the bundled copy, as other hosts do. A hosted flow tries its bundled copy before
+its compiled original. A live refresh never replaces a surface the user made
+progress in during this load, on every host. A flow given a `fallbackBuilder`
+shows it once the first-launch wait passes with nothing ready, as screens and
+paywalls do, instead of waiting for fresh content; this is not reported as a
+failure. A `fallbackBuilder` or `errorBuilder` that throws, or whose widget
+throws while building, shows nothing, fails the load with `render_error`, and
+reports to `FlutterError.onError`, on every host. It reports once per load
+unless a staged refresh moves it and builds it again. A flow that restarted in its
+compiled original and then shows a newer version restarts in the original again
+if that version fails too.
 
 A paywall now handles a new placement the way a first mount does. It drops the
 earlier placement's content at once, waits for the new placement's content or

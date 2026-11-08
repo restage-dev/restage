@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:restage/restage.dart';
 
 import 'lumen_cancel_flow.dart';
 
@@ -39,9 +38,6 @@ class _LumenCancelDemoState extends State<LumenCancelDemo> {
           _note = result.note;
         });
       },
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => _DoneScreen(message: error.message),
-      ),
     );
   }
 }

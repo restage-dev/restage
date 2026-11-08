@@ -160,7 +160,8 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restagePlacementName = placement;
 
   /// Overrides the implicit placement with an explicit name.
@@ -173,7 +174,8 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
-    this.unavailable,
+    this.fallbackBuilder,
+    this.errorBuilder,
   }) : _restagePlacementName = restagePlacementId;
 
   final String? _restagePlacementName;
@@ -186,7 +188,10 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
 
   final WidgetBuilder? loadingBuilder;
 
-  final SurfaceScreenUnavailablePolicy? unavailable;
+  final WidgetBuilder? fallbackBuilder;
+
+  final Widget Function(BuildContext, SurfaceScreenUnavailableError)?
+      errorBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -199,13 +204,11 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
           definition: lumenTrialEndingScreenPlacementDefinition,
           name: _restagePlacementName,
         ),
-        unavailable: unavailable ??
-            SurfaceScreenUnavailablePolicy.fallback(
-              builder: (_, error) => _restageBuilt,
-            ),
+        fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
+        errorBuilder: errorBuilder,
+        onUnavailable: onUnavailable,
         onEvent: onEvent,
         resolver: resolver,
-        onUnavailable: onUnavailable,
         loadingBuilder: loadingBuilder,
       );
     }

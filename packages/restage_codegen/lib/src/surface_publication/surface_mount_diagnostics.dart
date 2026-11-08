@@ -114,25 +114,14 @@ final class _SurfaceMountVisitor extends RecursiveAstVisitor<void> {
       if (_hasCompleteScreenBuilders(compiled)) return;
     }
     if (bundled) return;
-    final unavailable = arguments['unavailable'];
-    final fallback = unavailable?.computeConstantValue()?.value?.getField(
-      'fallbackBuilder',
-    );
-    if (fallback != null && !fallback.isNull) return;
-    if (unavailable is InstanceCreationExpression &&
-        unavailable.constructorName.name?.name == 'fallback') {
+    // Only a fallback widget handles unavailable delivery here: a direct
+    // mount has no original, and an error builder shows error UI instead.
+    final fallback = arguments['fallbackBuilder']?.staticType;
+    if (fallback is FunctionType &&
+        fallback.nullabilitySuffix == NullabilitySuffix.none) {
       return;
     }
-    for (final name in ['fallbackBuilder', 'errorBuilder']) {
-      final type = arguments[name]?.staticType;
-      if (type is FunctionType &&
-          type.nullabilitySuffix == NullabilitySuffix.none) {
-        return;
-      }
-    }
-    final remedy = name == 'RestagePaywall'
-        ? 'supply fallbackBuilder or errorBuilder'
-        : 'supply an unavailable fallback builder';
+    const remedy = 'pass a fallbackBuilder';
     final location = lineInfo.getLocation(node.offset);
     log.warning(
       '$relativePath:${location.lineNumber}:${location.columnNumber}: '

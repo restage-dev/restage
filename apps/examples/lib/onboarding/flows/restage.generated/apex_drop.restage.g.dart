@@ -137,7 +137,8 @@ final class ApexDropFlowSurface extends RestageFlowGraph<ApexDropResult> {
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = placement,
         super(flow: apexDropFlowRef);
 
@@ -158,7 +159,8 @@ final class ApexDropFlowSurface extends RestageFlowGraph<ApexDropResult> {
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = restagePlacementId,
         super(flow: apexDropFlowRef);
 

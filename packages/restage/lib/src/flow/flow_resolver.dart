@@ -449,9 +449,8 @@ Object? _freezeJsonValue(Object? value) {
 
 /// Error surfaced when a surface flow cannot be resolved or rendered.
 ///
-/// `RestageFlowGraph` routes this through its required
-/// `FlowUnavailablePolicy`, optional callback, and global flow-unavailable
-/// event.
+/// `RestageFlowGraph` reports this to its `onFlowUnavailable` callback and the
+/// global flow-unavailable event, and passes it to its `errorBuilder`.
 final class FlowUnavailableError implements Exception {
   /// Creates an unavailable-flow error.
   const FlowUnavailableError({

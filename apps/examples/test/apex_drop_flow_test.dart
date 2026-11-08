@@ -54,7 +54,6 @@ class _MessageHost extends StatelessWidget {
         flow: flow,
         onFlowUnavailable: (error) => Navigator.of(context).maybePop(),
         loadingBuilder: (context) => const ColoredBox(color: Color(0xFF0A0A0A)),
-        unavailable: const FlowUnavailablePolicy.hide(),
       );
 }
 

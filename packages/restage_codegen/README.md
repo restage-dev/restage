@@ -193,8 +193,9 @@ inputs, so edits to those sources rebuild the surface. Keep those packages in
 your resolved dependency graph. Unsupported expressions still produce build
 diagnostics; a dependency does not bypass the compiler's authoring limits.
 
-Generated screen mounts accept an optional `unavailable` policy. By default
-they retain the original widget as a compiled fallback. Rebuilding unchanged
+Generated screen mounts accept an optional `fallbackBuilder` and
+`errorBuilder`. By default they retain the original widget as a compiled
+fallback. Rebuilding unchanged
 sources keeps each surface's id and its measurement history.
 
 ## Large codebases

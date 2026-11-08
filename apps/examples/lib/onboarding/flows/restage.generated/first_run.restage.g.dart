@@ -202,7 +202,8 @@ final class FirstRunFlowSurface extends RestageFlowGraph<FirstRunResult> {
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = placement,
         super(flow: firstRunFlowRef);
 
@@ -223,7 +224,8 @@ final class FirstRunFlowSurface extends RestageFlowGraph<FirstRunResult> {
     super.systemBack,
     super.liveRefresh,
     super.context,
-    super.unavailable = const FlowUnavailablePolicy.hide(),
+    super.fallbackBuilder,
+    super.errorBuilder,
   })  : _restagePlacementName = restagePlacementId,
         super(flow: firstRunFlowRef);
 

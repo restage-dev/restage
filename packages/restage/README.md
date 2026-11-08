@@ -191,9 +191,8 @@ void main() {
 }
 ```
 
-Generated screen mounts use the original widget by default. Pass an
-`unavailable` policy to choose a different fallback or hide the screen when
-content cannot render.
+Generated screen mounts use the original widget by default. Pass a
+`fallbackBuilder` to show a different widget when content cannot render.
 
 ## Placements
 
@@ -204,7 +203,7 @@ the mount names its placement and describes what it accepts for you.
 Use `.atPlacement('name', ...)` only to override that default with an explicit
 placement name. It is optional for screens, paywalls and flows.
 
-The lower-level `RestagePlacement(id: ..., fallback: ...)` and
+The lower-level `RestagePlacement(id: ..., fallbackBuilder: ...)` and
 `RestagePlacement.forSurface` APIs let you supply the fallback yourself.
 `RestagePlacement.flow` also requires the surface type and a
 `SurfaceHostContractV1` that describes what the placement accepts; it delivers
@@ -247,7 +246,6 @@ For a direct screen mount, supply state already owned by the app through that ma
 ```dart
 RestageScreen(
   screen: accountSummaryScreenRef,
-  unavailable: const SurfaceScreenUnavailablePolicy.hide(),
   context: <String, Object?>{
     'profile': <String, Object?>{
       'displayName': profile.displayName,
@@ -332,7 +330,7 @@ Restage.configure(
 
 RestagePlacement(
   id: 'home_banner',
-  fallback: (_) => const DefaultBanner(),
+  fallbackBuilder: (_) => const DefaultBanner(),
   loadingBuilder: (_) => const BannerSkeleton(),
 );
 
@@ -367,8 +365,13 @@ For Restage Cloud, set `baseUrl` to your environment's API URL. The SDK sends
 hosted surface and measurement requests to that URL.
 
 The SDK checks a delivered surface against the installed app's capabilities.
-Direct flow mounts require a `FlowUnavailablePolicy`, so a flow that can't run
-falls back or hides instead of running partway.
+A surface that can't run falls back instead of running partway: to the last
+good copy on the device, then the bundled copy, then its compiled original.
+Pass `fallbackBuilder` to show your own widget in place of the compiled
+original, and `errorBuilder` to show a failure that happens after the user made
+progress. A host without a compiled original, such as `RestagePlacement`, shows
+its `errorBuilder` for any failure when it has no `fallbackBuilder`, and nothing
+while it waits for content.
 
 See [doc/live_refresh.md](doc/live_refresh.md) to update surfaces that are
 already on screen.

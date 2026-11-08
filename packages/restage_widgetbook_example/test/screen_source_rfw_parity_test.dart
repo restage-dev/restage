@@ -21,7 +21,7 @@ void main() {
             ).readAsBytesSync(),
           )
           .toString(),
-      '7960796653a119c816370462e790bb204c2f62991cb5fe6dc579d83fcbb7c06c',
+      'fb6986b5ba1be1a39f6bf7aaa5ee0857af68bd35f182582f13fc70ce87c317c4',
       reason:
           'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
     );

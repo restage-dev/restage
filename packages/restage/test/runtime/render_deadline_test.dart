@@ -248,6 +248,7 @@ void main() {
         }
         await tester.pump();
         await tester.pump();
+        // No fallback and no original, so the error builder shows.
         expect(find.text('Error'), findsOneWidget);
         expect(events.whereType<PaywallLoadFailed>(), hasLength(1));
       });
@@ -415,7 +416,8 @@ widget OnboardingScreen = ThrowingWidget();
       expect(resolver.forgotten.single.slug, fixture.ref.slug);
     });
 
-    testWidgets('an untrusted hosted screen response fails the mount',
+    testWidgets(
+        'an untrusted hosted screen response falls back to the local copy',
         (tester) async {
       final fixture = stringScreenFixture(text: 'Stored screen');
       final resolver = _ScreenResolver(local: fixture.bundled());
@@ -429,11 +431,9 @@ widget OnboardingScreen = ThrowingWidget();
       ));
       await tester.pump();
       await tester.pump();
-      expect(find.text('Stored screen'), findsNothing);
-      expect(
-        unavailable.single.reason,
-        SurfaceScreenUnavailableReason.contractMismatch,
-      );
+      // As on every host: last good, then the bundled copy, then the policy.
+      expect(find.text('Stored screen'), findsOneWidget);
+      expect(unavailable, isEmpty);
     });
 
     testWidgets('a hidden screen whose fresh fails reports it unavailable',
@@ -446,7 +446,6 @@ widget OnboardingScreen = ThrowingWidget();
           screen: fixture.ref,
           resolver: resolver,
           onUnavailable: unavailable.add,
-          unavailable: const SurfaceScreenUnavailablePolicy.hide(),
         ),
       ));
       await tester.pump(const Duration(milliseconds: 300));
@@ -464,7 +463,6 @@ widget OnboardingScreen = ThrowingWidget();
         home: RestageScreen<String>(
           screen: fixture.ref,
           resolver: resolver,
-          unavailable: const SurfaceScreenUnavailablePolicy.hide(),
         ),
       ));
       await tester.pump(const Duration(milliseconds: 300));
@@ -529,7 +527,6 @@ widget OnboardingScreen = ThrowingWidget();
         home: RestageFlowGraph<flows.FirstRunResult>(
           flow: flows.firstRunFlowRef,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
           liveRefresh: const {SurfaceRefreshTrigger.appResume},
         ),
       ));
@@ -567,7 +564,6 @@ widget OnboardingScreen = ThrowingWidget();
           home: RestageFlowGraph<flows.FirstRunResult>(
             flow: flows.firstRunFlowRef,
             resolver: resolver,
-            unavailable: const FlowUnavailablePolicy.hide(),
             liveRefresh: liveRefresh
                 ? const {SurfaceRefreshTrigger.appResume}
                 : const <SurfaceRefreshTrigger>{},
@@ -614,7 +610,6 @@ widget OnboardingScreen = ThrowingWidget();
         home: RestageFlowGraph<flows.FirstRunResult>(
           flow: flows.firstRunFlowRef,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
           liveRefresh: const {SurfaceRefreshTrigger.appResume},
         ),
       ));
@@ -973,7 +968,6 @@ widget OnboardingScreen = ThrowingWidget();
         home: RestageFlowGraph<flows.FirstRunResult>(
           flow: flows.firstRunFlowRef,
           resolver: resolver,
-          unavailable: const FlowUnavailablePolicy.hide(),
         ),
       ));
       resolver.freshResult.complete(flows.resolvedFlow(welcomeText: 'Fresh'));
@@ -1389,9 +1383,7 @@ Widget _screen(
         screen: fixture.ref,
         resolver: resolver,
         onUnavailable: onUnavailable,
-        unavailable: SurfaceScreenUnavailablePolicy.fallback(
-          builder: (_, __) => const Text('Compiled screen'),
-        ),
+        fallbackBuilder: (_) => const Text('Compiled screen'),
       ),
     );
 
@@ -1581,7 +1573,6 @@ Widget _onboarding<R>(SurfaceFlowRef<R> flow, FlowResolver resolver) =>
       home: RestageOnboarding<R>(
         flow: flow,
         resolver: resolver,
-        unavailable: const FlowUnavailablePolicy.hide(),
       ),
     );
 

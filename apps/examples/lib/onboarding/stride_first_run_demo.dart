@@ -71,18 +71,6 @@ class _StrideFirstRunDemoState extends State<StrideFirstRunDemo> {
       // General flows return declared fields; read optional values defensively.
       onComplete: (result) => _enterApp(completed: result['completed'] == true),
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFF241024)),
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => Scaffold(
-          backgroundColor: const Color(0xFF241024),
-          body: Center(
-            child: Text(
-              error.message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFFFBEFE9)),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
