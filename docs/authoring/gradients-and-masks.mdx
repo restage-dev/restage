@@ -3,9 +3,7 @@ title: Gradients and masks
 description: Author gradient text, icons, fading edges and color filters in ordinary Flutter.
 ---
 
-Write gradients and masks with Flutter's `ShaderMask` and `ColorFiltered`.
-Restage compiles the gradient, blend mode and child into surface data. The app
-creates the shader when it renders the surface.
+Write gradients and masks with Flutter's `ShaderMask` and `ColorFiltered`. Restage compiles the gradient, blend mode and child into surface data. The app creates the shader when it renders the surface.
 
 ## Gradient text and icons
 
@@ -34,10 +32,9 @@ ShaderMask(
 )
 ```
 
-Both compile to a mask with a gradient map and `srcIn` blend mode. Linear,
-radial and sweep gradients retain their colors, stops and geometry. A closure
-with a single `return` works too. The gradient can be inline, `const`, a
-same-file const identifier or a `static const` field.
+Both compile to a mask with a gradient map and the `srcIn` blend mode. Linear, radial and sweep gradients keep their colors, stops and geometry.
+
+A closure with a single `return` works too. The gradient can be inline, `const`, a same-file const identifier or a `static const` field.
 
 ## Fading edges
 
@@ -56,8 +53,7 @@ ShaderMask(
 )
 ```
 
-`dstIn` keeps the child's colors and uses the gradient's alpha to fade them.
-Place the same mask around a bounded list for a scrolling edge treatment.
+`dstIn` keeps the child's colors and uses the gradient's alpha to fade them. To fade the edges of a scrolling list, put the same mask around a bounded list.
 
 ## Radial vignettes
 
@@ -72,8 +68,7 @@ ShaderMask(
 )
 ```
 
-This compiles to a radial mask over the image widget. `center`, `radius`,
-`focal`, `focalRadius` and `tileMode` use Flutter's values.
+This compiles to a radial mask over the image widget. `center`, `radius`, `focal`, `focalRadius` and `tileMode` use Flutter's values.
 
 ## Rotation and tint
 
@@ -90,7 +85,7 @@ ShaderMask(
 )
 ```
 
-For a solid tint, write a color filter:
+For a solid tint, use a color filter:
 
 ```dart
 ColorFiltered(
@@ -99,21 +94,17 @@ ColorFiltered(
 )
 ```
 
-`ColorFilter.mode` compiles to a color mask with the same color-filter behavior.
-All Flutter blend modes are available.
+`ColorFilter.mode` compiles to a color mask that behaves like Flutter's color filter. Every Flutter blend mode works.
 
-## Effects that need custom widgets
+## Effects that render from your app
 
-Other shader callback bodies produce a build-time diagnostic, for example:
+Other shader callback bodies render from your app. The `ShaderMask` stays in your compiled code, and `restage build report` gives the reason. These render from your app:
 
-```text
-ShaderMask: createShader must receive the unchanged callback bounds. Put this effect in a custom widget annotated with @RestageWidget.
-```
+- `ui.Gradient`, `ImageShader`, bounds calculations and stored shaders.
+- Callbacks with more than one statement.
+- Transforms other than `GradientRotation`.
+- Color filters other than `ColorFilter.mode`, including matrices.
 
-This includes `ui.Gradient`, `ImageShader`, bounds calculations, stored shaders,
-callbacks with multiple statements and transforms other than `GradientRotation`.
-Color filters other than `ColorFilter.mode`, including matrices, also need a
-[custom widget](/authoring/custom-widgets).
+A design can't change those effects over the air. Extract one into a [custom widget](/authoring/custom-widgets) if you want editor controls for it.
 
-For fragment shaders and image-filled text, see
-[Shaders and image effects](/authoring/shaders-and-image-effects).
+For fragment shaders and image-filled text, see [Shaders and image effects](/authoring/shaders-and-image-effects).

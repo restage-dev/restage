@@ -3,26 +3,17 @@ title: Products and purchases
 description: Show live store prices and connect paywall buttons to purchases in your app.
 ---
 
-A paywall displays the products your app supplies and sends an event when a user
-chooses one. Your app handles the event through its store integration. Prices,
-offers and entitlement checks stay with that integration.
+A paywall shows the products your app gives it and sends an event when a user picks one. Your app handles that event with its store integration. Prices, offers and entitlement checks stay there.
 
-Pass product identifiers and localized prices as ordinary widget constructor
-parameters. The generated mount supplies them as
-[host data](/authoring/host-data); the SDK does not populate a `data.products`
-namespace or fetch prices for the widget.
+Pass product identifiers and localized prices as ordinary constructor parameters on your widget. The generated mount sends them as [host data](/authoring/host-data). The SDK doesn't fill a `data.products` namespace or fetch prices for the widget.
 
 ## Choose an integration
 
-Use `restage_revenuecat` if your app already uses RevenueCat. For Flutter's
-`in_app_purchase`, use `restage_store_bridge` with its scope and controller, or
-connect an existing purchase service through its custom handler. Both work with
-your authored paywall's generated mount. Neither replaces your entitlement checks.
+If your app uses RevenueCat, use `restage_revenuecat`. For Flutter's `in_app_purchase`, use `restage_store_bridge` with its scope and controller. You can also connect a purchase service you already have through its custom handler. Both packages work with your paywall's generated mount, but neither replaces your entitlement checks.
 
 ## Use RevenueCat packages
 
-For an app that already uses RevenueCat, use `restage_revenuecat` to pass an offering
-into the paywall and handle its buttons:
+Pass a RevenueCat offering into the paywall and handle its buttons with `restage_revenuecat`:
 
 ```dart
 RevenueCatPaywallSurface(
@@ -41,12 +32,9 @@ RevenueCatPaywallSurface(
 )
 ```
 
-`RevenueCatPaywallSurface` and `PaywallPackage` come from the
-[adapter example](https://github.com/restage-dev/restage/tree/main/packages/restage_revenuecat/example).
-`offering` is the RevenueCat offering the app fetched. `updateFromRevenueCat` and
-`handlePurchaseError` are your app’s callbacks. The offering supplies each package’s
-identifier, localized price and available trial or introductory offer. Display the
-package’s `priceString` and send its identifier from the same button:
+`RevenueCatPaywallSurface` and `PaywallPackage` come from the [adapter example](https://github.com/restage-dev/restage/tree/main/packages/restage_revenuecat/example). `offering` is the offering your app fetched from RevenueCat. `updateFromRevenueCat` and `handlePurchaseError` are your app's callbacks.
+
+The offering gives each package an identifier, a localized price and any trial or introductory offer. Show the package's `priceString` and send its identifier from the same button:
 
 ```dart
 FilledButton(
@@ -58,42 +46,25 @@ FilledButton(
 )
 ```
 
-The adapter resolves that identifier within the supplied offering and purchases the
-RevenueCat package. An unknown identifier produces an error. A restore button sends
-`revenuecat.restore`.
+The adapter looks that identifier up in the offering and buys the RevenueCat package. An unknown identifier produces an error, and a restore button sends `revenuecat.restore`.
 
-After this integration is in the app, you can add packages to the offering and
-publish paywall versions selecting them without changing an app-side mapping.
-The [RevenueCat guide](/paywalls/revenuecat) includes worked examples for a price
-test and holiday pricing, including rollback.
+Once this is in your app, you can add packages to the offering and publish paywall versions that use them. You don't have to change any mapping in the app. The [RevenueCat guide](/paywalls/revenuecat) walks through a price test and holiday pricing, including rollback.
 
 ## Use the native stores
 
-For Flutter's `in_app_purchase`, `restage_store_bridge` handles paywall events,
-store updates, and transaction completion. Your app verifies each purchase on a
-trusted server and delivers the entitlement or content exactly once. See [Native stores](/paywalls/native-stores).
+For Flutter's `in_app_purchase`, `restage_store_bridge` handles paywall events, store updates and finishing transactions. Your app verifies each purchase on a trusted server and delivers the entitlement or content exactly once. See [Native stores](/paywalls/native-stores).
 
 ## Use another store integration
 
-Pass the values your app already knows through [host data](/authoring/host-data).
-The paywall can receive a list of products with identifiers and localized prices,
-then send the selected identifier to your `onEvent` callback. Validate it against
-the supplied products before purchasing.
+Pass what your app already knows through [host data](/authoring/host-data). The paywall can take a list of products with identifiers and localized prices, and send the selected identifier to your `onEvent` callback. Check it against the products you supplied before you buy anything.
 
-Use event names belonging to your integration. `purchase`, `restore`, and the
-`restage.` purchase and restore names are reserved. Keep subscription and entitlement
-checks in your app; rendering a paywall or receiving a button event grants nothing.
+Name the events yourself. `purchase`, `restore` and the `restage.` purchase and restore names are reserved. Keep subscription and entitlement checks in your app, because rendering a paywall or receiving a button event grants nothing.
 
 ## Measure completed purchases
 
-The RevenueCat adapter reports a conversion after a successful purchase, linked to
-the paywall view that led to it. Choose **Purchase conversion** when creating the
-experiment. The result represents accepted app-reported purchases. Restores,
-failures and cancellations are excluded.
+The RevenueCat adapter reports a conversion after a successful purchase, tied to the paywall view that led to it. Choose **Purchase conversion** when you create the experiment. It counts purchases your app reported and Restage accepted, while restores, failures and cancellations don't count.
 
-For another integration, report only a new, verified and delivered purchase that
-your purchase service can tie to the checkout the paywall started. Use that
-checkout's `RestageEvent` and the purchased identifiers:
+With another integration, report a purchase only when it's new, verified and delivered, and your purchase service can tie it to the checkout the paywall started. Pass that checkout's `RestageEvent` and the purchased identifiers:
 
 ```dart
 await Restage.measurement.reportPurchase(
@@ -103,19 +74,12 @@ await Restage.measurement.reportPurchase(
 );
 ```
 
-A matching product id or a nearby purchase-stream update is not enough to establish
-that connection. Restores and recovered transactions must not become new conversions.
-The default native store controller therefore does not report conversions
-automatically; the [custom service path](/paywalls/native-stores#purchase-attribution)
-needs your app to link each purchase to its checkout.
+A matching product id or a purchase-stream update at about the same time doesn't prove the purchase came from that checkout. Restores and recovered transactions must not become new conversions. That's why the default native store controller doesn't report conversions on its own. The [custom service path](/paywalls/native-stores#purchase-attribution) needs your app to link each purchase to its checkout.
 
-The event stays linked to the paywall view it came from through a refresh or dismissal.
-Each event sends at most one report. The method returns `false` if reporting is
-unavailable or refused, including after `Restage.reset()`.
+The event stays tied to its paywall view through a refresh or dismissal. Each event sends at most one report. The method returns `false` if reporting is unavailable or refused, including after `Restage.reset()`.
 
-A tap metric remains useful for measuring button activation. Without a purchase
-report, it cannot tell you whether checkout completed. RevenueCat’s Flutter
-purchase result carries no paid amount or currency; the adapter leaves those values
-unknown and keeps catalog prices as display data.
+A tap metric still tells you how often users pressed the button. Without a purchase report, it can't tell you whether checkout completed.
+
+RevenueCat's Flutter purchase result has no paid amount or currency. The adapter leaves them unknown and keeps catalog prices as display data.
 
 See [Entitlements](/paywalls/entitlements) for entitlement checks and restore.

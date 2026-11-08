@@ -3,9 +3,7 @@ title: Coding agents
 description: Install authoring and operations skills for Restage, from surface design to delivery and analytics.
 ---
 
-The `restage` package ships two skills. Install both with one command, or choose
-only the one you need. Each has a short entry point and detailed references the
-agent reads for the current task.
+The `restage` package ships two skills for your coding agent. Install both with one command, or pick the one you need. Each has a short entry point and detailed references the agent reads for the task at hand.
 
 | Skill | Use it for |
 | --- | --- |
@@ -14,71 +12,66 @@ agent reads for the current task.
 
 ## Install the skills
 
-From your app's directory, after adding `restage` to its dependencies:
+Add `restage` to your app's dependencies. Then run this from the app's directory:
 
 ```sh
 dart run skills@ get --package restage --all
 ```
 
-Dart's [skills tool](https://pub.dev/packages/skills) reads the skills from the
-`restage` version your app resolves and asks which agent to install for. To select
-the agent explicitly:
+Dart's [skills tool](https://pub.dev/packages/skills) reads the skills from the `restage` version your app resolves and asks which agent to install for. To pick the agent yourself:
 
 ```sh
 dart run skills@ get --package restage --agent claude --all
 ```
 
-`--agent claude` installs to `.claude/skills/`, `--agent cursor` to
-`.cursor/skills/`, and `--agent codex` to `.agents/skills/`. Omit `--all` to choose
-individual skills. Commit the installed skills when your team shares them, along
-with `.config/dart_skills/skills_config.json`, which records the selection.
+Each agent has its own folder:
 
-After upgrading `restage`, run the install command again. `dart run skills@ list`
-shows the installed skills; `dart run skills@ prune` removes skills from packages
-the app no longer depends on.
+- `--agent claude` installs to `.claude/skills/`.
+- `--agent cursor` installs to `.cursor/skills/`.
+- `--agent codex` installs to `.agents/skills/`.
+
+Leave out `--all` to choose individual skills. If your team shares the skills, commit them along with `.config/dart_skills/skills_config.json`, the file that records your selection.
+
+After you upgrade `restage`, run the install command again. `dart run skills@ list` shows the installed skills. `dart run skills@ prune` removes skills from packages your app no longer depends on.
 
 ## Author with the recommended APIs
 
-The authoring skill prefers generated `<Name>Surface(...)` mounts, automatic
-placements and compiled-widget fallback. `.atPlacement('name', ...)` is an
-optional naming override. Ordinary setup, Widgetbook and A2UI generation need no
-bundled surface assets.
+The authoring skill steers the agent to the generated `<Name>Surface(...)` mounts, automatic placements and your compiled widget as the fallback. `.atPlacement('name', ...)` is an optional way to name a placement yourself. Ordinary setup, Widgetbook and A2UI generation need no bundled surface assets.
 
-It explains how to preserve OTA flexibility: keep supported composition in the
-surface, expose useful inputs and child slots, and inspect compiler diagnostics
-and generated RFW to see when a custom component uses native code. It covers typed events,
-host data, branching and general flows, host actions, purchase integration and
-compiler failures. Agents read `restage build report` after each build. They
-keep the parts that render from the app unless you want one changeable over the
-air, and they never rewrite code only to make a part render from the design.
+It also teaches the agent how to keep a surface flexible over the air:
 
-The skill's source examples build in a real app. Their fallback and bundled-RFW
-paths are tested separately, because a working fallback says nothing about
-delivered content.
+- Keep supported composition in the surface.
+- Expose useful inputs and child slots.
+- Read `restage build report` to see which parts render from native code.
+
+It covers typed events, host data, branching and general flows, host actions, purchase integration and compiler failures.
+
+After each build, the agent reads `restage build report`. It leaves the parts that render from the app alone unless you want one of them changeable over the air. It never rewrites code just to make a part render from the design.
+
+The skill's source examples build in a real app, and its fallback and bundled-RFW paths are tested separately. A working fallback tells you nothing about delivered content.
 
 ## Operate with project context
 
-The operations skill uses the [CLI and TUI](/tools/cli) or
-[MCP server](/tools/mcp-server). It teaches target and time-window selection,
-analytics interpretation, delivery diagnosis, reviewed routing changes and the
-experiment draft, validation, review and activation workflow. Ordinary experiment
-operations are available without an experimental opt-in. Local surface authoring
-needs neither a hosted account nor an MCP connection.
+The operations skill drives the [CLI and TUI](/tools/cli) or the [MCP server](/tools/mcp-server). It teaches the agent to:
 
-The agent uses your existing authorization for the requested target and action.
-It asks before an action, or impact it discovers, goes beyond that. Uploading a
-revision doesn't make it live; publishing and routing change what the selected
-target serves, within the limits of compatibility and experiment assignment.
+- Choose a target and a time window.
+- Read analytics.
+- Diagnose delivery.
+- Make reviewed routing changes.
+- Draft, validate, review and activate an experiment.
 
-You still supply app-specific credentials and purchase verification, and approve
-browser sign-in when required. The skills do not substitute example callbacks for
-real entitlement or platform behavior.
+Experiment operations don't need an experimental opt-in. Local surface authoring needs neither a hosted account nor an MCP connection.
+
+The agent uses your existing authorization for the target and action you asked for. It asks before it does anything beyond that, or before it acts on impact it discovers along the way. Uploading a revision doesn't make it live. Publishing and routing change what the target serves, within the limits of compatibility and experiment assignment.
+
+You still supply your app's credentials and purchase verification, and you approve browser sign-in when it's needed. The skills don't substitute example callbacks for real entitlement or platform behavior.
 
 ## Use the dashboard from a browser agent
 
-The dashboard draws to a canvas, so an agent reads it through the page's
-accessibility tree. When an automation tool drives the browser, the dashboard
-turns that tree on as it loads. In a browser where `navigator.webdriver` is
-false, such as your own browser driven through an extension, run
-`document.querySelector('flt-semantics-placeholder').click()` once after the page
-loads, then take a new snapshot.
+The dashboard draws to a canvas. An agent reads it through the page's accessibility tree. When an automation tool drives the browser, the dashboard turns that tree on as it loads.
+
+In a browser where `navigator.webdriver` is false, like your own browser driven through an extension, run this once after the page loads. Then take a new snapshot:
+
+```js
+document.querySelector('flt-semantics-placeholder').click()
+```

@@ -3,94 +3,98 @@ title: How it works
 description: Follow a Restage surface from the widget you wrote, through the build and the device checks, to the screen.
 ---
 
-A Restage surface starts as a Flutter widget you annotate. The build compiles it, the SDK
-on the device fetches and checks the live version, and Flutter renders it inside your
-app. Both the build and the SDK work from the same list of widgets your app has
-installed, called the catalog.
+You annotate a Flutter widget and the build compiles it. On the device, the SDK fetches the live version and checks it, and Flutter renders it inside your app. The build and the SDK
+both work from the same list of widgets your app has installed, called the catalog.
 
 ## Write and compile
 
 A surface is a plain Flutter widget with `@Screen()` or `@Paywall()`, or a flow with
-`@FlowGraph(surface: ...)`. A screen published on its own declares its category with
-`@Screen(surface: Surface.<category>)`, and a bare `@Screen()` is a step inside a flow.
-Your own widgets join the catalog with `@RestageWidget`.
+`@FlowGraph(surface: ...)`. A screen you publish on its own declares its category with
+`@Screen(surface: Surface.<category>)`. A bare `@Screen()` is a step inside a flow. Your
+own widgets need no annotation. Add `@RestageWidget` to name one, reuse it and list it
+in the editor.
 
-The categories are the `Surface` enum: `onboarding`, `message`, `survey`, `paywall`, and
-`general`. `@Paywall()` implies `Surface.paywall`. `Surface.general` covers anything
-else, whether a single screen or a whole flow.
+The categories are the `Surface` enum: `onboarding`, `message`, `survey`, `paywall` and
+`general`. `@Paywall()` implies `Surface.paywall`. `Surface.general` covers anything else,
+whether it's a single screen or a whole flow.
 
 `dart run build_runner build` runs `restage_codegen`. It reads your source with the Dart
-analyzer, checks every widget and value against the catalog, and writes:
+analyzer and checks every widget and value against the catalog. What the catalog can't
+express is split into values, actions and islands that your app computes, runs and renders
+from its own code. Then it writes:
 
-- `.rfw`, the binary file the app renders;
-- `.rfwtxt`, a readable copy of it for review;
-- a small file listing what the surface needs from the app, used for compatibility
-  checks;
-- for each standalone `@Screen(surface: ...)` or `@Paywall()`, a typed mount,
-  `<ClassName>Surface`, that takes the same constructor parameters as your widget and shows your widget if the published
-  version can't render;
-- for flows, generated Dart and a `.flow.json` document;
-- `.restage/build/metadata/restage.publication.json`, which records each surface's id and the
-  files that make it up;
-- optionally, an A2UI catalog in Dart and a standalone `.a2ui.json` document.
+- `.rfw`, the binary file the app renders.
+- `.rfwtxt`, a readable copy of it for review.
+- A small file listing what the surface needs from the app, used for compatibility checks.
+- For each standalone `@Screen(surface: ...)` or `@Paywall()`, a typed mount named
+  `<ClassName>Surface`. It takes the same constructor parameters as your widget. It runs a
+  copy of your `build()` and records what the design reads. It shows your widget if the
+  published version can't render. It also lists each island, and the layouts where each
+  value and island exist, for the compatibility checks.
+- For flows, generated Dart and a `.flow.json` document.
+- `.restage/build/metadata/restage.publication.json`. It records each surface's id and the
+  files that make it up.
+- Optionally, an A2UI catalog in Dart and a standalone `.a2ui.json` document.
 
-Anything the compiler can't express is a build error. It never drops a property or
-swaps in a similar widget without telling you.
+If the compiler can't express something, it renders that part from your app. It never
+drops a property or swaps in a similar widget without telling you.
 
-The generator finds annotated widgets anywhere in the package. Folders are for
-organizing your project and don't set a category or an id. If you omit the id, the
-generator uses the file name. Give an explicit id when it has to survive a file move.
+The generator finds annotated widgets anywhere in the package. Folders organize your
+project and don't set a category or an id. If you leave out the id, the generator uses the file name, and an explicit id survives a file move.
 
 ## The catalog
 
-The catalog describes the widgets, properties, and value types that a released build of
-your app can render. The compiler accepts only source it can express with that catalog,
-and the SDK registers the matching widgets, including factories generated for your own
-widgets.
+The catalog lists the widgets, properties and value types that a released build of your
+app can render. The compiler delivers the source it can express with that catalog and
+renders the rest from your app as islands. The SDK registers the matching widgets,
+including factories generated for your own widgets, and each mount registers its own
+islands.
 
-What ships is a description your app's widgets draw, in a small closed language the
-compiler checks. It can carry simple logic, like conditions over data your app supplies.
-Gestures, drawing, network calls and native work stay in Dart compiled into your app. New
-kinds of behavior still ship as an app release.
+What ships is a description that your app's widgets draw. It's written in a small closed
+language that the compiler checks. It can carry simple logic, like conditions over data
+your app supplies. Gestures, drawing, network calls and native work stay in Dart compiled
+into your app. New kinds of behavior still ship as an app release.
 
 ## On the device
 
-Generated `*Surface(...)` widgets are the recommended mounts. They declare their
-placement automatically and keep the original Flutter screen, paywall or flow as a
-fallback.
+Start with the generated `*Surface(...)` widgets as your mounts. They declare their placement automatically and keep the compiled screen, paywall or flow as the fallback.
+
 Bundled surfaces load from the app's assets and need no account or network. When the app
 is connected to Restage Cloud or your own server, the SDK asks for the live version and
-checks it before rendering it.
+checks it before it renders it.
 
-A mount with nothing saved waits up to 3 s for delivered content; one with a saved version waits 150 ms for a newer one.
-The fetch continues after a fallback appears. Each kind of mount has its own fallback:
+A mount with nothing saved waits up to 3 s for delivered content. A mount with a saved
+version waits 150 ms for a newer one. The fetch continues after a fallback appears, and each kind of mount has its own fallback:
 
 - A generated `<ClassName>Surface` or `RestageScreen<E>` checks the version's id,
-  category, required widgets, and events against what the build generated. If a check
-  fails, the generated mount shows the widget you wrote unless you pass an
-  `unavailable` policy, and `RestageScreen` follows the policy you pass it.
-- A generated flow mount checks the flow's declarations and can fall back to a
-  version it accepted earlier, a bundle or the authored flow. The lower-level `RestageFlowGraph<R>` uses
-  the available content and the `FlowUnavailablePolicy` your app supplies.
-- `RestagePaywall` uses an accepted version saved on the device, a bundled copy,
-  or its `fallbackBuilder`. Generated paywall mounts supply the original widget.
+  category, required widgets, islands and events against what the build generated. It also
+  checks that each value and island the version reads is produced in that layout. The SDK
+  remembers each result per mount and app build. If a check fails, the generated mount shows your compiled widget unless you pass an `unavailable`
+  policy. `RestageScreen` follows the policy you pass it.
+- A generated flow mount checks the flow's declarations. It can fall back to a version it
+  accepted earlier, a bundle or the authored flow. The lower-level `RestageFlowGraph<R>`
+  uses the available content and the `FlowUnavailablePolicy` your app supplies.
+- `RestagePaywall` uses an accepted version saved on the device, a bundled copy or its
+  `fallbackBuilder`. Generated paywall mounts supply the compiled widget.
 
 See [Hosted delivery](/delivery/hosted-delivery) for setup and the exact fallback order.
 
 ## Rendering and events
 
 The SDK builds real Flutter widgets inside your widget tree. Theme reads resolve against
-the current `ThemeData`, and [host data](/authoring/host-data) passed through a
-generated mount's typed inputs resolves under `data.context.*`, rebuilding only the widgets that read
-a changed value. Flutter still owns layout, accessibility, scrolling, and gestures.
+the current `ThemeData`. [Host data](/authoring/host-data) that you pass through a
+generated mount's typed inputs resolves under `data.context.*`. When a value changes, only
+the widgets that read it rebuild. Flutter still owns layout, accessibility, scrolling and
+gestures.
 
 Events come back to your app through `SurfaceEvent<T>` declarations and
 `surfaceEvent(...)` in the widget, or through typed flow actions. A generated reference
-only produces the events the class declares, so you never look events up by name. A flow
-can call an action your app registered, with arguments that match its schema, and use
-the result. The handler itself stays in your app.
+only produces the events the class declares. You never look events up by name.
+
+A flow can call an action your app registered, with arguments that match its schema, and
+use the result. The handler itself stays in your app.
 
 By default, the SDK picks up a newly published version the next time a surface mounts.
-[Live refresh](/delivery/live-refresh) can also update a surface already on screen when
-the app resumes, when Restage Cloud or your own channel signals a change, or when you
-call `Restage.reloadSurfaces()`.
+[Live refresh](/delivery/live-refresh) can also update a surface that's already on screen.
+That happens when the app resumes, when Restage Cloud or your own channel signals a
+change, or when you call `Restage.reloadSurfaces()`.

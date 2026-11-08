@@ -15,6 +15,7 @@
       "group": "Author",
       "pages": [
         { "title": "Write a surface", "href": "/authoring/write-a-surface" },
+        { "title": "What renders from your app", "href": "/authoring/islands" },
         { "title": "Host data", "href": "/authoring/host-data" },
         { "title": "Authoring constraints", "href": "/authoring/constraints" },
         { "title": "Gradients and masks", "href": "/authoring/gradients-and-masks" },
@@ -83,6 +84,7 @@
         { "title": "How it works", "href": "/concepts/how-it-works" },
         { "title": "Telemetry and data", "href": "/trust/telemetry" },
         { "title": "Signed delivery", "href": "/trust/signing" },
+        { "title": "Governance and audit", "href": "/trust/governance" },
         { "title": "Licensing", "href": "/trust/licensing" }
       ]
     }

@@ -1,22 +1,15 @@
 ---
 title: Authoring constraints
-description: The Flutter source the build can compile into a surface, and what to write when it can't.
+description: What a design can change in a surface, what renders from your app instead, and the few things that still stop the build.
 ---
 
-A surface is built from your Flutter source, so the build has to be able to follow
-your code. Most of what you already write works as it is. This page lists the rules
-that do apply, with what to write instead. When the build can't follow something, it
-stops with an error that points at the line, before anything can be published.
+Most of the Flutter you already write is delivered as it is. Code the build can't express doesn't stop it. That part renders from your app, and a published design can't change it. This page lists what the build delivers and what to write to get more of it delivered. [What renders from your app](/authoring/islands) covers the rest.
 
-The rules are the same for every surface: onboarding, messages, surveys, paywalls, and
-any screen.
+The rules are the same for every surface: onboarding, messages, surveys, paywalls and any other screen.
 
 ## Locals before the return
 
-`build` may start with `final` and `const` local variables, one per statement, and end
-with one returned widget. Locals can read the theme, refer to each other, or hold a
-widget, including one of your own custom widgets. The result is the same as if you had
-written each value inline:
+`build` can start with `final` and `const` locals and end with a returned widget. A local can read the theme, refer to another local, or hold a widget, including one of your own. The result is the same as writing each value inline:
 
 ```dart
 @override
@@ -27,18 +20,15 @@ Widget build(BuildContext context) {
 }
 ```
 
-The returned widget has to use every local, directly or through another local. A local
-it doesn't use stops the build with the local's name, because its value would never
-reach the surface; a call such as `final pushed = Navigator.push(...)` would otherwise
-disappear without a trace. Several variables in one statement (`final a = 1, b = 2;`),
-`late`, a `final` with no value, and any statement other than a local or the return
-also stop the build. See [Theming](/authoring/theming) for how theme reads through a
-local stay live.
+For a `@Paywall`, a `@Screen(surface: ...)` or a split custom widget, the generated mount runs a copy of the statements in `build()`, in the order you wrote them. That includes several returns, a `switch` that returns, and `try`/`catch`. A local that calls app code runs once, and every value that reads it gets the same result. Each return is delivered as its own branch.
+
+A `@Screen()` with no `surface:` is a flow step, and its `build()` isn't copied. There, the returned widget has to use every local, directly or through another local. These also stop the build: an unused local, several variables in one statement (`final a = 1, b = 2;`), `late`, a `final` with no value, and any statement other than a local or the return.
+
+On the other surfaces, the build stops on a statement it can't copy into the generated mount. That happens when it uses a name your screen file doesn't import, or reads or calls something the mount can't reach. The error names the statement. Import the library that declares the name, or move the statement into a method of the screen's class. See [Theming](/authoring/theming) for how theme reads through a local stay live.
 
 ## Helper methods
 
-A method of your own that returns a widget or a value is followed and inlined where you
-call it, with its arguments:
+The build follows a method of your own that returns a widget or a value. It inlines the method where you call it, with its arguments:
 
 ```dart
 Widget _plan(String name, String price) =>
@@ -50,28 +40,19 @@ Widget build(BuildContext context) => Column(
     );
 ```
 
-This works for methods in the same class and for top-level or static functions anywhere
-in your package, such as `Spacing.page()` or `PlanBadge.pro()`, and in dependency
-packages that publish custom Restage widgets. See
-[Design-system packages](/authoring/design-system-packages). Other package calls
-stop the build with an error that names them. The helper's body is one returned
-expression, optionally after `final` locals. Pass every optional parameter explicitly,
-and a helper can't call itself. For a component you reuse across surfaces, extract a
-[custom widget](/authoring/custom-widgets).
+This works for methods in the same class. It also works for top-level or static functions anywhere in your package, like `Spacing.page()` or `PlanBadge.pro()`, and in dependency packages that publish custom Restage widgets. See [Design-system packages](/authoring/design-system-packages). A call into another package that the build can't inline is computed in your app as a value, or the widget that needs it renders from your app.
+
+A helper the build can inline has one returned expression, optionally after `final` locals. Pass every optional parameter explicitly. A helper can't call itself. For a component you reuse across surfaces, extract a [custom widget](/authoring/custom-widgets).
 
 ## Your own widget classes
 
-A widget you move into its own class needs `@RestageWidget`. A class the build doesn't
-know stops the build with an error that says so. With the annotation, the build
-compiles a widget that only composes other widgets into the surface, and registers the
-others so your app renders them from its own compiled code. See
-[Custom widgets](/authoring/custom-widgets).
+A widget class of your own works in a surface without an annotation. The build inlines it when it only composes other widgets, and otherwise it renders from your app.
+
+Add `@RestageWidget` to name the widget, reuse it across surfaces or give it editor properties. The build then splits a widget that has logic of its own. Its layout and styling are delivered, and only the logic renders from your app. See [Custom widgets](/authoring/custom-widgets).
 
 ## Constants
 
-A top-level or `static const` declared in the same file works anywhere a value goes,
-whether it's a number or string or a value such as a `Color`, `EdgeInsets`,
-`TextStyle`, `BorderRadius`, or `Alignment`:
+A top-level or `static const` in the same file works anywhere a value goes. That includes numbers, strings, and values like `Color`, `EdgeInsets`, `TextStyle`, `BorderRadius` and `Alignment`:
 
 ```dart
 const kBrand = Color(0xFF6E5AFF);
@@ -81,32 +62,31 @@ const kPagePadding = EdgeInsets.all(20);
 Container(padding: kPagePadding, color: kBrand)
 ```
 
-A constant declared in another file or package works the same way. Its value goes into
-the delivered surface, so editing the constant and pushing updates the surface on
-installed apps. Enum values work.
+A constant from another file or package works the same way, and so do enum values. The value goes into the delivered surface. Edit the constant, then build, push and publish, and installed apps get the new value.
 
 ### Reserved class names
 
-Avoid the following names for your own classes in authored surface code. The build
-reserves them for framework values and constants:
+Don't use these names for your own classes in surface code. The build reserves them for framework values and constants:
 
 | Kind | Names |
 | --- | --- |
 | Constant namespaces | `Colors`, `Icons`, `CupertinoIcons` |
 | Named constant values | `FontWeight`, `TextDecoration`, `Curves` |
 | Structured values | `Alignment`, `AlignmentDirectional`, `AssetImage`, `Border`, `BorderRadius`, `BorderRadiusDirectional`, `BorderSide`, `BoxDecoration`, `BoxShadow`, `Color`, `DecorationImage`, `EdgeInsets`, `EdgeInsetsDirectional`, `IconThemeData`, `LinearGradient`, `Locale`, `NetworkImage`, `Offset`, `Paint`, `RadialGradient`, `Radius`, `Size`, `SweepGradient`, `SystemUiOverlayStyle`, `TextStyle` |
+| Scroll values | `ScrollPhysics`, `AlwaysScrollableScrollPhysics`, `BouncingScrollPhysics`, `ClampingScrollPhysics`, `FixedExtentScrollPhysics`, `NeverScrollableScrollPhysics`, `PageScrollPhysics`, `RangeMaintainingScrollPhysics`, `ScrollCacheExtent`, `SliverGridDelegateWithFixedCrossAxisCount`, `SliverGridDelegateWithMaxCrossAxisExtent` |
 | Numeric constants | `double` |
 
-A static constant on an application class with one of these names is rejected,
-even if its value could otherwise be substituted. Rename the class, or inline the
-value at the use site, as the diagnostic suggests. Ordinary framework uses such as
-`Colors.blue` and `EdgeInsets.zero` still work.
+The build doesn't substitute a static constant on an application class with one of these names, even if it could. The value, or the widget that uses it, renders from your app instead. A non-finite `double` constant on such a class still stops the build. To get the value delivered, rename the class or inline the value where you use it. Ordinary framework uses like `Colors.blue` and `EdgeInsets.zero` still work.
+
+Names that start with `_restage` are reserved too, for the code the build generates. A `build()` that declares or reads one stops the build.
 
 ## Lists written in the source
 
-A `for` over a list literal or a same-file `const` list, a collection `if` on a
-condition the build can work out, and a spread of a list literal all expand at build
-time, nested as deep as you like:
+These expand at build time, nested as deep as you like:
+
+- a `for` over a list literal or a same-file `const` list
+- a collection `if` on a condition the build can work out
+- a spread of a list literal
 
 ```dart
 const kFeatures = ['Unlimited projects', 'Priority support', 'Export'];
@@ -120,47 +100,36 @@ Column(
 )
 ```
 
-A `for` over a value that is only known when the app runs, such as a constructor
-parameter, is [host data](/authoring/host-data) and stays a loop in the surface. Not
-supported: a C-style `for`, a null-aware spread (`...?`), sets and maps, `.map()`
-chains, and a condition on a build-mode constant such as
-`kDebugMode`. One list can expand to at most 1,000 children. Callbacks inside a static `for`
-are compiled for each iteration, including event arguments from the loop variable.
-`TextSpan.children` requires a static list: spread, collection `if`, and collection
-`for` elements are not supported there.
+A `for` over a value that's only known when the app runs, like a constructor parameter, is [host data](/authoring/host-data). It stays a loop in the surface.
+
+A C-style `for`, a null-aware spread (`...?`), a set or map, a `.map()` chain, and a condition on a build-mode constant such as `kDebugMode` aren't delivered. The widget that holds one renders from your app, and its children that can be delivered stay delivered. One list can expand to at most 1,000 children.
+
+Callbacks inside a static `for` are compiled for each iteration, including event arguments from the loop variable. `TextSpan.children` takes spread, collection `if` and collection `for` elements too, including a `for` over host data and a `...?` the build can resolve. Only a list the build can't resolve makes the `Text.rich` render from your app.
 
 ## Builder callbacks
 
-`LayoutBuilder`, `OrientationBuilder`, native GridView item/delegate callbacks, and
-supported SVG placeholders accept pure typed callbacks. Use expression bodies or
-blocks with immutable locals and conditional returns. Captured data, typed member
-and index reads, arithmetic, string interpolation, and supported helpers keep their
-Dart evaluation order. Boolean operators, conditional expressions, and null
-coalescing evaluate only the selected branch.
+`LayoutBuilder`, `OrientationBuilder`, native `GridView` item and delegate callbacks, and supported SVG placeholders take callbacks the build can compile. Write an expression body, or a block with immutable locals and conditional returns:
 
-Constraints, orientation, and supported inherited reads come from the native
-callback's local context. Guard unbounded constraints before using them as finite
-layout values. A nullable item builder can return null without evaluating later
-index reads. Scalar `ValueKey` values belong on returned widget roots; opaque
-object keys and unsupported descendant keys are diagnosed.
+```dart
+LayoutBuilder(builder: (context, constraints) {
+  final width = constraints.hasBoundedWidth ? constraints.maxWidth / 2 : 80.0;
+  return Text(width >= 200 ? 'Wide' : 'Compact');
+})
+```
 
-Supported callback-local `Theme` and `DefaultTextStyle` paint values retain native
-color components/color space, font weights from 1 through 1000, and combined text
-decorations in native Flutter paint properties. Inside builders, custom catalog
-arguments require proven base `Color` and `FontWeight` values, including inside
-`TextStyle`, gradients, and shadows. Examples include `Colors.black`, `Color(...)`,
-`FontWeight.bold`, and `FontWeight(550)`. Deferred colors/font weights and subtypes
-such as `Colors.red` (`MaterialColor`) are diagnosed, even through a `Color`-typed
-alias. Ordinary Flutter paint properties keep their existing color admission.
-The optional SVG theme/filter slots also require proven base colors outside
-callbacks; see [Optional SVG](/authoring/widget-catalog#optional-svg).
-Arbitrary host Color captures and equality comparisons between Color objects are
-outside the callback subset; null checks are allowed.
+Inside a callback you can use captured data, typed member and index reads, arithmetic, string interpolation and supported helpers. They evaluate in Dart's order. `&&`, `||`, `?:` and `??` evaluate only the branch they pick.
 
-Mutation, async/generators, recursive helpers, custom operators/getters, and arbitrary
-application calls cannot be delivered through these callbacks. A source diagnostic
-names the unsupported expression. Explicit controller objects and imperative
-delegates belong in installed application code.
+A callback reads constraints, orientation and supported inherited values from its own local context. Guard unbounded constraints before you use them as finite layout values. A nullable item builder can return null without evaluating later index reads. Put scalar `ValueKey` values on the widgets the callback returns, because the build reports opaque object keys and keys on unsupported descendants.
+
+Supported `Theme` and `DefaultTextStyle` paint values read inside a callback keep their native color components and color space. They also keep font weights from 1 through 1000 and combined text decorations in native Flutter paint properties.
+
+Custom catalog arguments inside a builder need base `Color` and `FontWeight` values the build can prove, including inside `TextStyle`, gradients and shadows. Examples are `Colors.black`, `Color(...)`, `FontWeight.bold` and `FontWeight(550)`. The build reports deferred colors and font weights. It also reports subtypes such as `Colors.red` (a `MaterialColor`), even through a `Color`-typed alias. Ordinary Flutter paint properties keep their existing color rules.
+
+The optional SVG theme and filter slots need provable base colors outside callbacks too. See [Optional SVG](/authoring/widget-catalog#optional-svg). A callback can't capture an arbitrary host `Color` or compare two `Color` objects, but null checks are fine.
+
+A callback the build can't deliver stays in your app. That covers mutation, async code, generators, recursive helpers, custom operators or getters, and arbitrary application calls. When the callback only calls app code, like `() => cubit.purchase(plan)`, it becomes an action. Your app holds the closure and the design fires it by name.
+
+A builder closure that can't be delivered also stays in your app, while its body is still delivered when it can be expressed. Otherwise the widget renders from your app. Explicit controller objects and imperative delegates work the same way, and you don't have to move them.
 
 ## Events on callbacks
 
@@ -171,23 +140,19 @@ onPressed: surfaceEvent(next),
 onChanged: surfaceEvent(pick),
 ```
 
-When the widget passes a value, such as a Switch's `bool` or a TextField's text, that
-value is the event's value. Don't wrap the call in a closure: `() => surfaceEvent(next)`
-returns the callback without calling it, so the event never fires when your own widget
-shows as the fallback. The build compiles it with a warning.
+When the widget passes a value, like a Switch's `bool` or a TextField's text, that value is the event's value. Don't wrap the call in a closure: `() => surfaceEvent(next)` returns the callback without calling it. The build compiles that with a warning, and the event never fires when your own widget shows as the fallback.
 
-A possibly missing nullable value read inside a builder needs a matching non-null
-guard or a fallback covering every null/missing case before it can enter an event
-payload, even if the event type permits null. Otherwise the build diagnoses that
-payload. Native callbacks that already deliver nullable event values keep their
-existing behavior.
+A callback that calls your own code, like `() => Navigator.of(context).maybePop()`, also works, as an action that your app runs. `surfaceEvent` is still how you report to `onEvent`.
+
+Inside a builder, a nullable value that might be missing needs a matching non-null guard before it can go into an event payload. A fallback that covers every null or missing case also works. This holds even if the event type allows null, and otherwise the build reports that payload. Native callbacks that already deliver nullable event values keep their existing behavior.
 
 ## Build text from parts
 
-An interpolated value can be any non-null `String` the surface can read: host data, a
-`State` field, a `final` local in `build()`, or a condition over them. A `Text`, a
-built-in widget's `String` property, and the `String` property of a custom widget your app
-renders can join text and values:
+An interpolated value can be any non-null `String` the surface can read: host data, a `State` field, a `final` local in `build()`, or a condition over them. These can join text and values:
+
+- a `Text`
+- a built-in widget's `String` property
+- the `String` property of a custom widget your app renders
 
 ```dart
 final price = yearly ? widget.yearlyPrice : widget.monthlyPrice;
@@ -197,16 +162,11 @@ return Column(children: [
 ]);
 ```
 
-Supported typed values and native `intl` formatting can also produce text inside
-value objects, nested spans, and pure builder callbacks. See
-[Dates and localized text](/authoring/host-data#dates-and-localized-text).
+Supported typed values and native `intl` formatting can also produce text inside value objects, nested spans and pure builder callbacks. See [Dates and localized text](/authoring/host-data#dates-and-localized-text).
 
 ## Full width without double.infinity
 
-A literal property in a surface can't carry `double.infinity` or another non-finite
-number. Native builder constraints may be unbounded; guard them before using a finite
-layout property. A literal `SizedBox(width: double.infinity)` stops the build with an
-error. Use layout instead.
+A literal property in a surface can't hold `double.infinity` or any other non-finite number. A literal `SizedBox(width: double.infinity)` stops the build with an error. It's one of the few things that don't render from your app instead. Use layout. Native builder constraints can be unbounded too, and you guard them before you use them as a finite layout property.
 
 For one full-width child in a centered column, wrap it in a `Row` with `Expanded`:
 
@@ -214,7 +174,7 @@ For one full-width child in a centered column, wrap it in a `Row` with `Expanded
 Row(children: [Expanded(child: child)])
 ```
 
-For a column that is full width throughout, stretch the cross axis:
+For a column that's full width throughout, stretch the cross axis:
 
 ```dart
 Column(
@@ -225,15 +185,18 @@ Column(
 
 ## Custom painting, gestures, and animation
 
-Custom painting, such as a `CustomPainter`, goes in a custom widget that compiles into
-your app. A surface sets it up through its constructor properties. You can often build
-the same design from catalog widgets such as containers, gradients, and borders.
-Native `ClipPath.shape` and direct `ShapeBorderClipper` construction accept supported
-shape data; arbitrary `CustomClipper` methods stay in installed code. Recognized
-native TextSpan recognizers use installed lifetime ownership; see
-[Interactive surfaces](/authoring/interactive-surfaces#interactive-text-spans).
-Lottie and Rive are outside the supported delivered authoring set.
+A `CustomPaint`, a widget that drives an `AnimationController`, and gesture code the catalog doesn't cover render from your app. You don't move them. You can often build the same design from catalog widgets such as containers, gradients and borders, and then a design can change it.
 
-These rules keep every surface something the app can render from data. When a surface
-needs a component of your own, [custom widgets](/authoring/custom-widgets) are the way
-to add it.
+Native `ClipPath.shape` and direct `ShapeBorderClipper` construction accept supported shape data. A `CustomClipper` with its own methods renders from your app, and so do Lottie and Rive. A design can't restyle them over the air. The runtime owns the native `TextSpan` recognizers you create. See [Interactive surfaces](/authoring/interactive-surfaces#interactive-text-spans).
+
+## What still stops the build
+
+Unsupported code renders from your app. These still stop the build with an error:
+
+- a non-finite literal such as `double.infinity`;
+- a name in `build()` that starts with `_restage`;
+- a `build()` statement the generated mount can't copy;
+- in a flow step's `build()`, an unused local or a statement other than a local or the return;
+- a helper that calls itself.
+
+[What renders from your app](/authoring/islands#what-still-stops-the-build) has the full list.

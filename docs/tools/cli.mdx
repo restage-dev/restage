@@ -3,16 +3,17 @@ title: CLI and TUI
 description: Install the restage CLI, push and publish surfaces from the shell, or manage them in the full-screen terminal console.
 ---
 
-The `restage` command sets up a project, pushes surfaces, and manages what is live. It
-has two modes: shell commands for scripts and CI, and a full-screen terminal console
-(TUI) for browsing and operating surfaces by hand.
+The `restage` command sets up a project, pushes surfaces and manages what's live. Use it in the shell for scripts and CI. Run it with no arguments to open a full-screen terminal console (the TUI) for working by hand.
 
-The source is public under BSD-3-Clause. The CLI is pre-release, so commands and the
-saved credential format can still change.
+The source is public under BSD-3-Clause. The CLI is pre-release, and commands and the saved credential format can still change.
 
 ## Install from source
 
-The CLI isn't on pub.dev yet. Build it from the repository:
+<Callout type="info">
+The CLI isn't on pub.dev yet.
+</Callout>
+
+Build it from the repository:
 
 ```sh
 git clone https://github.com/restage-dev/restage.git
@@ -21,15 +22,13 @@ flutter pub get
 dart run melos run cli:install
 ```
 
-This compiles a native executable to `${PUB_CACHE:-$HOME/.pub-cache}/bin/restage`. That
-directory is not on your `PATH` by default, so `restage` is not found until you add it.
-For example, add this line to your shell profile and open a new terminal:
+That compiles a native executable to `${PUB_CACHE:-$HOME/.pub-cache}/bin/restage`. The directory isn't on your `PATH` by default. Add it to your shell profile and open a new terminal:
 
 ```sh
 export PATH="$PATH:${PUB_CACHE:-$HOME/.pub-cache}/bin"
 ```
 
-Then check the install:
+Check the install:
 
 ```sh
 restage --help
@@ -37,57 +36,53 @@ restage --help
 
 ## Set up a project
 
-Set up in this order:
+Do these in order:
 
 1. Sign up at https://app.restage.dev and create your organization and first app.
-2. Sign in from the terminal with `restage login` (see [Sign in](#sign-in)).
-3. Run `restage init` in your Flutter project. It finds your organization, project,
-   app and environments in your account and asks when there is more than one.
+2. Run `restage login` to sign in from the terminal. See [Sign in](#sign-in).
+3. Run `restage init` in your Flutter project. It finds your organization, project, app and environments in your account and asks when there's more than one.
 
 ```sh
 restage init
 restage doctor
 ```
 
-If your account has no organization yet, `init` stops and names the dashboard to
-create one in. `doctor` works offline, with no account. So does `init` when you pass
-`--organization`, `--project`, `--app` and `--env`.
+If your account has no organization yet, `init` stops and tells you where in the dashboard to create one. `doctor` works offline with no account, and so does `init` when you pass `--organization`, `--project`, `--app` and `--env`.
 
-`init` writes `restage_config.yaml`, adds `restage` and `restage_material` to your
-dependencies and `restage_codegen` and `build_runner` to your dev dependencies, adds `.restage/build/`
-to `.gitignore`, and writes a starter `@Paywall()` under `lib/paywalls/`. Pass
-`--no-add-deps` to leave `pubspec.yaml` alone, `--no-starter` to skip the starter, or
-`--dry-run` to see the changes without writing them. With `--yes` (or `--non-interactive`) and no `--env`, `init` takes the first environment
-on the sandbox side and says which one it picked; pass `--plane live` for the live side.
-`--env <name>` finds the side that environment is on, sandbox first. Pass `--preview-wrapper` to set the push-image wrapper described below.
-`init` also lists the `.restage/`
-files that keep surface and event ids stable in `build.yaml`, so the build tracks them. Generated mounts need no bundled surface assets; the
-[Quickstart](/quickstart) uses that default. See [Bundled assets](/delivery/bundled-assets)
-only if you want to ship RFW artifacts in the app.
+`init` makes these changes:
 
-When you are signed in, `init` also writes the backend you signed in to as `endpoint:`
-in `restage_config.yaml`. Commands then refuse to use a sign-in for a different backend
-and tell you to run `restage login --endpoint <that URL>`. Without `endpoint:`, commands
-use the backend of your current sign-in.
+- It writes `restage_config.yaml`.
+- It adds `restage` and `restage_material` to your dependencies, and `restage_codegen` and `build_runner` to your dev dependencies.
+- It adds `.restage/build/` to `.gitignore`.
+- It writes a starter `@Paywall()` under `lib/paywalls/`.
+- It lists, in `build.yaml`, the `.restage/` files that keep surface and event ids stable. That way the build tracks them.
 
-`doctor` runs a setup check and prints what it found. It never fails your build. When
-you are signed in, it also checks that the organization, project, app, and environment
-in `restage_config.yaml` exist, and lists the real ones when they don't. `status` runs
-the same check.
+Generated mounts need no bundled surface assets, and the [Quickstart](/quickstart) uses that default. Read [Bundled assets](/delivery/bundled-assets) only if you want to ship RFW artifacts in the app.
+
+These flags change what `init` does:
+
+- `--no-add-deps` leaves `pubspec.yaml` alone.
+- `--no-starter` skips the starter paywall.
+- `--dry-run` shows the changes without writing them.
+- `--yes` (or `--non-interactive`) with no `--env` takes the first environment on the sandbox side and says which one it picked. Add `--plane live` to use the live side.
+- `--env <name>` finds the side that environment is on, sandbox first.
+- `--preview-wrapper` sets the push-image wrapper described under [Push a build](#push-a-build).
+
+When you're signed in, `init` also writes the backend you signed in to as `endpoint:` in `restage_config.yaml`. After that, a command refuses to use a sign-in for a different backend and tells you to run `restage login --endpoint <that URL>`. Without `endpoint:`, commands use the backend of your current sign-in.
+
+`doctor` runs a setup check and prints what it found. It never fails your build. When you're signed in, it also checks that the organization, project, app and environment in `restage_config.yaml` exist. If one doesn't, it lists the real ones. `status` runs the same check.
 
 ### Sandbox and live
 
-Every environment (dev, staging, prod) has two sides: **sandbox**, for testing with no
-real users or money, and **live**. `init` writes `plane: sandbox` to
-`restage_config.yaml`; change it to `live`, or pass `--plane live` to one command, to
-work on the live side. API keys name their side and environment, for example
-`rs_pk_sandbox_staging_…` or `rs_sk_live_prod_…`, and a command that uses a key takes
-its side from the key.
+Every environment (dev, staging, prod) has two sides. Sandbox is for testing with no real users or money, and live is the other one.
+
+`init` writes `plane: sandbox` to `restage_config.yaml`. Change it to `live`, or pass `--plane live` to one command, to work on the live side.
+
+API keys name their side and environment, like `rs_pk_sandbox_staging_…` or `rs_sk_live_prod_…`. A command that uses a key takes its side from the key.
 
 ## Sign in
 
-The other commands talk to Restage Cloud. Sign in once, and every command uses the
-saved session:
+The other commands talk to Restage Cloud. Sign in once and every command uses the saved session:
 
 ```sh
 restage login
@@ -96,20 +91,7 @@ restage status
 restage logout
 ```
 
-`login` opens a browser to approve the sign-in.
-
-### Use another backend
-
-A new sign-in uses Restage Cloud. To sign in to another backend, pass its API URL. The
-backend these docs describe is at `https://api.restage.dev`.
-
-```sh
-restage login --endpoint <url>
-```
-
-Or set `RESTAGE_BACKEND_URL` to that URL before `restage login`. `restage init` then
-writes the URL as `endpoint:` in `restage_config.yaml`, and later commands use that
-backend. `restage docs`, and the docs links the CLI prints, follow the same backend.
+`login` opens a browser for you to approve the sign-in.
 
 To see what your account can reach:
 
@@ -120,10 +102,19 @@ restage envs
 restage targets
 ```
 
+### Use another backend
+
+A new sign-in uses Restage Cloud. To use another backend, pass its API URL. The backend these docs describe is at `https://api.restage.dev`.
+
+```sh
+restage login --endpoint <url>
+```
+
+You can set `RESTAGE_BACKEND_URL` to that URL before `restage login` instead. `restage init` then writes it as `endpoint:` in `restage_config.yaml`, and later commands use that backend. `restage docs` and the docs links the CLI prints follow the same backend.
+
 ## Push and publish surfaces
 
-A push uploads a version and changes nothing that is running. A publish makes one
-pushed version live. Push ten variants; publish one.
+A push uploads a version and changes nothing that's running. A publish makes one pushed version live, and you can push ten variants and publish one.
 
 ```sh
 dart run build_runner build
@@ -131,8 +122,7 @@ restage surface push welcome
 restage surface publish welcome
 ```
 
-The `surface` commands work the same for onboarding, message, survey, paywall, and
-general surfaces:
+The `surface` commands work the same for onboarding, message, survey, paywall and general surfaces:
 
 | Command | What it does |
 | --- | --- |
@@ -141,47 +131,36 @@ general surfaces:
 | `surface publish <id>` | Make a pushed revision live. Without `--revision`, it publishes the latest one and prints which. |
 | `surface status <id>` | Show the live version and whether the surface is frozen. |
 | `surface history <id>` | List pushed revisions and mark the live one. |
-| `surface results <id>` | Read the surface's funnel: views, steps, drop-off, and completions per published version. |
+| `surface results <id>` | Read the surface's funnel for each published version: views, steps, drop-off and completions. |
 | `surface rollback <id>` | Make an earlier version live again. |
-| `surface freeze <id>` | Keep the current version serving and refuse new publishes until you unfreeze. |
+| `surface freeze <id>` | Keep the current version serving and refuse new publishes until you unfreeze it. |
 | `surface unfreeze <id>` | Allow publishing again. |
-| `surface kill <id>` | Stop hosted delivery; devices use content they saved earlier or their fallback. |
+| `surface kill <id>` | Stop hosted delivery. Devices use content they saved earlier, or the fallback. |
 | `surface rename-version <id>` | Set or clear a version label. |
-| `surface archive <id>` / `surface restore <id>` | Archive across environments, or restore to the list for publication. |
-| `surface check-libraries` | Find live versions, delivery rules and experiment arms the local build would stop rendering. |
-| `surface routing` | Beta. Decide which published version each request receives. Run `restage surface routing --help` for its subcommands. |
+| `surface archive <id>` / `surface restore <id>` | Archive a surface in every environment, or put it back in the list so you can publish it again. |
+| `surface check-libraries` | List live versions, delivery rules and experiment arms that your local build would stop rendering. |
+| `surface routing` | Beta. Choose which published version each request gets. Run `restage surface routing --help` for its subcommands. |
 
-`--reason` records why you made a change in the audit log. Run
-`restage help surface <command>` for each command's flags.
+`--reason` records why you made a change in the audit log. Run `restage help surface <command>` for a command's flags.
 
-After a kill, devices may use content they saved earlier that still qualifies, or
-their configured fallback. Content already displayed is not necessarily removed immediately.
-Generated mounts include the original Flutter widgets as fallback.
+After a kill, devices may use content they saved earlier that still qualifies, or their configured fallback. Content already on screen isn't necessarily removed right away. Generated mounts include your compiled widgets as the fallback.
 
-Archiving stops serving the surface across environments. Restoring it returns it to
-the list; publish a version to serve it again. `check-libraries` reads your local
-`.restage/library-contracts/` and the last build's library versions, and exits non-zero when the build would break served
-content. Run it before releasing a changed widget library.
+Archiving stops serving the surface across environments. Restoring it puts it back in the list, and you publish a version to serve it again.
+
+`check-libraries` compares your local `.restage/library-contracts/` with the library versions from your last build. It exits non-zero when the build would break content that's being served. Run it before you release a changed widget library.
 
 ### Review experiment impact
 
-Surface publish, rollback, kill, freeze and unfreeze get a measurement-impact
-review before applying the change. Add `--review-measurement` to inspect it
-without changing the surface. For example, after pushing revision 4:
+Publish, rollback, kill, freeze and unfreeze get a measurement-impact review before they apply. Add `--review-measurement` to see the review without changing the surface. After pushing revision 4, for example:
 
 ```sh
 restage surface publish welcome --revision 4 \
   --reason "Clarify the introduction" --review-measurement
 ```
 
-Inspect the affected experiments, metrics, versions and warnings. A warning can
-describe a lost metric source, a changed population or lost scheduled output.
-An agent must explain new impact and stop unless you have authorized it.
+The review lists the affected experiments, metrics, versions and warnings. A warning can mean a lost metric source, a changed population or lost scheduled output. An agent must explain new impact and stop unless you've authorized it.
 
-To apply the reviewed publication, remove `--review-measurement`. An interactive
-terminal asks separately about measurement warnings. To accept a warning you have
-approved in automation, supply its exact digest and choose a lowercase UUIDv4 for
-the operation:
+To apply the change, remove `--review-measurement`. An interactive terminal then asks about measurement warnings separately. In automation, pass the digest of the warning you approved and a new lowercase UUIDv4 as the operation id:
 
 ```sh
 restage surface publish welcome --revision 4 \
@@ -189,31 +168,17 @@ restage surface publish welcome --revision 4 \
   --reviewed-digest REVIEW_DIGEST --operation-id OPERATION_UUID
 ```
 
-Replace `REVIEW_DIGEST` with the digest printed by the review and
-`OPERATION_UUID` with your new UUIDv4. A review with no warnings needs no
-`--reviewed-digest`. Live targets also need the command's normal confirmation,
-including for a review-only run; `--yes` does not acknowledge warnings.
+Replace `REVIEW_DIGEST` with the digest the review printed and `OPERATION_UUID` with your new UUIDv4. A review with no warnings needs no `--reviewed-digest`. Live targets also need the command's normal confirmation, even for a review-only run. `--yes` doesn't acknowledge warnings.
 
-Refusals block the change. If the review is out of date or the impact changes,
-review again. When you can't tell whether a change went through, check status and
-history, then retry with the same operation id and the same inputs. A new id
-doesn't fix an out-of-date review or a refused retry.
+A refusal blocks the change. If the review is out of date or the impact changes, review again. If you can't tell whether a change went through, check status and history. Then retry with the same operation id and inputs. A new id doesn't fix an out-of-date review or a refused retry.
 
-Rollback's `--preview` checks compatibility with the current active version.
-It is separate from `--review-measurement` and does not prove that every installed
-app can render the revision. Routing uses its own
-[review and acknowledgment workflow](/delivery/audience-routing#simulate-and-review-a-policy).
+Rollback's `--preview` checks compatibility with the current active version and is separate from `--review-measurement`. It doesn't prove that every installed app can render the revision. Routing has its own [review and acknowledgment workflow](/delivery/audience-routing#simulate-and-review-a-policy).
 
 ### How a push finds its files
 
-After `dart run build_runner build`, the CLI reads the generated publication manifest
-at `.restage/build/metadata/restage.publication.json`, or wherever `output_root` in
-`build.yaml` puts it. It uploads the files the manifest lists for the surface you name.
-`--type` is optional. When you pass it, the CLI checks that the surface has that type.
+After `dart run build_runner build`, the CLI reads the publication manifest at `.restage/build/metadata/restage.publication.json`, or where `output_root` in `build.yaml` puts it. It uploads the files the manifest lists for the surface you name. `--type` is optional. If you pass it, the CLI checks that the surface has that type.
 
-A surface id is 1 to 64 characters: lowercase letters, digits, hyphens, and
-underscores, starting with a letter or digit. The build and the CLI both reject
-anything else.
+A surface id is 1 to 64 characters. It can hold lowercase letters, digits, hyphens and `_`, and it starts with a letter or digit. The build and the CLI both reject anything else.
 
 You can name the `.dart` file instead of the id:
 
@@ -222,106 +187,75 @@ restage surface push lib/flows/welcome_flow.dart
 restage surface push lib/flows/welcome_flow.dart --all
 ```
 
-The CLI looks the file up in the same manifest. A screen that belongs to a flow selects
-the flow, because the flow is what ships it. If a file produced more than one surface,
-the CLI lists them and asks, or prints the commands to run when there is no terminal.
-`--all` pushes all of them. A file that produced nothing is an error. A run over several
-surfaces stops at the first failure and reports what was pushed and what wasn't
-attempted.
+The CLI looks the file up in the same manifest. A screen that belongs to a flow selects the flow, because the flow is what ships it.
 
-`restage paywall push <name>` still works for paywalls. Use `restage surface push` for
-new scripts.
+If a file produced more than one surface, the CLI lists them and asks, or prints the commands to run when there's no terminal. `--all` pushes all of them, and a file that produced nothing is an error. A run over several surfaces stops at the first failure and reports what it pushed and what it skipped.
+
+`restage paywall push <name>` still works for paywalls. Use `restage surface push` in new scripts.
 
 ### Release receipts
 
-`--record-git` on `surface push` or `surface publish` writes a small JSON receipt under
-`.restage/receipts/` and commits that one file. The receipt names the revision, the
-artifact hashes, and the commit the output was built from. A recorded push requires
-your source, including generated files your repository tracks, to be committed first.
-Set `recordGit: true` in `restage_config.yaml` to make it the default. The CLI never
-pushes commits to a remote.
+`--record-git` on `surface push` or `surface publish` writes a small JSON receipt under `.restage/receipts/` and commits that one file. The receipt names the revision, the artifact hashes and the commit the output was built from.
+
+A recorded push needs your source committed first, including any generated files your repository tracks. Set `recordGit: true` in `restage_config.yaml` to make it the default. The CLI never pushes commits to a remote.
 
 ## Placements and delivery plans
 
-`restage delivery map` reads routing and actual renders by app build. `restage where`
-finds where a surface version is being served. Where nothing has been observed, the
-count is unknown.
+`restage delivery map` shows routing next to what actually rendered, by app build. `restage where` finds where a surface version is being served. Where nothing has been observed, the count is unknown.
 
 | Commands | What they do |
 | --- | --- |
-| `delivery placements list` / `show` | Find placements and inspect what each one accepts. |
-| `delivery observed-history` / `simulate` | Read observed mounts or preview decisions. |
+| `delivery placements list` / `show` | List placements and see what each one accepts. |
+| `delivery observed-history` / `simulate` | Read the mounts the server has seen, or preview decisions. |
 | `delivery plan read` / `timeline` / `history` | Inspect a plan and its revisions. |
-| `delivery plan fit` / `simulate` | Check content compatibility and proposed decisions. |
-| `delivery plan review` / `publish` | Review a complete plan, then publish that reviewed change. |
-| `delivery plan undo` | Prepare a reviewed rollback. |
-| `delivery sample import` / `review` / `upload` / `bind` | Validate a supplied capture and PNG, review them, then upload and bind a sample. |
+| `delivery plan fit` / `simulate` | Check that content fits, and preview the decisions a plan would make. |
+| `delivery plan review` / `publish` | Review a complete plan, then publish the change you reviewed. |
+| `delivery plan undo` | Prepare a rollback for review. |
+| `delivery sample import` / `review` / `upload` / `bind` | Validate a capture and PNG you supply, review them, then upload and bind the sample. |
 | `delivery sample show` / `download` / `delete` | Read or delete a stored sample. |
 
-Run each command with `--help` for its target and request arguments. Writes use the
-same live-plane confirmation as other delivery changes. See
-[Placements](/delivery/placements) for the app setup; reading a placement does not
-capture or upload a screen.
+Run each command with `--help` for its target and request arguments. Writes use the same live-plane confirmation as other delivery changes. See [Placements](/delivery/placements) for the app setup. Reading a placement doesn't capture or upload a screen.
 
 ## Push a build
 
-When a surface uses widgets from your app, the dashboard needs a build of your app to
-show it. `restage build push` builds those widgets for the web and uploads the build.
-It is pre-release.
+If a surface uses widgets from your app, the dashboard needs a build of your app to show it. `restage build push` builds those widgets for the web and uploads the build. It's pre-release.
 
 ```sh
 restage build push                # your personal build
 restage build push --env staging  # the build for an environment
 ```
 
-It works in any app that depends on `restage`, with nothing to add to the app. The CLI
-generates a small web project under `.restage/build/render_bundle/`, pinned to the
-package versions your app resolves, and builds it there. `.restage/build/` is ignored by
-git, so the push leaves your repository unchanged.
+It works in any app that depends on `restage`, and you add nothing to the app. The CLI generates a small web project under `.restage/build/render_bundle/`, pinned to the package versions your app resolves, and builds it there. Git ignores `.restage/build/`. Your repository stays unchanged.
 
-Each app has one build per environment, plus one personal build per user. A personal
-build shows only in your own dashboard preview, which is enough while you work. An
-environment's build is what everyone in your organization sees. The preview opens on the
-environment's build when it has every widget the surface uses, and on your personal build
-otherwise; the build menu above the preview switches between them. Moving an
-environment's build needs an admin account or an API key. The command builds twice,
-checks that both builds are identical, and uploads only the files Restage Cloud doesn't
-already have:
+The command builds twice and checks that both builds are identical. It uploads only the files Restage Cloud doesn't already have:
 
 ```
 Pushed mobile staging version 4. Moved 3 of 41 app files. Built from a91f2c3.
 ```
 
-`build push` runs the code generator first. Pass `--no-generate` to build from what the
-last run produced, and `--record-git` to write a release receipt for the build.
-`restage build list` shows the app's builds, one per environment and one per user.
+Each app has one build per environment, plus one personal build per user:
 
-Push a build again when you add or change a custom widget, and once per app release.
+- A personal build shows only in your own dashboard preview. That's enough while you work.
+- An environment's build is what everyone in your organization sees. Moving it needs an admin account or an API key.
+- The preview opens on the environment's build when it has every widget the surface uses. Otherwise it opens on your personal build. The build menu above the preview switches between them.
 
-If you push a surface that uses your app's widgets and the environment has no build
-that includes them, the CLI tells you which command to run.
-`restage surface push welcome --build` pushes the environment's build first.
+`build push` runs the code generator first. Pass `--no-generate` to build from what the last run produced. Pass `--record-git` to write a release receipt for the build. `restage build list` shows the app's builds, one per environment and one per user.
 
-A push also captures an image of each surface that uses your app's own widgets, which
-the dashboard shows until the environment has a build that can render it.
+Push a build again when you add or change a custom widget or a part of a screen that renders from your app, and once per app release. The push names each live version that will show your compiled screen on that build until you republish it.
 
-The image comes from a widget test that builds the surface with sample values; a
-flow is drawn at its first screen. If the surface reads something your app provides
-above it, such as a theme, a provider or a bloc, name a function in `lib/` that
-supplies it, in `restage_config.yaml`:
+If you push a surface that uses your app's widgets and the environment has no build that includes them, the CLI tells you which command to run. `restage surface push welcome --build` pushes the environment's build first.
+
+### Preview images
+
+A push also captures an image of each surface that uses your app's own widgets. The dashboard shows it until the environment has a build that can render the surface.
+
+The image comes from a widget test that builds the surface with sample values. A flow is drawn at its first screen. If the surface reads something your app provides above it, like a theme, a provider or a bloc, name a function in `lib/` that supplies it in `restage_config.yaml`:
 
 ```yaml
 previewWrapper: lib/restage_preview.dart#wrapPreview
 ```
 
-`restage init --preview-wrapper lib/restage_preview.dart#wrapPreview` writes the same
-line.
-
-Sample values come from the surface's host data. A required field the surface does not
-declare as host data is drawn with a neutral value: `false`, `0`, an empty string, an
-empty collection, or an enum's first value. If a field's type can't be built that way,
-the push names it and goes ahead without the image; give that parameter a default value
-to draw the image. The push prints which fields were drawn with placeholder values.
+`restage init --preview-wrapper lib/restage_preview.dart#wrapPreview` writes the same line. The function looks like this:
 
 ```dart
 import 'package:flutter/widgets.dart';
@@ -330,29 +264,27 @@ import 'package:my_app/app_scope.dart';
 Widget wrapPreview(Widget child) => AppScope.preview(child: child);
 ```
 
-The same function also wraps every dashboard and editor preview of the surface, so its
-file must compile for the web: a wrapper that imports `dart:io` or a plugin without web
-support fails `build push`.
+The same function also wraps every dashboard and editor preview of the surface. Its file must compile for the web. A wrapper that imports `dart:io` or a plugin without web support fails `build push`.
 
-When a surface doesn't render, the push says what stopped it and goes ahead without
-its image.
+Sample values come from the surface's host data. A required field the surface doesn't declare as host data gets a neutral value: `false`, `0`, an empty string, an empty collection or an enum's first value. The push prints which fields got a placeholder.
 
-For CI, set `RESTAGE_API_KEY` to a secret key with the bundle-push scope, and
-`RESTAGE_BACKEND_URL` to your Restage server. A key is only ever sent to that server or
-to the CLI's built-in default, never to an endpoint named in `restage_config.yaml`. A key belongs
-to one organization, app, and environment, so give each environment its own key and its
-own job:
+If a field's type can't be built that way, the push names the field and goes ahead without the image. Give that parameter a default value to get the image. If the surface doesn't render at all, the push says what stopped it and also goes ahead without the image.
+
+### Push from CI
+
+Set `RESTAGE_API_KEY` to a secret key with the bundle-push scope. Set `RESTAGE_BACKEND_URL` to your Restage server:
 
 ```sh
 RESTAGE_API_KEY=… restage build push
 ```
 
-The key is read from the environment only. It can't be passed as a flag or set in
-`restage_config.yaml`, and it's never written to the credentials file.
+A key belongs to one organization, app and environment. Give each environment its own key and its own job.
+
+The CLI only sends a key to that server or to its built-in default. It never sends one to an endpoint named in `restage_config.yaml`. It reads the key from the environment only. You can't pass it as a flag or set it in `restage_config.yaml`, and the CLI never writes it to the credentials file.
 
 ### Flutter SDK selection
 
-Preview builds use the app's Flutter SDK. Selection follows this order:
+Preview builds use your app's Flutter SDK. The CLI picks it in this order:
 
 1. `--flutter-root` on `restage build push`.
 2. `flutterRoot` in `restage_config.yaml`, relative to that file.
@@ -360,29 +292,21 @@ Preview builds use the app's Flutter SDK. Selection follows this order:
 4. The SDK recorded by the app's last `flutter pub get`.
 5. `FLUTTER_ROOT`, then `PATH`.
 
-The command prints the selected SDK and where it found it. An invalid explicit path
-is an error, and the CLI doesn't pick another SDK in its place. To choose one for a build:
+The command prints which SDK it picked and where it found it. An invalid explicit path is an error, and the CLI doesn't pick another SDK in its place. To choose one for a build:
 
 ```sh
 restage build push --flutter-root /path/to/flutter --personal
 ```
 
-Replace `/path/to/flutter` with an installed SDK root. `--env staging` selects an
-environment build instead of a personal build; don't combine it with `--personal`.
-The older `--channel` option is removed.
+Replace `/path/to/flutter` with an installed SDK root. `--env staging` selects an environment build instead of a personal build, and doesn't combine with `--personal`. The older `--channel` option is removed.
 
 ### Try the preview
 
-After pushing a build, open a surface's dashboard preview and choose the personal
-or environment build containing its widgets. The render host forwards pointer,
-keyboard and surface events, so try buttons, text entry and navigation before
-publishing. When a preview input is unavailable, the preview shows a placeholder
-until it has app-supplied data or a compatible build. A placeholder doesn't show
-that the surface works on a device.
+After you push a build, open a surface's dashboard preview and choose the personal or environment build that has its widgets. The render host forwards pointer, keyboard and surface events. Try buttons, text entry and navigation before you publish.
 
-A render build supplies widgets to the dashboard preview. Installed apps still
-render with their own compiled widgets. A failed build exits non-zero without
-replacing the working preview build; publish the surface separately when ready.
+When a preview input isn't available, the preview shows a placeholder until it has app-supplied data or a compatible build. A placeholder doesn't show that the surface works on a device.
+
+A render build only supplies widgets to the dashboard preview. Installed apps render with the widgets compiled into them. A failed build exits non-zero and leaves the working preview build in place. Publish the surface separately when you're ready.
 
 ## Analytics, audiences and experiments
 
@@ -398,19 +322,13 @@ restage experiment list
 restage experiment results --experiment <id>
 ```
 
-Use your own surface, version and experiment identifiers. Most analytics default
-to the last 30 days; `--from` and `--until` select a window. Experiment results
-default to the whole current run. Dates filter only the traffic breakdowns; the
-statistical result always covers the whole run as designed. `--json` returns the
-service's response. Very small production counts are withheld to protect small
-groups of users, and a withheld count is never shown as zero. Sandbox counts are exact, so you can check your own test
-devices.
+Use your own surface, version and experiment identifiers. Most analytics default to the last 30 days, and `--from` and `--until` select a window. Experiment results default to the whole current run.
 
-Experiment drafting and lifecycle commands are available by default. Discover the
-target's surfaces and metrics, create and edit a draft, then validate and review
-the current revision before activating it. See [Experiments](/delivery/experiments)
-for the full workflow, and
-[Audience routing](/delivery/audience-routing) for reviewed delivery changes.
+Dates filter only the traffic breakdowns, while the statistical result always covers the whole run as designed. `--json` returns the service's response.
+
+Very small production counts are withheld to protect small groups of users. A withheld count is never shown as zero. Sandbox counts are exact, and you can check your own test devices against them.
+
+Experiment drafting and lifecycle commands are available by default. Find the target's surfaces and metrics, create and edit a draft, then validate and review the current revision before you activate it. See [Experiments](/delivery/experiments) for the full workflow and [Audience routing](/delivery/audience-routing) for reviewed delivery changes.
 
 ## Drafts and audit
 
@@ -437,19 +355,15 @@ restage keys revoke 42
 restage keys resolve rs_pk_sandbox_staging_…   # where a key belongs
 ```
 
-`slots set` replaces a slot's whole mapping; pass `none` to unmap a store. `keys mint
---public` mints a public key. The key prints in full; `keys list` shows it again by
-prefix. Secret keys are created in the
-dashboard, where the secret is shown once. `keys resolve` names the
-organization, project, app, environment, and side a key belongs to. It matches the key
-against key prefixes on your machine and never sends it.
+`slots set` replaces a slot's whole mapping. Pass `none` to unmap a store.
+
+`keys mint --public` prints the new key in full. `keys list` shows it again by prefix. Create secret keys in the dashboard, where the secret is shown once.
+
+`keys resolve` names the organization, project, app, environment and side a key belongs to. It matches the key against key prefixes on your machine and never sends it.
 
 ## Read the build report
 
-After `dart run build_runner build`, the build report shows, for each generated
-widget, the share of its widgets the design delivers and each part the app
-supplies: values it computes, actions it runs, wrappers kept for every design,
-and widgets that render from the app, with their source locations and reasons.
+After `dart run build_runner build`, the build report shows how much of each generated widget a design can change. It also lists what your app supplies: values it computes, actions it runs, wrappers kept for every design, and widgets that render from the app. Each part has its source location and a reason. [What renders from your app](/authoring/islands) explains the parts.
 
 ```sh
 restage build report             # the report, compared with restage_build_report.json
@@ -459,14 +373,13 @@ restage build report --json      # the same report as JSON
 restage widget promote lib/paywall.dart:42   # move that widget into a widget class of your own
 ```
 
-Commit `restage_build_report.json` so a later report, or a CI run with
-`--check`, shows when a widget starts or stops rendering from the app, changes,
-or when the generated widget keeps a different wrapper. `widget promote` moves the
-widget at that line into an `@RestageWidget` class in the same file and exports
-it from the package's widget library; pass `--name` for the class name and
-`--library` when the package has several widget libraries. Build again
-afterwards. The report suggests it where the same code renders from the app in
-several screens.
+Commit `restage_build_report.json`. A later report, or a CI run with `--check`, shows when a widget starts or stops rendering from the app, when it changes, or when the generated widget keeps a different wrapper.
+
+`--check` also exits 1 when there's no `restage_build_report.json`, and when a generated part doesn't compile. The report prints those errors first.
+
+`widget promote` moves the widget at that line into an `@RestageWidget` class in the same file and exports it from the package's widget library. Pass `--name` to choose the class name, and `--library` when the package has several widget libraries. It fails if no library has `@RestageLibrary`, or if the file changed since the last build. Then build again.
+
+The report suggests promoting in two cases: the same code renders from the app in several screens, or a widget takes three or more values from the design.
 
 ## Other commands
 
@@ -482,32 +395,22 @@ restage docs read /delivery/hosted-delivery   # print a page as Markdown
 
 ## Open the TUI
 
-Run `restage` with no arguments in a terminal, or run `restage console`.
-
-The TUI lets you:
+Run `restage` with no arguments in a terminal, or run `restage console`. In the TUI you can:
 
 - switch environments and planes within the configured app;
-- browse and search onboarding flows, messages, surveys, paywalls, and general surfaces;
-- see delivery status, active versions, and audit history;
-- read overview figures for the selected app, environment, and plane;
-- push, publish, freeze, unfreeze, roll back, or kill the selected surface;
+- browse and search onboarding flows, messages, surveys, paywalls and general surfaces;
+- see delivery status, active versions and audit history;
+- read overview figures for the selected app, environment and plane;
+- push, publish, freeze, unfreeze, roll back or kill the selected surface;
 - run any `restage` command: type `/`, then the command.
 
-Use the arrow keys or `Tab` to move between panels, `/` to search, and the action keys
-shown on screen. Publish, freeze, unfreeze, kill and rollback ask for a reason; on the live
-plane they also ask you to type a confirmation first. The TUI uses the same session as the shell commands.
+Use the arrow keys or `Tab` to move between panels, `/` to search, and the action keys shown on screen. Publish, freeze, unfreeze, kill and rollback ask for a reason. On the live plane they also ask you to type a confirmation first. The TUI uses the same session as the shell commands.
 
-The TUI shows the same measurement reviews. Its action confirmation does not
-acknowledge experiment warnings. Review those separately, then use the command
-prompt with the approved digest, or a terminal to acknowledge them interactively.
-Live surface kill and rollback need a terminal when using the command prompt.
+The TUI shows the same measurement reviews, but its action confirmation doesn't acknowledge experiment warnings. Review those separately, then use the command prompt with the approved digest, or use a terminal to acknowledge them interactively. Live surface kill and rollback need a terminal when you use the command prompt.
 
-Switching targets clears the previous overview figures while the new ones load.
-Unavailable figures show `Not available`; counts too small to show safely appear as
-an upper bound. Neither is shown as zero.
+Switching targets clears the previous overview figures while the new ones load. Unavailable figures show `Not available`, and counts too small to show safely appear as an upper bound. Neither is shown as zero.
 
-In the `/` field, include the `restage` prefix to run a command. Text without the
-prefix searches surfaces. For example:
+In the `/` field, include the `restage` prefix to run a command, while text without the prefix searches surfaces. For example:
 
 ```sh
 restage analytics overview
@@ -520,32 +423,20 @@ restage experiment list
 restage experiment results --experiment <id>
 ```
 
-These reads have the same options and results in the shell, TUI, and
-[MCP server](/tools/mcp-server). Use `--from` and `--until` to choose a date window
-for traffic figures (experiment statistics always cover the whole run),
-`--json` for the unchanged service reply, or `--help` to see the command's options.
-Overview with `--all-apps` reads every app in the selected environment and plane.
+These reads have the same options and results in the shell, the TUI and the [MCP server](/tools/mcp-server). Use `--from` and `--until` to choose a date window for traffic figures. Experiment statistics always cover the whole run. Use `--json` for the unchanged service reply, or `--help` to see a command's options. `--all-apps` on overview reads every app in the selected environment and plane.
 
-Commands inherit the selected organization, project, app, environment, and plane
-for the options they support. Explicit `--organization`, `--project`, `--app`,
-`--env`, or `--plane` options override that part of the selection for one command.
-For example, `restage analytics overview --plane live` reads the selected
-environment's live plane. The output panel shows the command and its effective
-target options. Commands such as `restage help` work without a target.
+Commands inherit the selected organization, project, app, environment and plane for the options they support. Pass `--organization`, `--project`, `--app`, `--env` or `--plane` to override that part of the selection for one command. For example, `restage analytics overview --plane live` reads the selected environment's live plane. The output panel shows the command and its effective target options. Commands like `restage help` work without a target.
 
 ## Automation
 
-Pass `--non-interactive` or `--yes` (`-y`) in CI. If a required value has no default,
-the command exits non-zero with a message naming the flag, instead of waiting at a
-prompt.
+Pass `--non-interactive` or `--yes` (`-y`) in CI. If a required value has no default, the command exits non-zero with a message naming the flag. It doesn't wait at a prompt.
 
-Changes to the live plane need consent. Publishing, freezing, unfreezing, routing, and
-experiment changes ask first when run in a terminal; in CI, pass `--yes` only for
-an approved change. Surface kill and surface rollback on the live plane need
-interactive confirmation and never accept `--yes`. Sandbox targets skip the
-live-plane approval, but measurement warnings still require acknowledgment.
+Changes to the live plane need consent:
 
-List commands print a table with a header row. Scripts should pass `--json`.
+- Publishing, freezing, unfreezing, routing and experiment changes ask first in a terminal. In CI, pass `--yes` only for a change you've approved.
+- Surface kill and surface rollback on the live plane need interactive confirmation. They never accept `--yes`.
+- Sandbox targets skip the live-plane approval, but measurement warnings still need acknowledgment.
 
-The [MCP server](/tools/mcp-server) gives agents and IDEs the same operations: every
-command here has a matching tool.
+List commands print a table with a header row. In scripts, pass `--json`.
+
+The [MCP server](/tools/mcp-server) gives agents and IDEs the same operations. Every command here has a matching tool.

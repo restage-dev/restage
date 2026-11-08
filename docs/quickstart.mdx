@@ -1,20 +1,17 @@
 ---
 title: Quickstart
-description: Annotate a Flutter widget and mount it with a compiled fallback, without surface assets or a backend.
+description: Annotate a Flutter widget and mount it with your compiled widget as the fallback, without surface assets or a backend.
 ---
 
-This guide takes one widget from source to a rendered surface. It uses a small paywall,
-but the steps are the same for onboarding screens, messages, surveys, and any other
-screen.
+This guide turns one widget into a surface and shows it in your app. The example is a small paywall, but the steps are the same for onboarding screens, messages, surveys and any other screen.
 
-Everything below runs locally. You don't need a Restage account or a backend.
+Everything runs locally. You don't need a Restage account or a backend.
 
 <AgentPrompt />
 
 ## 1. Add the packages
 
-Restage 2.0 requires Flutter 3.44 or newer. Add the runtime, Material catalog, code
-generator, and `build_runner` to the app's `pubspec.yaml`:
+Restage 2.0 needs Flutter 3.44 or newer. Add `restage`, `restage_material`, `restage_codegen` and `build_runner` to your app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
@@ -30,19 +27,13 @@ dev_dependencies:
   restage_codegen: ^2.0.0
 ```
 
-Add these entries to what your project already lists. A fresh `flutter create` app
-already has `flutter_test` and `flutter_lints`.
-
-Then fetch the packages:
+Add these to what your project already lists. A fresh `flutter create` app already has `flutter_test` and `flutter_lints`. Then fetch the packages:
 
 ```sh
 flutter pub get
 ```
 
-To try unreleased changes, keep the usual `^2.0.0` dependencies on `restage`,
-`restage_material` and `restage_codegen`, and add these overrides to take them from the
-repository's `main` branch. `rfw_catalog_schema` needs one too, because the code
-generator also asks for it from pub.dev:
+To try unreleased changes, keep the `^2.0.0` dependencies and add these overrides. They take the packages from the repository's `main` branch. `rfw_catalog_schema` needs one too because the code generator also asks for it from pub.dev:
 
 ```yaml
 dependency_overrides:
@@ -68,11 +59,9 @@ dependency_overrides:
       path: packages/rfw_catalog_schema
 ```
 
-If you use a coding agent, install the Restage skill too, so it writes surfaces the way
-the build expects. See [Coding agents](/tools/coding-agents).
+If you use a coding agent, install the Restage skill too, and the agent writes surfaces the way the build expects. See [Coding agents](/tools/coding-agents).
 
-The `restage` CLI can do this step for you with `restage init`. It is optional and not on
-pub.dev yet; the [CLI guide](/tools/cli) covers installing it from source.
+The `restage` CLI can do this step for you with `restage init`, but it's optional and isn't on pub.dev yet. The [CLI guide](/tools/cli) covers installing it from source.
 
 ## 2. Write a paywall
 
@@ -121,48 +110,34 @@ class ProUpgradePaywall extends StatelessWidget {
 }
 ```
 
-`@Paywall()` marks the widget as a surface. The file is named `pro_upgrade.dart`, so the
-paywall's id is `pro_upgrade`. Pass an explicit id when you want a different one, or one
-that survives renaming the file. `paywallEvent('continue')` sends an event to your app
-when the button is pressed. Theme reads such as the `color` above resolve from the live
-widget tree when the surface renders, so the surface follows your theme.
+`@Paywall()` marks the widget as a surface, and its id, `pro_upgrade`, comes from the file name. Pass an explicit id if you want a different one, or one that survives renaming the file.
 
-If the compiler can't handle something, the build tells you where. It follows `final`
-locals, same-file constants, helper methods, and `for` loops over constant lists, so
-most ordinary Flutter compiles as written.
-[Authoring constraints](/authoring/constraints) lists the limits. To show data your app
-already has, see [Host data](/authoring/host-data).
+`paywallEvent('continue')` sends an event to your app when the button is pressed. The `Theme.of(context)` read resolves from the live widget tree when the surface renders, and the surface follows your theme.
+
+If the compiler can't deliver something, it renders that part from your app and lists it in `restage build report`. It follows `final` locals, same-file constants, helper methods and `for` loops over constant lists. Most ordinary Flutter compiles as written. [Authoring constraints](/authoring/constraints) lists the limits. To show data your app already has, see [Host data](/authoring/host-data).
 
 ## 3. Generate the artifacts
 
-Run the generator with its default options:
+Run the build:
 
 ```sh
 dart run build_runner build
 ```
 
-The build writes the typed mount to
-`lib/paywalls/restage.generated/pro_upgrade.restage.g.dart` and the publishable
-artifacts under `.restage/build/`. The CLI finds those artifacts through
-`.restage/build/metadata/restage.publication.json` when you push a surface.
+The build writes the generated mount to `lib/paywalls/restage.generated/pro_upgrade.restage.g.dart` and the publishable artifacts under `.restage/build/`. When you push a surface, the CLI finds them through `.restage/build/metadata/restage.publication.json`.
 
-Use the default `bundled_runtime: false`. You do not need to add this option to
-`build.yaml` or add generated surfaces to Flutter's asset list. The generated
-mount retains your original widget as its compiled fallback and works offline.
+Leave `bundled_runtime` at its default, `false`. You don't need to set it in `build.yaml` or add anything to Flutter's asset list. The generated mount keeps your compiled widget as its fallback and works offline.
 
-Commit generated Dart and the two files that keep Restage ids stable across builds
-(`.restage/measurement-state.json` and `.restage/wire-ids.events.jsonl`).
-`.restage/build/` is build output; it does not go in your app's assets.
+Commit the generated Dart, and these two files that keep Restage ids stable across builds:
 
-[Bundled assets](/delivery/bundled-assets) is an optional workflow for shipping
-and rendering RFW artifacts inside the app.
+- `.restage/measurement-state.json`
+- `.restage/wire-ids.events.jsonl`
+
+`.restage/build/` is build output and doesn't go in your app's assets. [Bundled assets](/delivery/bundled-assets) covers the optional workflow of shipping artifacts inside the app.
 
 ## 4. Mount the generated paywall
 
-Mount `ProUpgradePaywallSurface` wherever the paywall belongs. It installs the widgets
-it needs and renders your original widget when no hosted content is available.
-It declares its placement automatically; use the ordinary constructor.
-Put this in `lib/main.dart`:
+Put `ProUpgradePaywallSurface` wherever the paywall belongs. It installs the widgets it needs and declares its placement for you, with the ordinary constructor. When no hosted content is available, it shows your compiled widget. Put this in `lib/main.dart`:
 
 ```dart
 import 'package:flutter/material.dart';
@@ -187,9 +162,7 @@ class MyApp extends StatelessWidget {
 }
 ```
 
-This offline example needs no hosted configuration. To fetch published versions,
-configure delivery at startup. Measurement is on by default with hosted delivery;
-live refresh is opt-in. [Hosted delivery](/delivery/hosted-delivery) covers the setup.
+This offline example needs no hosted configuration. To fetch published versions, configure delivery at startup. Measurement is on by default with hosted delivery, while live refresh is opt-in. [Hosted delivery](/delivery/hosted-delivery) covers the setup.
 
 Run the app:
 
@@ -197,27 +170,18 @@ Run the app:
 flutter run
 ```
 
-`onEvent` is where your app reacts to the surface. When the `continue` event arrives,
-run the purchase through the store library your app already uses.
+`onEvent` is where your app reacts to the surface. When the `continue` event arrives, run the purchase through the store library your app already uses. A purchase closure written inline in the paywall, like `onPressed: () => cubit.purchase()`, also works, as an action.
 
 ## 5. Rebuild while editing
 
-Run the generator after a source change, or leave it in watch mode:
+Run the build again after a source change, or leave it watching:
 
 ```sh
 dart run build_runner watch
 ```
 
-With no hosted content, the mount renders your compiled widget, so Flutter's normal
-hot-reload rules apply. Regenerate after changes to the surface or its parameters
-and events.
-For published content, [live refresh](/delivery/live-refresh) can update a surface
-already on screen.
+With no hosted content, the mount shows your compiled widget, and Flutter's usual hot-reload rules apply. Rebuild after you change the surface, its parameters or its events. For published content, [live refresh](/delivery/live-refresh) can update a surface that's already on screen.
 
-Release builds need no special flags. The build step records which widgets and icons your
-app uses, so a release keeps only those and Flutter's icon tree-shaking works as usual.
-Don't pass `--no-tree-shake-icons`: it puts the whole icon font back into the app.
+Release builds need no special flags. The build records which widgets and icons your app uses. A release keeps only those, and Flutter's icon tree-shaking works as usual. Don't pass `--no-tree-shake-icons`, because it puts the whole icon font back into the app.
 
-The [Starters](/starters) page points to small onboarding, message, paywall,
-custom-widget, and host-data examples. When you're ready to publish, move on to
-[Hosted delivery](/delivery/hosted-delivery).
+The [Starters](/starters) page links to small onboarding, message, paywall, custom-widget and host-data examples. When you're ready to publish, go to [Hosted delivery](/delivery/hosted-delivery).

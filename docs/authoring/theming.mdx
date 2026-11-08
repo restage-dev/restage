@@ -1,43 +1,28 @@
 ---
 title: Theming
-description: A delivered surface reads your app's theme when it renders, so it follows your app into dark mode or a rebrand.
+description: A delivered surface reads your app's theme when it renders. It follows your app into dark mode or a rebrand.
 ---
 
-A delivered surface reads your app's theme when it renders. A surface you wrote once
-follows the app into dark mode or a rebrand without any change to the surface.
+A delivered surface reads your app's theme when it renders. When your app goes dark or gets a rebrand, the surface follows without any change.
 
 ## The theme is read on the device
 
-`Theme.of(context)` inside a surface resolves against the running app's `ThemeData`
-when the surface renders. The surface draws inside your own widget tree, so there is no
-second set of styles to keep in sync.
+`Theme.of(context)` inside a surface resolves against the running app's `ThemeData`. The surface draws inside your own widget tree, with no second set of styles to keep in sync.
 
-The same published surface follows your app into dark mode, a seasonal palette, or a
-full rebrand, with no rebuild and no new publish. Switch the device to dark mode and a
-surface that reads the theme repaints with the rest of your app.
+Switch the device to dark mode and a surface that reads the theme repaints with the rest of your app. That needs no rebuild and no new publish. The same goes for a seasonal palette or a full rebrand.
 
-## Follow the theme, or keep a fixed look
+## Follow the theme or keep a fixed look
 
-You decide for each surface whether it follows the app's theme or keeps a fixed look.
+You choose this per surface:
 
-- **Follow the theme.** The surface reads the app's theme and repaints when the app
-  does. Use this when the surface should feel like part of the app. The starter
-  surfaces in
-  [`apps/examples`](https://github.com/restage-dev/restage/tree/main/apps/examples)
-  work this way: they repaint when you flip the gallery's light and dark toggle.
-- **Fixed look.** The surface uses literal colors that stay the same under any app
-  theme. Use this when a surface must look identical everywhere, such as a branded
-  promotion that should read the same in light and dark. Some of the example paywalls
-  work this way: the gallery's toggle changes the app around them, and they keep their
-  colors.
+- **Follow the theme.** The surface reads the app's theme and repaints when the app does. Use this when the surface should feel like part of the app. The starter surfaces in [`apps/examples`](https://github.com/restage-dev/restage/tree/main/apps/examples) work this way and repaint when you flip the gallery's light and dark toggle.
+- **Fixed look.** The surface uses literal colors that stay the same under any app theme. Use this for something like a branded promotion that should look identical in light and dark. Some of the example paywalls work this way. The gallery's toggle changes the app around them and they keep their colors.
 
-Neither is more correct. An onboarding screen that is part of the app often follows
-the theme; a branded offer often keeps a fixed look.
+Neither is more correct. An onboarding screen that's part of the app often follows the theme, while a branded offer often keeps a fixed look.
 
 ## Theme reads stay live
 
-Read the theme where you use it, or through a local variable. Both give the same
-result:
+Read the theme where you use it, or through a local variable. Both give the same result:
 
 ```dart
 @override
@@ -47,12 +32,9 @@ Widget build(BuildContext context) {
 }
 ```
 
-The build records `scheme.primary` as a reference to the theme's primary color, and
-the device looks it up in the current `ThemeData` each time the surface renders. The
-same works inside a `@RestageWidget` that the build compiles into the surface.
+The build records `scheme.primary` as a reference to the theme's primary color. The device looks it up in the current `ThemeData` each time the surface renders. The same works inside a `@RestageWidget` that the build compiles into the surface.
 
-The app's text theme works the same way, one field at a time. The text styles are
-nullable, so use `?.`:
+The text theme works the same way, one field at a time. Text styles are nullable. Use `?.`:
 
 ```dart
 Text('Go Pro', style: TextStyle(
@@ -61,22 +43,23 @@ Text('Go Pro', style: TextStyle(
 ))
 ```
 
-A text style from the theme carries its colors, font family and fallbacks, size,
-weight, style (such as italic), letter and word spacing, height, baseline, overflow,
-and decoration. So your app's display font, italics, and underlines carry into the
-surface. `DefaultTextStyle.of(context).style` carries the same fields. `shadows`,
-`fontFeatures`, `fontVariations`, `foreground`, `background`, and `locale` are not
-carried; write a literal `TextStyle` for those.
+A text style from the theme carries these fields:
 
-You can pass a whole style to a `style` argument, which is the usual way to write it:
+- Colors, font family and fallbacks, size and weight.
+- Style (such as italic), letter and word spacing, height and baseline.
+- Overflow and decoration.
+
+Your app's display font, italics and underlines carry into the surface. `DefaultTextStyle.of(context).style` carries the same fields. `shadows`, `fontFeatures`, `fontVariations`, `foreground`, `background` and `locale` aren't carried, and need a literal `TextStyle`.
+
+Usually you pass the whole style to a `style` argument:
 
 ```dart
 Text('Go Pro', style: Theme.of(context).textTheme.titleLarge)
 ```
 
-The delivered surface then uses the app's own heading size, weight, and color.
-`copyWith` on the style works too, and each named argument replaces that one field.
-The argument can be a literal, another theme read, or a value in scope:
+The surface then uses your app's own heading size, weight and color.
+
+`copyWith` on the style works too. Each named argument replaces that one field, and it can be a literal, another theme read or a value in scope:
 
 ```dart
 Text('Go Pro', style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -85,48 +68,43 @@ Text('Go Pro', style: Theme.of(context).textTheme.titleLarge?.copyWith(
 ))
 ```
 
-`copyWith` on a theme style can set only the fields listed above. To set anything
-else, build a literal `TextStyle`. A field the theme leaves unset falls back to the
-widget's own default, and so does a `decoration` that combines more than one line. A
-whole style can go only where the argument is a `TextStyle`; anywhere else, read the
-fields one at a time. [Authoring constraints](/authoring/constraints#locals-before-the-return)
-has the rules for local variables.
+`copyWith` on a theme style can set only the fields listed above. For anything else, build a literal `TextStyle`.
+
+Two more limits:
+
+- If the theme leaves a field unset, the widget's own default applies. The same happens with a `decoration` that combines more than one line.
+- You can use a whole style only where the argument is a `TextStyle`. Anywhere else, read the fields one at a time.
+
+[Authoring constraints](/authoring/constraints#locals-before-the-return) has the rules for local variables.
 
 ## Light and dark values
 
-A surface can choose its own values for each mode. Compare the theme's brightness with
-`Brightness.light` or `Brightness.dark`, and the delivered surface picks the branch
-when it renders:
+A surface can pick its own values for each mode by comparing the theme's brightness with `Brightness.light` or `Brightness.dark`. It picks the branch when it renders:
 
 ```dart
 final isDark = Theme.of(context).brightness == Brightness.dark;
 return Container(color: isDark ? Colors.black : Colors.white);
 ```
 
-Only `==` and `!=` against a `Brightness` value work. Any other use of brightness stops
-the build with an error.
+Only `==` and `!=` against a `Brightness` value work. Any other use of brightness stops the build with an error.
 
 ## Your design system's tokens
 
-Values your app looks up while it runs, such as `VColors.of(context).ink`, a theme
-extension, or a Provider, Riverpod or GetX value, are evaluated in your app and passed
-to the surface. Write them as you already do:
+Your app looks some values up while it runs, like `VColors.of(context).ink`, a theme extension, or a Provider, Riverpod or GetX value. These are evaluated in your app and passed to the surface. Write them the way you already do:
 
 ```dart
 Text('Welcome', style: TextStyle(color: VColors.of(context).ink))
 ```
 
-The build lists each one under "Evaluated in the app". The value comes from your app,
-so a published update can move it, restyle around it or use a different token, but it
-can't change what `ink` is. That ships with your app. A version that reads a value your
-installed app doesn't compute is refused by that app, which keeps the version built
-into it, and the push report says the change needs an app release.
+The build lists each one under "Evaluated in the app", where the value comes from your app. A published update can move it, restyle around it or use a different token, but it can't change what `ink` is. That ships with your app's code.
 
-Colors, numbers, strings, text styles, enums, and lists or maps of them can be passed
-this way. A lookup that returns a widget needs that widget registered as a
-[custom widget](/authoring/custom-widgets). A value that depends on something only the
-surface knows, such as an item of a list the surface builds or an event's argument,
-has to be passed in as a constructor input.
+If a version reads a value your installed app doesn't compute, the app refuses that version and keeps the one built into it. The push report says the change needs an app release.
 
-The rest of the source rules are in [Authoring constraints](/authoring/constraints).
-[Custom widgets](/authoring/custom-widgets) covers your own components.
+You can pass these this way:
+
+- Colors, numbers, strings, text styles and enums.
+- Lists or maps of those.
+
+A lookup that returns a widget of your own works without registration. The build inlines it or renders it from your app. Some values depend on something only the surface knows, like an item of a list the surface builds or an event's argument. Pass those in as a constructor input.
+
+The rest of the source rules are in [Authoring constraints](/authoring/constraints). [Custom widgets](/authoring/custom-widgets) covers your own components.

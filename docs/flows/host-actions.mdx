@@ -3,15 +3,15 @@ title: Host actions
 description: Let a flow ask your app to do something, such as request a permission, and continue on the typed result.
 ---
 
-A host action is something your app does on a flow's behalf: request a permission,
-redeem an offer, read a value. The flow declares the action and its types. Your app
-supplies the code that runs it. A published flow can call only the actions your
-installed app provides, so it can use your app's behavior but never add new behavior.
+A host action is something your app does for a flow: request a permission, redeem an
+offer, read a value. The flow declares the action and its types. Your app supplies the
+code that runs it. A published flow can call only the actions your installed app
+provides. It can use behavior your app already has and can't add new behavior.
 
 ## Declare the action
 
-Declare the action as a `FlowActionRef<I, O>`, where `I` is the argument type and `O`
-is the result type. Save the flow in `lib/flows/permission_flow.dart`:
+Declare the action as a `FlowActionRef<I, O>`. `I` is the argument type and `O` is the
+result type. Save the flow in `lib/flows/permission_flow.dart`:
 
 ```dart
 import 'package:restage/restage.dart';
@@ -41,16 +41,19 @@ final permissionFlow = FlowDefinition(
 );
 ```
 
-When the user taps the button, the flow runs the action and moves to `ReadyScreen`
-only if `continueWhen` accepts the result. Here that means the user granted the
-permission.
+When the user taps the button, the flow runs the action. It moves to `ReadyScreen` only
+if `continueWhen` accepts the result. Here, that means the user granted the permission.
 
-`continueWhen` takes a one-parameter arrow function. It can return `true` to continue
-whatever the result, the result itself or a final `bool` field of it (negated with `!` if
-you like), or comparisons of the result or its final fields with literals, joined with
-`&&`: `==` and `!=` for a `bool`, `int` or `String`, and `<`, `<=`, `>` and `>=` for an
-`int`. For example, `(result) => result.status == 'granted' && result.attempts < 3`. The
-build checks each comparison against the action's result type.
+`continueWhen` takes a one-parameter arrow function. It can return one of these:
+
+- `true`, to continue whatever the result is.
+- The result itself, or a final `bool` field of it. You can negate it with `!`.
+- Comparisons of the result or its final fields with literals, joined with `&&`. Use
+  `==` and `!=` for a `bool`, `int` or `String`. Use `<`, `<=`, `>` and `>=` for an
+  `int`.
+
+For example, `(result) => result.status == 'granted' && result.attempts < 3`. The build
+checks each comparison against the action's result type.
 
 Save the first screen in `lib/screens/permission.dart`:
 
@@ -98,9 +101,8 @@ final class ReadyScreen extends StatelessWidget {
 
 ## Supply the handler
 
-Run `dart run build_runner build`. The build generates `PermissionFlowActions`, which
-has one typed parameter per action. You write the handler and pass it to the generated `PermissionFlowSurface`.
-Import the flow file at the call site:
+Run `dart run build_runner build` to generate `PermissionFlowActions`, with one typed parameter per action. Write the handler and pass it to the generated
+`PermissionFlowSurface`. Import the flow file at the call site:
 
 ```dart
 Widget permissionFlowEntry(
@@ -116,25 +118,27 @@ Widget permissionFlowEntry(
 );
 ```
 
-Pass your app's platform permission function to `requestNotificationPermission`
-and define the `/home` route. The function returns whether permission was granted.
+Pass your app's platform permission function as `requestNotificationPermission`, and
+define the `/home` route. The function returns whether permission was granted.
 
-The handler receives the typed argument and a `FlowActionContext`, which carries an
-operation id and retry details (`isRetry`, `attemptNumber`). It can await platform work
-and returns a typed result. The flow can use that result only in the ways the graph
-declares, such as a `continueWhen` check or a decision.
+The handler gets the typed argument and a `FlowActionContext`. The context carries an
+operation id and retry details (`isRetry`, `attemptNumber`). The handler can await
+platform work and returns a typed result. The flow can use that result only in the ways
+the graph declares, like a `continueWhen` check or a decision.
 
 You don't write the action's schema. The generated class records the action's id,
-version, argument and result types, and minimum client version, and converts values to
-and from your Dart types.
+version, argument and result types, and minimum client version. It also converts values
+to and from your Dart types.
 
 ## When an action doesn't match
 
-The action's declaration ships in your app. Adding an action, or changing its argument or
-result types, takes an app release. If a published flow asks for an action your app
-doesn't provide, or with types that don't match, your app won't run that version. It
-uses a compatible version it already has, or the generated mount's compiled flow. Direct
-mounts use their configured bundle and `FlowUnavailablePolicy`. It never runs part of a graph.
+The action's declaration ships in your app. Adding an action, or changing its argument
+or result types, takes an app release.
+
+If a published flow asks for an action your app doesn't provide, or for one with
+different types, your app won't run that version. It uses a compatible version it
+already has, or the flow built into the generated mount. Direct mounts use their configured
+bundle and `FlowUnavailablePolicy`. The app never runs part of a graph.
 
 ## Push and publish
 
@@ -146,7 +150,7 @@ restage surface push permission_flow
 restage surface publish permission_flow
 ```
 
-You can also name the `.dart` file instead of the id.
+You can name the `.dart` file instead of the id.
 
-See [Branching](/flows/branching) to route on state, and
-[Bundled assets](/delivery/bundled-assets) to ship the flow inside your app.
+To route on state, see [Branching](/flows/branching). To ship the flow inside your app,
+see [Bundled assets](/delivery/bundled-assets).

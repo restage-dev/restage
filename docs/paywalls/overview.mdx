@@ -3,21 +3,13 @@ title: Paywalls
 description: Write a paywall as a Flutter widget, mount its generated widget, and handle its events in your app.
 ---
 
-A paywall is one kind of Restage surface. You write it as a Flutter widget, mark it
-with `@Paywall()`, and render it with its generated mount. It uses the same widget catalog,
-compiler, and delivery as onboarding flows, messages, and surveys. See
-[How it works](/concepts/how-it-works).
+A paywall is a Flutter widget with `@Paywall()` on it. You mount its generated widget in your app. Paywalls use the same widget catalog, compiler and delivery as onboarding flows, messages and surveys. See [How it works](/concepts/how-it-works).
 
-A paywall never starts a purchase itself. Its buttons send events, and your app runs
-the purchase with the store library it already uses.
-Use the [RevenueCat adapter](/paywalls/revenuecat), the
-[native store bridge](/paywalls/native-stores), or your existing purchase service.
+A paywall never starts a purchase itself. Its buttons send events, and your app runs the purchase with the store library it already uses. A purchase closure written inline in the paywall, like `onPressed: () => cubit.purchase(plan)`, becomes an action that your app runs. The published paywall still never purchases. The store library can be the [RevenueCat adapter](/paywalls/revenuecat), the [native store bridge](/paywalls/native-stores) or your own purchase service.
 
 ## Write a paywall
 
-A paywall is a widget annotated `@Paywall()`. If you leave out the id, it comes from
-the file name. Give an explicit id when you want a different one, or one that stays
-the same when you move the file. Save this example as `lib/paywalls/pro_upgrade.dart`.
+Save this as `lib/paywalls/pro_upgrade.dart`. With no id, the paywall's id comes from the file name. Pass an explicit id if you want a different one, or one that survives moving the file.
 
 ```dart
 import 'package:flutter/material.dart';
@@ -64,44 +56,35 @@ class ProUpgradePaywall extends StatelessWidget {
 }
 ```
 
-The two prices are constructor parameters, so your app passes them in at render time
-as [host data](/authoring/host-data). Each button sends an event with a name you choose
-and, optionally, a map of values.
+The two prices are constructor parameters. Your app passes them in when it renders the paywall, as [host data](/authoring/host-data). Each button sends an event with a name you pick and, optionally, a map of values.
 
-Event names are yours to choose, except `purchase`, `restore`, the SDK's own
-`restage.purchase…` and `restage.restore…` names, and `__restage_measurement_tap_v1`.
-Use a name such as `restore_purchases` instead. A paywall can also declare its events as
-`SurfaceEvent` constants and fire them with `surfaceEvent`, as a flow screen does; your
-app receives the same `PaywallCustomEvent`, with a value under `args['value']`.
+You can pick any event name except these:
+
+- `purchase` and `restore`
+- The SDK's own `restage.purchase…` and `restage.restore…` names
+- `__restage_measurement_tap_v1`
+
+Use something like `restore_purchases` instead.
+
+A paywall can also declare its events as `SurfaceEvent` constants and fire them with `surfaceEvent`, like a flow screen does. Your app gets the same `PaywallCustomEvent`, with the value under `args['value']`.
 
 ## Complete a paywall
 
-`@Paywall(completesOn: [...])` names the events that count as a completed paywall in
-analytics, such as starting a trial. A tap fires one with `paywallEvent('start_trial')`
-or `surfaceEvent(ProUpgradePaywall.startTrial)`, on a built-in widget's callback or on
-your own widget's callback, including inside a wrapper widget. The build stops if no
-tap fires a named event.
+`@Paywall(completesOn: [...])` lists the events that count as a completed paywall in analytics, such as starting a trial. A tap fires one with `paywallEvent('start_trial')` or `surfaceEvent(ProUpgradePaywall.startTrial)`. That works in the callback of a built-in widget or your own widget, including inside a wrapper. The build stops if no tap fires one of the listed events.
 
-To let a parent `GestureDetector` own the tap over a widget that has its own, wrap the
-child in `IgnorePointer` and set `behavior: HitTestBehavior.opaque` on the detector, as
-in Flutter. Without `opaque`, the detector only receives taps its child receives, so an
-ignored child loses them.
+If a parent `GestureDetector` should get the tap instead of a child that has its own, wrap the child in `IgnorePointer` and set `behavior: HitTestBehavior.opaque` on the detector. That's how Flutter works too. Without `opaque`, the detector only gets taps its child gets. An ignored child loses them.
 
-Run the build to compile it:
+Run the build:
 
 ```sh
 dart run build_runner build
 ```
 
-For a paywall where tapping a plan selects it before the user continues, see
-[Interactive surfaces](/authoring/interactive-surfaces) and the
-[minimal paywall starter](/starters).
+To let users tap a plan to select it before they continue, see [Interactive surfaces](/authoring/interactive-surfaces) and the [minimal paywall starter](/starters).
 
 ## Mount it
 
-Import the authored file and mount `ProUpgradePaywallSurface`. Pass the prices and
-your event handler. The generated mount installs its widgets and retains the
-original Flutter widget, so it also works offline without a bundle.
+Import the file you wrote and mount `ProUpgradePaywallSurface`. Pass the prices and an event handler. The mount keeps your compiled widget as its fallback, and that's why it works offline without a bundle.
 
 ```dart
 ProUpgradePaywallSurface(
@@ -120,64 +103,42 @@ ProUpgradePaywallSurface(
 )
 ```
 
-`startPurchase` and `restorePurchases` stand for your app's own purchase code.
-`RestagePaywall` renders the paywall with your registered Flutter widgets and your
-app's current theme.
+`startPurchase` and `restorePurchases` stand for your app's own purchase code. `RestagePaywall` renders the paywall with your registered Flutter widgets and your app's current theme.
 
-The generated mount falls back to the widget you wrote when delivery is unavailable. See
-[generated fallback mounts](/delivery/hosted-delivery#generated-paywall-and-flow-mounts).
-A direct `RestagePaywall(id: ...)` mount needs widget registration and a fallback,
-such as bundled content or `fallbackBuilder`. See [Bundled assets](/delivery/bundled-assets).
+If delivery isn't available, the mount shows your compiled widget. See [generated fallback mounts](/delivery/hosted-delivery#generated-paywall-and-flow-mounts).
+
+A direct `RestagePaywall(id: ...)` mount needs widget registration and a fallback, such as bundled content or `fallbackBuilder`. See [Bundled assets](/delivery/bundled-assets).
 
 ## The onEvent callback
 
-`onEvent` is where your app reacts to the paywall. Events are typed, so you match the
-ones you care about and ignore the rest.
+`onEvent` is where your app reacts to the paywall. Events are typed, and you match the ones you care about and ignore the rest:
 
-- `PaywallViewed` fires when the paywall is shown. It carries the published version
-  when the paywall came from a server.
-- `PaywallDismissed` fires when the paywall closes, with the reason and the time spent
-  on it.
-- `PaywallLoadStarted`, `PaywallLoadCompleted`, and `PaywallLoadFailed` report loading.
-- `PaywallCustomEvent` carries an event the paywall sent, with the name and values you
-  wrote. Your app decides what each one does: start a purchase, open the terms, push a
-  screen.
+- `PaywallViewed` fires when the paywall is shown. It carries the published version if the paywall came from a server.
+- `PaywallDismissed` fires when the paywall closes. It has the reason and how long the user spent on it.
+- `PaywallLoadStarted`, `PaywallLoadCompleted` and `PaywallLoadFailed` report loading.
+- `PaywallCustomEvent` carries an event the paywall sent, with the name and values you wrote. Your app decides what to do with it, like starting a purchase, opening the terms or pushing a screen.
 
-The build stops with an error if a surface uses one of the reserved event names
-above, or calls the older `paywallPurchase` and `paywallPriceFor` helpers.
+The build stops with an error if a surface uses a reserved event name or calls the older `paywallPurchase` and `paywallPriceFor` helpers.
 
 ## Multi-screen paywalls
 
-A paywall can have more than one screen. Keep existing `Navigator` callbacks that
-fit the forms below: the build converts them into a flow. Mount the generated
-entry paywall widget; no `@FlowGraph` declaration is needed. The
-[Fluent Pro example](https://github.com/restage-dev/restage/blob/main/apps/examples/lib/paywalls/fluent_pro.dart)
-shows an entry paywall opening a second "choose a plan" screen.
+A paywall can have more than one screen. If you already open the next screen with `Navigator` in one of the forms below, the build converts it into a flow. Mount the entry paywall's generated widget. You don't need a `@FlowGraph`. The [examples app](https://github.com/restage-dev/restage/tree/main/apps/examples) has an entry paywall that opens a second "choose a plan" screen.
 
-- An `onPressed` or `onTap` callback makes one synchronous
-  `Navigator.push(context, route)` or `Navigator.of(context).push(route)` call.
-- The route is an inline `MaterialPageRoute` or `CupertinoPageRoute`. Its builder
-  constructs a `@Paywall()` destination through its unnamed constructor, without
-  arguments. Pass only `builder`; omit other route arguments. Use the build
-  method's `context` directly for the Navigator call.
-- A pushed paywall can return with `Navigator.pop(context)`. Pushes are one level
-  deep: the destination cannot push another paywall. The entry needs a dismissal
-  event, such as `paywallEvent('skip')`.
+The build converts a push when:
 
-Awaited navigation, reading a route result, `pop` with a result, and root-navigator
-overrides are outside this conversion. Keep app navigation in the generated
-mount's event handler when it belongs to the app. Use an explicit
-[flow definition](/flows/overview) for more complex branching, host actions or
-results.
+- An `onPressed` or `onTap` callback makes one synchronous `Navigator.push(context, route)` or `Navigator.of(context).push(route)` call. Use the `build` method's `context` directly.
+- The route is an inline `MaterialPageRoute` or `CupertinoPageRoute`, and you pass only `builder`.
+- The builder constructs a `@Paywall()` destination with its unnamed constructor and no arguments.
 
-This automatic paywall flow is the one case that needs a bundle: hosted delivery
-checks published versions against its bundled copy. Without it, the generated mount runs
-the original Flutter widget. Other generated paywall and explicit flow mounts do
-not need bundles. See [Hosted delivery](/delivery/hosted-delivery#generated-paywall-and-flow-mounts).
+The pushed paywall can return with `Navigator.pop(context)`. Pushes go one level deep, and the destination can't push another paywall. The entry paywall needs a dismissal event, such as `paywallEvent('skip')`.
+
+The conversion doesn't cover awaited navigation, reading a route result, `pop` with a result, or root-navigator overrides. Navigation the conversion doesn't cover still works. A call like `Navigator.of(context).maybePop()` becomes an action, and other navigation renders from your app. You can also handle it in the mount's event handler. For branching, host actions or results, write an explicit [flow definition](/flows/overview).
+
+An automatic paywall flow is the one case that needs a bundle. Hosted delivery checks published versions against the bundled copy, and without it the mount runs your compiled widget. Other generated paywall mounts and explicit flow mounts don't need bundles. See [Hosted delivery](/delivery/hosted-delivery#generated-paywall-and-flow-mounts).
 
 ## Paywalls in an explicit flow
 
-A paywall can also be one step in an onboarding, message, survey, or general flow:
+A paywall can also be one step in an onboarding, message, survey or general flow:
 
 ```dart
 @FlowGraph(id: 'message_offer', surface: Surface.message)
@@ -190,13 +151,8 @@ const messageOffer = FlowDefinition(
 );
 ```
 
-`MessageNotice` is a `@Screen` and `UpgradeOffer` is a `@Paywall`. Each declares its
-events as `SurfaceEvent` constants, such as
-`static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue')`.
-Mount the journey with the generated `MessageOfferSurface`. The flow owns its
-events and transitions; use a [host action](/flows/host-actions) if it must await
-purchase work. Purchase adapters for standalone paywalls use different events.
+`MessageNotice` is a `@Screen` and `UpgradeOffer` is a `@Paywall`. Each declares its events as `SurfaceEvent` constants, like `static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue')`.
 
-The build records single-screen and multi-screen paywalls in the same publication
-manifest, so pushing and rolling back work the same way for both. Generated mounts
-keep the original widgets as their fallback.
+Mount the flow with the generated `MessageOfferSurface`. The flow owns its events and transitions, and a [host action](/flows/host-actions) covers waiting on purchase work. The purchase adapters for standalone paywalls use different events.
+
+The build records single-screen and multi-screen paywalls in the same publication manifest. Pushing and rolling back work the same for both. Generated mounts keep your compiled widgets as the fallback.
