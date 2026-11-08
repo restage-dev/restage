@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage_core/restage_core.dart'
-    show
-        InstalledIconTable,
-        RestageIconTable,
-        RestageIconUnavailableError,
-        resolveInstalledIcon;
+    show InstalledIconTable, RestageIconTable;
 import 'package:restage_material/icon_table.dart'
     show kMaterialIconTable, kMirroredMaterialIconTable;
 
@@ -83,11 +79,11 @@ void main() {
     InstalledIconTable.install(_constPinnedTable);
 
     expect(
-      resolveInstalledIcon(0xe4a1, fontFamily: _material),
+      InstalledIconTable.current.lookUp(_material, 0xe4a1),
       equals(Icons.pets),
     );
     expect(
-      resolveInstalledIcon(0xf055d, fontFamily: _material),
+      InstalledIconTable.current.lookUp(_material, 0xf055d),
       equals(Icons.rocket_launch),
     );
   });
@@ -97,11 +93,11 @@ void main() {
 
     expect(InstalledIconTable.current.families.keys, <String>[_material]);
     expect(
-      () => resolveInstalledIcon(
+      InstalledIconTable.current.lookUp(
+        RestageIconTable.cupertinoIconsFamily,
         0xe4a1,
-        fontFamily: RestageIconTable.cupertinoIconsFamily,
       ),
-      throwsA(isA<RestageIconUnavailableError>()),
+      isNull,
     );
   });
 }

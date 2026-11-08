@@ -19,8 +19,14 @@ import 'package:restage_shared/src/surface_feature_client_floor.dart';
 /// The largest delivered icon font a publish accepts, in bytes.
 const int kMaxDeliveredIconFontBytes = 64 * 1024;
 
+/// A payload refused for a reason its author can fix; the message says how.
+class SurfacePayloadRefusal extends FormatException {
+  /// Creates the refusal with its author-facing [message].
+  const SurfacePayloadRefusal(super.message);
+}
+
 /// Refusal of a payload whose delivered icon fonts miss literal icons.
-final class IconFontCoverageException extends FormatException {
+final class IconFontCoverageException extends SurfacePayloadRefusal {
   /// Creates the refusal for [missing] code points, keyed by font family.
   IconFontCoverageException(Map<String, List<int>> missing)
       : missing = Map.unmodifiable({
@@ -38,8 +44,11 @@ final class IconFontCoverageException extends FormatException {
       for (final family in families)
         '$family: ${(missing[family]!.toList()..sort()).map(_hex).join(', ')}',
     ];
-    return 'The delivered icon fonts do not cover these icons: '
-        '${parts.join('; ')}.';
+    return 'No font in the surface draws these icons: ${parts.join('; ')}. '
+        'An app draws an icon from its installed icon table or from a font '
+        'the surface carries. Try using an icon the surface already draws, or '
+        "add the icon to the surface's Dart source and publish it with "
+        '`restage surface push`.';
   }
 
   static String _hex(int codePoint) =>
@@ -48,15 +57,21 @@ final class IconFontCoverageException extends FormatException {
 
 /// Validates the icon-font and local-seed sections of [payload] for publish.
 ///
-/// When icon fonts are present, each must be a well-formed sfnt of at most
-/// [kMaxDeliveredIconFontBytes], and every literal icon code point in the
-/// payload's blobs must be covered by a font of its family, else an
-/// [IconFontCoverageException]. A blob payload's local seeds must name
-/// widgets the blob declares. No payload may carry editor state. Throws a
-/// [FormatException] on any refusal.
-void validatePayloadSectionsForPublish(SurfacePayload payload) {
+/// When icon fonts are present, or [requireIconFonts] is set, each must be a
+/// well-formed sfnt of at most [kMaxDeliveredIconFontBytes], and every literal
+/// icon code point in the payload's blobs must be covered by a font of its
+/// family, else an [IconFontCoverageException]. A blob payload's local seeds
+/// must name widgets the blob declares. No payload may carry editor state.
+/// Throws a [SurfacePayloadRefusal] for a refusal its author can fix, and a
+/// [FormatException] for a blob that does not decode.
+void validatePayloadSectionsForPublish(
+  SurfacePayload payload, {
+  bool requireIconFonts = false,
+}) {
   if (payload.editorState != null) {
-    throw const FormatException('A published payload carries no editor state.');
+    throw const SurfacePayloadRefusal(
+      'A published payload carries no editor state.',
+    );
   }
   final blobs = switch (payload) {
     BlobSurfacePayload(:final blob) => {'': blob},
@@ -68,7 +83,7 @@ void validatePayloadSectionsForPublish(SurfacePayload payload) {
     };
     for (final root in payload.localSeeds.keys) {
       if (!declared.contains(root)) {
-        throw FormatException(
+        throw SurfacePayloadRefusal(
           'Local seeds name "$root", which the surface does not declare.',
         );
       }
@@ -79,36 +94,32 @@ void validatePayloadSectionsForPublish(SurfacePayload payload) {
     if (_validateEvents(decodeLibraryBlob(blob))) writesLocalValues = true;
   }
   if (writesLocalValues && payload.minClient < kSurfaceFeatureClientFloor) {
-    throw FormatException(
+    throw SurfacePayloadRefusal(
       'The payload minClient ${payload.minClient} must be at least '
       '$kSurfaceFeatureClientFloor for a surface that writes screen-local '
       'values.',
     );
   }
-  if (payload.iconFonts.isEmpty) return;
+  if (payload.iconFonts.isEmpty && !requireIconFonts) return;
 
-  final covered = <String, Set<int>>{};
-  for (final font in payload.iconFonts) {
-    covered
-        .putIfAbsent(font.family, () => <int>{})
-        .addAll(_fontCodePoints(font));
-  }
-  final missing = <String, Set<int>>{};
+  final used = <String, Set<int>>{};
   for (final blob in blobs.values) {
-    final used = literalIconCodePoints(decodeLibraryBlob(blob));
-    for (final entry in used.entries) {
-      final have = covered[entry.key] ?? const <int>{};
-      final lacking = entry.value.difference(have);
-      if (lacking.isNotEmpty) {
-        missing.putIfAbsent(entry.key, () => <int>{}).addAll(lacking);
-      }
+    for (final entry
+        in literalIconCodePoints(decodeLibraryBlob(blob)).entries) {
+      (used[entry.key] ??= <int>{}).addAll(entry.value);
     }
   }
-  if (missing.isNotEmpty) {
-    throw IconFontCoverageException({
-      for (final entry in missing.entries) entry.key: entry.value.toList(),
-    });
+  final covered = <String, Set<int>>{};
+  for (final font in payload.iconFonts) {
+    (covered[font.family] ??= <int>{}).addAll(_fontCodePoints(font));
   }
+  final missing = {
+    for (final MapEntry(:key, :value) in used.entries)
+      if (value.difference(covered[key] ?? const <int>{}) case final lacking
+          when lacking.isNotEmpty)
+        key: lacking.toList(),
+  };
+  if (missing.isNotEmpty) throw IconFontCoverageException(missing);
 }
 
 Set<int> _fontCodePoints(DeliveredIconFont font) {
@@ -116,7 +127,7 @@ Set<int> _fontCodePoints(DeliveredIconFont font) {
       ? font.family
       : '${font.family} (${font.fontPackage})';
   if (font.bytes.length > kMaxDeliveredIconFontBytes) {
-    throw FormatException(
+    throw SurfacePayloadRefusal(
       'The icon font $label is ${font.bytes.length} bytes; the limit is '
       '$kMaxDeliveredIconFontBytes.',
     );
@@ -124,7 +135,9 @@ Set<int> _fontCodePoints(DeliveredIconFont font) {
   try {
     return readSfntCoveredCodePoints(Uint8List.fromList(font.bytes));
   } on FormatException catch (error) {
-    throw FormatException('The icon font $label is invalid: ${error.message}');
+    throw SurfacePayloadRefusal(
+      'The icon font $label is invalid: ${error.message}',
+    );
   }
 }
 
@@ -139,7 +152,7 @@ bool _validateEvents(RemoteWidgetLibrary library) {
     switch (node) {
       case EventHandler(:final eventName, :final eventArguments):
         if (kReservedCommerceEventNames.contains(eventName)) {
-          throw FormatException(
+          throw SurfacePayloadRefusal(
             'The event name "$eventName" is reserved. Choose another name.',
           );
         }
@@ -148,7 +161,7 @@ bool _validateEvents(RemoteWidgetLibrary library) {
           if (key.startsWith(kMeasurementPublicationReservedArgumentPrefixV1) &&
               key != kMeasurementPublicationRouteArgumentKeyV1 &&
               key != kMeasurementPublicationItemArgumentKeyV1) {
-            throw FormatException(
+            throw SurfacePayloadRefusal(
               'The tap argument "$key" is reserved for measurement.',
             );
           }
@@ -159,7 +172,7 @@ bool _validateEvents(RemoteWidgetLibrary library) {
           if (!isMeasurementTapItemV1(
             eventArguments[kMeasurementPublicationItemArgumentKeyV1],
           )) {
-            throw const FormatException(
+            throw const SurfacePayloadRefusal(
               'A tap item must be a literal string or its list element index.',
             );
           }

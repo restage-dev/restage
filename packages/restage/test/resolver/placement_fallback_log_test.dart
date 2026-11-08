@@ -424,9 +424,11 @@ void main() {
           describeFitTokens(['missingIcon:MaterialIcons@0xe5f9'],
               published: published),
           'the published message `spring-sale` r7 uses the MaterialIcons '
-          "glyph 0xe5f9, which this build's icon set leaves out. Draw that "
-          'icon once in a `@Screen` and run `dart run build_runner build`, '
-          'or install the full catalog. See $catalogDocs');
+          "glyph 0xe5f9, which this build's icon set leaves out. Try "
+          "removing the icon's key, or include the icon in the app (draw it "
+          "in the app's own code, or call "
+          '`InstalledIconTable.add(builtInIconTable())` at startup) and '
+          'release a build. See $catalogDocs');
       expect(
           describeFitTokens(['missingWidget:restage.material:ExpansionTile'],
               published: published),

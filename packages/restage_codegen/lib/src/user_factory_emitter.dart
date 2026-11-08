@@ -43,7 +43,7 @@ typedef AppWidgetRegistrationSource = ({
 /// non-emittable catalog shapes.
 ///
 /// [installWholeCatalog] makes the generated registration install the whole
-/// built-in catalog and both icon tables by default.
+/// built-in widget catalog. Icons always come from [appVocabulary].
 String? emitUserFactoriesDart(
   List<WidgetEntry> widgets, {
   void Function(WidgetEntry skipped)? onSkip,
@@ -232,7 +232,7 @@ String? emitUserFactoriesDart(
 /// own still renders built-in widgets and icons on its surfaces.
 ///
 /// [installWholeCatalog] makes the generated registration install the whole
-/// built-in catalog and both icon tables by default.
+/// built-in widget catalog. Icons always come from [appVocabulary].
 String emitEmptyUserFactoriesDart({
   SurfaceVocabularyReferences appVocabulary = SurfaceVocabularyReferences.empty,
   bool installWholeCatalog = false,
@@ -288,7 +288,8 @@ void _writeCatalogConfigurationDoc(StringBuffer buf, bool installWholeCatalog) {
   }
   buf
     ..writeln('///')
-    ..writeln('/// Includes both complete built-in families by default.')
+    ..writeln('/// Includes both complete built-in widget families by default.')
+    ..writeln('/// Icons come from the app and its compiled surfaces.')
     ..writeln(
       '/// Family options omit full contributions, keeping app requirements.',
     );
@@ -331,10 +332,6 @@ void _writeWholeCatalogInstall(StringBuffer buf, bool installWholeCatalog) {
   if (!installWholeCatalog) return;
   buf
     ..writeln('  InstalledWidgetLibraries.add(RestageWidgetLibraries.builtIn(')
-    ..writeln('    includeMaterial: includeMaterial,')
-    ..writeln('    includeCupertino: includeCupertino,')
-    ..writeln('  ));')
-    ..writeln('  InstalledIconTable.add(builtInIconTable(')
     ..writeln('    includeMaterial: includeMaterial,')
     ..writeln('    includeCupertino: includeCupertino,')
     ..writeln('  ));');

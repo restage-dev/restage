@@ -63,11 +63,11 @@ void main() {
     InstalledIconTable.install(_narrowTable);
 
     expect(
-      () => resolveInstalledIcon(
+      InstalledIconTable.current.lookUp(
+        RestageIconTable.materialIconsFamily,
         _petsCodePoint,
-        fontFamily: RestageIconTable.materialIconsFamily,
       ),
-      throwsA(isA<RestageIconUnavailableError>()),
+      isNull,
     );
   });
 
@@ -89,9 +89,9 @@ void main() {
     // The whole built-in table gives this code point Icons.check, so a
     // last-wins add would change what the app's own surfaces render here.
     expect(
-      resolveInstalledIcon(
+      InstalledIconTable.current.lookUp(
+        RestageIconTable.materialIconsFamily,
         _sharedCodePoint,
-        fontFamily: RestageIconTable.materialIconsFamily,
       ),
       equals(Icons.star),
     );

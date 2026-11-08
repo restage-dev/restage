@@ -403,14 +403,13 @@ Widget buildFloatingActionButton(BuildContext context, DataSource source) {
 
 /// Builds the catalog's `Icon` widget from [source].
 Widget buildIcon(BuildContext context, DataSource source) {
-  return Icon(
-    resolveInstalledIcon(
-        source.v<int>(<Object>['iconCodepoint']) ??
-            (throw ArgumentError('Icon.iconCodepoint is required.')),
-        fontFamily:
-            source.v<String>(<Object>['iconFontFamily']) ?? 'MaterialIcons',
-        matchTextDirection:
-            source.v<bool>(<Object>['iconMatchTextDirection']) ?? false),
+  return restageIcon(
+    context,
+    codePoint: source.v<int>(<Object>['iconCodepoint']) ??
+        (throw ArgumentError('Icon.iconCodepoint is required.')),
+    fontFamily: source.v<String>(<Object>['iconFontFamily']) ?? 'MaterialIcons',
+    matchTextDirection:
+        source.v<bool>(<Object>['iconMatchTextDirection']) ?? false,
     size: source.v<double>(<Object>['size']) ??
         resolveThemeBinding(context, path: 'iconTheme.size') as double?,
     color: ArgumentDecoders.color(source, <Object>['color']) ??

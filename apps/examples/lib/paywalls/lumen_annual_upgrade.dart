@@ -381,7 +381,13 @@ class LumenAnnualUpgradePaywall extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
+                              Divider(
+                                height: 16,
+                                thickness: 1,
+                                color: dark
+                                    ? const Color(0x1AFFFFFF)
+                                    : const Color(0xFFEFE9F6),
+                              ),
                               Text(
                                 r'$5 a month, billed once. '
                                 r'Renews at $69.99 / year.',

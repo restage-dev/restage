@@ -10,20 +10,19 @@ import '../widgets/restage_delivered_icon.dart';
 ///
 /// A delivered surface document carries an icon as its integer code point and
 /// font family, and this value decides which glyph that pair means for this
-/// app. Ordinary `Restage.configure()` supplies both full icon families unless
-/// an explicit selection exists. For a derived build, generated registration
-/// and surface references add their icons, and
-/// `Restage.configureWithInstalledCatalog()` preserves that narrower root.
+/// app. Generated registration and surface references add their icons;
+/// `Restage.configure()` preserves that selection. Literal icons absent from
+/// this table can render through a surface's delivered subset font.
 ///
 /// A few code points name two glyphs within one family — one that mirrors in a
 /// right-to-left locale and one that does not — so the mirroring ones live in
 /// their own [mirrored] map and a surface selects between them.
 ///
-/// A host can also install an explicit table during app startup:
+/// A host can also add an explicit table during app startup:
 ///
 /// ```dart
 /// void main() {
-///   InstalledIconTable.install(
+///   InstalledIconTable.add(
 ///     const RestageIconTable.fromFamilies(families: <String, Map<int, IconData>>{
 ///       RestageIconTable.materialIconsFamily: <int, IconData>{
 ///         0xe156: Icons.check,
@@ -41,7 +40,7 @@ import '../widgets/restage_delivered_icon.dart';
 /// See also:
 ///
 ///  * [InstalledIconTable], the process-wide store surfaces read.
-///  * [resolveInstalledIcon], the lookup a rendered surface performs.
+///  * [restageIcon], which builds a surface's icon from this table.
 @immutable
 final class RestageIconTable {
   /// Creates the table from an explicit per-family set of icons.
@@ -103,19 +102,12 @@ final class RestageIconTable {
 ///
 /// Each generated surface [add]s the icons it draws as it mounts, and the
 /// generated catalog reads the store each time it builds an icon. The store
-/// starts empty; ordinary `Restage.configure()` supplies both full families
-/// only when no selection has been made.
+/// starts empty; ordinary `Restage.configure()` does not add icon families.
 abstract final class InstalledIconTable {
   InstalledIconTable._();
 
   static RestageIconTable _installed = RestageIconTable.none;
-  static bool _hasSelection = false;
   static bool _snapshotted = false;
-
-  /// Whether an installation or an explicit app vocabulary chose this store.
-  ///
-  /// An explicitly empty selection is distinct from an unconfigured store.
-  static bool get hasSelection => _hasSelection;
 
   /// The installed table — [RestageIconTable.none] until [install].
   static RestageIconTable get current => _installed;
@@ -131,7 +123,6 @@ abstract final class InstalledIconTable {
   /// of time: call once from app startup, before mounting a surface. An
   /// application's surfaces install what they draw through [add] instead.
   static void install(RestageIconTable table) {
-    _hasSelection = true;
     _installed = table;
     _snapshotted = false;
   }
@@ -143,13 +134,7 @@ abstract final class InstalledIconTable {
   /// the already-installed icon wins, so adding never changes the glyph a code
   /// point already means. Adding [RestageIconTable.none] preserves the current
   /// object.
-  ///
-  /// Omitting [explicitSelection] treats a nonempty direct addition as an app
-  /// selection. Pass false for an implicit surface contribution, or true to
-  /// record an explicit selection even when empty. Only an explicit selection
-  /// prevents ordinary configuration from widening to the full default.
-  static void add(RestageIconTable table, {bool? explicitSelection}) {
-    _hasSelection = _hasSelection || (explicitSelection ?? !table.isEmpty);
+  static void add(RestageIconTable table) {
     if (table.isEmpty) return;
     // A mount adds its icons on every build; once the table holds its own
     // copies, nothing new keeps it.
@@ -168,7 +153,6 @@ abstract final class InstalledIconTable {
   /// Drops the installation and restores the [RestageIconTable.none] default,
   /// so a test cannot leak its installation into the next one.
   static void reset() {
-    _hasSelection = false;
     _installed = RestageIconTable.none;
     _snapshotted = false;
   }
@@ -203,38 +187,6 @@ Map<String, Map<int, IconData>> _union(
     }
   }
   return families;
-}
-
-/// Resolves the icon a delivered surface named by [codePoint] within
-/// [fontFamily], through the app's [InstalledIconTable].
-///
-/// [matchTextDirection] picks the mirroring glyph where a code point names
-/// both, so the two stay distinguishable.
-///
-/// The generated catalog calls this in place of building an [IconData] from
-/// the code point directly, which is what forces an app to retain the whole
-/// icon font.
-///
-/// Throws [RestageIconUnavailableError] when the installed table carries no
-/// such entry. Rendering a substitute glyph instead would look like it worked,
-/// so the miss fails the surface and reaches the host through the mount's
-/// existing unavailable path.
-IconData resolveInstalledIcon(
-  int codePoint, {
-  required String fontFamily,
-  bool matchTextDirection = false,
-}) {
-  final icon = InstalledIconTable.current.lookUp(
-    fontFamily,
-    codePoint,
-    matchTextDirection: matchTextDirection,
-  );
-  if (icon != null) return icon;
-  throw RestageIconUnavailableError(
-    fontFamily: fontFamily,
-    codePoint: codePoint,
-    matchTextDirection: matchTextDirection,
-  );
 }
 
 /// Builds the icon a surface names by [codePoint] within [fontFamily].
@@ -326,19 +278,20 @@ final class RestageIconUnavailableError extends Error {
   final bool matchTextDirection;
 
   /// Names the missing code point, its font family and variant, and the fix.
-  String get message =>
-      (requiresNativeIcon
-          ? 'A native key requires the original Icon owner. '
-          : '') +
-      'Icon code point 0x${codePoint.toRadixString(16)} in font family '
-          '$fontFamily with matchTextDirection: $matchTextDirection is not in the '
-          'installed icon table. One code point can name both a glyph that mirrors '
-          'in a right-to-left locale and one that does not, and the two are looked '
-          'up separately. Generated surface code installs the icons its own '
-          'surface draws, so check that the surface is mounted through its '
-          'generated reference. A preview or authoring tool that renders content '
-          'it cannot know ahead of time passes a wider RestageIconTable to '
-          'InstalledIconTable.install().';
+  String get message {
+    final icon = 'The icon 0x${codePoint.toRadixString(16)} in font family '
+        '$fontFamily${matchTextDirection ? ' with matchTextDirection: true' : ''}';
+    const all = '`InstalledIconTable.add(builtInIconTable())` keeps every '
+        'built-in icon.';
+    return requiresNativeIcon
+        ? '$icon has a key, so it must be in the installed icon table, and '
+            "it isn't. Try removing the key, or add the icon at startup with "
+            '`InstalledIconTable.add()` and release a build. $all'
+        : "$icon isn't in the installed icon table, and the surface carries "
+            'no font that draws it. Try including the icon in the app: draw '
+            "it in the app's own code, or add it at startup with "
+            '`InstalledIconTable.add()`, then release a build. $all';
+  }
 
   @override
   String toString() => message;

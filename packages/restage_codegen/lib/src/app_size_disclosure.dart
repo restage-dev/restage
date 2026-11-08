@@ -191,12 +191,13 @@ String summariseAppVocabulary(
   String docsOrigin = defaultDocsOrigin,
 }) {
   final docs = '$docsOrigin$_appSizePage';
+  final icons = vocabulary.orderedIcons.length;
   if (position == CatalogPosition.wholeCatalog) {
     return [
-      'Restage: generated registration includes the whole built-in catalog '
-          'by default: all $builtInWidgetCount built-in widgets and every '
-          'built-in icon of both families. includeMaterial/includeCupertino '
-          'can omit full family contributions while keeping app requirements.',
+      'Restage: generated registration includes all $builtInWidgetCount '
+          'built-in widgets by default. ${_iconSentence(icons)} '
+          'includeMaterial/includeCupertino can omit full widget families '
+          'while keeping app requirements.',
       'To install only what this build draws on, set catalog: derived under '
           'the restage_codegen:user_factories builder in build.yaml and call '
           'Restage.configureWithInstalledCatalog() after registration. The '
@@ -206,12 +207,11 @@ String summariseAppVocabulary(
     ].join('\n');
   }
   final widgets = vocabulary.widgetNames.where(_isBuiltIn).length;
-  final icons = vocabulary.orderedIcons.length;
   final lines = <String>[
     'Restage: a surface delivered to this app can render $widgets built-in '
-        '${_noun(widgets, 'widget')} and $icons ${_noun(icons, 'icon')}: '
-        'the ones this package draws in its own Dart, plus the ones its '
-        'compiled surfaces render.',
+        '${_noun(widgets, 'widget')}: the ones this package draws in its own '
+        'Dart, plus the ones its compiled surfaces render. '
+        '${_iconSentence(icons)}',
   ];
   if (position == CatalogPosition.appInstalled) {
     lines.add(
@@ -276,6 +276,13 @@ String _plainName(String qualifiedName) =>
     qualifiedName.substring(qualifiedName.indexOf(':') + 1);
 
 String _kilobytes(int bytes) => '${(bytes / 1024).round()} KB'.padLeft(6);
+
+String _iconSentence(int icons) => icons == 0
+    ? 'This app and its compiled surfaces install no icons; a published '
+          'surface carries a font for each literal icon it draws.'
+    : 'The $icons ${_noun(icons, 'icon')} this app and its compiled surfaces '
+          'use ${icons == 1 ? 'is' : 'are'} installed; a published surface '
+          'carries a font for any other literal icon.';
 
 String _noun(int amount, String singular) =>
     amount == 1 ? singular : '${singular}s';

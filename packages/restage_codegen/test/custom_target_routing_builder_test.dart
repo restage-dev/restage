@@ -146,10 +146,6 @@ void main() {
           '      includeMaterial: includeMaterial,\n'
           '      includeCupertino: includeCupertino,\n'
           '    ));\n'
-          '    InstalledIconTable.add(builtInIconTable(\n'
-          '      includeMaterial: includeMaterial,\n'
-          '      includeCupertino: includeCupertino,\n'
-          '    ));\n'
           '    kRestageAppVocabulary.addToInstalled(explicitSelection: true);\n'
           '  }',
         ),

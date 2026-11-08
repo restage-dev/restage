@@ -82,7 +82,8 @@ export 'src/surface_document/shared_component_definition.dart';
 export 'src/surface_document/surface_document.dart';
 export 'src/surface_document/surface_document_codec.dart';
 export 'src/surface_document/surface_editor_state.dart';
-export 'src/surface_document/surface_payload_publish_validation.dart';
+export 'src/surface_document/surface_payload_publish_validation.dart'
+    hide IconFontCoverageException, SurfacePayloadRefusal;
 export 'src/surface_feature_client_floor.dart';
 export 'src/taps/surface_tap_names.dart';
 export 'src/theme/theme_data_contract.dart';

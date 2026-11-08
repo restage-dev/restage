@@ -706,8 +706,10 @@ _Gap _gap(_FitToken token, PublishedSurfaceLabel published) {
             "${token.required ?? '(unknown)'}, which this build's icon set "
             'leaves out.',
         [
-          'Draw that icon once in a `@Screen` and $build, or install the '
-              'full catalog.'
+          "Try removing the icon's key, or include the icon in the app (draw "
+              "it in the app's own code, or call "
+              '`InstalledIconTable.add(builtInIconTable())` at startup) and '
+              'release a build.'
         ],
         _catalogDocs,
       );

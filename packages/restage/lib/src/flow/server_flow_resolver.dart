@@ -54,9 +54,9 @@ import 'flow_resolver.dart';
 /// Pass [vocabulary] when the app knows what the hosted flow draws: the
 /// generated `SurfaceVocabulary` of the surface it serves. Passing none
 /// installs nothing, so an app serving content it cannot know ahead of time
-/// installs the whole catalog itself at startup with
-/// `InstalledWidgetLibraries.install(RestageWidgetLibraries.builtIn())` and
-/// `InstalledIconTable.install(builtInIconTable())`.
+/// adds the whole catalog itself at startup with
+/// `InstalledWidgetLibraries.add(RestageWidgetLibraries.builtIn())` and
+/// `InstalledIconTable.add(builtInIconTable())`.
 SurfaceFlowRef<R> hostedSurfaceFlowRef<R>({
   required String id,
   required int version,

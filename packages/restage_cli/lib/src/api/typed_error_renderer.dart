@@ -344,8 +344,9 @@ String fitReasonSentence(FitReason reason, {String build = 'this build'}) {
       "$theBuild doesn't include the widget$named. Try removing it from the "
           'version, or releasing an app build that includes it.',
     SurfaceFitFailureCodeV1.missingIcon =>
-      "$theBuild doesn't include an icon the version uses. Try using an "
-          'icon the app includes.',
+      "$theBuild doesn't include an icon the version uses. Try including the "
+          'icon in the app and releasing a build, or use an icon the app '
+          'includes.',
     SurfaceFitFailureCodeV1.builtInFloor =>
       "$theBuild's built-in widgets are older than the version needs. Try "
           'releasing an app build made with a newer Restage SDK.',

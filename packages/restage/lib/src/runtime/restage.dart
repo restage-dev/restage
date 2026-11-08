@@ -8,8 +8,6 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/widgets.dart'
     show BuildContext, Widget, WidgetsBinding, WidgetsBindingObserver;
 import 'package:restage_shared/restage_shared.dart';
-import 'package:restage_core/restage_core.dart'
-    show InstalledIconTable, RestageIconTable;
 
 import '../early/early_request.dart';
 import '../analytics/analytics_identity.dart';
@@ -79,7 +77,6 @@ import '../resolver/surface_analytics_identity_provider.dart';
 import '../resolver/surface_metering_key_provider.dart';
 import '../resolver/variant_resolver.dart';
 import 'library_runtime_registry.dart';
-import 'builtin_icon_table.dart';
 import 'restage_widget_libraries.dart';
 import 'restage_widget_registration.dart';
 import 'first_paint_lease_guard.dart';
@@ -398,6 +395,11 @@ abstract final class Restage {
   /// available when a library is turned off, including the shared Material
   /// icon builder.
   ///
+  /// Icons come only from the app's and generated registrations; a surface
+  /// served by Restage carries a font for any other literal icon. To keep every
+  /// built-in icon, call `InstalledIconTable.add(builtInIconTable())` at
+  /// startup.
+  ///
   /// Pass generated `kRestageWidgetRegistration` as [registerWidgets]. It runs
   /// once after shared configuration and before the catalog is installed,
   /// forwarding the library options. Built-in entries keep existing entries on
@@ -480,17 +482,6 @@ abstract final class Restage {
         InstalledWidgetLibraries.install(builtIn);
       } else {
         InstalledWidgetLibraries.add(builtIn);
-      }
-    }
-    if (!InstalledIconTable.hasSelection) {
-      final builtIn = builtInIconTable(
-        includeMaterial: includeMaterial,
-        includeCupertino: includeCupertino,
-      );
-      if (identical(InstalledIconTable.current, RestageIconTable.none)) {
-        InstalledIconTable.install(builtIn);
-      } else {
-        InstalledIconTable.add(builtIn);
       }
     }
   }

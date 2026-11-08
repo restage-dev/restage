@@ -34,6 +34,8 @@ void main() {
     Restage.debugReset();
     InstalledWidgetLibraries.reset();
     InstalledIconTable.reset();
+    // The raw resolver blob has no delivered font or generated vocabulary.
+    InstalledIconTable.add(builtInIconTable());
   });
   tearDown(() {
     Restage.debugReset();

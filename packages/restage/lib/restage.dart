@@ -147,8 +147,7 @@ export 'package:restage_core/restage_core.dart'
         RestageRfwConstructorPresence,
         RestageResourceBuilder,
         RestageResourceHandle,
-        RestageResources,
-        resolveInstalledIcon;
+        RestageResources;
 // The whole-catalog icon table, for a surface that renders content whose
 // icons the app cannot know ahead of time.
 export 'src/runtime/builtin_icon_table.dart' show builtInIconTable;

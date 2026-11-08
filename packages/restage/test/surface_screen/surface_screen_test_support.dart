@@ -108,22 +108,25 @@ final class ScreenFixture<E> {
   ResolvedSurfaceScreen hosted({
     Uint8List? hostedBlob,
     int publishedRevision = 7,
+    SurfaceSections sections = SurfaceSections.none,
   }) {
     final blob = hostedBlob ?? this.blob;
-    return ResolvedSurfaceScreen.hosted(
-      surface: ref.surface,
-      slug: ref.slug,
-      contractVersion: ref.contractVersion,
-      publishedRevision: publishedRevision,
-      sourceKind: ref.sourceKind,
-      payloadKind: ref.payloadKind,
-      capabilities: capabilities,
-      contractFingerprint: ref.contractFingerprint,
-      eventContractHash: ref.eventContract.hash,
-      blob: blob,
-      contentHash: _payloadHash(blob, capabilities),
-      cacheHit: false,
-    );
+    return attachSurfaceSections(
+        ResolvedSurfaceScreen.hosted(
+          surface: ref.surface,
+          slug: ref.slug,
+          contractVersion: ref.contractVersion,
+          publishedRevision: publishedRevision,
+          sourceKind: ref.sourceKind,
+          payloadKind: ref.payloadKind,
+          capabilities: capabilities,
+          contractFingerprint: ref.contractFingerprint,
+          eventContractHash: ref.eventContract.hash,
+          blob: blob,
+          contentHash: _payloadHash(blob, capabilities, sections),
+          cacheHit: false,
+        ),
+        sections);
   }
 
   /// The stub delivery this fixture describes surfaces through — and, just as

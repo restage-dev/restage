@@ -177,11 +177,13 @@ void main() {
   });
 
   testWidgets(
-      'ordinary configure mounts a hosted flow with no generated vocabulary',
+      'explicit full icons mount a raw hosted flow with no generated vocabulary',
       (tester) async {
     await tester.runAsync(() async {
       Restage.configure(analyticsEnabled: false);
     });
+    expect(InstalledIconTable.current.isEmpty, isTrue);
+    InstalledIconTable.add(builtInIconTable());
     await tester.pumpWidget(
       MaterialApp(home: _HostedFlowHost(flow: _noticeFlowWithoutVocabulary)),
     );

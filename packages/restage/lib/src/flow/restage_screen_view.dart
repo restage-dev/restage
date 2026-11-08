@@ -2,7 +2,9 @@ import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart';
 import 'package:rfw/rfw.dart';
 
+import '../delivery/delivered_fonts.dart';
 import '../delivery/surface_delivery_paint_boundary.dart';
+import '../delivery/surface_sections_carrier.dart';
 import '../authoring/onboarding_event_dispatcher.dart'
     show RestageFlowEventRegistration;
 import '../measurement/measurement_event_sanitizer.dart';
@@ -220,23 +222,28 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
         surfaceSlug: controller.flow.id,
         child: _paintsLoad(
             controller,
-            RemoteWidget(
-              runtime: runtime,
-              data: data,
-              widget: kFlowScreenWidget,
-              onEvent: (name, args) {
-                // Inert unless this is the owning controller's current screen.
-                if (entryId != controller.currentScreenEntryId) return;
-                if (isMeasurementTapEventName(name)) return;
-                final sanitized = MeasurementEventSanitizer.sanitize(
-                  withoutContextItemIndexes(args),
-                );
-                controller.handleEvent(
-                  name,
-                  normalizeEventArgs(sanitized.businessValue),
-                );
-              },
-            )),
+            DeliveredIconFontLoader.scope(
+                switch (controller.currentResolvedFlow) {
+                  final flow? => surfaceSectionsFor(flow).iconFonts,
+                  null => const [],
+                },
+                child: RemoteWidget(
+                  runtime: runtime,
+                  data: data,
+                  widget: kFlowScreenWidget,
+                  onEvent: (name, args) {
+                    // Inert unless this is the owning controller's current screen.
+                    if (entryId != controller.currentScreenEntryId) return;
+                    if (isMeasurementTapEventName(name)) return;
+                    final sanitized = MeasurementEventSanitizer.sanitize(
+                      withoutContextItemIndexes(args),
+                    );
+                    controller.handleEvent(
+                      name,
+                      normalizeEventArgs(sanitized.businessValue),
+                    );
+                  },
+                ))),
       ),
     );
     return RestageFlowEventRegistration(
