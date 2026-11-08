@@ -1,4 +1,10 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/measurement/governed_measurement_transport.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -7,6 +13,154 @@ import '../support/restage_runtime_test_support.dart';
 
 void main() {
   installRestageRuntimeTestSupport();
+
+  final blockedCalls = <(String, Future<Object> Function(), Matcher)>[
+    (
+      'Restage.measurement.issueLinkChallenge',
+      () => Restage.measurement.issueLinkChallenge(_challengeRequest()),
+      isA<MeasurementLinkChallengeFailedV1>()
+    ),
+    (
+      'Restage.measurement.linkSubject',
+      () => Restage.measurement.linkSubject(_linkRequest()),
+      isA<MeasurementLinkFailedV1>()
+    ),
+    (
+      'Restage.measurement.resetSubject',
+      () => Restage.measurement.resetSubject(
+          _subjectOperation(MeasurementSubjectOperationAction.resetSubject)),
+      isA<MeasurementSubjectOperationFailedV1>()
+    ),
+    (
+      'Restage.measurement.withdrawConsent',
+      () => Restage.measurement.withdrawConsent(
+          _subjectOperation(MeasurementSubjectOperationAction.withdrawConsent)),
+      isA<MeasurementSubjectOperationFailedV1>()
+    ),
+    (
+      'Restage.privacy.request',
+      () => Restage.privacy.request(_privacyRequest()),
+      isA<RestagePrivacyReceiptV1>().having((receipt) => receipt.status,
+          'status', RestagePrivacyCoordinatorStatus.failed)
+    ),
+  ];
+  for (final (api, invoke, failure) in blockedCalls) {
+    test('disabled $api warns without HTTP', () async {
+      final messages = _captureDebugMessages();
+      final requests = _configureWarningTransport();
+      expect(_disabledMessages(messages), isEmpty);
+      messages.clear();
+      expect(await invoke(), failure);
+      expect(requests, isEmpty);
+      expect(messages, [_disabledMessage(api)]);
+    });
+  }
+
+  test('blocked diagnostics deduplicate per API and reset with configuration',
+      () async {
+    final messages = _captureDebugMessages();
+    _configureWarningTransport();
+    messages.clear();
+    await Restage.measurement.linkSubject(_linkRequest());
+    await Restage.measurement.linkSubject(_linkRequest());
+    expect(messages, [_disabledMessage('Restage.measurement.linkSubject')]);
+    _configureWarningTransport();
+    messages.clear();
+    await Restage.measurement.linkSubject(_linkRequest());
+    expect(messages, [_disabledMessage('Restage.measurement.linkSubject')]);
+    GovernedMeasurementPortRegistry.debugReset();
+    await Restage.measurement.linkSubject(_linkRequest());
+    expect(messages, hasLength(2));
+    GovernedMeasurementPortRegistry.install(null);
+    await Restage.measurement.linkSubject(_linkRequest());
+    expect(messages, hasLength(3));
+  });
+
+  test('custom unavailable results are not diagnosed as disabled', () async {
+    final messages = _captureDebugMessages();
+    final port = _UnavailableCustomPort();
+    final requests = _configureWarningTransport(custom: port);
+    messages.clear();
+    expect(await Restage.measurement.linkSubject(_linkRequest()),
+        isA<MeasurementLinkFailedV1>());
+    expect((await Restage.privacy.request(_privacyRequest())).status,
+        RestagePrivacyCoordinatorStatus.failed);
+    expect(port.linkCalls, 1);
+    expect(port.privacyCalls, 1);
+    expect(requests, isEmpty);
+    expect(_disabledMessages(messages), isEmpty);
+  });
+
+  test('enabled HTTP failures are not diagnosed as disabled', () async {
+    final messages = _captureDebugMessages();
+    final requests = _configureWarningTransport(enabled: true);
+    messages.clear();
+    expect(await Restage.measurement.linkSubject(_linkRequest()),
+        isA<MeasurementLinkFailedV1>());
+    expect((await Restage.privacy.request(_privacyRequest())).status,
+        RestagePrivacyCoordinatorStatus.failed);
+    expect(requests, hasLength(2));
+    expect(
+        requests.every(
+            (request) => request.url.path == '/sdk/v1/measurement-governed'),
+        isTrue);
+    expect(_disabledMessages(messages), isEmpty);
+  });
+
+  test('missing credentials with true flag get truthful setup guidance',
+      () async {
+    final messages = _captureDebugMessages();
+    final requests = _configureWarningTransport(enabled: true, apiKey: null);
+    messages.clear();
+    expect((await Restage.privacy.request()).status,
+        RestagePrivacyCoordinatorStatus.failed);
+    expect(requests, isEmpty);
+    expect(messages, [_disabledMessage('Restage.privacy.request')]);
+    expect(messages.single, isNot(contains('flag is false')));
+  });
+
+  test('disabled diagnostics contain no supplied privacy authority', () async {
+    final messages = _captureDebugMessages();
+    _configureWarningTransport(apiKey: 'rs_pk_private_warning_credential');
+    messages.clear();
+    const secret = 'private-warning-authority-and-identity';
+    const operation = 'private-warning-correlation';
+    final request = RestagePrivacyRequestV1(
+      targets: RestagePrivacyTargets.measurement,
+      action: RestagePrivacyAction.delete,
+      correlationId: operation,
+      authorities: [
+        RestagePrivacyDomainAuthority(
+          domain: RestagePrivacyDomain.measurement,
+          requestCanonicalBytes: utf8.encode(secret),
+        )
+      ],
+    );
+    final result = await Restage.privacy.request(request);
+    expect(result.correlationId, operation);
+    expect(messages, [_disabledMessage('Restage.privacy.request')]);
+    for (final value in [
+      secret,
+      operation,
+      'rs_pk_private_warning_credential',
+      base64Url.encode(utf8.encode(secret)).replaceAll('=', ''),
+      base64Url.encode(request.canonicalBytes).replaceAll('=', '')
+    ]) {
+      expect(messages.single, isNot(contains(value)));
+    }
+  });
+
+  test('invalid subject actions do not produce disabled transport warnings',
+      () async {
+    final messages = _captureDebugMessages();
+    _configureWarningTransport();
+    messages.clear();
+    await Restage.measurement.resetSubject(
+        _subjectOperation(MeasurementSubjectOperationAction.withdrawConsent));
+    await Restage.measurement.withdrawConsent(
+        _subjectOperation(MeasurementSubjectOperationAction.resetSubject));
+    expect(_disabledMessages(messages), isEmpty);
+  });
 
   test('fails closed before a host authority is installed', () async {
     final challengeResult = await Restage.measurement.issueLinkChallenge(
@@ -318,3 +472,66 @@ PurposePolicyRefV1 _purposePolicyRef() => PurposePolicyRefV1(
 
 CanonicalDigest _digest(String character) =>
     CanonicalDigest(List<String>.filled(64, character).join());
+
+List<String> _captureDebugMessages() {
+  final messages = <String>[];
+  final original = debugPrint;
+  debugPrint = (String? message, {int? wrapWidth}) {
+    if (message != null) messages.add(message);
+  };
+  addTearDown(() => debugPrint = original);
+  return messages;
+}
+
+List<String> _disabledMessages(List<String> messages) => messages
+    .where((message) => message.startsWith('[restage] Restage.'))
+    .toList();
+
+String _disabledMessage(String api) => '[restage] $api is disabled because no '
+    'governed transport is configured. Try checking apiKey, baseUrl and '
+    'governedMeasurementTransportEnabled in Restage.configure, or supplying '
+    'governedMeasurementTransport.';
+
+List<http.Request> _configureWarningTransport({
+  bool enabled = false,
+  String? apiKey = 'rs_pk_warning',
+  RestageGovernedMeasurementTransport? custom,
+}) {
+  SharedPreferences.setMockInitialValues({});
+  final requests = <http.Request>[];
+  http.runWithClient(
+      () => Restage.configure(
+            apiKey: apiKey,
+            baseUrl: 'https://warning.example.com',
+            governedMeasurementTransportEnabled: enabled,
+            governedMeasurementTransport: custom,
+          ),
+      () => MockClient((request) async {
+            requests.add(request);
+            return http.Response('', 503);
+          }));
+  return requests;
+}
+
+final class _UnavailableCustomPort
+    implements RestageGovernedMeasurementTransport {
+  int linkCalls = 0;
+  int privacyCalls = 0;
+  @override
+  Future<MeasurementLinkOperationResultV1> linkSubject(
+      MeasurementLinkRequestV1 request) async {
+    linkCalls++;
+    return unavailableLinkResult();
+  }
+
+  @override
+  Future<RestagePrivacyReceiptV1> requestPrivacy(
+      RestagePrivacyRequestV1 request) async {
+    privacyCalls++;
+    return unavailablePrivacyReceipt(request);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw StateError('Unexpected operation');
+}

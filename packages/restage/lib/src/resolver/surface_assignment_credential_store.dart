@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../runtime/native_facts.dart';
+import '../measurement/install_self_erasure.dart';
 import 'surface_assignment_persistence.dart';
 
 /// One durable registration identity and the handle already confirmed for it.
@@ -52,6 +53,26 @@ final class SurfaceAssignmentCredentialStore {
   _RegistrationState? _state;
   Future<SurfaceRegistrationAttempt?>? _pending;
   Future<void> _transition = Future<void>.value();
+
+  /// Awaits rotation when the platform owns a registration tuple.
+  static Future<void> resetPlatformRegistration({
+    required bool Function() isCurrent,
+  }) async {
+    final previous = await NativeFacts.registration(propagateErrors: true);
+    if (!isCurrent()) throw StateError('Erasure scope changed');
+    if (previous == null) return;
+    final replacement =
+        await NativeFacts.resetRegistration(propagateErrors: true);
+    if (!isCurrent() ||
+        replacement == null ||
+        replacement.nonce.length != 43 ||
+        !_RegistrationState._isCanonicalNonce(replacement.nonce) ||
+        replacement.createdAtMicros <= 0 ||
+        replacement.createdAtMicros > 9007199254740991 ||
+        replacement.nonce == previous.nonce) {
+      throw StateError('Platform registration could not be reset');
+    }
+  }
 
   int get generation {
     _observeIdentity();
@@ -121,6 +142,7 @@ final class SurfaceAssignmentCredentialStore {
       await SurfaceAssignmentPersistence.ready;
       final identity = await actor();
       final prefs = await SharedPreferences.getInstance();
+      if (!InstallSelfErasure.enrollmentAllowed(prefs, identity)) return null;
       if (identityGeneration() != identityGenerationAtStart ||
           persistenceGeneration != SurfaceAssignmentPersistence.generation) {
         return null;
@@ -178,6 +200,38 @@ final class SurfaceAssignmentCredentialStore {
 
   /// The held handle under the persisted local deadline. Never sends a request.
   Future<String?> resolveLocal() async => (await capture())?.credentialHandle;
+
+  /// Reads existing deletion authority without serving expiry or registration.
+  Future<String?> resolveForErasure() async {
+    final actorGeneration = identityGeneration();
+    final leaseGeneration = _leaseGeneration;
+    final persistenceGeneration = SurfaceAssignmentPersistence.generation;
+    try {
+      await SurfaceAssignmentPersistence.ready;
+      final identity = await actor();
+      final prefs = await SharedPreferences.getInstance();
+      if (identityGeneration() != actorGeneration ||
+          _leaseGeneration != leaseGeneration ||
+          SurfaceAssignmentPersistence.generation != persistenceGeneration) {
+        return null;
+      }
+      final key = _keyFor(identity);
+      if (SurfaceAssignmentPersistence.isUnsaved(key)) return null;
+      final stored = prefs.getString(key);
+      if (stored == null) return null;
+      final state = _RegistrationState.fromJson(jsonDecode(stored));
+      final held =
+          _observedIdentityGeneration == actorGeneration ? _state : null;
+      if (held != null &&
+          (held.nonce != state.nonce ||
+              held.createdAtMicros != state.createdAtMicros)) {
+        return null;
+      }
+      return state.handle;
+    } on Object {
+      return null;
+    }
+  }
 
   /// Commits only a response for the tuple and generation that were sent.
   Future<bool> confirm({

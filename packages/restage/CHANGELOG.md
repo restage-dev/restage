@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+Add `Restage.privacy.request()` for current-install erasure, with durable retries
+and local identity reset after confirmed completion. It uses the existing
+governed transport opt-in. Debug builds warn when an identity, consent or privacy
+call is blocked because its transport is not configured.
+
 A generated surface can render parts of its widget tree from the app's own code. `RestageIslandScope` supplies those widgets to published content. Each keeps its element and state when a newer version replaces the shown one. `RestageIslandScope.keyed` gives a widget the same identity in the compiled fallback. `RestageIslandPlaceholder` stands in for a widget whose app code isn't available. A version that draws these widgets is laid out before it is shown. It counts as shown from its first paint. `RestageWidgetLibraryRegistration.islands` marks the libraries that hold them.
 
 `SurfaceVocabulary.stepMounts` maps a flow step to a `RestageStepMount`. A `RestageStepMount` renders the step's published content with the values the app computes for it. It reads the step's inputs from the step widget the app builds. `RestageStepValues` carries those values to the content. A flow becomes unavailable when a step has a `RestageStepMount` and no bound screen builder.

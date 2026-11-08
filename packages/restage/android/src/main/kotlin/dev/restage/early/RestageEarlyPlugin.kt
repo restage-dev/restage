@@ -68,12 +68,19 @@ class RestageEarlyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     main.post { result.success(null) }
                 }
             }
+            "invalidateStartup" -> executor.execute {
+                val cleared = runCatching { EarlyRequest.invalidateStartup(app) }.isSuccess
+                main.post {
+                    if (cleared) result.success(null)
+                    else result.error("storage", "Startup authority could not be cleared.", null)
+                }
+            }
             "setIdentity" -> {
                 val metering = call.argument<String>("meteringKey")
                 val anonymous = call.argument<String>("analyticsAnonymousId")
                 if (metering == null || anonymous == null) return result.error("invalid", "Both ids are required.", null)
                 executor.execute {
-                    val stored = EarlyFacts.setIdentity(app, metering, anonymous)
+                    val stored = runCatching { EarlyFacts.setIdentity(app, metering, anonymous) }.getOrDefault(false)
                     main.post {
                         if (stored) result.success(null) else result.error("invalid", "Both ids must be UUIDs.", null)
                     }
@@ -89,17 +96,25 @@ class RestageEarlyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                     }
                 }
             }
-            "resetRegistration" -> executor.execute {
-                val (nonce, created) = EarlyFacts.resetRegistration(app)
-                main.post { result.success(mapOf("registrationNonce" to nonce, "registrationCreatedAtMicros" to created)) }
-            }
-            "registration" -> executor.execute {
-                val (nonce, created) = EarlyFacts.registration(app)
-                main.post { result.success(mapOf("registrationNonce" to nonce, "registrationCreatedAtMicros" to created)) }
+            "resetRegistration", "registration" -> executor.execute {
+                runCatching {
+                    if (call.method == "resetRegistration") EarlyFacts.resetRegistration(app)
+                    else EarlyFacts.registration(app)
+                }.fold(
+                    onSuccess = { (nonce, created) ->
+                        main.post { result.success(mapOf("registrationNonce" to nonce, "registrationCreatedAtMicros" to created)) }
+                    },
+                    onFailure = {
+                        main.post { result.error("registration_unavailable", "Registration unavailable.", null) }
+                    },
+                )
             }
             "template" -> result.success(EarlyRequest.templateText())
             "sent" -> result.success(EarlyRequest.sentBytes())
-            "facts" -> result.success(EarlyFacts.read(app))
+            "facts" -> runCatching { EarlyFacts.read(app) }.fold(
+                onSuccess = { result.success(it) },
+                onFailure = { result.error("registration_unavailable", "Registration unavailable.", null) },
+            )
             else -> result.notImplemented()
         }
     }

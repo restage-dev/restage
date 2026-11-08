@@ -41,6 +41,7 @@ import '../measurement/hosted_measurement_construction_profile_read_port.dart';
 import '../measurement/itt_assignment_rpc_adapter.dart';
 import '../measurement/restage_measurement.dart';
 import '../measurement/restage_privacy.dart';
+import '../measurement/install_self_erasure.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_delivery_evidence.dart';
 import '../delivery/delivery_trust.dart';
@@ -193,7 +194,59 @@ abstract final class Restage {
   static final RestageMeasurement measurement = RestageMeasurement.internal();
 
   /// Explicit coordinator over independently-owned privacy operations.
-  static final RestagePrivacy privacy = RestagePrivacy.internal();
+  static final RestagePrivacy privacy = RestagePrivacy.internal(
+    selfErasureContext: _installSelfErasureContext,
+  );
+
+  static InstallSelfErasureContext? _installSelfErasureContext() {
+    final identity = _analyticsIdentity;
+    final store = _assignmentCredentialStore;
+    if (identity == null ||
+        store == null ||
+        _apiKey == null ||
+        _baseUrl == null) {
+      return null;
+    }
+    final configuration = _configurationGeneration;
+    final generation = identity.generation;
+    final assignmentGeneration = store.generation;
+    bool isCurrent() =>
+        configuration == _configurationGeneration &&
+        identical(_analyticsIdentity, identity) &&
+        identity.generation == generation &&
+        store.generation == assignmentGeneration;
+    return InstallSelfErasureContext(
+      namespace: store.namespace,
+      actor: identity.anonymousId,
+      readHandle: store.resolveForErasure,
+      isCurrent: isCurrent,
+      finalize: (actor, resetActor, markReset, markFinalized) async {
+        if (!isCurrent()) throw StateError('Erasure scope changed');
+        final currentActor = await identity.anonymousId();
+        if (!isCurrent()) throw StateError('Erasure scope changed');
+        if (currentActor == resetActor) {
+          await _resetIdentity(
+            durable: true,
+            replacementId: resetActor,
+            afterErasure: markFinalized,
+          );
+        } else if (currentActor == actor) {
+          await _resetIdentity(
+            durable: true,
+            replacementId: resetActor,
+            beforeIdentityPersist: markReset,
+            afterErasure: markFinalized,
+          );
+        } else {
+          await SurfaceAssignmentPersistence.ready;
+          await identity.persistCurrent();
+          await _invalidatePlatformBootstrap(isCurrent);
+          await _resetPlatformBootstrap(identity, isCurrent);
+          await markFinalized();
+        }
+      },
+    );
+  }
 
   static void Function(SurfaceResolutionReport report)? _onSurfaceResolution;
   static bool _showSourceBadges = false;
@@ -1205,7 +1258,14 @@ abstract final class Restage {
   @internal
   static String? paywallSurfaceWidget(String id) => _paywallSurfaceWidgets[id];
 
-  static void reset() {
+  static void reset() => unawaited(_resetIdentity());
+
+  static Future<void> _resetIdentity({
+    bool durable = false,
+    String? replacementId,
+    Future<void> Function(String actor)? beforeIdentityPersist,
+    Future<void> Function()? afterErasure,
+  }) async {
     _eventAttributionGeneration += 1;
     _placementRegistry?.dropSaved();
     unawaited(clearSurfaceArtifactStores());
@@ -1220,16 +1280,82 @@ abstract final class Restage {
     // reset() advances the in-memory generation synchronously before its first
     // persistence await. Reject pending hosted paint work against that new
     // generation now; accepted presentations remain pinned.
-    final identityReset = identity.reset();
+    final resetGeneration = identity.generation + 1;
+    final configuration = _configurationGeneration;
+    bool isCurrent() =>
+        configuration == _configurationGeneration &&
+        identical(_analyticsIdentity, identity) &&
+        identity.generation == resetGeneration;
+    final identityPersisted = identity.reset(
+      replacementId: replacementId,
+      beforePersist: durable
+          ? (actor) async {
+              if (beforeIdentityPersist != null) {
+                await beforeIdentityPersist(actor);
+              }
+              await _invalidatePlatformBootstrap(isCurrent);
+            }
+          : beforeIdentityPersist,
+      requirePersistence: durable,
+    );
+    final identityReset = durable
+        ? identityPersisted.then((_) {
+            if (!isCurrent()) throw StateError('Erasure scope changed');
+            return SurfaceAssignmentCredentialStore.resetPlatformRegistration(
+              isCurrent: isCurrent,
+            );
+          })
+        : identityPersisted;
     notifyRestageCommerceIdentityChanged();
     SurfaceCanonicalCarrierProvider.clearHeldAssignments();
     final forgotten = SurfaceAssignmentPersistence.forget(
       afterIdentityReset: identityReset,
+      afterErasure: durable
+          ? () async {
+              await _resetPlatformBootstrap(identity, isCurrent);
+              if (afterErasure != null) await afterErasure();
+            }
+          : afterErasure,
     );
     unawaited(forgotten);
-    unawaited(_renewPlatformIdentity(identity, forgotten));
+    if (!durable) unawaited(_renewPlatformIdentity(identity, forgotten));
     RootAnalyticsRuntime.retireAll();
     FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
+    if (durable) {
+      await forgotten;
+      if (!isCurrent()) {
+        throw StateError('Erasure identity changed during finalization');
+      }
+    }
+  }
+
+  static Future<void> _invalidatePlatformBootstrap(
+    bool Function() isCurrent,
+  ) async {
+    if (!EarlyRequest.hasBootstrapPlatform) return;
+    if (!isCurrent() ||
+        !await EarlyRequest.invalidateStartup() ||
+        !isCurrent()) {
+      throw StateError('Native startup authority could not be cleared');
+    }
+  }
+
+  static Future<void> _resetPlatformBootstrap(
+    AnalyticsIdentity identity,
+    bool Function() isCurrent,
+  ) async {
+    if (!EarlyRequest.hasBootstrapPlatform) return;
+    final metering = await SurfaceMeteringKeyProvider.currentKey();
+    final actor = await identity.anonymousId();
+    if (metering == null ||
+        !isCurrent() ||
+        !await EarlyRequest.setIdentity(
+          meteringKey: metering,
+          analyticsAnonymousId: actor,
+        ) ||
+        !isCurrent()) {
+      throw StateError('Native installation identity could not be persisted');
+    }
   }
 
   // The platform fills its early request from its own identity, so a reset
@@ -1655,6 +1781,7 @@ abstract final class Restage {
   /// worker resources must await [debugResetAndWait] instead.
   @visibleForTesting
   static void debugReset() {
+    privacy.debugResetSelfErasure();
     _configurationGeneration += 1;
     _paywallSurfaceWidgets = const {};
     _placementNow = null;

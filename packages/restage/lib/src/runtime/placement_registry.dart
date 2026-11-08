@@ -268,6 +268,7 @@ final class PlacementRegistry {
           inlineMounts: await _mountsNeedingArtifacts(mounts),
           startup: true);
       if (next == null ||
+          !next.isCurrent() ||
           (next.request.assignmentKey == null &&
               !(registering && next.request.registration != null))) {
         return;

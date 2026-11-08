@@ -134,6 +134,89 @@ void main() {
     expect(storage.writes, 2);
   });
 
+  test('erasure reads cold expired authority without serving mutation',
+      () async {
+    final storage = _CountingPreferences();
+    SharedPreferencesStorePlatform.instance = storage;
+    final store = launch();
+    final attempt = (await store.capture())!;
+    expect(
+        await store.confirm(
+          attempt: attempt,
+          localRequestStartMicros: now,
+          credentialHandle: 'ic1.${'a' * 64}',
+          expiresAtMicros: now + _day,
+          serverNowMicros: now,
+        ),
+        isTrue);
+    now += 2 * _day;
+    final restored = launch();
+    final generation = restored.generation;
+    final writes = storage.writes;
+    expect(await restored.resolveForErasure(), 'ic1.${'a' * 64}');
+    expect(restored.generation, generation);
+    expect(storage.writes, writes);
+    expect(rollovers, 0);
+    for (final owner in [
+      (namespace: 'other', actor: 'actor'),
+      (namespace: 'cadence', actor: 'other'),
+    ]) {
+      final unrelated = SurfaceAssignmentCredentialStore(
+        namespace: owner.namespace,
+        actor: () async => owner.actor,
+        identityGeneration: () => 0,
+        nowMicros: () => now,
+        onRetentionRollover: () => rollovers++,
+      );
+      expect(await unrelated.resolveForErasure(), isNull);
+    }
+    expect(storage.writes, writes);
+    expect(rollovers, 0);
+    final replacement = (await restored.capture())!;
+    expect(replacement.registrationNonce, isNot(attempt.registrationNonce));
+    expect(replacement.credentialHandle, isNull);
+    expect(rollovers, 1);
+    expect(await restored.resolveForErasure(), isNull);
+  });
+
+  test('erasure read rejects changed actor generation without writes',
+      () async {
+    final storage = _CountingPreferences();
+    SharedPreferencesStorePlatform.instance = storage;
+    final seed = launch();
+    final attempt = (await seed.capture())!;
+    expect(
+        await seed.confirm(
+          attempt: attempt,
+          localRequestStartMicros: now,
+          credentialHandle: 'ic1.${'a' * 64}',
+          expiresAtMicros: now + _day,
+          serverNowMicros: now,
+        ),
+        isTrue);
+    final entered = Completer<void>();
+    final actor = Completer<String>();
+    var generation = 0;
+    final reader = SurfaceAssignmentCredentialStore(
+      namespace: 'cadence',
+      actor: () {
+        entered.complete();
+        return actor.future;
+      },
+      identityGeneration: () => generation,
+      nowMicros: () => now,
+      onRetentionRollover: () => rollovers++,
+    );
+    final writes = storage.writes;
+    final pending = reader.resolveForErasure();
+    await entered.future;
+    generation++;
+    actor.complete('actor');
+    expect(await pending, isNull);
+    expect(storage.writes, writes);
+    expect(rollovers, 0);
+  });
+
   test('ahead clock uses request start and server remaining life', () async {
     final store = launch();
     final attempt = (await store.capture())!;

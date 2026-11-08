@@ -1,6 +1,7 @@
 import CryptoKit
 import Flutter
 import Foundation
+import Security
 import UIKit
 
 /// One buffered startup request, sent at app launch and handed to Dart once.
@@ -46,18 +47,19 @@ public final class RestageEarlyRequest: NSObject {
       if !doneSignalled { doneSignalled = true; done.signal() }
       lock.unlock()
     }
-    _ = EarlyFacts.registration(supportDirectory())
+    guard (try? EarlyFacts.registration(supportDirectory())) != nil else { return }
+    let persisted = try? Data(contentsOf: lastFile())
+    let persistedJSON = persisted.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+    if persistedJSON?["disabled"] as? Bool == true { return }
     // A kept template describes the build that wrote it.
-    let kept = (try? Data(contentsOf: lastFile())).flatMap { data in
-      ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["builtFor"] as? String == EarlyFacts.buildStamp() ? data : nil
-    }
+    let kept = persistedJSON?["builtFor"] as? String == EarlyFacts.buildStamp() ? persisted : nil
     let data = kept
       ?? Bundle.main.url(forResource: "restage_early", withExtension: "json").flatMap { try? Data(contentsOf: $0) }
     guard let data, let template = EarlyTemplate(data) else { return }
     lock.lock()
     templateJson = String(data: data, encoding: .utf8)
     lock.unlock()
-    var facts = EarlyFacts.read()
+    guard var facts = try? EarlyFacts.read() else { return }
     facts["mountedSince"] = EarlyFacts.mountedSince(supportDirectory(), authorization: template.authorization)
     guard let body = template.body(facts: facts, full: false) else { return }
     lock.lock()
@@ -82,7 +84,7 @@ public final class RestageEarlyRequest: NSObject {
   }
 
   private static func post(_ template: EarlyTemplate, _ body: Data) -> (Int, Data, [String: String]) {
-    guard let url = URL(string: template.url) else { return (0, Data()) }
+    guard let url = URL(string: template.url) else { return (0, Data(), [:]) }
     var request = URLRequest(url: url, timeoutInterval: 8)
     request.httpMethod = "POST"
     request.httpBody = body
@@ -164,7 +166,17 @@ public final class RestageEarlyRequest: NSObject {
     _ = try? FileManager.default.replaceItemAt(lastFile(), withItemAt: temp)
   }
 
-  static func registration() -> (String, Int64) { EarlyFacts.registration(supportDirectory()) }
+  /// Clears startup authority without falling back to a bundled template.
+  static func invalidateStartup() throws {
+    let disabled: [String: Any] = ["builtFor": EarlyFacts.buildStamp(), "disabled": true]
+    let data = try JSONSerialization.data(withJSONObject: disabled)
+    try data.write(to: lastFile(), options: .atomic)
+    lock.lock()
+    templateJson = nil
+    lock.unlock()
+  }
+
+  static func registration() throws -> (String, Int64) { try EarlyFacts.registration(supportDirectory()) }
 
   // Names of the top-level members that differ, never their values.
   private static func differingKeys(_ sent: Data?, _ request: Data) -> String {
@@ -295,8 +307,9 @@ enum Canonical {
 
 /// Device facts native knows at launch, in the forms the Dart client sends.
 enum EarlyFacts {
-  static func read() -> [String: Any?] {
+  static func read() throws -> [String: Any?] {
     let dir = RestageEarlyRequest.supportDirectory()
+    let registration = try registration(dir)
     let parts = Locale.preferredLanguages.first.map { NSLocale.components(fromLocaleIdentifier: $0) } ?? [:]
     let bounds = UIScreen.main.bounds
     let shortest = min(bounds.width, bounds.height)
@@ -316,8 +329,8 @@ enum EarlyFacts {
       "firstLaunchMicros": firstLaunchMicros(dir),
       "meteringKey": identity(dir).0,
       "analyticsAnonymousId": identity(dir).1,
-      "registrationNonce": registration(dir).0,
-      "registrationCreatedAtMicros": registration(dir).1,
+      "registrationNonce": registration.0,
+      "registrationCreatedAtMicros": registration.1,
     ]
   }
 
@@ -403,26 +416,37 @@ enum EarlyFacts {
   }
 
   /// Starts a new registration identity, after the service refused the old one.
-  static func resetRegistration(_ directory: URL) -> (String, Int64) {
-    try? FileManager.default.removeItem(at: directory.appendingPathComponent("restage_install_registration"))
-    return registration(directory)
+  static func resetRegistration(_ directory: URL) throws -> (String, Int64) {
+    let file = directory.appendingPathComponent("restage_install_registration")
+    if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
+    return try registration(directory)
   }
 
+  enum RegistrationError: Error { case unavailable }
+
   /// The install's registration identity: made once before the first request, kept in app storage.
-  static func registration(_ directory: URL) -> (String, Int64) {
+  static func registration(
+    _ directory: URL,
+    entropy: (inout [UInt8]) -> Bool = { bytes in
+      SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess
+    },
+    persist: (String, URL) throws -> Void = { text, file in
+      try text.write(to: file, atomically: true, encoding: .utf8)
+    }
+  ) throws -> (String, Int64) {
     let file = directory.appendingPathComponent("restage_install_registration")
     if let text = try? String(contentsOf: file, encoding: .utf8) {
       let parts = text.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ":")
       if parts.count == 2, parts[0].count == 43, let created = Int64(parts[1]) { return (String(parts[0]), created) }
     }
     var bytes = [UInt8](repeating: 0, count: 32)
-    _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+    guard entropy(&bytes) else { throw RegistrationError.unavailable }
     let nonce = Data(bytes).base64EncodedString()
       .replacingOccurrences(of: "+", with: "-")
       .replacingOccurrences(of: "/", with: "_")
       .replacingOccurrences(of: "=", with: "")
     let created = Int64(Date().timeIntervalSince1970 * 1_000_000)
-    try? "\(nonce):\(created)".write(to: file, atomically: true, encoding: .utf8)
+    try persist("\(nonce):\(created)", file)
     return (nonce, created)
   }
 }
@@ -473,6 +497,17 @@ public final class RestageEarlyPlugin: NSObject, FlutterPlugin {
         RestageEarlyRequest.remember(template)
         DispatchQueue.main.async { result(nil) }
       }
+    case "invalidateStartup":
+      Self.queue.async {
+        do {
+          try RestageEarlyRequest.invalidateStartup()
+          DispatchQueue.main.async { result(nil) }
+        } catch {
+          DispatchQueue.main.async {
+            result(FlutterError(code: "storage", message: "Startup authority could not be cleared.", details: nil))
+          }
+        }
+      }
     case "setIdentity":
       guard let metering = args?["meteringKey"] as? String, let anonymous = args?["analyticsAnonymousId"] as? String
       else { return result(FlutterError(code: "invalid", message: "Both ids are required.", details: nil)) }
@@ -493,20 +528,29 @@ public final class RestageEarlyPlugin: NSObject, FlutterPlugin {
       }
     case "resetRegistration":
       Self.queue.async {
-        let (nonce, created) = EarlyFacts.resetRegistration(RestageEarlyRequest.supportDirectory())
-        DispatchQueue.main.async { result(["registrationNonce": nonce, "registrationCreatedAtMicros": created]) }
+        do {
+          let (nonce, created) = try EarlyFacts.resetRegistration(RestageEarlyRequest.supportDirectory())
+          DispatchQueue.main.async { result(["registrationNonce": nonce, "registrationCreatedAtMicros": created]) }
+        } catch {
+          DispatchQueue.main.async { result(FlutterError(code: "registration_unavailable", message: "Registration could not be stored.", details: nil)) }
+        }
       }
     case "registration":
       Self.queue.async {
-        let (nonce, created) = RestageEarlyRequest.registration()
-        DispatchQueue.main.async { result(["registrationNonce": nonce, "registrationCreatedAtMicros": created]) }
+        do {
+          let (nonce, created) = try RestageEarlyRequest.registration()
+          DispatchQueue.main.async { result(["registrationNonce": nonce, "registrationCreatedAtMicros": created]) }
+        } catch {
+          DispatchQueue.main.async { result(FlutterError(code: "registration_unavailable", message: "Registration could not be stored.", details: nil)) }
+        }
       }
     case "template":
       result(RestageEarlyRequest.templateText())
     case "sent":
       result(RestageEarlyRequest.sentBytes().map { FlutterStandardTypedData(bytes: $0) })
     case "facts":
-      result(EarlyFacts.read().compactMapValues { $0 })
+      do { result(try EarlyFacts.read().compactMapValues { $0 }) }
+      catch { result(FlutterError(code: "registration_unavailable", message: "Registration could not be stored.", details: nil)) }
     default:
       result(FlutterMethodNotImplemented)
     }

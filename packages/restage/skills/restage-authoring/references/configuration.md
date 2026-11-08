@@ -180,10 +180,17 @@ Ordinary anonymous Measurement does not need a governed transport.
 Authenticated subject linking, consent withdrawal and privacy requests use
 `Restage.measurement` and `Restage.privacy` with explicit authority evidence.
 For those integrations, set `governedMeasurementTransportEnabled: true` to use
-the hosted transport after configuring the host's identity-provider proof
-source, or supply a `RestageGovernedMeasurementTransport`. The flag defaults to
-`false`; the two transport options are mutually exclusive. With neither option,
-these governed operations return unavailable results.
+the hosted transport, or supply a `RestageGovernedMeasurementTransport`. The
+flag defaults to `false`; the two transport options are mutually exclusive.
+With neither option, these operations send no request and return unavailable
+results. Debug builds warn when a call is blocked and name the configuration to
+check. The gate does not disable ordinary SDK traffic.
+
+Subject-linking requests need proof from the host's identity provider.
+The no-argument `Restage.privacy.request()` instead requests deletion for the
+current install using its stored assignment handle. It needs no identity-provider
+setup and still requires the transport opt-in. Hosted subject linking, consent
+operations, identified-user deletion and export remain unavailable.
 
 The compatibility parameters `identity` and `locale` currently have no useful
 runtime effect in `configure`: the identity callback is not invoked, and the

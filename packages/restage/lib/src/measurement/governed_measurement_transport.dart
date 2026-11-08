@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
@@ -42,6 +43,8 @@ abstract interface class RestageMeasurementOperationsPort
 abstract final class GovernedMeasurementPortRegistry {
   static RestageGovernedMeasurementTransport _measurement =
       const _UnavailableMeasurementPort();
+  static bool _hasTransport = false;
+  static final Set<_GovernedCall> _reportedDisabled = {};
 
   /// Current governed Measurement transport.
   static RestageGovernedMeasurementTransport get measurement => _measurement;
@@ -49,6 +52,22 @@ abstract final class GovernedMeasurementPortRegistry {
   /// Installs the configured explicit transport or restores fail-closed mode.
   static void install(RestageGovernedMeasurementTransport? measurement) {
     _measurement = measurement ?? const _UnavailableMeasurementPort();
+    if (kDebugMode) {
+      _hasTransport = measurement != null;
+      _reportedDisabled.clear();
+    }
+  }
+
+  /// Reports a disabled privacy call before local-authority checks.
+  static void warnIfPrivacyUnavailable() =>
+      _warnIfUnavailable(_GovernedCall.privacy);
+
+  static void _warnIfUnavailable(_GovernedCall call) {
+    if (!kDebugMode || _hasTransport || !_reportedDisabled.add(call)) return;
+    debugPrint('[restage] ${call.apiName} is disabled because no governed '
+        'transport is configured. Try checking apiKey, baseUrl and '
+        'governedMeasurementTransportEnabled in Restage.configure, or supplying '
+        'governedMeasurementTransport.');
   }
 
   /// Installs an explicit port for focused SDK contract tests.
@@ -59,6 +78,17 @@ abstract final class GovernedMeasurementPortRegistry {
   static void debugReset() => install(null);
 }
 
+enum _GovernedCall {
+  challenge('Restage.measurement.issueLinkChallenge'),
+  link('Restage.measurement.linkSubject'),
+  reset('Restage.measurement.resetSubject'),
+  withdrawal('Restage.measurement.withdrawConsent'),
+  privacy('Restage.privacy.request');
+
+  const _GovernedCall(this.apiName);
+  final String apiName;
+}
+
 final class _UnavailableMeasurementPort
     implements RestageGovernedMeasurementTransport {
   const _UnavailableMeasurementPort();
@@ -66,32 +96,43 @@ final class _UnavailableMeasurementPort
   @override
   Future<MeasurementLinkChallengeOperationResultV1> issueLinkChallenge(
     MeasurementLinkChallengeRequestV1 request,
-  ) async =>
-      unavailableLinkChallengeResult();
+  ) async {
+    GovernedMeasurementPortRegistry._warnIfUnavailable(_GovernedCall.challenge);
+    return unavailableLinkChallengeResult();
+  }
 
   @override
   Future<MeasurementLinkOperationResultV1> linkSubject(
     MeasurementLinkRequestV1 request,
-  ) async =>
-      _unavailableLinkResult();
+  ) async {
+    GovernedMeasurementPortRegistry._warnIfUnavailable(_GovernedCall.link);
+    return _unavailableLinkResult();
+  }
 
   @override
   Future<MeasurementSubjectOperationResultV1> resetSubject(
     MeasurementSubjectOperationRequestV1 request,
-  ) async =>
-      _unavailableSubjectOperationResult();
+  ) async {
+    GovernedMeasurementPortRegistry._warnIfUnavailable(_GovernedCall.reset);
+    return _unavailableSubjectOperationResult();
+  }
 
   @override
   Future<MeasurementSubjectOperationResultV1> withdrawConsent(
     MeasurementSubjectOperationRequestV1 request,
-  ) async =>
-      _unavailableSubjectOperationResult();
+  ) async {
+    GovernedMeasurementPortRegistry._warnIfUnavailable(
+        _GovernedCall.withdrawal);
+    return _unavailableSubjectOperationResult();
+  }
 
   @override
   Future<RestagePrivacyReceiptV1> requestPrivacy(
     RestagePrivacyRequestV1 request,
-  ) async =>
-      unavailablePrivacyReceipt(request);
+  ) async {
+    GovernedMeasurementPortRegistry.warnIfPrivacyUnavailable();
+    return unavailablePrivacyReceipt(request);
+  }
 }
 
 @internal
