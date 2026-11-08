@@ -99,79 +99,6 @@ final Catalog kUserCatalog = Catalog(
       ],
     ),
     WidgetEntry(
-      wireId: WireId('w0020'),
-      name: 'FactoryTallyChip',
-      library: WidgetLibrary.custom('restage_example.widgets'),
-      category: WidgetCategory.decoration,
-      description: 'A chip that counts its own taps, placed whole.',
-      flutterType:
-          'package:restage_example/widgets/factory_tally_chip.dart#FactoryTallyChip',
-      childrenSlot: ChildrenSlot.none,
-      properties: [
-        PropertyEntry(
-          wireId: WireId('p0077'),
-          name: 'key',
-          type: PropertyType.structured,
-          description:
-              'Controls how one widget replaces another widget in the tree.\n\nIf the [runtimeType] and [key] properties of the two widgets are [operator==], respectively, then the new widget replaces the old widget by updating the underlying element (i.e., by calling [Element.update] with the new widget). Otherwise, the old element is removed from the tree, the new widget is inflated into an element, and the new element is inserted into the tree.\n\nIn addition, using a [GlobalKey] as the widget\'s [key] allows the element to be moved around the tree (changing parent) without losing state. When a new widget is found (its key and type do not match a previous widget in the same location), but there was a widget with that same global key elsewhere in the tree in the previous frame, then that widget\'s element is moved to the new location.\n\nGenerally, a widget that is the only child of another widget does not need an explicit key.\n\nSee also:\n\n* The discussions at [Key] and [GlobalKey].',
-          constructorNullable: true,
-          structuredRef:
-              WireIdRef(library: 'restage.core', wireId: WireId('s0037')),
-          valueShape: StructuredShape(
-              propertyType: PropertyType.structured,
-              structuredRef:
-                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
-        ),
-        PropertyEntry(
-          wireId: WireId('p0078'),
-          name: 'label',
-          type: PropertyType.string,
-          description: 'The label.',
-          required: true,
-        ),
-        PropertyEntry(
-          wireId: WireId('p0079'),
-          name: 'analyticsId',
-          type: PropertyType.string,
-          description: 'Optional identifier for this widget occurrence.',
-          synthetic: 'analyticsId',
-        ),
-      ],
-    ),
-    WidgetEntry(
-      wireId: WireId('w0019'),
-      name: 'OwnKeyChip',
-      library: WidgetLibrary.custom('restage_example.widgets'),
-      category: WidgetCategory.decoration,
-      description: 'A chip whose build keys its own child.',
-      flutterType:
-          'package:restage_example/widgets/own_key_chip.dart#OwnKeyChip',
-      childrenSlot: ChildrenSlot.none,
-      properties: [
-        PropertyEntry(
-          wireId: WireId('p0075'),
-          name: 'key',
-          type: PropertyType.structured,
-          description:
-              'Controls how one widget replaces another widget in the tree.\n\nIf the [runtimeType] and [key] properties of the two widgets are [operator==], respectively, then the new widget replaces the old widget by updating the underlying element (i.e., by calling [Element.update] with the new widget). Otherwise, the old element is removed from the tree, the new widget is inflated into an element, and the new element is inserted into the tree.\n\nIn addition, using a [GlobalKey] as the widget\'s [key] allows the element to be moved around the tree (changing parent) without losing state. When a new widget is found (its key and type do not match a previous widget in the same location), but there was a widget with that same global key elsewhere in the tree in the previous frame, then that widget\'s element is moved to the new location.\n\nGenerally, a widget that is the only child of another widget does not need an explicit key.\n\nSee also:\n\n* The discussions at [Key] and [GlobalKey].',
-          constructorNullable: true,
-          structuredRef:
-              WireIdRef(library: 'restage.core', wireId: WireId('s0037')),
-          valueShape: StructuredShape(
-              propertyType: PropertyType.structured,
-              structuredRef:
-                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
-        ),
-        PropertyEntry(
-          wireId: WireId('p0076'),
-          name: 'analyticsId',
-          type: PropertyType.string,
-          description: 'Optional identifier for this widget occurrence.',
-          synthetic: 'analyticsId',
-        ),
-      ],
-    ),
-    WidgetEntry(
       wireId: WireId('w0016'),
       name: 'PlanBoard',
       library: WidgetLibrary.custom('restage_example.widgets'),
@@ -417,46 +344,6 @@ final Catalog kUserCatalog = Catalog(
       ],
     ),
     WidgetEntry(
-      wireId: WireId('w0018'),
-      name: 'ScaledChip',
-      library: WidgetLibrary.custom('restage_example.widgets'),
-      category: WidgetCategory.decoration,
-      description: 'A chip whose label follows the app\'s text scale.',
-      flutterType:
-          'package:restage_example/widgets/scaled_chip.dart#ScaledChip',
-      childrenSlot: ChildrenSlot.none,
-      properties: [
-        PropertyEntry(
-          wireId: WireId('p0072'),
-          name: 'key',
-          type: PropertyType.structured,
-          description:
-              'Controls how one widget replaces another widget in the tree.\n\nIf the [runtimeType] and [key] properties of the two widgets are [operator==], respectively, then the new widget replaces the old widget by updating the underlying element (i.e., by calling [Element.update] with the new widget). Otherwise, the old element is removed from the tree, the new widget is inflated into an element, and the new element is inserted into the tree.\n\nIn addition, using a [GlobalKey] as the widget\'s [key] allows the element to be moved around the tree (changing parent) without losing state. When a new widget is found (its key and type do not match a previous widget in the same location), but there was a widget with that same global key elsewhere in the tree in the previous frame, then that widget\'s element is moved to the new location.\n\nGenerally, a widget that is the only child of another widget does not need an explicit key.\n\nSee also:\n\n* The discussions at [Key] and [GlobalKey].',
-          constructorNullable: true,
-          structuredRef:
-              WireIdRef(library: 'restage.core', wireId: WireId('s0037')),
-          valueShape: StructuredShape(
-              propertyType: PropertyType.structured,
-              structuredRef:
-                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
-        ),
-        PropertyEntry(
-          wireId: WireId('p0073'),
-          name: 'label',
-          type: PropertyType.string,
-          description: 'The label.',
-          required: true,
-        ),
-        PropertyEntry(
-          wireId: WireId('p0074'),
-          name: 'analyticsId',
-          type: PropertyType.string,
-          description: 'Optional identifier for this widget occurrence.',
-          synthetic: 'analyticsId',
-        ),
-      ],
-    ),
-    WidgetEntry(
       wireId: WireId('w0015'),
       name: 'SectionHeader',
       library: WidgetLibrary.custom('restage_example.widgets'),
@@ -600,45 +487,6 @@ final Catalog kUserCatalog = Catalog(
         ),
         PropertyEntry(
           wireId: WireId('p0056'),
-          name: 'analyticsId',
-          type: PropertyType.string,
-          description: 'Optional identifier for this widget occurrence.',
-          synthetic: 'analyticsId',
-        ),
-      ],
-    ),
-    WidgetEntry(
-      wireId: WireId('w0017'),
-      name: 'TallyChip',
-      library: WidgetLibrary.custom('restage_example.widgets'),
-      category: WidgetCategory.decoration,
-      description: 'A chip that counts its own taps.',
-      flutterType: 'package:restage_example/widgets/tally_chip.dart#TallyChip',
-      childrenSlot: ChildrenSlot.none,
-      properties: [
-        PropertyEntry(
-          wireId: WireId('p0069'),
-          name: 'key',
-          type: PropertyType.structured,
-          description:
-              'Controls how one widget replaces another widget in the tree.\n\nIf the [runtimeType] and [key] properties of the two widgets are [operator==], respectively, then the new widget replaces the old widget by updating the underlying element (i.e., by calling [Element.update] with the new widget). Otherwise, the old element is removed from the tree, the new widget is inflated into an element, and the new element is inserted into the tree.\n\nIn addition, using a [GlobalKey] as the widget\'s [key] allows the element to be moved around the tree (changing parent) without losing state. When a new widget is found (its key and type do not match a previous widget in the same location), but there was a widget with that same global key elsewhere in the tree in the previous frame, then that widget\'s element is moved to the new location.\n\nGenerally, a widget that is the only child of another widget does not need an explicit key.\n\nSee also:\n\n* The discussions at [Key] and [GlobalKey].',
-          constructorNullable: true,
-          structuredRef:
-              WireIdRef(library: 'restage.core', wireId: WireId('s0037')),
-          valueShape: StructuredShape(
-              propertyType: PropertyType.structured,
-              structuredRef:
-                  WireIdRef(library: 'restage.core', wireId: WireId('s0037'))),
-        ),
-        PropertyEntry(
-          wireId: WireId('p0070'),
-          name: 'label',
-          type: PropertyType.string,
-          description: 'The label.',
-          required: true,
-        ),
-        PropertyEntry(
-          wireId: WireId('p0071'),
           name: 'analyticsId',
           type: PropertyType.string,
           description: 'Optional identifier for this widget occurrence.',

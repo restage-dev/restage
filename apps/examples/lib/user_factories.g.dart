@@ -13,32 +13,21 @@
 import 'package:flutter/widgets.dart';
 import 'package:restage_example/widgets/acme_border.dart' as s0;
 import 'package:restage_example/widgets/acme_stack.dart' as s1;
-import 'package:restage_example/widgets/factory_tally_chip.dart' as s2;
-import 'package:restage_example/widgets/minimal_custom_widget.dart' as s3;
-import 'package:restage_example/widgets/own_key_chip.dart' as s4;
-import 'package:restage_example/widgets/plan_board.dart' as s5;
-import 'package:restage_example/widgets/pricing_card.dart' as s6;
-import 'package:restage_example/widgets/pricing_table.dart' as s7;
-import 'package:restage_example/widgets/promo_badge.dart' as s8;
-import 'package:restage_example/widgets/pulse_badge.dart' as s9;
-import 'package:restage_example/widgets/scaled_chip.dart' as s10;
-import 'package:restage_example/widgets/section_header.dart' as s11;
-import 'package:restage_example/widgets/streak_badge.dart' as s12;
-import 'package:restage_example/widgets/tally_chip.dart' as s13;
-import 'package:restage_example/widgets/tier_board.dart' as s14;
+import 'package:restage_example/widgets/minimal_custom_widget.dart' as s2;
+import 'package:restage_example/widgets/plan_board.dart' as s3;
+import 'package:restage_example/widgets/pricing_card.dart' as s4;
+import 'package:restage_example/widgets/pricing_table.dart' as s5;
+import 'package:restage_example/widgets/promo_badge.dart' as s6;
+import 'package:restage_example/widgets/pulse_badge.dart' as s7;
+import 'package:restage_example/widgets/section_header.dart' as s8;
+import 'package:restage_example/widgets/streak_badge.dart' as s9;
+import 'package:restage_example/widgets/tier_board.dart' as s10;
 import 'package:restage/restage.dart';
 import 'restage_surfaces.g.dart';
-import 'package:restage_example/surfaces/app_widgets.dart' as island0;
-import 'package:restage_example/surfaces/builder_slots.dart' as island1;
-import 'package:restage_example/surfaces/guarded_reads.dart' as island2;
-import 'package:restage_example/widgets/own_key_chip.dart' as island3;
-import 'package:restage_example/widgets/pricing_card.dart' as island4;
-import 'package:restage_example/widgets/own_key_chip.dart' as split0;
-import 'package:restage_example/widgets/pricing_card.dart' as split1;
-import 'package:restage_example/widgets/pulse_badge.dart' as split2;
-import 'package:restage_example/widgets/scaled_chip.dart' as split3;
-import 'package:restage_example/widgets/streak_badge.dart' as split4;
-import 'package:restage_example/widgets/tally_chip.dart' as split5;
+import 'package:restage_example/widgets/pricing_card.dart' as island0;
+import 'package:restage_example/widgets/pricing_card.dart' as split0;
+import 'package:restage_example/widgets/pulse_badge.dart' as split1;
+import 'package:restage_example/widgets/streak_badge.dart' as split2;
 
 /// The built-in widgets and icons this package names in its
 /// own Dart, plus the catalog entries its compiled surfaces
@@ -77,7 +66,6 @@ const SurfaceVocabulary kRestageAppVocabulary = SurfaceVocabulary(
       'Text': buildText,
       'TextRich': buildTextRich,
       'TransformRotate': buildTransformRotate,
-      'Visibility': buildVisibility,
     },
     material: {
       'AppBar': buildAppBar,
@@ -95,8 +83,6 @@ const SurfaceVocabulary kRestageAppVocabulary = SurfaceVocabulary(
       'RestageModalSheet': buildRestageModalSheet,
       'RestageToggleButtons': buildRestageToggleButtons,
       'Scaffold': buildScaffold,
-      'Slider': buildSlider,
-      'Switch': buildSwitch,
       'TextButton': buildTextButton,
       'TextButtonIcon': buildTextButtonIcon,
       'TextField': buildTextField,
@@ -276,49 +262,7 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
     Restage.registerWidgetLibrary(
       WidgetLibrary.custom('restage_example.islands'),
       widgets: [
-        ...island0
-            .restageIslands$app__widgets__count__framed__twice__framedTwice0_framed0_AppCount_0
-            .widgets,
-        ...island0.restageIslands$app__widgets__count__rows_AppCount_0.widgets,
-        ...island0.restageIslands$app__widgets__count__spread_counts0_AppCount_0
-            .widgets,
-        ...island0.restageIslands$app__widgets__count__twice_count0_AppCount_0
-            .widgets,
-        ...island0
-            .restageIslands$app__widgets__counted__pair__Counted_0.widgets,
-        ...island0.restageIslands$app__widgets__getter__arg__Inset_0.widgets,
-        ...island0.restageIslands$app__widgets__island__Counted_0.widgets,
-        ...island0.restageIslands$app__widgets__local__fn_row_0.widgets,
-        ...island0.restageIslands$app__widgets__own__keys_AppOwnKey_0.widgets,
-        ...island0
-            .restageIslands$app__widgets__spread__computed_Column_0.widgets,
-        ...island1.restageIslands$slot__and_ValueListenableBuilder_0.widgets,
-        ...island1.restageIslands$slot__child_ValueListenableBuilder_0.widgets,
-        ...island1.restageIslands$slot__count_ValueListenableBuilder_0.widgets,
-        ...island1.restageIslands$slot__flag_ValueListenableBuilder_0.widgets,
-        ...island1.restageIslands$slot__if_ValueListenableBuilder_0.widgets,
-        ...island1.restageIslands$slot__local_ValueListenableBuilder_0.widgets,
-        ...island1.restageIslands$slot__mixed_ValueListenableBuilder_0.widgets,
-        ...island1.restageIslands$slot__plan_ValueListenableBuilder_0.widgets,
-        ...island1.restageIslands$slot__tween_TweenAnimationBuilder_0.widgets,
-        ...island1
-            .restageIslands$slot__tween__end_TweenAnimationBuilder_0.widgets,
-        ...island2.restageIslands$read__builder__rows__Repeat_0.widgets,
-        ...island2.restageIslands$read__builder__slot__Signal_0.widgets,
-        ...island2
-            .restageIslands$read__helper__twice__insetCard0__Inset_0.widgets,
-        ...island2.restageIslands$read__island__args__Inset_0.widgets,
-        ...island2
-            .restageIslands$read__island__builder__args__InsetBuilder_0.widgets,
-        ...island2.restageIslands$read__island__implicit__Titled_0.widgets,
-        ...island2.restageIslands$read__kept__state__Tally_0.widgets,
-        ...island2.restageIslands$read__keyed__loop__Counted_0.widgets,
-        ...island2
-            .restageIslands$read__twice__framed__twice0_w0__Tally_0.widgets,
-        ...island2.restageIslands$read__twice__twice0_w0__Tally_0.widgets,
-        ...island2.restageIslands$read__unique__keyed__Counted_0.widgets,
-        ...island3.restageIslands$OwnKeyChip__OwnKeyCount_0.widgets,
-        ...island4.restageIslands$PricingCard_Column_0.widgets,
+        ...island0.restageIslands$PricingCard_Column_0.widgets,
       ],
     );
 
@@ -331,27 +275,19 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
       widgets: <RestageWidgetFactory>[
         RestageWidgetFactory(name: 'AcmeBorder', builder: _buildAcmeBorder),
         RestageWidgetFactory(name: 'AcmeStack', builder: _buildAcmeStack),
-        RestageWidgetFactory(
-            name: 'FactoryTallyChip', builder: _buildFactoryTallyChip),
-        RestageWidgetFactory(name: 'OwnKeyChip', builder: _buildOwnKeyChip),
         RestageWidgetFactory(name: 'PlanBoard', builder: _buildPlanBoard),
         RestageWidgetFactory(name: 'PricingCard', builder: _buildPricingCard),
         RestageWidgetFactory(name: 'PricingTable', builder: _buildPricingTable),
         RestageWidgetFactory(name: 'PromoBadge', builder: _buildPromoBadge),
         RestageWidgetFactory(name: 'PulseBadge', builder: _buildPulseBadge),
-        RestageWidgetFactory(name: 'ScaledChip', builder: _buildScaledChip),
         RestageWidgetFactory(
             name: 'SectionHeader', builder: _buildSectionHeader),
         RestageWidgetFactory(name: 'StatBadge', builder: _buildStatBadge),
         RestageWidgetFactory(name: 'StreakBadge', builder: _buildStreakBadge),
-        RestageWidgetFactory(name: 'TallyChip', builder: _buildTallyChip),
         RestageWidgetFactory(name: 'TierBoard', builder: _buildTierBoard),
-        ...split0.restageSplit$OwnKeyChip.widgets,
-        ...split1.restageSplit$PricingCard.widgets,
-        ...split2.restageSplit$PulseBadge.widgets,
-        ...split3.restageSplit$ScaledChip.widgets,
-        ...split4.restageSplit$StreakBadge.widgets,
-        ...split5.restageSplit$TallyChip.widgets,
+        ...split0.restageSplit$PricingCard.widgets,
+        ...split1.restageSplit$PulseBadge.widgets,
+        ...split2.restageSplit$StreakBadge.widgets,
       ],
     );
   }
@@ -362,92 +298,12 @@ void registerRestageCustomerWidgets() => registerRestageWidgets();
 
 /// Every island's builder outside its screen, for previews.
 const Map<String, LocalWidgetBuilder> restageIslandPreviews = {
-  'OwnKeyChip__OwnKeyCount_0': island3.restagePreview$OwnKeyChip__OwnKeyCount_0,
-  'PricingCard_Column_0': island4.restagePreview$PricingCard_Column_0,
-  'app__widgets__count__framed__twice__framedTwice0_framed0_AppCount_0': island0
-      .restagePreview$app__widgets__count__framed__twice__framedTwice0_framed0_AppCount_0,
-  'app__widgets__count__framed__twice__framedTwice0_framed1_AppCount_0': island0
-      .restagePreview$app__widgets__count__framed__twice__framedTwice0_framed1_AppCount_0,
-  'app__widgets__count__rows_AppCount_0':
-      island0.restagePreview$app__widgets__count__rows_AppCount_0,
-  'app__widgets__count__spread_counts0_AppCount_0':
-      island0.restagePreview$app__widgets__count__spread_counts0_AppCount_0,
-  'app__widgets__count__spread_counts1_AppCount_0':
-      island0.restagePreview$app__widgets__count__spread_counts1_AppCount_0,
-  'app__widgets__count__twice_count0_AppCount_0':
-      island0.restagePreview$app__widgets__count__twice_count0_AppCount_0,
-  'app__widgets__count__twice_count1_AppCount_0':
-      island0.restagePreview$app__widgets__count__twice_count1_AppCount_0,
-  'app__widgets__counted__pair__Counted_0':
-      island0.restagePreview$app__widgets__counted__pair__Counted_0,
-  'app__widgets__counted__pair__Counted_1':
-      island0.restagePreview$app__widgets__counted__pair__Counted_1,
-  'app__widgets__getter__arg__Inset_0':
-      island0.restagePreview$app__widgets__getter__arg__Inset_0,
-  'app__widgets__island__Counted_0':
-      island0.restagePreview$app__widgets__island__Counted_0,
-  'app__widgets__local__fn_row_0':
-      island0.restagePreview$app__widgets__local__fn_row_0,
-  'app__widgets__local__fn_row_1':
-      island0.restagePreview$app__widgets__local__fn_row_1,
-  'app__widgets__own__keys_AppOwnKey_0':
-      island0.restagePreview$app__widgets__own__keys_AppOwnKey_0,
-  'app__widgets__spread__computed_Column_0':
-      island0.restagePreview$app__widgets__spread__computed_Column_0,
-  'read__builder__rows__Repeat_0':
-      island2.restagePreview$read__builder__rows__Repeat_0,
-  'read__builder__slot__Signal_0':
-      island2.restagePreview$read__builder__slot__Signal_0,
-  'read__helper__twice__insetCard0__Inset_0':
-      island2.restagePreview$read__helper__twice__insetCard0__Inset_0,
-  'read__helper__twice__insetCard1__Inset_0':
-      island2.restagePreview$read__helper__twice__insetCard1__Inset_0,
-  'read__island__args__Inset_0':
-      island2.restagePreview$read__island__args__Inset_0,
-  'read__island__builder__args__InsetBuilder_0':
-      island2.restagePreview$read__island__builder__args__InsetBuilder_0,
-  'read__island__implicit__Titled_0':
-      island2.restagePreview$read__island__implicit__Titled_0,
-  'read__kept__state__Tally_0':
-      island2.restagePreview$read__kept__state__Tally_0,
-  'read__keyed__loop__Counted_0':
-      island2.restagePreview$read__keyed__loop__Counted_0,
-  'read__twice__framed__twice0_w0__Tally_0':
-      island2.restagePreview$read__twice__framed__twice0_w0__Tally_0,
-  'read__twice__framed__twice0_w1__Tally_0':
-      island2.restagePreview$read__twice__framed__twice0_w1__Tally_0,
-  'read__twice__twice0_w0__Tally_0':
-      island2.restagePreview$read__twice__twice0_w0__Tally_0,
-  'read__twice__twice0_w1__Tally_0':
-      island2.restagePreview$read__twice__twice0_w1__Tally_0,
-  'read__unique__keyed__Counted_0':
-      island2.restagePreview$read__unique__keyed__Counted_0,
-  'slot__and_ValueListenableBuilder_0':
-      island1.restagePreview$slot__and_ValueListenableBuilder_0,
-  'slot__child_ValueListenableBuilder_0':
-      island1.restagePreview$slot__child_ValueListenableBuilder_0,
-  'slot__count_ValueListenableBuilder_0':
-      island1.restagePreview$slot__count_ValueListenableBuilder_0,
-  'slot__flag_ValueListenableBuilder_0':
-      island1.restagePreview$slot__flag_ValueListenableBuilder_0,
-  'slot__if_ValueListenableBuilder_0':
-      island1.restagePreview$slot__if_ValueListenableBuilder_0,
-  'slot__local_ValueListenableBuilder_0':
-      island1.restagePreview$slot__local_ValueListenableBuilder_0,
-  'slot__mixed_ValueListenableBuilder_0':
-      island1.restagePreview$slot__mixed_ValueListenableBuilder_0,
-  'slot__plan_ValueListenableBuilder_0':
-      island1.restagePreview$slot__plan_ValueListenableBuilder_0,
-  'slot__tween_TweenAnimationBuilder_0':
-      island1.restagePreview$slot__tween_TweenAnimationBuilder_0,
-  'slot__tween__end_TweenAnimationBuilder_0':
-      island1.restagePreview$slot__tween__end_TweenAnimationBuilder_0,
+  'PricingCard_Column_0': island0.restagePreview$PricingCard_Column_0,
 };
 
 /// Each surface's own island builders, by `<surfaceType>/<slug>`.
 const Map<String, Map<String, LocalWidgetBuilder>>
     restageSurfaceIslandPreviews = {
-  'general/app_widgets_screen_tally': {},
   'general/general_journey': {},
   'general/general_status': {},
   'general/starter_checklist': {},
@@ -456,226 +312,7 @@ const Map<String, Map<String, LocalWidgetBuilder>>
   'message/message_notice': {},
   'message/message_offer': {},
   'onboarding/onboarding_welcome': {},
-  'paywall/app_widgets_count_framed_twice': {
-    'app__widgets__count__framed__twice__framedTwice0_framed0_AppCount_0': island0
-        .restagePreview$app__widgets__count__framed__twice__framedTwice0_framed0_AppCount_0,
-    'app__widgets__count__framed__twice__framedTwice0_framed1_AppCount_0': island0
-        .restagePreview$app__widgets__count__framed__twice__framedTwice0_framed1_AppCount_0
-  },
-  'paywall/app_widgets_count_rows': {
-    'app__widgets__count__rows_AppCount_0':
-        island0.restagePreview$app__widgets__count__rows_AppCount_0
-  },
-  'paywall/app_widgets_count_spread': {
-    'app__widgets__count__spread_counts0_AppCount_0':
-        island0.restagePreview$app__widgets__count__spread_counts0_AppCount_0,
-    'app__widgets__count__spread_counts1_AppCount_0':
-        island0.restagePreview$app__widgets__count__spread_counts1_AppCount_0
-  },
-  'paywall/app_widgets_count_twice': {
-    'app__widgets__count__twice_count0_AppCount_0':
-        island0.restagePreview$app__widgets__count__twice_count0_AppCount_0,
-    'app__widgets__count__twice_count1_AppCount_0':
-        island0.restagePreview$app__widgets__count__twice_count1_AppCount_0
-  },
-  'paywall/app_widgets_counted_pair': {
-    'app__widgets__counted__pair__Counted_0':
-        island0.restagePreview$app__widgets__counted__pair__Counted_0,
-    'app__widgets__counted__pair__Counted_1':
-        island0.restagePreview$app__widgets__counted__pair__Counted_1
-  },
-  'paywall/app_widgets_direct_tap': {},
-  'paywall/app_widgets_direct_toggle': {},
-  'paywall/app_widgets_factory_tally': {},
-  'paywall/app_widgets_forwarded': {},
-  'paywall/app_widgets_getter_arg': {
-    'app__widgets__getter__arg__Inset_0':
-        island0.restagePreview$app__widgets__getter__arg__Inset_0
-  },
-  'paywall/app_widgets_init_field': {},
-  'paywall/app_widgets_inline': {},
-  'paywall/app_widgets_island': {
-    'app__widgets__island__Counted_0':
-        island0.restagePreview$app__widgets__island__Counted_0
-  },
-  'paywall/app_widgets_keyed_tally': {},
-  'paywall/app_widgets_local_fn': {
-    'app__widgets__local__fn_row_0':
-        island0.restagePreview$app__widgets__local__fn_row_0,
-    'app__widgets__local__fn_row_1':
-        island0.restagePreview$app__widgets__local__fn_row_1
-  },
-  'paywall/app_widgets_named_card': {},
-  'paywall/app_widgets_own_keys': {
-    'app__widgets__own__keys_AppOwnKey_0':
-        island0.restagePreview$app__widgets__own__keys_AppOwnKey_0
-  },
-  'paywall/app_widgets_scaled': {},
-  'paywall/app_widgets_slider': {},
-  'paywall/app_widgets_spread': {},
-  'paywall/app_widgets_spread_computed': {
-    'app__widgets__spread__computed_Column_0':
-        island0.restagePreview$app__widgets__spread__computed_Column_0
-  },
-  'paywall/app_widgets_spread_input': {},
-  'paywall/app_widgets_tally': {},
-  'paywall/guarded_features': {},
   'paywall/minimal_paywall': {},
-  'paywall/read_and_local': {},
-  'paywall/read_block_context': {},
-  'paywall/read_block_destructure': {},
-  'paywall/read_block_framed': {},
-  'paywall/read_block_loop': {},
-  'paywall/read_block_same_name': {},
-  'paywall/read_block_shadow': {},
-  'paywall/read_block_text': {},
-  'paywall/read_build_context': {},
-  'paywall/read_builder_rerun': {},
-  'paywall/read_builder_rows': {
-    'read__builder__rows__Repeat_0':
-        island2.restagePreview$read__builder__rows__Repeat_0
-  },
-  'paywall/read_builder_slot': {
-    'read__builder__slot__Signal_0':
-        island2.restagePreview$read__builder__slot__Signal_0
-  },
-  'paywall/read_builder_values': {},
-  'paywall/read_case_framed': {},
-  'paywall/read_case_loop': {},
-  'paywall/read_case_score': {},
-  'paywall/read_case_text': {},
-  'paywall/read_case_when': {},
-  'paywall/read_catch_parameter': {},
-  'paywall/read_classic_loop': {},
-  'paywall/read_conditional_call': {},
-  'paywall/read_cx1': {},
-  'paywall/read_early_plans': {},
-  'paywall/read_early_return': {},
-  'paywall/read_flagged_call': {},
-  'paywall/read_flagged_check': {},
-  'paywall/read_guarded_call': {},
-  'paywall/read_helper_twice': {
-    'read__helper__twice__insetCard0__Inset_0':
-        island2.restagePreview$read__helper__twice__insetCard0__Inset_0,
-    'read__helper__twice__insetCard1__Inset_0':
-        island2.restagePreview$read__helper__twice__insetCard1__Inset_0
-  },
-  'paywall/read_impure_twice': {},
-  'paywall/read_island_args': {
-    'read__island__args__Inset_0':
-        island2.restagePreview$read__island__args__Inset_0
-  },
-  'paywall/read_island_builder_args': {
-    'read__island__builder__args__InsetBuilder_0':
-        island2.restagePreview$read__island__builder__args__InsetBuilder_0
-  },
-  'paywall/read_island_implicit': {
-    'read__island__implicit__Titled_0':
-        island2.restagePreview$read__island__implicit__Titled_0
-  },
-  'paywall/read_item_check': {},
-  'paywall/read_item_eligible': {},
-  'paywall/read_item_keys': {},
-  'paywall/read_item_list': {},
-  'paywall/read_j3': {},
-  'paywall/read_kept_state': {
-    'read__kept__state__Tally_0':
-        island2.restagePreview$read__kept__state__Tally_0
-  },
-  'paywall/read_keyed_loop': {
-    'read__keyed__loop__Counted_0':
-        island2.restagePreview$read__keyed__loop__Counted_0
-  },
-  'paywall/read_localized': {},
-  'paywall/read_loop_call': {},
-  'paywall/read_loop_check': {},
-  'paywall/read_loop_indexed': {},
-  'paywall/read_loop_list': {},
-  'paywall/read_loop_local': {},
-  'paywall/read_loop_variable': {},
-  'paywall/read_nested_guard': {},
-  'paywall/read_nested_keys': {},
-  'paywall/read_null_check': {},
-  'paywall/read_or_local': {},
-  'paywall/read_plan_features': {},
-  'paywall/read_print_action': {},
-  'paywall/read_return_in_if': {},
-  'paywall/read_return_nested': {},
-  'paywall/read_return_no_braces': {},
-  'paywall/read_s11': {},
-  'paywall/read_s18': {},
-  'paywall/read_s24': {},
-  'paywall/read_scrolled': {},
-  'paywall/read_shadow_const': {},
-  'paywall/read_shadow_final': {},
-  'paywall/read_shadow_function': {},
-  'paywall/read_switch_flag': {},
-  'paywall/read_switch_offer': {},
-  'paywall/read_switch_tier': {},
-  'paywall/read_switch_tier_statement': {},
-  'paywall/read_sx10': {},
-  'paywall/read_sx2': {},
-  'paywall/read_sx8': {},
-  'paywall/read_sx9': {},
-  'paywall/read_try_local': {},
-  'paywall/read_try_return': {},
-  'paywall/read_twice': {
-    'read__twice__twice0_w0__Tally_0':
-        island2.restagePreview$read__twice__twice0_w0__Tally_0,
-    'read__twice__twice0_w1__Tally_0':
-        island2.restagePreview$read__twice__twice0_w1__Tally_0
-  },
-  'paywall/read_twice_framed': {
-    'read__twice__framed__twice0_w0__Tally_0':
-        island2.restagePreview$read__twice__framed__twice0_w0__Tally_0,
-    'read__twice__framed__twice0_w1__Tally_0':
-        island2.restagePreview$read__twice__framed__twice0_w1__Tally_0
-  },
-  'paywall/read_u1': {},
-  'paywall/read_unique_keyed': {
-    'read__unique__keyed__Counted_0':
-        island2.restagePreview$read__unique__keyed__Counted_0
-  },
-  'paywall/slot_and': {
-    'slot__and_ValueListenableBuilder_0':
-        island1.restagePreview$slot__and_ValueListenableBuilder_0
-  },
-  'paywall/slot_child': {
-    'slot__child_ValueListenableBuilder_0':
-        island1.restagePreview$slot__child_ValueListenableBuilder_0
-  },
-  'paywall/slot_count': {
-    'slot__count_ValueListenableBuilder_0':
-        island1.restagePreview$slot__count_ValueListenableBuilder_0
-  },
-  'paywall/slot_flag': {
-    'slot__flag_ValueListenableBuilder_0':
-        island1.restagePreview$slot__flag_ValueListenableBuilder_0
-  },
-  'paywall/slot_if': {
-    'slot__if_ValueListenableBuilder_0':
-        island1.restagePreview$slot__if_ValueListenableBuilder_0
-  },
-  'paywall/slot_local': {
-    'slot__local_ValueListenableBuilder_0':
-        island1.restagePreview$slot__local_ValueListenableBuilder_0
-  },
-  'paywall/slot_mixed': {
-    'slot__mixed_ValueListenableBuilder_0':
-        island1.restagePreview$slot__mixed_ValueListenableBuilder_0
-  },
-  'paywall/slot_plan': {
-    'slot__plan_ValueListenableBuilder_0':
-        island1.restagePreview$slot__plan_ValueListenableBuilder_0
-  },
-  'paywall/slot_tween': {
-    'slot__tween_TweenAnimationBuilder_0':
-        island1.restagePreview$slot__tween_TweenAnimationBuilder_0
-  },
-  'paywall/slot_tween_end': {
-    'slot__tween__end_TweenAnimationBuilder_0':
-        island1.restagePreview$slot__tween__end_TweenAnimationBuilder_0
-  },
   'survey/lumen_cancel': {},
   'survey/lumen_cancel_note': {},
   'survey/lumen_cancel_reason': {},
@@ -723,50 +360,19 @@ Widget _buildAcmeStack(BuildContext context, DataSource source) {
           }));
 }
 
-Widget _buildFactoryTallyChip(BuildContext context, DataSource source) {
-  source = RestageValueBinding.dataSource(source, context);
-  return RestageIslandScope.split(
-      context,
-      source,
-      () => RestageBuilderBinding.construct((builderBindings) {
-            return s2.FactoryTallyChip(
-              key: RestageDecoders.nativeBinding<Key>(
-                  context, source, <Object>['key'],
-                  type: 'flutter.Key'),
-              label: RestageDecoders.string(source, <Object>['label'],
-                      context: context) ??
-                  (throw ArgumentError('FactoryTallyChip.label is required.')),
-            );
-          }));
-}
-
-Widget _buildOwnKeyChip(BuildContext context, DataSource source) {
-  source = RestageValueBinding.dataSource(source, context);
-  return RestageIslandScope.split(
-      context,
-      source,
-      () => RestageBuilderBinding.construct((builderBindings) {
-            return s4.OwnKeyChip(
-              key: RestageDecoders.nativeBinding<Key>(
-                  context, source, <Object>['key'],
-                  type: 'flutter.Key'),
-            );
-          }));
-}
-
 Widget _buildPlanBoard(BuildContext context, DataSource source) {
   source = RestageValueBinding.dataSource(source, context);
   return RestageIslandScope.split(
       context,
       source,
       () => RestageBuilderBinding.construct((builderBindings) {
-            return s5.PlanBoard(
+            return s3.PlanBoard(
               key: RestageDecoders.nativeBinding<Key>(
                   context, source, <Object>['key'],
                   type: 'flutter.Key'),
               plans: source.isList(<Object>['plans'])
                   ? () {
-                      final m0 = <String, s6.Plan>{};
+                      final m0 = <String, s4.Plan>{};
                       final n0 = source.length(<Object>['plans']);
                       for (var i0 = 0; i0 < n0; i0++) {
                         if (!source.isMap(<Object>['plans', i0])) {
@@ -782,7 +388,7 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                               'PlanBoard.plans has a duplicate key.');
                         }
                         m0[k0] = source.isMap(<Object>['plans', i0, 'value'])
-                            ? s6.Plan(
+                            ? s4.Plan(
                                 name: RestageDecoders.string(
                                         source, <Object>['plans', i0, 'value', 'name'],
                                         context: context) ??
@@ -792,7 +398,7 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                                         <Object>['plans', i0, 'value', 'price'])
                                     ? (switch (source.v<String>(
                                         <Object>['plans', i0, 'value', 'price', '#constructor'])) {
-                                        'free' => s6.Price.free(
+                                        'free' => s4.Price.free(
                                             currency: RestageDecoders.string(
                                                     source,
                                                     <Object>[
@@ -804,7 +410,7 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                                                     ],
                                                     context: context) ??
                                                 'USD'),
-                                        null => s6.Price(
+                                        null => s4.Price(
                                             RestageValueBinding.read<int>(
                                                     source,
                                                     <Object>[
@@ -836,11 +442,11 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                                 badge: RestageDecoders.string(
                                     source, <Object>['plans', i0, 'value', 'badge'],
                                     context: context),
-                                tier: RestageDecoders.enumByName<s6.PlanTier>(
-                                        s6.PlanTier.values,
+                                tier: RestageDecoders.enumByName<s4.PlanTier>(
+                                        s4.PlanTier.values,
                                         source,
                                         <Object>['plans', i0, 'value', 'tier']) ??
-                                    s6.PlanTier.starter)
+                                    s4.PlanTier.starter)
                             : (throw ArgumentError('PlanBoard.plans entry value is required.'));
                       }
                       return m0;
@@ -848,15 +454,15 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                   : (throw ArgumentError('PlanBoard.plans is required.')),
               highlights: source.isList(<Object>['highlights'])
                   ? () {
-                      final m0 = <s6.PlanTier, s6.Plan>{};
+                      final m0 = <s4.PlanTier, s4.Plan>{};
                       final n0 = source.length(<Object>['highlights']);
                       for (var i0 = 0; i0 < n0; i0++) {
                         if (!source.isMap(<Object>['highlights', i0])) {
                           throw ArgumentError(
                               'PlanBoard.highlights entry must be an object.');
                         }
-                        final k0 = RestageDecoders.enumByName<s6.PlanTier>(
-                                s6.PlanTier.values,
+                        final k0 = RestageDecoders.enumByName<s4.PlanTier>(
+                                s4.PlanTier.values,
                                 source,
                                 <Object>['highlights', i0, 'key']) ??
                             (throw ArgumentError(
@@ -867,7 +473,7 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                         }
                         m0[k0] = source
                                 .isMap(<Object>['highlights', i0, 'value'])
-                            ? s6.Plan(
+                            ? s4.Plan(
                                 name: RestageDecoders.string(source, <Object>['highlights', i0, 'value', 'name'], context: context) ??
                                     (throw ArgumentError(
                                         'Plan.name is required.')),
@@ -875,7 +481,7 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                                         <Object>['highlights', i0, 'value', 'price'])
                                     ? (switch (source.v<String>(
                                         <Object>['highlights', i0, 'value', 'price', '#constructor'])) {
-                                        'free' => s6.Price.free(
+                                        'free' => s4.Price.free(
                                             currency: RestageDecoders.string(
                                                     source,
                                                     <Object>[
@@ -887,7 +493,7 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                                                     ],
                                                     context: context) ??
                                                 'USD'),
-                                        null => s6.Price(
+                                        null => s4.Price(
                                             RestageValueBinding.read<int>(
                                                     source,
                                                     <Object>[
@@ -919,11 +525,11 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                                 badge: RestageDecoders.string(
                                     source, <Object>['highlights', i0, 'value', 'badge'],
                                     context: context),
-                                tier: RestageDecoders.enumByName<s6.PlanTier>(
-                                        s6.PlanTier.values,
+                                tier: RestageDecoders.enumByName<s4.PlanTier>(
+                                        s4.PlanTier.values,
                                         source,
                                         <Object>['highlights', i0, 'value', 'tier']) ??
-                                    s6.PlanTier.starter)
+                                    s4.PlanTier.starter)
                             : (throw ArgumentError('PlanBoard.highlights entry value is required.'));
                       }
                       return m0;
@@ -939,12 +545,12 @@ Widget _buildPricingCard(BuildContext context, DataSource source) {
       context,
       source,
       () => RestageBuilderBinding.construct((builderBindings) {
-            return s6.PricingCard(
+            return s4.PricingCard(
               key: RestageDecoders.nativeBinding<Key>(
                   context, source, <Object>['key'],
                   type: 'flutter.Key'),
               plan: source.isMap(<Object>['plan'])
-                  ? s6.Plan(
+                  ? s4.Plan(
                       name: RestageDecoders.string(
                               source, <Object>['plan', 'name'],
                               context: context) ??
@@ -952,12 +558,12 @@ Widget _buildPricingCard(BuildContext context, DataSource source) {
                       price: source.isMap(<Object>['plan', 'price'])
                           ? (switch (source.v<String>(
                               <Object>['plan', 'price', '#constructor'])) {
-                              'free' => s6.Price.free(
+                              'free' => s4.Price.free(
                                   currency: RestageDecoders.string(source,
                                           <Object>['plan', 'price', 'currency'],
                                           context: context) ??
                                       'USD'),
-                              null => s6.Price(
+                              null => s4.Price(
                                   RestageValueBinding.read<int>(
                                           source,
                                           <Object>['plan', 'price', 'amount'],
@@ -974,11 +580,11 @@ Widget _buildPricingCard(BuildContext context, DataSource source) {
                           : (throw ArgumentError('Plan.price is required.')),
                       badge: RestageDecoders.string(
                           source, <Object>['plan', 'badge'], context: context),
-                      tier: RestageDecoders.enumByName<s6.PlanTier>(
-                              s6.PlanTier.values,
+                      tier: RestageDecoders.enumByName<s4.PlanTier>(
+                              s4.PlanTier.values,
                               source,
                               <Object>['plan', 'tier']) ??
-                          s6.PlanTier.starter)
+                          s4.PlanTier.starter)
                   : (throw ArgumentError('PricingCard.plan is required.')),
             );
           }));
@@ -990,7 +596,7 @@ Widget _buildPricingTable(BuildContext context, DataSource source) {
       context,
       source,
       () => RestageBuilderBinding.construct((builderBindings) {
-            return s7.PricingTable(
+            return s5.PricingTable(
               key: RestageDecoders.nativeBinding<Key>(
                   context, source, <Object>['key'],
                   type: 'flutter.Key'),
@@ -1000,7 +606,7 @@ Widget _buildPricingTable(BuildContext context, DataSource source) {
                           i0 < n0;
                           i0++)
                         source.isMap(<Object>['plans', i0])
-                            ? s6.Plan(
+                            ? s4.Plan(
                                 name: RestageDecoders.string(source, <Object>['plans', i0, 'name'],
                                         context: context) ??
                                     (throw ArgumentError(
@@ -1009,7 +615,7 @@ Widget _buildPricingTable(BuildContext context, DataSource source) {
                                         .isMap(<Object>['plans', i0, 'price'])
                                     ? (switch (source.v<String>(
                                         <Object>['plans', i0, 'price', '#constructor'])) {
-                                        'free' => s6.Price.free(
+                                        'free' => s4.Price.free(
                                             currency: RestageDecoders.string(
                                                     source,
                                                     <Object>[
@@ -1020,7 +626,7 @@ Widget _buildPricingTable(BuildContext context, DataSource source) {
                                                     ],
                                                     context: context) ??
                                                 'USD'),
-                                        null => s6.Price(
+                                        null => s4.Price(
                                             RestageValueBinding.read<int>(
                                                     source,
                                                     <Object>[
@@ -1050,11 +656,11 @@ Widget _buildPricingTable(BuildContext context, DataSource source) {
                                 badge: RestageDecoders.string(
                                     source, <Object>['plans', i0, 'badge'],
                                     context: context),
-                                tier: RestageDecoders.enumByName<s6.PlanTier>(
-                                        s6.PlanTier.values,
+                                tier: RestageDecoders.enumByName<s4.PlanTier>(
+                                        s4.PlanTier.values,
                                         source,
                                         <Object>['plans', i0, 'tier']) ??
-                                    s6.PlanTier.starter)
+                                    s4.PlanTier.starter)
                             : (throw ArgumentError('PricingTable.plans element must be an object.'))
                     ]
                   : (throw ArgumentError('PricingTable.plans is required.')),
@@ -1068,7 +674,7 @@ Widget _buildPromoBadge(BuildContext context, DataSource source) {
       context,
       source,
       () => RestageBuilderBinding.construct((builderBindings) {
-            return s8.PromoBadge(
+            return s6.PromoBadge(
               key: RestageDecoders.nativeBinding<Key>(
                   context, source, <Object>['key'],
                   type: 'flutter.Key'),
@@ -1086,7 +692,7 @@ Widget _buildPulseBadge(BuildContext context, DataSource source) {
       context,
       source,
       () => RestageBuilderBinding.construct((builderBindings) {
-            return s9.PulseBadge(
+            return s7.PulseBadge(
               key: RestageDecoders.nativeBinding<Key>(
                   context, source, <Object>['key'],
                   type: 'flutter.Key'),
@@ -1100,30 +706,13 @@ Widget _buildPulseBadge(BuildContext context, DataSource source) {
           }));
 }
 
-Widget _buildScaledChip(BuildContext context, DataSource source) {
-  source = RestageValueBinding.dataSource(source, context);
-  return RestageIslandScope.split(
-      context,
-      source,
-      () => RestageBuilderBinding.construct((builderBindings) {
-            return s10.ScaledChip(
-              key: RestageDecoders.nativeBinding<Key>(
-                  context, source, <Object>['key'],
-                  type: 'flutter.Key'),
-              label: RestageDecoders.string(source, <Object>['label'],
-                      context: context) ??
-                  (throw ArgumentError('ScaledChip.label is required.')),
-            );
-          }));
-}
-
 Widget _buildSectionHeader(BuildContext context, DataSource source) {
   source = RestageValueBinding.dataSource(source, context);
   return RestageIslandScope.split(
       context,
       source,
       () => RestageBuilderBinding.construct((builderBindings) {
-            return s11.SectionHeader(
+            return s8.SectionHeader(
               key: RestageDecoders.nativeBinding<Key>(
                   context, source, <Object>['key'],
                   type: 'flutter.Key'),
@@ -1138,8 +727,8 @@ Widget _buildSectionHeader(BuildContext context, DataSource source) {
                               context: context) ??
                           (throw ArgumentError(
                               'SectionHeader.heading.title is required.')),
-                      tone: RestageDecoders.enumByName<s11.HeaderTone>(
-                              s11.HeaderTone.values,
+                      tone: RestageDecoders.enumByName<s8.HeaderTone>(
+                              s8.HeaderTone.values,
                               source,
                               <Object>['heading', 'tone']) ??
                           (throw ArgumentError(
@@ -1147,7 +736,7 @@ Widget _buildSectionHeader(BuildContext context, DataSource source) {
                     )
                   : (throw ArgumentError('SectionHeader.heading is required.')),
               entry: source.isMap(<Object>['entry'])
-                  ? s11.SectionEntry(
+                  ? s8.SectionEntry(
                       label: RestageDecoders.string(
                               source, <Object>['entry', 'label'],
                               context: context) ??
@@ -1181,7 +770,7 @@ Widget _buildStatBadge(BuildContext context, DataSource source) {
       context,
       source,
       () => RestageBuilderBinding.construct((builderBindings) {
-            return s3.StatBadge(
+            return s2.StatBadge(
               key: RestageDecoders.nativeBinding<Key>(
                   context, source, <Object>['key'],
                   type: 'flutter.Key'),
@@ -1201,7 +790,7 @@ Widget _buildStreakBadge(BuildContext context, DataSource source) {
       context,
       source,
       () => RestageBuilderBinding.construct((builderBindings) {
-            return s12.StreakBadge(
+            return s9.StreakBadge(
               key: RestageDecoders.nativeBinding<Key>(
                   context, source, <Object>['key'],
                   type: 'flutter.Key'),
@@ -1215,30 +804,13 @@ Widget _buildStreakBadge(BuildContext context, DataSource source) {
           }));
 }
 
-Widget _buildTallyChip(BuildContext context, DataSource source) {
-  source = RestageValueBinding.dataSource(source, context);
-  return RestageIslandScope.split(
-      context,
-      source,
-      () => RestageBuilderBinding.construct((builderBindings) {
-            return s13.TallyChip(
-              key: RestageDecoders.nativeBinding<Key>(
-                  context, source, <Object>['key'],
-                  type: 'flutter.Key'),
-              label: RestageDecoders.string(source, <Object>['label'],
-                      context: context) ??
-                  (throw ArgumentError('TallyChip.label is required.')),
-            );
-          }));
-}
-
 Widget _buildTierBoard(BuildContext context, DataSource source) {
   source = RestageValueBinding.dataSource(source, context);
   return RestageIslandScope.split(
       context,
       source,
       () => RestageBuilderBinding.construct((builderBindings) {
-            return s14.TierBoard(
+            return s10.TierBoard(
               key: RestageDecoders.nativeBinding<Key>(
                   context, source, <Object>['key'],
                   type: 'flutter.Key'),
@@ -1248,7 +820,7 @@ Widget _buildTierBoard(BuildContext context, DataSource source) {
                           i0 < n0;
                           i0++)
                         source.isMap(<Object>['tiers', i0])
-                            ? s14.Tier(
+                            ? s10.Tier(
                                 name: RestageDecoders.string(
                                         source, <Object>['tiers', i0, 'name'],
                                         context: context) ??
@@ -1268,7 +840,7 @@ Widget _buildTierBoard(BuildContext context, DataSource source) {
                                             'features',
                                             i1
                                           ])
-                                              ? s14.Feature(
+                                              ? s10.Feature(
                                                   label: RestageDecoders.string(
                                                           source,
                                                           <Object>[
@@ -1297,7 +869,7 @@ Widget _buildTierBoard(BuildContext context, DataSource source) {
                           i0 < n0;
                           i0++)
                         source.isMap(<Object>['bonusTiers', i0])
-                            ? s14.Tier(
+                            ? s10.Tier(
                                 name: RestageDecoders.string(source,
                                         <Object>['bonusTiers', i0, 'name'],
                                         context: context) ??
@@ -1315,7 +887,7 @@ Widget _buildTierBoard(BuildContext context, DataSource source) {
                                             i1 < n1;
                                             i1++)
                                           source.isMap(<Object>['bonusTiers', i0, 'features', i1])
-                                              ? s14.Feature(
+                                              ? s10.Feature(
                                                   label: RestageDecoders.string(
                                                           source,
                                                           <Object>[

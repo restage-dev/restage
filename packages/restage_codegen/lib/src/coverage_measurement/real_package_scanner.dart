@@ -314,18 +314,23 @@ Future<Catalog> loadMergedCatalogFromDisk({
 /// composition, not as an unrecognised `dartCall`. The (name, libraryOrigin)
 /// match gates recognition to the SDK's helpers, so a scanned package's own
 /// same-named function is not mistaken for one. A caller may pass an explicit
-/// registry to override.
+/// registry to override. [sdkPath] names the Dart SDK to analyze against when
+/// the running executable is not a Dart VM.
 Future<ScanResult> scanPackage({
   required String packagePath,
   required Catalog catalog,
   HelperRegistry? helpers,
   WidgetSelector widgetSelector = restageAnnotatedWidgets,
+  String? sdkPath,
 }) async {
   final effectiveHelpers = helpers ?? productionPaywallHelperRegistry();
   // The analyzer requires an absolute, normalized path; a relative or
   // `..`-containing path from a CLI invocation must be normalized first.
   final absPath = p.normalize(p.absolute(packagePath));
-  final collection = AnalysisContextCollection(includedPaths: [absPath]);
+  final collection = AnalysisContextCollection(
+    includedPaths: [absPath],
+    sdkPath: sdkPath,
+  );
   try {
     final context = collection.contextFor(absPath);
     final packagesFile = context.contextRoot.packagesFile;

@@ -108,3 +108,7 @@
 {"at":"2026-05-26T00:00:00.000Z","by":"restage-codegen-user-catalog-allocator","id":"p0077","kind":"alloc","name":"key","owner":"w0020","source":"package:restage_example/widgets/factory_tally_chip.dart#FactoryTallyChip.key","type":"property"}
 {"at":"2026-05-26T00:00:00.000Z","by":"restage-codegen-user-catalog-allocator","id":"p0078","kind":"alloc","name":"label","owner":"w0020","source":"package:restage_example/widgets/factory_tally_chip.dart#FactoryTallyChip.label","type":"property"}
 {"at":"2026-05-26T00:00:00.000Z","by":"restage-codegen-user-catalog-allocator","id":"p0079","kind":"alloc","name":"analyticsId","owner":"w0020","source":"package:restage_example/widgets/factory_tally_chip.dart#FactoryTallyChip.analyticsId","type":"property"}
+{"at":"2026-05-26T00:00:00.000Z","by":"restage-codegen-user-catalog-allocator","id":"w0017","kind":"deprecate","reason":"TallyChip moved out of this package.","type":"widget"}
+{"at":"2026-05-26T00:00:00.000Z","by":"restage-codegen-user-catalog-allocator","id":"w0018","kind":"deprecate","reason":"ScaledChip moved out of this package.","type":"widget"}
+{"at":"2026-05-26T00:00:00.000Z","by":"restage-codegen-user-catalog-allocator","id":"w0019","kind":"deprecate","reason":"OwnKeyChip moved out of this package.","type":"widget"}
+{"at":"2026-05-26T00:00:00.000Z","by":"restage-codegen-user-catalog-allocator","id":"w0020","kind":"deprecate","reason":"FactoryTallyChip moved out of this package.","type":"widget"}
