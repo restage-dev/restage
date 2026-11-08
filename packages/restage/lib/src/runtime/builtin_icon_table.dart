@@ -6,18 +6,18 @@ import 'package:restage_material/icon_table.dart';
 
 /// Builds the selected complete icon families, including mirrored glyphs.
 ///
-/// Ordinary `Restage.configure()` uses this when no icon selection exists.
+/// Opts into complete icon families; `Restage.configure()` leaves icons to
+/// generated registrations, explicit tables and delivered subset fonts.
 /// Each immutable inner map returns the original Flutter icon constants.
 /// Both families default to included. Excluding a full family does not remove
 /// icons already installed by the app or a generated surface.
-/// Explicitly selected builds can use [RestageIconTable.fromFamilies] and
-/// `Restage.configureWithInstalledCatalog()` to retain only their chosen icons.
+/// Use [RestageIconTable.fromFamilies] to retain only chosen icons.
 ///
 /// Install it during app startup:
 ///
 /// ```dart
 /// void main() {
-///   InstalledIconTable.install(builtInIconTable());
+///   InstalledIconTable.add(builtInIconTable());
 ///   runApp(const MyApp());
 /// }
 /// ```
@@ -60,5 +60,5 @@ void addBuiltInIconTable() {
   table.mirrored.removeWhere(
     (family, icons) => identical(installed.mirrored[family], icons),
   );
-  InstalledIconTable.add(table, explicitSelection: true);
+  InstalledIconTable.add(table);
 }

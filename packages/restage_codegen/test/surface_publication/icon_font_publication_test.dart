@@ -22,9 +22,10 @@ final class FavoritesNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-        children: const [
+        children: const <Widget>[
           Icon(Icons.favorite),
           Icon(Icons.chevron_left_rounded),
+          Icon(Icons.star, key: ValueKey('star')),
         ],
       );
 }
@@ -67,12 +68,50 @@ void main() {
     final files = {...handoff.artifacts, ...handoff.borrowedArtifacts};
     final closure = manifest.validateArtifactClosure(files).single;
     final fontBytes = closure.iconFonts.single.bytes;
-    // Icons.favorite and Icons.chevron_left_rounded.
-    expect(readSfntCoveredCodePoints(fontBytes), {0xe25b, 0xf63a});
+    // Icons.favorite, Icons.chevron_left_rounded and Icons.star.
+    expect(readSfntCoveredCodePoints(fontBytes), {0xe25b, 0xe5f9, 0xf63a});
+
+    // The font draws the unkeyed icons, so only the keyed one must be
+    // installed for the surface to fit.
+    final fit = entry.publication.fitRequirement!;
+    expect(fit.requiredVocabulary.iconCodePoints, {
+      'MaterialIcons': {0xe5f9},
+    });
+    for (final (icons, accepted) in [
+      (<int>{}, false),
+      ({0xe5f9}, true),
+    ]) {
+      final verdict = SurfaceFitEvaluator.evaluate(
+        host: SurfaceHostContractV1(
+          hosting: SurfaceHostingV1(
+            contentKind: fit.hosting.contentKind,
+            presentation: fit.hosting.allowedPresentations.first,
+          ),
+          providedContext: fit.requiredContext,
+          handledEvents: fit.emittedEvents,
+        ),
+        requirement: fit,
+        installed: InstalledCapability(
+          builtInCatalogVersion: fit.capabilities.builtInFloor,
+          installedLibraries: [],
+          vocabulary: WidgetVocabulary(
+            widgetNames: fit.requiredVocabulary.widgetNames,
+            iconCodePoints: {'MaterialIcons': icons},
+          ),
+        ),
+      );
+      expect(verdict.accepted, accepted, reason: '$icons');
+      if (!accepted) {
+        expect(
+          verdict.failures.single.code,
+          SurfaceFitFailureCodeV1.missingIcon,
+        );
+      }
+    }
     expect(
       entry.publication.capabilities!.builtInFloor,
-      10,
-      reason: 'The Row catalog entry requires version 10.',
+      24,
+      reason: 'The native key requires version 24.',
     );
   });
 }

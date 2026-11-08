@@ -427,8 +427,8 @@ void main() {
       },
     );
 
-    test('the default scope installs the whole built-in catalog and both icon '
-        'tables before the derived set', () async {
+    test('the default scope installs the whole built-in widget catalog and '
+        'only derived icons', () async {
       const reserveSource = '''
         import 'package:flutter/material.dart';
 
@@ -471,10 +471,6 @@ void main() {
                 '      includeMaterial: includeMaterial,\n'
                 '      includeCupertino: includeCupertino,\n'
                 '    ));\n'
-                '    InstalledIconTable.add(builtInIconTable(\n'
-                '      includeMaterial: includeMaterial,\n'
-                '      includeCupertino: includeCupertino,\n'
-                '    ));\n'
                 '    kRestageAppVocabulary.addToInstalled('
                 'explicitSelection: true);\n'
                 '  }',
@@ -482,6 +478,8 @@ void main() {
               // The derived set is still emitted alongside it.
               contains('const SurfaceVocabulary kRestageAppVocabulary ='),
               contains("'Column': buildColumn"),
+              isNot(contains('builtInIconTable(')),
+              contains('0xe156: IconData(0xe156,'),
             ]),
           ),
         },
@@ -822,7 +820,8 @@ void main() {
       expect(
         summaries.single,
         allOf([
-          contains('render 2 built-in widgets and 0 icons'),
+          contains('render 2 built-in widgets: the ones'),
+          contains('This app and its compiled surfaces install no icons'),
           contains('opted down with catalog: derived'),
           contains('Restage.configureWithInstalledCatalog()'),
           contains('@Screen the app never mounts'),
@@ -873,8 +872,7 @@ void main() {
       final summaries = messages
           .where(
             (message) => message.contains(
-              'Restage: generated registration includes '
-              'the whole built-in catalog',
+              'Restage: generated registration includes all',
             ),
           )
           .toList();
@@ -885,7 +883,8 @@ void main() {
           // The count is the whole catalog's, well above the one widget this
           // source draws.
           matches(RegExp(r'all [1-9]\d+ built-in widgets')),
-          contains('every built-in icon of both families'),
+          contains('This app and its compiled surfaces install no icons'),
+          contains('a published surface carries a font for each literal'),
           contains('catalog: derived'),
           contains('restage_codegen:user_factories'),
           contains('build.yaml'),

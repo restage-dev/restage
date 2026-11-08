@@ -89,6 +89,10 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
         );
       }
       manifests.addAll(node.sidecarCapabilities.values);
+      final delivered = <String, Set<int>>{
+        for (final font in node.iconFonts)
+          font.family: readSfntCoveredCodePoints(font.bytes),
+      };
       for (final entry in node.screenBlobs.entries) {
         final contract = contracts[CapabilitySidecar.hashBlob(entry.value)]!;
         final renderRoot = node.flowDocument == null &&
@@ -284,12 +288,27 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
             }
           }
         }
-        vocabulary = vocabulary.union(
-          WidgetVocabulary(
-            widgetNames: names,
-            iconCodePoints: rfw.literalIconCodePoints(library),
-          ),
-        );
+        // A delivered font draws unkeyed literal icons; a keyed one needs the
+        // app's own Icon.
+        vocabulary = vocabulary
+            .union(
+              WidgetVocabulary(
+                widgetNames: names,
+                iconCodePoints:
+                    rfw.literalIconCodePoints(library, keyedOnly: true),
+              ),
+            )
+            .union(
+              WidgetVocabulary(
+                iconCodePoints: {
+                  for (final MapEntry(:key, :value)
+                      in rfw.literalIconCodePoints(library).entries)
+                    if (value.difference(delivered[key] ?? const {})
+                        case final lacking when lacking.isNotEmpty)
+                      key: lacking,
+                },
+              ),
+            );
         for (final reference in body.dataReferences) {
           if (reference.parts.isEmpty || reference.parts.first != 'context') {
             continue;

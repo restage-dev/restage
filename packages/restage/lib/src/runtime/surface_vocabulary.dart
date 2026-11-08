@@ -82,12 +82,12 @@ final class SurfaceVocabulary {
   ///
   /// Entries already installed keep their meaning, so calling this repeatedly
   /// — on every mount of the same surface — installs the same thing once.
-  /// [explicitSelection] records an app's generated catalog policy even when
-  /// its vocabulary is empty. Surface mounts leave it false and only add what
+  /// [explicitSelection] records an app's generated widget catalog policy even
+  /// when its vocabulary is empty. Surface mounts leave it false and only add what
   /// they draw. Neither form changes the identity of an empty installation.
   void addToInstalled({bool explicitSelection = false}) {
     InstalledWidgetLibraries.add(widgets, explicitSelection: explicitSelection);
-    InstalledIconTable.add(icons, explicitSelection: explicitSelection);
+    InstalledIconTable.add(icons);
     libraries.forEach(LibraryRuntimeRegistry.install);
   }
 }

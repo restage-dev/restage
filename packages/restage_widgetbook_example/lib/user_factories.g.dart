@@ -70,7 +70,8 @@ const RestageWidgetRegistration kRestageWidgetRegistration =
 /// after `Restage.debugReset`, so test setUps may call it
 /// again between cases.
 ///
-/// Includes both complete built-in families by default.
+/// Includes both complete built-in widget families by default.
+/// Icons come from the app and its compiled surfaces.
 /// Family options omit full contributions, keeping app requirements.
 void registerRestageWidgets({
   bool includeMaterial = true,
@@ -89,12 +90,6 @@ final class _RestageWidgetRegistration implements RestageWidgetRegistration {
   void call({bool includeMaterial = true, bool includeCupertino = true}) {
     InstalledWidgetLibraries.add(
       RestageWidgetLibraries.builtIn(
-        includeMaterial: includeMaterial,
-        includeCupertino: includeCupertino,
-      ),
-    );
-    InstalledIconTable.add(
-      builtInIconTable(
         includeMaterial: includeMaterial,
         includeCupertino: includeCupertino,
       ),

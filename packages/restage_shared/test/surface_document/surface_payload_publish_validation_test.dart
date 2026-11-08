@@ -5,19 +5,44 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart';
+import 'package:restage_shared/src/surface_document/surface_payload_publish_validation.dart'
+    show IconFontCoverageException;
 import 'package:test/test.dart';
 
 void main() {
   final font = _fixture('material_icons_subset.otf');
 
   group('icon font coverage', () {
-    test('a payload without icon fonts is not checked', () {
-      final payload = _blob(
-        'widget Root = Icon(iconCodepoint: 0xe000);',
-        minClient: 3,
-      );
-      expect(() => validatePayloadSectionsForPublish(payload), returnsNormally);
-    });
+    for (final requireIconFonts in [false, true]) {
+      test('a payload without icon fonts, requireIconFonts: $requireIconFonts',
+          () {
+        final payload = _blob(
+          'widget Root = Icon(iconCodepoint: 0xe000);',
+          minClient: 3,
+        );
+        expect(
+          () => validatePayloadSectionsForPublish(
+            payload,
+            requireIconFonts: requireIconFonts,
+          ),
+          requireIconFonts
+              ? throwsA(
+                  isA<IconFontCoverageException>().having(
+                    (e) => e.missing,
+                    'missing',
+                    {
+                      'MaterialIcons': [0xe000],
+                    },
+                  ).having(
+                    (e) => e.message,
+                    'message',
+                    contains('restage surface push'),
+                  ),
+                )
+              : returnsNormally,
+        );
+      });
+    }
 
     test('every literal icon covered by its family font passes', () {
       final payload = _blob(

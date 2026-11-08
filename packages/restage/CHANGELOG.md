@@ -167,13 +167,24 @@ generated mounts, flows, custom widgets, what an update can change without an ap
 release, and fixes for build errors, with examples that compile against this
 version. Install or update it with `dart run skills@ get --package restage`.
 
-`Restage.configure` includes the complete built-in widget and icon catalogs by
-default. Its independent `includeMaterial` and `includeCupertino` options can
+**Breaking:** `Restage.configure` no longer installs every built-in icon; it
+still includes the complete built-in widget catalog. Generated registration
+installs the icons the app and its compiled surfaces use, and a surface served
+by Restage carries a font for any other literal icon it draws. An icon whose code
+point comes from data, an icon with a key, a raw `.rfw` blob and a surface from a
+custom resolver need installed entries. Call
+`InstalledIconTable.add(builtInIconTable())` at startup to keep every built-in
+icon.
+`resolveInstalledIcon` is no longer exported; use
+`InstalledIconTable.current.lookUp(fontFamily, codePoint)`, which returns null
+for a missing icon instead of throwing.
+
+The independent `includeMaterial` and `includeCupertino` options can
 omit a complete family while preserving app-required entries. Both default to
 true. Regenerate with `dart run build_runner build` after upgrading, then pass
 `kRestageWidgetRegistration` to `registerWidgets` to apply the same choices to
 generated registration. The standalone `registerRestageWidgets()` function
-retains its inclusive defaults.
+retains its inclusive widget defaults and the derived icon set.
 
 To derive a smaller selection from the app's Dart and authored surfaces, set
 `catalog: derived` on the `restage_codegen:user_factories` builder in `build.yaml`.
@@ -183,8 +194,8 @@ to determine the saving; APK growth and estimated download growth are different
 quantities.
 
 Release builds no longer need `--no-tree-shake-icons`. Don't pass it: it puts the
-whole icon font back into an app that would otherwise have derived its icons. An
-opted-down build generates an icon table of compile-time constants, so Flutter's
+whole icon font back into an app that would otherwise have derived its icons.
+Generated builds use icon tables of compile-time constants, so Flutter's
 icon tree-shaking works as usual.
 
 A generated paywall mount installs the widgets and icons its surface draws, as

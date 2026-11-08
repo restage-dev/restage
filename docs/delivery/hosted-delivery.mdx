@@ -161,7 +161,9 @@ to fall back to.
 ## Direct mounts and custom resolvers
 
 Use generated mounts for authored screens, paywalls and flows. The lower-level APIs below are supported, for apps that supply their own references, resolvers and unavailable policies. The deprecated names are listed under
-[Older names](/authoring/write-a-surface#older-names).
+[Older names](/authoring/write-a-surface#older-names). A custom resolver returns
+blobs without icon fonts, so the app must register every icon those surfaces draw.
+See [App size](/delivery/app-size#icons-delivered-over-the-air).
 
 ## Hosted standalone screens
 

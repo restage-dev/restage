@@ -9,12 +9,19 @@ const String _fontFamilySuffix = 'FontFamily';
 /// Reads every `iconCodepoint` / `<name>IconCodepoint` argument whose value is
 /// an int literal or a switch over int literals, paired with its sibling
 /// `...FontFamily`. Data-bound code points and families are skipped.
-Map<String, Set<int>> literalIconCodePoints(RemoteWidgetLibrary library) {
+/// [keyedOnly] keeps only icons whose call also carries a `key`, which need
+/// the app's own `Icon` rather than a delivered font.
+Map<String, Set<int>> literalIconCodePoints(
+  RemoteWidgetLibrary library, {
+  bool keyedOnly = false,
+}) {
   final found = <String, Set<int>>{};
   void walk(Object? value) {
     if (value == null) return;
     if (value is ConstructorCall) {
-      _collect(value.arguments, found);
+      if (!keyedOnly || value.arguments.containsKey('key')) {
+        _collect(value.arguments, found, keyedOnly: keyedOnly);
+      }
       walk(value.arguments);
     } else if (value is WidgetBuilderDeclaration) {
       walk(value.widget);
@@ -49,10 +56,15 @@ Map<String, Set<int>> literalIconCodePoints(RemoteWidgetLibrary library) {
   return found;
 }
 
-void _collect(Map<String, Object?> arguments, Map<String, Set<int>> found) {
+void _collect(
+  Map<String, Object?> arguments,
+  Map<String, Set<int>> found, {
+  required bool keyedOnly,
+}) {
   for (final entry in arguments.entries) {
     final key = entry.key;
-    if (key != 'iconCodepoint' && !key.endsWith('Icon$_codepointSuffix')) {
+    if (key != 'iconCodepoint' &&
+        (keyedOnly || !key.endsWith('Icon$_codepointSuffix'))) {
       continue;
     }
     final familyKey =

@@ -4,7 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart' show Restage;
 import 'package:restage/src/runtime/builtin_icon_table.dart';
 import 'package:restage/src/runtime/installed_widget_vocabulary.dart';
-import 'package:restage_core/restage_core.dart' show RestageIconTable;
+import 'package:restage_core/restage_core.dart'
+    show InstalledIconTable, RestageIconTable;
 import 'package:restage_core/library_registration.dart' as core;
 import 'package:restage_core/registry.dart' as core_registry;
 import 'package:restage_cupertino/library_registration.dart' as cupertino;
@@ -98,6 +99,20 @@ void main() {
       ...qualified('restage.material', material_registry.kRegistry),
       ...qualified('restage.cupertino', cupertino_registry.kRegistry),
     });
-    expect(vocabulary.iconCodePoints, builtInIconCodePoints());
+    // Configuration alone installs no built-in icons.
+    expect(vocabulary.iconCodePoints, isEmpty);
+  });
+
+  test('an app that keeps every built-in icon presents the shared icon data',
+      () {
+    Restage.debugReset();
+    addTearDown(Restage.debugReset);
+    addTearDown(InstalledIconTable.reset);
+    InstalledIconTable.add(builtInIconTable());
+    Restage.configure();
+    expect(
+      currentInstalledCapability().vocabulary!.iconCodePoints,
+      builtInIconCodePoints(),
+    );
   });
 }

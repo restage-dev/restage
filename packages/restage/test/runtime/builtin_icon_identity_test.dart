@@ -40,15 +40,13 @@ void main() {
     }
   });
 
-  test('a repeated built-in addition records an explicit selection', () {
-    InstalledIconTable.add(builtInIconTable(), explicitSelection: false);
-    final implicit = InstalledIconTable.current;
-    expect(InstalledIconTable.hasSelection, isFalse);
+  test('a repeated built-in addition keeps the installed table', () {
+    InstalledIconTable.add(builtInIconTable());
+    final installed = InstalledIconTable.current;
 
     addBuiltInIconTable();
 
-    expect(InstalledIconTable.current, same(implicit));
-    expect(InstalledIconTable.hasSelection, isTrue);
+    expect(InstalledIconTable.current, same(installed));
   });
 
   test('adding missing built-in families retains installed immutable maps', () {
@@ -90,7 +88,6 @@ void main() {
     expect(InstalledIconTable.current.lookUp('custom', 7), same(Icons.star));
 
     InstalledIconTable.reset();
-    expect(InstalledIconTable.hasSelection, isFalse);
     expect(InstalledIconTable.current, same(RestageIconTable.none));
     InstalledIconTable.install(builtInIconTable());
     final installed = InstalledIconTable.current;
@@ -101,10 +98,9 @@ void main() {
         isNot(same(Icons.check)));
   });
 
-  test('explicit empty selection still receives built-in additions', () {
-    InstalledIconTable.add(RestageIconTable.none, explicitSelection: true);
+  test('an empty table still receives built-in additions', () {
+    InstalledIconTable.add(RestageIconTable.none);
     addBuiltInIconTable();
-    expect(InstalledIconTable.hasSelection, isTrue);
     expect(InstalledIconTable.current.isEmpty, isFalse);
     final installed = InstalledIconTable.current;
     InstalledIconTable.add(
@@ -150,8 +146,8 @@ void main() {
         expect(actual[entry.key], same(entry.value));
         expect(actual[entry.key.toDouble()], same(entry.value));
         expect(
-            resolveInstalledIcon(entry.key,
-                fontFamily: family, matchTextDirection: mirrored),
+            InstalledIconTable.current
+                .lookUp(family, entry.key, matchTextDirection: mirrored),
             same(entry.value));
       }
       for (final miss in <Object?>[
@@ -216,18 +212,17 @@ void main() {
     );
     InstalledIconTable.install(custom);
     InstalledIconTable.add(builtInIconTable());
-    expect(resolveInstalledIcon(0xe092, fontFamily: 'MaterialIcons'),
+    expect(InstalledIconTable.current.lookUp('MaterialIcons', 0xe092),
         same(Icons.check));
     InstalledIconTable.install(const RestageIconTable.fromFamilies(
       mirrored: {
         'MaterialIcons': {0xe092: Icons.arrow_back}
       },
     ));
-    expect(() => resolveInstalledIcon(0xe092, fontFamily: 'MaterialIcons'),
-        throwsA(isA<RestageIconUnavailableError>()));
+    expect(InstalledIconTable.current.lookUp('MaterialIcons', 0xe092), isNull);
     expect(
-        resolveInstalledIcon(0xe092,
-            fontFamily: 'MaterialIcons', matchTextDirection: true),
+        InstalledIconTable.current
+            .lookUp('MaterialIcons', 0xe092, matchTextDirection: true),
         same(Icons.arrow_back));
   });
 

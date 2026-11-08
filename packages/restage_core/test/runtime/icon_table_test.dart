@@ -52,11 +52,11 @@ void main() {
     InstalledIconTable.install(_twoIcons);
 
     expect(
-      resolveInstalledIcon(0xe156, fontFamily: _material),
+      InstalledIconTable.current.lookUp(_material, 0xe156),
       equals(Icons.check),
     );
     expect(
-      resolveInstalledIcon(0xe16a, fontFamily: _material),
+      InstalledIconTable.current.lookUp(_material, 0xe16a),
       equals(Icons.close),
     );
   });
@@ -64,64 +64,46 @@ void main() {
   test('an unknown code point misses rather than resolving another glyph', () {
     InstalledIconTable.install(_twoIcons);
 
-    expect(
-      () => resolveInstalledIcon(0xe047, fontFamily: _material),
-      throwsA(
-        isA<RestageIconUnavailableError>()
-            .having((error) => error.codePoint, 'codePoint', 0xe047)
-            .having((error) => error.fontFamily, 'fontFamily', _material),
-      ),
-    );
+    expect(InstalledIconTable.current.lookUp(_material, 0xe047), isNull);
   });
 
   test('an unknown family misses', () {
     InstalledIconTable.install(_twoIcons);
 
     expect(
-      () => resolveInstalledIcon(0xe156, fontFamily: 'CupertinoIcons'),
-      throwsA(
-        isA<RestageIconUnavailableError>()
-            .having((error) => error.codePoint, 'codePoint', 0xe156)
-            .having(
-                (error) => error.fontFamily, 'fontFamily', 'CupertinoIcons'),
-      ),
+      InstalledIconTable.current.lookUp('CupertinoIcons', 0xe156),
+      isNull,
     );
   });
 
   test('an empty installation misses every code point', () {
-    expect(
-      () => resolveInstalledIcon(0xe156, fontFamily: _material),
-      throwsA(isA<RestageIconUnavailableError>()),
-    );
+    expect(InstalledIconTable.current.lookUp(_material, 0xe156), isNull);
   });
 
   test('the miss names the code point, the family and the fix', () {
-    InstalledIconTable.install(_twoIcons);
-
-    expect(
-      () => resolveInstalledIcon(0xe047, fontFamily: _material),
-      throwsA(
-        isA<RestageIconUnavailableError>().having(
-          (error) => error.toString(),
-          'toString',
-          allOf(
-            contains('0xe047'),
-            contains(_material),
-            contains('InstalledIconTable.install()'),
-          ),
+    for (final requiresNativeIcon in [false, true]) {
+      expect(
+        RestageIconUnavailableError(
+          fontFamily: _material,
+          codePoint: 0xe047,
+          requiresNativeIcon: requiresNativeIcon,
+        ).toString(),
+        allOf(
+          contains('0xe047'),
+          contains(_material),
+          contains('InstalledIconTable.add(builtInIconTable())'),
+          isNot(contains('install(')),
         ),
-      ),
-    );
+      );
+    }
   });
 
   test('the miss is a plain Error, not an assertion failure', () {
-    InstalledIconTable.install(_twoIcons);
-
     // The miss throws in release as well as debug, so the type must not
     // promise a debug-only failure to whoever reads the stack trace.
     expect(
-      () => resolveInstalledIcon(0xe047, fontFamily: _material),
-      throwsA(allOf(isA<Error>(), isNot(isA<AssertionError>()))),
+      RestageIconUnavailableError(fontFamily: _material, codePoint: 0xe047),
+      allOf(isA<Error>(), isNot(isA<AssertionError>())),
     );
   });
 
@@ -129,13 +111,13 @@ void main() {
     InstalledIconTable.install(_bothVariants);
 
     expect(
-      resolveInstalledIcon(_sharedCodePoint, fontFamily: _material),
+      InstalledIconTable.current.lookUp(_material, _sharedCodePoint),
       equals(Icons.trending_neutral),
     );
     expect(
-      resolveInstalledIcon(
+      InstalledIconTable.current.lookUp(
+        _material,
         _sharedCodePoint,
-        fontFamily: _material,
         matchTextDirection: true,
       ),
       equals(Icons.trending_flat),
@@ -167,27 +149,13 @@ void main() {
   });
 
   test('a miss names the variant that was looked up', () {
-    InstalledIconTable.install(_bothVariants);
-
     expect(
-      () => resolveInstalledIcon(
-        0xe047,
+      RestageIconUnavailableError(
         fontFamily: _material,
+        codePoint: 0xe047,
         matchTextDirection: true,
-      ),
-      throwsA(
-        isA<RestageIconUnavailableError>()
-            .having(
-              (error) => error.matchTextDirection,
-              'matchTextDirection',
-              isTrue,
-            )
-            .having(
-              (error) => error.toString(),
-              'toString',
-              contains('matchTextDirection: true'),
-            ),
-      ),
+      ).toString(),
+      contains('matchTextDirection: true'),
     );
   });
 

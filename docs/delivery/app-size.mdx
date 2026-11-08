@@ -1,14 +1,16 @@
 ---
 title: App size
-description: What Restage adds to a release build, and how to carry only the widgets your app uses.
+description: What Restage adds to a release build, how a surface carries its icons, and how to carry only the widgets your app uses.
 ---
 
 A published surface renders with widgets compiled into your app. The widgets your app
 carries decide what a surface can use and how much size Restage adds.
 
-By default `Restage.configure()` installs the whole built-in catalog and both icon
-fonts. A surface you publish later can use any catalog widget. If app size matters
-more, you can carry only the widgets your own code draws.
+By default `Restage.configure()` installs the whole built-in widget catalog.
+Generated registration keeps the icons your app and its compiled surfaces use. A
+surface you publish later can use any catalog widget, and it can carry a subset font
+for new literal icons, so those glyphs don't have to be in the installed app. If app
+size matters more, you can carry only the widgets your own code draws.
 
 ## What it costs
 
@@ -20,6 +22,50 @@ same release settings and dependency versions.
 Pick one number to compare. Raw APK growth, app bundle (AAB) size, download size for a
 device and installed size are different things. A download estimate depends on the
 device you pick.
+
+In a matched Android arm64 shop-app comparison, retaining only required icon
+entries instead of the complete tables saved about **0.61 MB of estimated
+download** and **0.70 MB of raw APK**, with the full widget catalog in both builds.
+These are decimal MB from one host and device specification, not a guaranteed
+saving or an iOS measurement.
+
+## Icons delivered over the air
+
+When you publish a surface with literal icons such as `Icon(Icons.favorite)`,
+the compiler includes their subset font in the surface payload. When the SDK
+fetches the surface from Restage, it loads that font before rendering. An icon
+already registered by the app uses its installed Flutter icon; a new glyph uses the
+delivered font. The fonts travel with saved surface artifacts, so replaying a saved
+artifact can use them offline.
+
+This supports icon fonts. It does not make arbitrary typography fonts available
+over the air.
+
+Some uses still need installed icon entries:
+
+- An icon whose code point comes from runtime data needs the possible glyphs
+  registered in the app; the compiler cannot subset unknown values.
+- An icon that carries a native Flutter key needs an installed `Icon` owner.
+  A delivered glyph cannot substitute for that owner.
+- A raw `.rfw` blob, or a surface returned by a custom resolver, carries no
+  fonts, so every icon it draws must be registered in the app.
+
+Generated registration keeps the constant icons found in your app and surfaces.
+To retain every built-in icon, add the existing full table at startup:
+
+```dart
+InstalledIconTable.add(builtInIconTable());
+Restage.configure(/* your existing configuration */);
+```
+
+`builtInIconTable(includeCupertino: false)` retains only the full Material table.
+For a known smaller set, use `RestageIconTable.fromFamilies` with constant
+`IconData` entries. This icon choice is independent of widget catalog selection.
+
+After upgrading the SDK and generator, run `dart run build_runner build` and
+rebuild the app. Older generated registration can still install the complete
+tables. If you rely on arbitrary data-driven icons or raw blobs, explicitly
+register their vocabulary before switching to the new default.
 
 ## Choose what your app carries
 
@@ -139,7 +185,8 @@ the surfaces you mount.
 
 In a derived build, a paywall mounted by id, `RestagePaywall(id: 'pro')`, needs the
 call. There's no generated mount to install its widgets. With the default
-configuration, every built-in widget and icon is already installed.
+configuration, every built-in widget is already installed. Icons come from
+registration or from a font the surface carries.
 
 For manual registration, `InstalledWidgetLibraries.install(...)` replaces the
 installed widgets and `add(...)` adds to them. A preview or authoring tool that
@@ -150,11 +197,12 @@ renders content it can't know ahead of time should keep the whole catalog.
 Build with Flutter's normal icon tree shaking. Passing `--no-tree-shake-icons` keeps
 the full icon fonts even when your derived set uses a few icons.
 
-The default keeps both icon fonts with every glyph. A derived set can ship smaller
-fonts. Its icon table uses constants Flutter can find when it trims fonts. The
-Cupertino font is still bundled while its package is a dependency, even if you use
-none of its icons. To remove it, remove that dependency. Compare sizes with the same
-minification, resource shrinking and obfuscation settings.
+The default and derived registrations both use icon constants Flutter can find when
+it trims fonts. Installing the complete icon tables keeps every glyph. Flutter and
+other app code can keep more glyphs, and a declared font with no glyph references can
+still be copied in full. The Cupertino font is still bundled while its package is a
+dependency, even if you use none of its icons. To remove it, remove that dependency.
+Compare sizes with the same minification, resource shrinking and obfuscation settings.
 
 ## Plugins and native code
 

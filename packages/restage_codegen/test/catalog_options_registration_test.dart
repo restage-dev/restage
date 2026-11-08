@@ -80,7 +80,6 @@ void main() {
         );
         for (final helper in [
           'RestageWidgetLibraries.builtIn',
-          'builtInIconTable',
         ]) {
           expect(
             compact.contains(
@@ -95,6 +94,7 @@ void main() {
           );
           if (!full) expect(source, isNot(contains('$helper(')));
         }
+        expect(source, isNot(contains('builtInIconTable(')));
         expect(
           compact,
           contains(
@@ -108,7 +108,7 @@ void main() {
         );
         if (full) {
           expect(
-            source.indexOf('InstalledIconTable.add('),
+            source.indexOf('InstalledWidgetLibraries.add('),
             lessThan(source.indexOf('  kRestageAppVocabulary.addToInstalled')),
           );
         }

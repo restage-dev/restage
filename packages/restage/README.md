@@ -377,8 +377,18 @@ already on screen.
 
 A delivered surface renders with widgets compiled into your app, so what the
 app can render decides what it costs. By default `Restage.configure()` installs
-the whole built-in catalog and both icon fonts, so a surface you deliver later
-can use anything the catalog can express.
+the whole built-in widget catalog. Generated registration keeps the icons your
+app and compiled surfaces use. A surface served by Restage carries a subset font
+for any other literal icon, so new glyphs can arrive over the air without the
+complete icon tables in your app.
+
+Some icons still need installed entries: an icon whose code point comes from
+data, an icon with a Flutter key, and every icon in a raw `.rfw` blob or in a
+surface from a custom resolver, which carry no fonts. To keep every built-in
+icon, call `InstalledIconTable.add(builtInIconTable())` at startup. Regenerate
+with `dart run build_runner build` after upgrading; older generated registration
+can still retain the full tables. This delivery support is for icon fonts, not
+arbitrary typography fonts.
 
 There are two ways to make it smaller.
 

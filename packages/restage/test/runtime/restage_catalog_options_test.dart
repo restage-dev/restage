@@ -30,10 +30,18 @@ void main() {
     InstalledIconTable.reset();
   });
 
-  test('no-argument helpers and configuration retain full defaults', () {
+  test('helpers keep full tables; configuration defaults to widgets only', () {
     _expectCompleteFamilies(
         RestageWidgetLibraries.builtIn(), builtInIconTable(),
         material: true, cupertino: true);
+    Restage.configure(analyticsEnabled: false, measurementEnabled: false);
+    _expectCompleteWidgets(InstalledWidgetLibraries.current,
+        material: true, cupertino: true);
+    expect(InstalledIconTable.current, same(RestageIconTable.none));
+  });
+
+  test('explicit complete icons survive ordinary configuration', () {
+    InstalledIconTable.add(builtInIconTable());
     Restage.configure(analyticsEnabled: false, measurementEnabled: false);
     _expectCompleteFamilies(
         InstalledWidgetLibraries.current, InstalledIconTable.current,
@@ -67,9 +75,9 @@ void main() {
           includeMaterial: includeMaterial,
           includeCupertino: includeCupertino,
         );
-        _expectCompleteFamilies(
-            InstalledWidgetLibraries.current, InstalledIconTable.current,
+        _expectCompleteWidgets(InstalledWidgetLibraries.current,
             material: includeMaterial, cupertino: includeCupertino);
+        expect(InstalledIconTable.current, same(RestageIconTable.none));
       });
 
       test(
@@ -91,7 +99,6 @@ void main() {
                 same(RestageWidgetLibraries.none));
             expect(InstalledIconTable.current, same(RestageIconTable.none));
             expect(InstalledWidgetLibraries.hasSelection, isFalse);
-            expect(InstalledIconTable.hasSelection, isFalse);
             SurfaceVocabulary.none.addToInstalled(explicitSelection: true);
           }),
         );
@@ -126,11 +133,11 @@ void main() {
         expect(
             InstalledIconTable.current
                 .lookUp('MaterialIcons', Icons.check.codePoint),
-            includeMaterial ? same(Icons.check) : isNull);
+            isNull);
         expect(
             InstalledIconTable.current
                 .lookUp('CupertinoIcons', CupertinoIcons.heart.codePoint),
-            includeCupertino ? same(CupertinoIcons.heart) : isNull);
+            isNull);
       });
 
       test('actual derived registration remains derived $flags', () {
@@ -176,7 +183,7 @@ void main() {
         if (selectWidgets) {
           expect(InstalledWidgetLibraries.current, same(customWidgets));
           expect(customWidgets.material.keys, empty ? isEmpty : ['Icon']);
-          expect(InstalledIconTable.current.families.keys, ['CupertinoIcons']);
+          expect(InstalledIconTable.current, same(RestageIconTable.none));
         } else {
           expect(InstalledIconTable.current, same(customIcons));
           glyphs[8] = Icons.star;
@@ -333,11 +340,7 @@ widget OnboardingScreen = Icon(iconCodepoint: ${CupertinoIcons.star.codePoint}, 
 void _expectCompleteFamilies(
     RestageWidgetLibraries widgets, RestageIconTable icons,
     {required bool material, required bool cupertino}) {
-  expect(widgets.core, same(core.kCoreLibraryFactories));
-  expect(widgets.material,
-      material ? same(material_catalog.kMaterialLibraryFactories) : isEmpty);
-  expect(widgets.cupertino,
-      cupertino ? same(cupertino_catalog.kCupertinoLibraryFactories) : isEmpty);
+  _expectCompleteWidgets(widgets, material: material, cupertino: cupertino);
   final expectedFamilies = [
     if (material) 'MaterialIcons',
     if (cupertino) 'CupertinoIcons'
@@ -372,6 +375,15 @@ void _expectCompleteFamilies(
           same(entry.value));
     }
   }
+}
+
+void _expectCompleteWidgets(RestageWidgetLibraries widgets,
+    {required bool material, required bool cupertino}) {
+  expect(widgets.core, same(core.kCoreLibraryFactories));
+  expect(widgets.material,
+      material ? same(material_catalog.kMaterialLibraryFactories) : isEmpty);
+  expect(widgets.cupertino,
+      cupertino ? same(cupertino_catalog.kCupertinoLibraryFactories) : isEmpty);
 }
 
 class _RegistrationCallback implements RestageWidgetRegistration {

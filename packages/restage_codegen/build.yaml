@@ -304,10 +304,11 @@ builders:
     build_to: source
     runs_before: []
   # The `catalog` option chooses what the generated registerRestageWidgets()
-  # installs. `full` enables complete built-in families by default; generated
+  # installs. `full` enables complete built-in widget families by default; generated
   # helper arguments can select Material/Cupertino. `derived` installs only
   # what this package draws in its own Dart plus what its compiled surfaces
-  # render. Any other value fails the build.
+  # render. Both modes retain only app/surface icon entries. Any other value
+  # fails the build.
   user_factories:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['userFactoryBuilder']

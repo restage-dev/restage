@@ -50,9 +50,9 @@ void main() {
     InstalledIconTable.reset();
   });
 
-  testWidgets(
-      'ordinary configure renders delivered catalogs and icons with no codegen',
+  testWidgets('explicit full icons render raw payloads with no codegen',
       (tester) async {
+    InstalledIconTable.add(builtInIconTable());
     await tester.runAsync(() async {
       Restage.configure(
           resolver: _HostedByIdResolver(), analyticsEnabled: false);
@@ -156,7 +156,6 @@ widget OnboardingScreen = ${custom ? 'CustomLabel' : 'Text'}(text: "selected ren
     expect(InstalledWidgetLibraries.current, same(RestageWidgetLibraries.none));
     expect(InstalledIconTable.current, same(RestageIconTable.none));
     expect(InstalledWidgetLibraries.hasSelection, isFalse);
-    expect(InstalledIconTable.hasSelection, isFalse);
   });
 
   for (final installedOnly in [false, true]) {
@@ -191,7 +190,6 @@ widget OnboardingScreen = ${custom ? 'CustomLabel' : 'Text'}(text: "selected ren
       late final reference = _implicitReference(vocabulary);
       expect(reference.slug, 'implicit-screen');
       expect(InstalledWidgetLibraries.hasSelection, isFalse);
-      expect(InstalledIconTable.hasSelection, isFalse);
       final widgets = InstalledWidgetLibraries.current;
       final icons = InstalledIconTable.current;
 
@@ -223,7 +221,7 @@ widget OnboardingScreen = ${custom ? 'CustomLabel' : 'Text'}(text: "selected ren
         expect(
             InstalledIconTable.current
                 .lookUp('CupertinoIcons', CupertinoIcons.star.codePoint),
-            same(CupertinoIcons.star));
+            isNull);
       }
       final configuredWidgets = InstalledWidgetLibraries.current;
       final configuredIcons = InstalledIconTable.current;
@@ -296,7 +294,6 @@ widget OnboardingScreen = ${custom ? 'CustomLabel' : 'Text'}(text: "selected ren
     final glyphs = <int, IconData>{7: Icons.check};
     InstalledIconTable.add(
       RestageIconTable.fromFamilies(families: {'HostIcons': glyphs}),
-      explicitSelection: false,
     );
     glyphs.clear();
     Restage.configure(analyticsEnabled: false, measurementEnabled: false);
@@ -306,7 +303,7 @@ widget OnboardingScreen = ${custom ? 'CustomLabel' : 'Text'}(text: "selected ren
     expect(
         InstalledIconTable.current
             .lookUp('MaterialIcons', Icons.check.codePoint),
-        same(Icons.check));
+        isNull);
   });
 
   test(
@@ -314,7 +311,6 @@ widget OnboardingScreen = ${custom ? 'CustomLabel' : 'Text'}(text: "selected ren
       () {
     Restage.configureWithInstalledCatalog(analyticsEnabled: false);
     expect(InstalledWidgetLibraries.hasSelection, isFalse);
-    expect(InstalledIconTable.hasSelection, isFalse);
     _selected.addToInstalled(explicitSelection: true);
     Restage.debugReset();
     Restage.configure(analyticsEnabled: false);
@@ -322,12 +318,11 @@ widget OnboardingScreen = ${custom ? 'CustomLabel' : 'Text'}(text: "selected ren
     InstalledWidgetLibraries.reset();
     InstalledIconTable.reset();
     expect(InstalledWidgetLibraries.hasSelection, isFalse);
-    expect(InstalledIconTable.hasSelection, isFalse);
     Restage.configure(analyticsEnabled: false);
     final widgets = InstalledWidgetLibraries.current;
     final icons = InstalledIconTable.current;
     expect(widgets.material, isNotEmpty);
-    expect(icons.isEmpty, isFalse);
+    expect(icons.isEmpty, isTrue);
     Restage.configure(analyticsEnabled: false);
     expect(InstalledWidgetLibraries.current, same(widgets));
     expect(InstalledIconTable.current, same(icons));

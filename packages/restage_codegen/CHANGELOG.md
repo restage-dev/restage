@@ -164,11 +164,17 @@ issue code is removed.
 A package that depends on another Restage package no longer compiles that
 package's surfaces in its own build.
 
-The generated registration installs the whole built-in catalog and both icon
-tables by default. Pass the generated `kRestageWidgetRegistration` object to
+The generated registration installs the whole built-in widget catalog and only
+the app's and compiled surfaces' icon entries. Published literal icons can carry
+subset fonts; they do not require complete icon tables in the app. Regenerate
+after upgrading to remove the old complete-table registrations. Icons whose code
+points come from data, icons with keys, raw blobs and surfaces from custom
+resolvers need installed entries: retain them explicitly or call
+`InstalledIconTable.add(builtInIconTable())` at startup.
+Pass the generated `kRestageWidgetRegistration` object to
 `Restage.configure(registerWidgets: ...)` to forward its `includeMaterial` and
 `includeCupertino` options while preserving app-required entries. The standalone
-`registerRestageWidgets()` function retains its inclusive defaults.
+`registerRestageWidgets()` function retains its inclusive widget defaults.
 A `catalog` option on the `restage_codegen:user_factories` builder opts
 down: `catalog: derived` walks every library under `lib/`, collects the catalog
 widgets the app draws and the ones its authored surfaces use, and emits the

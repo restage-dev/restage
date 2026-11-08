@@ -65,29 +65,6 @@ void main() {
   setUp(InstalledIconTable.reset);
   tearDown(InstalledIconTable.reset);
 
-  test('direct additions select only when nonempty by default', () {
-    InstalledIconTable.add(RestageIconTable.none);
-    expect(InstalledIconTable.hasSelection, isFalse);
-    InstalledIconTable.add(_checkOnly);
-    expect(InstalledIconTable.hasSelection, isTrue);
-  });
-
-  test('implicit additions do not select the catalog', () {
-    InstalledIconTable.add(_checkOnly, explicitSelection: false);
-    expect(InstalledIconTable.current.isEmpty, isFalse);
-    expect(InstalledIconTable.hasSelection, isFalse);
-  });
-
-  test('an explicit empty selection survives implicit additions', () {
-    InstalledIconTable.add(RestageIconTable.none, explicitSelection: true);
-    expect(InstalledIconTable.current, same(RestageIconTable.none));
-    expect(InstalledIconTable.hasSelection, isTrue);
-    InstalledIconTable.add(_checkOnly, explicitSelection: false);
-    expect(InstalledIconTable.hasSelection, isTrue);
-    InstalledIconTable.reset();
-    expect(InstalledIconTable.hasSelection, isFalse);
-  });
-
   test('adding to nothing installs the added table', () {
     InstalledIconTable.add(_checkOnly);
 
