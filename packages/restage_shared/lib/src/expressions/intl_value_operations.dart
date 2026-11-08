@@ -1,3 +1,6 @@
+import 'package:restage_shared/src/expressions/collection_operations.dart';
+import 'package:restage_shared/src/expressions/grid_operations.dart';
+
 import 'temporal_value_operations.dart';
 import 'value_program.dart';
 
@@ -173,6 +176,13 @@ const Map<String, ValueOperation> kIntlValueOperations = {
   'intl.select': IntlValueOperation('intl.select'),
   'intl.datetime.new': IntlValueOperation('intl.datetime.new'),
   'intl.datetime.zone': IntlValueOperation('intl.datetime.zone'),
+};
+
+/// The collection, grid and intl value operations the compiler admits.
+const Map<String, ValueOperation> kStandardValueOperations = {
+  ...kCollectionValueOperations,
+  ...kGridValueOperations,
+  ...kIntlValueOperations,
 };
 
 /// Validates the closed native formatting vocabulary without importing intl.

@@ -5,11 +5,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:restage_compiler_core/src/rfw_program_envelope.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show
-        ValueOperation,
-        kCollectionValueOperations,
-        kGridValueOperations,
-        kIntlValueOperations;
+    show ValueOperation, kStandardValueOperations;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:restage_shared/rfw_formats.dart'
     show
@@ -237,11 +233,7 @@ final class ResolvedRfwCatalogOccurrenceSet {
   factory ResolvedRfwCatalogOccurrenceSet.resolve({
     required fmt.RemoteWidgetLibrary parsedLibrary,
     required RfwCatalogOccurrenceResolutionInput input,
-    Map<String, ValueOperation> operations = const {
-      ...kCollectionValueOperations,
-      ...kGridValueOperations,
-      ...kIntlValueOperations
-    },
+    Map<String, ValueOperation> operations = kStandardValueOperations,
   }) {
     final programScope = RfwProgramScope([
       for (final widget in parsedLibrary.widgets) ...[
@@ -763,11 +755,7 @@ Map<String, _ReachableRfwCall> _reachableCalls(
   fmt.RemoteWidgetLibrary library,
   RfwCatalogOccurrenceResolutionInput input, {
   bool includeGeneratedLocalBodies = false,
-  Map<String, ValueOperation> operations = const {
-    ...kCollectionValueOperations,
-    ...kGridValueOperations,
-    ...kIntlValueOperations
-  },
+  Map<String, ValueOperation> operations = kStandardValueOperations,
   void Function(Object? value)? onValue,
 }) {
   final programScope = RfwProgramScope([

@@ -632,13 +632,6 @@ String? positionalHoleReason(
   return null;
 }
 
-/// The default generative (unnamed) constructor of [element], or `null` when it
-/// has none. The constructor the widget factory / reconstruction targets.
-ConstructorElement? defaultGenerativeConstructor(ClassElement element) =>
-    element.constructors
-        .where((c) => !c.isFactory && const {null, '', 'new'}.contains(c.name))
-        .firstOrNull;
-
 /// A human-readable reason a type referenced by [element]'s reconstruction —
 /// [element] itself, or the type of one of its materialized fields (named by
 /// [materializedFieldNames]) — cannot be NAMED from the generated factory

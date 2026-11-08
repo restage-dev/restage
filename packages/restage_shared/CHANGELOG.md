@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+Add `kStandardValueOperations`, the standard set of value operations a payload
+program can call.
+
 **Breaking:** `DeviceContractValueKind` gains `boolean`; exhaustive switches must handle it.
 
 Add `componentLibraryBlob`, `componentFingerprint`,

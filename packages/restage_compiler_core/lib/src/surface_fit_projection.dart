@@ -15,11 +15,7 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
   /// closure owner validates descendant identity and hashes before aggregation.
   SurfaceFitRequirementV1 projectFitRequirement({
     List<SurfacePublicationArtifactClosure> subflows = const [],
-    Map<String, ValueOperation> operations = const {
-      ...kCollectionValueOperations,
-      ...kGridValueOperations,
-      ...kIntlValueOperations
-    },
+    Map<String, ValueOperation> operations = kStandardValueOperations,
   }) {
     final nodes = [this, ...subflows];
     final rootDocument = flowDocument;
@@ -932,11 +928,7 @@ typedef _EventSite = ({
 /// The site of every event in [library].
 Map<rfw.EventHandler, _EventSite> _eventSites(
   rfw.RemoteWidgetLibrary library, {
-  Map<String, ValueOperation> operations = const {
-    ...kCollectionValueOperations,
-    ...kGridValueOperations,
-    ...kIntlValueOperations
-  },
+  Map<String, ValueOperation> operations = kStandardValueOperations,
   void Function(Object? value, ValueType type)? onCapture,
 }) {
   final programScope = RfwProgramScope([
@@ -1671,11 +1663,7 @@ List<SurfaceScreenContractGap> surfaceScreenContractGaps(
   required SurfaceScreenEventSchema events,
   required SurfaceScreenHostDataSchema context,
   Map<String, Object> localValues = const {},
-  Map<String, ValueOperation> operations = const {
-    ...kCollectionValueOperations,
-    ...kGridValueOperations,
-    ...kIntlValueOperations
-  },
+  Map<String, ValueOperation> operations = kStandardValueOperations,
 }) {
   operations = nativeCallOperations(context, operations);
   final typedEvents = {for (final event in events.events) event.id: event};

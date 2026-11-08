@@ -511,9 +511,6 @@ Catalog withIslands(Catalog catalog, Iterable<Island> islands) {
 /// Stands for the runtime import prefix in a recorded build's source.
 const String kSdkPrefixMarker = '\u0007';
 
-/// Marks the design root in [MountSplit.body].
-const String kDesignRootMarker = '\u0003';
-
 /// Marks the generated mount's class name in a lifted `State`.
 const String kMountNameMarker = '\u0006';
 

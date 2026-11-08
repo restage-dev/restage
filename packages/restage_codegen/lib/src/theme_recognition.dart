@@ -90,26 +90,6 @@ bool isFlutterStaticOf(MethodInvocation invocation, String className) {
   return false;
 }
 
-/// Walks down [expr]'s `PropertyAccess` chain, unwrapping any wrapping
-/// `ParenthesizedExpression` nodes encountered along the way, and returns
-/// the bottom non-`PropertyAccess` expression. Returns `null` if any
-/// intermediate `PropertyAccess` is a cascade (`..foo` — `target == null`).
-Expression? propertyAccessRoot(Expression expr) {
-  var current = expr;
-  while (true) {
-    while (current is ParenthesizedExpression) {
-      current = current.expression;
-    }
-    if (current is PropertyAccess) {
-      final target = current.target;
-      if (target == null) return null;
-      current = target;
-      continue;
-    }
-    return current;
-  }
-}
-
 /// The `data.theme.*` path segments [expr] reads, or `null` when [expr] is not
 /// a recognised theme read. This is the single canonical theme-read recognizer
 /// the classifier recognizer, the translator lowerer, and the slot validator

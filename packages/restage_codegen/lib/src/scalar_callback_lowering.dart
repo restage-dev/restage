@@ -18,11 +18,7 @@ final class ScalarCallbackLowering {
     required this.contract,
     this.resolve,
     this.helperFor,
-    this.operations = const {
-      ...kCollectionValueOperations,
-      ...kGridValueOperations,
-      ...kIntlValueOperations,
-    },
+    this.operations = kStandardValueOperations,
     this.valueExtension,
     this.parent,
   });

@@ -24,11 +24,7 @@ Map<String, ValueOperation> installedNativeCallOperations(
       if (value.nativeContract case final contract?)
         value.key: SurfaceScreenHostDataNativeBindingShapeV1(contract),
   }),
-  {
-    ...kCollectionValueOperations,
-    ...kGridValueOperations,
-    ...kIntlValueOperations,
-  },
+  kStandardValueOperations,
 );
 
 /// An existing lexical cell retained by an installed closure.
