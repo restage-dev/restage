@@ -14,11 +14,17 @@ String starterPaywallSource(String paywallName) {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// A starter paywall — replace this with your own design. Edit, then
-/// run `dart run build_runner build` to produce the compiled `.rfw`.
+part 'restage.generated/$paywallName.restage.g.dart';
+
+/// A starter paywall — replace this with your own design. Edit, then run
+/// `dart run build_runner build` to regenerate
+/// `${_pascalCase(paywallName)}PaywallSurface`, the widget you mount.
 @Paywall()
 class ${_pascalCase(paywallName)}Paywall extends StatelessWidget {
-  const ${_pascalCase(paywallName)}Paywall({super.key});
+  const ${_pascalCase(paywallName)}Paywall({super.key, this.onContinue});
+
+  /// Called when the user taps Continue.
+  final VoidCallback? onContinue;
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +54,7 @@ class ${_pascalCase(paywallName)}Paywall extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: () {},
+                onPressed: onContinue,
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

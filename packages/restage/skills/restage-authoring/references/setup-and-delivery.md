@@ -2,13 +2,50 @@
 
 ## Packages
 
-```sh
-flutter pub add restage
-flutter pub add --dev restage_codegen build_runner
+Take the Restage packages from `main` of the public repository. Add to
+`pubspec.yaml`:
+
+```yaml
+dependencies:
+  restage:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage
+  restage_material:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_material
+
+dev_dependencies:
+  build_runner: ">=2.7.0 <3.0.0"
+  restage_codegen:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_codegen
+
+dependency_overrides:
+  restage_material:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_material
+  rfw_catalog_schema:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/rfw_catalog_schema
 ```
 
-Restage needs Flutter 3.41 or newer. The optional `restage` CLI can do this step with
-`restage init`, which also writes `restage_config.yaml` and a starter paywall. Pass
+Keep both overrides: `restage` and the code generator ask for those two packages by
+version, and the overrides keep every Restage package on the same commit. Do not
+add Restage packages from pub.dev.
+
+Restage needs Flutter 3.44 or newer. The optional `restage` CLI can do this step with
+`restage init`, which writes the same entries, moves any pub.dev Restage entry to
+`main`, and also writes `restage_config.yaml` and a starter paywall. Pass
 `--no-starter` to skip the starter. After `init` edits `pubspec.yaml`, run
 `flutter pub get` before generating code.
 
@@ -17,13 +54,13 @@ triggers a rebuild. If you set up without `init`, add them yourself:
 
 ```yaml
 additional_public_assets:
-  - .restage/measurement-state.json
-  - .restage/wire-ids.events.jsonl
+  - .restage/**
 ```
 
 Generated mounts keep the widget you wrote as their fallback, so nothing has to be
 bundled as an asset. Leave `bundled_runtime` at its default, `false`, for ordinary
-examples and integrations. No generated surface assets are needed in `pubspec.yaml`.
+examples and integrations. Surfaces need no assets in `pubspec.yaml`. The one
+entry an app with a key needs is the iOS first-launch request, described below.
 
 ## Build
 
@@ -111,24 +148,30 @@ need to manage that setup yourself.
 
 ## Hosted delivery
 
+Put the key and service URL in the app's `build.yaml`. `restage init --sdk-key rs_pk_...`
+writes them:
+
+```yaml
+targets:
+  $default:
+    builders:
+      restage_codegen:user_factories:
+        options:
+          api_key: rs_pk_sandbox_dev_...
+          base_url: https://api.restage.dev
+          # channel: stable   (optional)
+```
+
+Then pass the generated setup to `Restage.configure`. It carries the key, URL and
+channel; do not repeat them in Dart:
+
 <!-- skill-check: declarations -->
 ```dart
-const baseUrl = String.fromEnvironment(
-  'RESTAGE_BASE_URL',
-  defaultValue: 'https://api.restage.dev',
-);
-const apiKey = String.fromEnvironment('RESTAGE_API_KEY'); // rs_pk_...
-
 void main() {
-  if (apiKey.isEmpty) {
-    Restage.configure(); // renders what the app contains
-  } else {
-    Restage.configure(
-      apiKey: apiKey,
-      baseUrl: baseUrl,
-      surfaces: restageSurfaces, // from 'restage_surfaces.g.dart'
-    );
-  }
+  Restage.configure(
+    registerWidgets: kRestageWidgetRegistration, // from 'user_factories.g.dart'
+    surfaces: restageSurfaces, // from 'restage_surfaces.g.dart'
+  );
   runApp(const MyApp());
 }
 ```
@@ -136,12 +179,25 @@ void main() {
 - The key is the public SDK key (`rs_pk_...`) for one environment. The prefix names its
   side and environment, such as `rs_pk_sandbox_dev_` or `rs_pk_live_prod_`. Never put a
   secret key (`rs_sk_...`) in app code.
-- `baseUrl` is the API of the backend the project uses: the `endpoint` in
-  `restage_config.yaml`. It must be HTTPS, except `localhost`, `127.0.0.1` and `::1`.
+- `base_url` is the API of the backend the project uses. `init --sdk-key` writes the
+  backend you signed in to, else `RESTAGE_BACKEND_URL`, else `https://api.restage.dev`.
+  It must be HTTPS, except `localhost`, `127.0.0.1` and `::1`.
+- `build.yaml` is the only source; the build reads no environment variables. In CI,
+  pass the values on the command line:
+  `dart run build_runner build --define "restage_codegen:user_factories=api_key=rs_pk_..." --define "restage_codegen:user_factories=base_url=https://api.restage.dev"`.
+- With a key, the build writes the first-launch request the Android and iOS plugins
+  send before Dart starts. On iOS, `pubspec.yaml` must list
+  `ios/Runner/restage_early.json` under `flutter: assets:`; `restage init` adds it
+  and writes the file as `{}`, so the app builds before the first `build_runner`
+  run. The build warns when the entry is missing. Without a key, the build prints one line
+  and the app runs offline.
+- An `apiKey:` or `baseUrl:` passed to `Restage.configure` wins over `build.yaml`.
 - With the key and base URL configured, default hosted resolution covers screens,
   paywalls and flows. Do not add an explicit `flowResolver` for ordinary setup: a
   custom resolver overrides normal placement-aware flow resolution.
-- Call `Restage.configure()` with no key to render only what the app contains.
+- To render only what the app contains, leave `api_key` out of `build.yaml`.
+  `apiKey: ''` turns hosted delivery off in Dart, but the built-in first-launch
+  request is still sent.
 - `surfaces: restageSurfaces` prefetches known surfaces after the first frame.
   Prefetch can prepare later mounts, but does not create experiment assignments.
 - Published content can appear on later mounts when eligible. Live refresh is

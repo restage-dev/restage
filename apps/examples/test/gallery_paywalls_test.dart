@@ -31,7 +31,7 @@ class _StaticResolver implements VariantResolver {
 /// instead of returning a variant. Throwing a [RestagePaywallError] drives the
 /// runtime's `on RestagePaywallError` branch (the same path a resolver hitting
 /// a 404 / network error takes), which surfaces `PaywallLoadFailed` and the
-/// host's `unavailable` fallback without reporting to `FlutterError` — so the failure
+/// host's `fallbackBuilder` without reporting to `FlutterError`, so the failure
 /// stays inside the contract under test rather than tripping the test harness.
 class _FailingResolver implements VariantResolver {
   const _FailingResolver();

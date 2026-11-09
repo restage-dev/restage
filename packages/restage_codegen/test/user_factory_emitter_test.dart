@@ -164,6 +164,67 @@ void main() {
       },
     );
 
+    test('a build key, URL and channel become the registration\'s', () {
+      const delivery = (
+        apiKey: r"rs_pk_sandbox_dev_'$x",
+        baseUrl: 'https://api.example.com',
+        channel: 'beta',
+      );
+      final sources = [
+        emitUserFactoriesDart(
+          [_widgetEntry(name: 'AcmeBadge', properties: const [])],
+          delivery: delivery,
+        )!,
+        emitEmptyUserFactoriesDart(delivery: delivery),
+      ];
+      for (final source in sources) {
+        expect(
+          source,
+          _containsCode(
+            r"const String _restageApiKey = 'rs_pk_sandbox_dev_\'\$x';",
+          ),
+        );
+        expect(
+          source,
+          _containsCode(
+            "const String _restageBaseUrl = 'https://api.example.com';",
+          ),
+        );
+        expect(
+          source,
+          _containsCode("const String? _restageChannel = 'beta';"),
+        );
+        expect(
+          source,
+          _containsCode(
+            'implements RestageWidgetRegistration, RestageBuildDelivery {',
+          ),
+        );
+        expect(source, _containsCode('String get apiKey => _restageApiKey;'));
+        expect(source, _containsCode('String get baseUrl => _restageBaseUrl;'));
+        expect(
+          source,
+          _containsCode('String? get channel => _restageChannel;'),
+        );
+        expect(source, contains("The app's generated Restage setup."));
+      }
+      expect(
+        emitEmptyUserFactoriesDart(
+          delivery: (apiKey: 'k', baseUrl: 'u', channel: null),
+        ),
+        _containsCode('const String? _restageChannel = null;'),
+      );
+      for (final source in [
+        emitUserFactoriesDart([
+          _widgetEntry(name: 'AcmeBadge', properties: const []),
+        ])!,
+        emitEmptyUserFactoriesDart(),
+      ]) {
+        expect(source, isNot(contains('_restageApiKey')));
+        expect(source, isNot(contains('RestageBuildDelivery')));
+      }
+    });
+
     for (final declares in [false, true]) {
       test('the registration declares the surface list only when one is '
           'generated ($declares)', () {

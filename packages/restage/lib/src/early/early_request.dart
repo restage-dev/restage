@@ -131,12 +131,8 @@ final class EarlyRequest {
   ) async {
     try {
       final sent = await _channel.invokeMethod<Uint8List>('sent');
-      if (sent == null) {
-        debugPrint('[restage] No startup request is built into this app. The '
-            'first request is sent from Dart. Set base_url and api_key on the '
-            'restage_early_template builder and rebuild.');
-        return;
-      }
+      // debugCheckConfiguration already reported a missing template.
+      if (sent == null) return;
       final mine = jsonDecode(utf8.decode(request)) as Map<String, Object?>;
       final theirs = jsonDecode(utf8.decode(sent)) as Map<String, Object?>;
       // Only the launch's startup batch has a template to compare with.
@@ -226,46 +222,84 @@ final class EarlyRequest {
     return lines.join('\n');
   }
 
-  /// In debug builds, says which of the service URL and key the startup
-  /// request template was built for differs from what the app configures.
+  /// Stands in for the platform's built-in template in tests.
+  @visibleForTesting
+  static Future<String?> Function()? debugTemplate;
+
+  // The built-in template text, or null; only on a platform that has one.
+  static Future<String?> _builtTemplate() async {
+    if (debugTemplate case final read?) return read();
+    if (!_supported) return null;
+    return _channel.invokeMethod<String>('template');
+  }
+
+  static bool get _canCheck =>
+      kDebugMode && (debugTemplate != null || _supported);
+
+  /// In debug builds, reports a first-launch request that is missing or built
+  /// for a different service URL or key than [entry] was given.
+  ///
+  /// [fromBuild] is whether the key came from the app's generated setup;
+  /// [declaresPlacements] whether the build has placements to request.
   static Future<void> debugCheckConfiguration(
     String baseUrl,
-    String apiKey,
-  ) async {
-    if (!kDebugMode || !_supported || _underTest) return;
+    String apiKey, {
+    required String entry,
+    required bool fromBuild,
+    required bool Function() declaresPlacements,
+  }) async {
+    if (!_canCheck) return;
     try {
-      final text = await _channel.invokeMethod<String>('template');
+      final text = await _builtTemplate();
       if (text == null) {
-        debugPrint(
-          '[restage] No startup request is built into this app. The first '
-          'request is sent from Dart. Set base_url and api_key on the '
-          'restage_early_template builder and rebuild.',
+        // A build with no placements writes no request, and needs none.
+        if (!declaresPlacements()) return;
+        _reportConfiguration(
+          fromBuild
+              ? missingBuiltTemplateMessage(
+                  ios: defaultTargetPlatform == TargetPlatform.iOS,
+                )
+              : kMissingEarlyTemplateMessage,
         );
         return;
       }
       final template = jsonDecode(text) as Map<String, Object?>;
-      final builtUrl = Uri.parse(template['url']! as String);
-      final configured = Uri.parse(baseUrl);
-      final problems = <String>[
-        if (builtUrl.origin != configured.origin)
-          'the service URL: built for ${builtUrl.origin}, configured '
-              '${configured.origin}',
-        if (template['authorization'] != 'Bearer $apiKey')
-          'the api key: the api_key in build.yaml is not the apiKey passed to '
-              'Restage.configure',
-      ];
-      if (problems.isEmpty) return;
-      final message = 'The startup request built into this app differs from '
-          'Restage.configure in ${problems.join('; ')}. Update the '
-          'restage_codegen:restage_early_template options in build.yaml and '
-          'rebuild. Until then the startup request is sent from Dart.';
-      debugPrint('[restage] $message');
-      FlutterError.reportError(
-        FlutterErrorDetails(exception: StateError(message), library: 'restage'),
+      final message = earlyTemplateMismatchMessage(
+        builtUrl: template['url']! as String,
+        configuredUrl: placementResolveUrl(baseUrl).toString(),
+        sameKey: template['authorization'] == 'Bearer $apiKey',
+        entry: entry,
       );
+      if (message != null) _reportConfiguration(message);
     } on Object {
       // The check is a debug aid only.
     }
+  }
+
+  /// In debug builds, reports a first-launch request built into an app whose
+  /// [entry] call got no key, so hosted delivery is off. [registered] is
+  /// whether the app passed its generated setup.
+  static Future<void> debugCheckUnusedTemplate({
+    required String entry,
+    required bool registered,
+  }) async {
+    if (!_canCheck) return;
+    try {
+      if (await _builtTemplate() != null) {
+        _reportConfiguration(
+          unusedEarlyTemplateMessage(entry: entry, registered: registered),
+        );
+      }
+    } on Object {
+      // The check is a debug aid only.
+    }
+  }
+
+  static void _reportConfiguration(String message) {
+    debugPrint('[restage] $message');
+    FlutterError.reportError(
+      FlutterErrorDetails(exception: StateError(message), library: 'restage'),
+    );
   }
 
   /// Keeps the startup request for the platform to send at the next launch.
@@ -414,4 +448,64 @@ final class EarlyResponse {
 
   /// The response headers, with lowercase names.
   final Map<String, String> headers;
+}
+
+/// The debug report when hosted delivery is configured but the build wrote no
+/// first-launch request.
+@visibleForTesting
+const String kMissingEarlyTemplateMessage =
+    'This app configures hosted delivery, but no first-launch request is built '
+    'into it, so the first request waits for Dart to start. Try setting '
+    'api_key and base_url for restage_codegen:user_factories in build.yaml '
+    '(`restage init --sdk-key rs_pk_...` writes them), then run '
+    '`dart run build_runner build` and rebuild the app.';
+
+/// The debug report when the app's generated setup has a key but the app
+/// bundle holds no first-launch request.
+@visibleForTesting
+String missingBuiltTemplateMessage({required bool ios}) =>
+    "This app's generated setup has a publishable key, but no first-launch "
+    'request is in the app bundle, so the first request waits for Dart to '
+    'start. ${ios ? 'Try listing `ios/Runner/restage_early.json` under '
+        '`flutter: assets:` in pubspec.yaml (`restage init` adds it), '
+        'then rebuild the app.' : 'Try running '
+        '`dart run build_runner build`, then rebuilding the app.'}';
+
+/// The debug report when the build has a key but [entry] got none.
+@visibleForTesting
+String unusedEarlyTemplateMessage({
+  required String entry,
+  required bool registered,
+}) =>
+    registered
+        ? 'This app has a first-launch request built in, but its generated setup '
+            'has no publishable key, so hosted delivery is off. The request is '
+            'from an earlier build. Try rebuilding the app after '
+            '`dart run build_runner build`.'
+        : 'This app has a first-launch request built in, but $entry got no '
+            'publishable key, so hosted delivery is off. Try passing '
+            '`registerWidgets: kRestageWidgetRegistration` to `$entry`.';
+
+/// The debug report when the first-launch request was built for another
+/// service URL or key than [entry] was given, or null when they match.
+@visibleForTesting
+String? earlyTemplateMismatchMessage({
+  required String builtUrl,
+  required String configuredUrl,
+  required bool sameKey,
+  required String entry,
+}) {
+  final differences = [
+    if (builtUrl != configuredUrl)
+      'URL (built for $builtUrl, configured $configuredUrl)',
+    if (!sameKey) 'publishable key',
+  ];
+  if (differences.isEmpty) return null;
+  return 'The first-launch request built into this app uses a different '
+      '${differences.join(' and ')} than $entry, so the platform\'s request '
+      'is discarded and the first request waits for Dart to start. Try '
+      'passing `registerWidgets: kRestageWidgetRegistration` without apiKey '
+      'and baseUrl, so $entry uses the ones in build.yaml, or setting the '
+      'same values in build.yaml, then run `dart run build_runner build` and '
+      'rebuild the app.';
 }

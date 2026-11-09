@@ -316,8 +316,8 @@ change) are separate choices.
 
 ## Hosted flows
 
-`Restage.configure(apiKey: ..., baseUrl: ..., surfaces: restageSurfaces)` enables
-hosted flow delivery automatically. Leave resolver overrides out of ordinary
+`Restage.configure(registerWidgets: kRestageWidgetRegistration, surfaces: restageSurfaces)`,
+with a key in `build.yaml`, enables hosted flow delivery automatically. Leave resolver overrides out of ordinary
 integrations so generated mounts use placement resolution. Explicit resolvers are
 for custom delivery behavior.
 

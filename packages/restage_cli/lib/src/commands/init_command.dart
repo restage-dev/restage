@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/backend_sites.dart' show configuredBackend;
 import 'package:restage_cli/src/api/scope_snapshot_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
@@ -30,18 +31,59 @@ import 'package:restage_cli/src/render_bundles/surface_capture_source.dart'
     show SurfaceCaptureSourceException, SurfaceCaptureWrapper;
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
+import 'package:restage_shared/restage_shared.dart' show canonicalServiceUrl;
 
-/// Default version constraints for the wired-in dependencies.
-///
-/// These pin against the current package contract. Bumping the constraints
-/// here keeps newly initialized projects on the same SDK/toolchain release.
-const Map<String, String> _defaultRuntimeDeps = {
-  'restage': '^2.0.0',
-  'restage_material': '^2.0.0',
+/// The public repository the wired-in Restage packages come from.
+const String restageGitUrl = 'https://github.com/restage-dev/restage.git';
+
+/// A git source for the package at [path] in the Restage repository's `main`.
+Map<String, Object> restageGitSource(String path) => {
+  'git': {'url': restageGitUrl, 'ref': 'main', 'path': path},
 };
-const Map<String, String> _defaultDevDeps = {
-  'build_runner': '>=2.4.0 <3.0.0',
-  'restage_codegen': '^2.0.0',
+
+/// The dependencies init adds, all Restage packages from the same `main`.
+final Map<String, Object> initRuntimeDeps = {
+  'restage': restageGitSource('packages/restage'),
+  'restage_material': restageGitSource('packages/restage_material'),
+};
+
+/// The dev dependencies init adds.
+final Map<String, Object> initDevDeps = {
+  'build_runner': '>=2.7.0 <3.0.0',
+  'restage_codegen': restageGitSource('packages/restage_codegen'),
+};
+
+/// Every Restage package an app may list, from that `main`. Init moves an
+/// entry given as a version constraint to this source.
+final Map<String, Object> restageSources = {
+  for (final name in const [
+    'restage',
+    'restage_a2ui',
+    'restage_codegen',
+    'restage_compiler_core',
+    'restage_core',
+    'restage_cupertino',
+    'restage_material',
+    'restage_measurement_schema',
+    'restage_revenuecat',
+    'restage_shared',
+    'restage_store_bridge',
+    'restage_svg',
+    'rfw_catalog_compiler',
+    'rfw_catalog_schema',
+  ])
+    name: restageGitSource('packages/$name'),
+};
+
+/// The Flutter asset the iOS plugin reads the first-launch request from.
+const String iosEarlyTemplateAsset = 'ios/Runner/restage_early.json';
+
+/// The overrides that keep every Restage package on that `main`: some
+/// Restage packages ask for these two by version.
+final Map<String, Object> initOverrides = {
+  'restage_material': restageGitSource('packages/restage_material'),
+  'rfw_catalog_schema': restageGitSource('packages/rfw_catalog_schema'),
 };
 
 /// Initializes Restage configuration, dependencies and a starter paywall.
@@ -95,15 +137,9 @@ class InitCommand extends Command<int> {
       ..addOption(
         'sdk-key',
         help:
-            'Your app\'s publishable key (rs_pk_...). Written to build.yaml so '
-            'the startup request is built into the app.',
-      )
-      ..addFlag(
-        'early-request',
-        help:
-            'Build the startup request into the app so it is sent before '
-            'Dart starts. Turn off only for an app that cannot use it.',
-        defaultsTo: true,
+            'Your app\'s publishable key (rs_pk_...). Written to build.yaml, '
+            'so the app sends its first request before Dart starts and '
+            'Restage.configure uses it by default.',
       )
       ..addFlag(
         'starter',
@@ -113,9 +149,10 @@ class InitCommand extends Command<int> {
       ..addFlag(
         'add-deps',
         help:
-            'Add `restage` and `restage_material` (dependencies) plus '
-            '`restage_codegen` and `build_runner` (dev_dependencies) to '
-            'pubspec.yaml.',
+            'Add `restage` and `restage_material` (dependencies), '
+            '`restage_codegen` and `build_runner` (dev_dependencies), and the '
+            'overrides they need to pubspec.yaml. Restage packages come from '
+            'the main branch of github.com/restage-dev/restage.',
         defaultsTo: true,
       )
       ..addFlag(
@@ -201,16 +238,72 @@ class InitCommand extends Command<int> {
     final wantsDeps = results['add-deps'] as bool;
     final dryRun = results['dry-run'] as bool;
 
+    final buildYamlFile = File(p.join(root.path, 'build.yaml'));
+    final buildYamlSource = buildYamlFile.existsSync()
+        ? await buildYamlFile.readAsString()
+        : null;
+    final sdkKey = results['sdk-key'] as String?;
+    // With a key, the service URL comes from the sign-in, else the backend
+    // every other command uses; init names it when it isn't the sign-in's.
+    final signedInUrl = context.endpoint;
+    final serviceUrl = sdkKey == null
+        ? null
+        : canonicalServiceUrl(
+            signedInUrl ??
+                (await configuredBackend(
+                  credentialStore: _credentialStore,
+                )).toString(),
+          );
+    final buildYamlPlan = planBuildYaml(
+      buildYamlSource,
+      apiKey: sdkKey,
+      baseUrl: serviceUrl,
+    );
+    final hasIos = Directory(p.join(root.path, 'ios', 'Runner')).existsSync();
+
     // Read the pubspec once; both the dry-run plan and the apply path
     // consume the same source.
     final pubspecSource = wantsDeps ? await pubspec.readAsString() : '';
-    final pubspecPlan = wantsDeps
-        ? planAddDependencies(
-            pubspecSource,
-            deps: _defaultRuntimeDeps,
-            devDeps: _defaultDevDeps,
-          )
-        : null;
+    final assets = [
+      if (hasIos && buildYamlPlan.hasApiKey) iosEarlyTemplateAsset,
+    ];
+    // A pubspec the editor can't walk is refused before anything is written.
+    if (wantsDeps && _parsesWithoutMap(pubspecSource)) {
+      _stderr.writeln(
+        'pubspec.yaml does not parse as a map of keys, so init changed '
+        'nothing. Try fixing it, then run init again.',
+      );
+      return 1;
+    }
+    if (wantsDeps) {
+      if (_nonMapBlock(pubspecSource) case final key?) {
+        _stderr.writeln(
+          'pubspec.yaml gives `$key` as something other than a map of '
+          'entries, so init changed nothing. Try writing it as a map, then '
+          'run init again.',
+        );
+        return 1;
+      }
+    }
+    final AddDependenciesPlan? pubspecPlan;
+    try {
+      pubspecPlan = wantsDeps
+          ? planAddDependencies(
+              pubspecSource,
+              deps: initRuntimeDeps,
+              devDeps: initDevDeps,
+              overrides: initOverrides,
+              sources: restageSources,
+              flutterAssets: assets,
+            )
+          : null;
+    } on FormatException catch (error) {
+      _stderr.writeln(
+        'pubspec.yaml does not parse, so init changed nothing: '
+        '${_describe(error)}. Try fixing that line, then run init again.',
+      );
+      return 1;
+    }
 
     final starterFile = File(
       p.join(root.path, 'lib', 'paywalls', 'starter.dart'),
@@ -221,28 +314,6 @@ class InitCommand extends Command<int> {
         ? await gitignoreFile.readAsString()
         : '';
     final gitignorePlan = planPortableOutputIgnores(gitignoreSource);
-    final buildYamlFile = File(p.join(root.path, 'build.yaml'));
-    final buildYamlSource = buildYamlFile.existsSync()
-        ? await buildYamlFile.readAsString()
-        : null;
-    final stateInputsPlan = planStateBuildInputs(buildYamlSource);
-    final earlyPlan = planEarlyRequestOptions(
-      stateInputsPlan.source,
-      baseUrl: context.endpoint,
-      apiKey: results['sdk-key'] as String?,
-      enabled: results['early-request'] as bool,
-    );
-    final buildYamlPlan = earlyPlan.action == StateBuildInputsAction.keep
-        ? stateInputsPlan
-        : StateBuildInputsPlan(
-            earlyPlan.action == StateBuildInputsAction.manual
-                ? StateBuildInputsAction.manual
-                : stateInputsPlan.action == StateBuildInputsAction.create
-                ? StateBuildInputsAction.create
-                : StateBuildInputsAction.update,
-            earlyPlan.source,
-          );
-
     final manifestFile = File(p.join(root.path, androidMainManifestPath));
     final manifestUpdate = manifestFile.existsSync()
         ? addAndroidInternetPermission(await manifestFile.readAsString())
@@ -273,6 +344,27 @@ class InitCommand extends Command<int> {
 
     if (dryRun) return 0;
 
+    // Composed and checked before anything is written.
+    final pubspecResult =
+        wantsDeps && pubspecPlan != null && !pubspecPlan.isNoOp
+        ? addDependencies(
+            pubspecSource,
+            deps: initRuntimeDeps,
+            devDeps: initDevDeps,
+            overrides: initOverrides,
+            sources: restageSources,
+            flutterAssets: assets,
+          )
+        : null;
+    if (pubspecResult != null && !_parsesAsMap(pubspecResult.source)) {
+      _stderr.writeln(
+        'Could not update pubspec.yaml safely, so init changed nothing. Try '
+        'adding the entries `restage init --dry-run` lists by hand, then run '
+        'init again.',
+      );
+      return 1;
+    }
+
     // Apply.
     if (gitignorePlan.isNoOp) {
       _stdout.writeln(
@@ -286,14 +378,25 @@ class InitCommand extends Command<int> {
       );
     }
 
-    await _applyBuildYaml(buildYamlFile, buildYamlPlan);
-    if (results['early-request'] as bool && results['sdk-key'] == null) {
+    await _applyBuildYaml(
+      buildYamlFile,
+      buildYamlPlan,
+      apiKey: sdkKey,
+      baseUrl: serviceUrl,
+    );
+    if (!buildYamlPlan.hasApiKey) {
       _stdout.writeln(
-        'Next: add your publishable key under '
-        'targets.\$default.builders.$earlyRequestBuilderKey.options in '
-        'build.yaml as api_key (the key you pass to Restage.configure), or '
-        're-run with --sdk-key rs_pk_... Builds stop until it is set, '
-        'unless you pass --no-early-request.',
+        "No publishable key yet, so the first-launch request isn't built "
+        'into the app. Try `restage init --sdk-key rs_pk_...` when you set '
+        'up hosted delivery.',
+      );
+    } else if (serviceUrl != null &&
+        signedInUrl == null &&
+        buildYamlPlan.written.contains('the service URL')) {
+      _stdout.writeln(
+        "You aren't signed in, so build.yaml uses $serviceUrl as the service "
+        'URL. If your app uses another server, try replacing `base_url` '
+        'under $deliveryOptionsBuilderKey in build.yaml with its URL.',
       );
     }
 
@@ -345,13 +448,15 @@ class InitCommand extends Command<int> {
       }
     }
 
-    if (wantsDeps && pubspecPlan != null && !pubspecPlan.isNoOp) {
-      final result = addDependencies(
-        pubspecSource,
-        deps: _defaultRuntimeDeps,
-        devDeps: _defaultDevDeps,
-      );
+    if (pubspecResult case final result?) {
       await pubspec.writeAsString(result.source);
+      if (result.converted.isNotEmpty) {
+        _stdout.writeln(
+          'Moved ${result.converted.join(', ')} from pub.dev to the main '
+          'branch of github.com/restage-dev/restage, so every Restage '
+          'package comes from one commit.',
+        );
+      }
       if (result.added.isNotEmpty) {
         _stdout.writeln(
           'Updated pubspec.yaml — added: ${result.added.join(', ')}.',
@@ -364,6 +469,17 @@ class InitCommand extends Command<int> {
       }
     } else if (wantsDeps) {
       _stdout.writeln('Pubspec dependencies already wired.');
+    }
+
+    // A listed asset must exist before the first build writes it.
+    final placeholder = File(p.join(root.path, iosEarlyTemplateAsset));
+    if (hasIos &&
+        !placeholder.existsSync() &&
+        _listsAsset(await pubspec.readAsString(), iosEarlyTemplateAsset)) {
+      await placeholder.writeAsString('{}\n');
+      _stdout.writeln(
+        'Wrote an empty $iosEarlyTemplateAsset; the next build fills it.',
+      );
     }
 
     _stdout.writeln();
@@ -403,18 +519,20 @@ class InitCommand extends Command<int> {
     return 0;
   }
 
-  Future<void> _applyBuildYaml(File file, StateBuildInputsPlan plan) async {
+  Future<void> _applyBuildYaml(
+    File file,
+    StateBuildInputsPlan plan, {
+    String? apiKey,
+    String? baseUrl,
+  }) async {
+    final written = _joined(plan.written);
     switch (plan.action) {
       case StateBuildInputsAction.create:
         await file.writeAsString(plan.source);
-        _stdout.writeln(
-          "Wrote build.yaml so builds track Restage's state files.",
-        );
+        _stdout.writeln('Wrote build.yaml: $written.');
       case StateBuildInputsAction.update:
         await file.writeAsString(plan.source);
-        _stdout.writeln(
-          "Updated build.yaml so builds track Restage's state files.",
-        );
+        _stdout.writeln('Updated build.yaml: $written.');
       case StateBuildInputsAction.keep:
         _stdout.writeln(
           "Kept build.yaml; it already tracks Restage's state files.",
@@ -427,8 +545,28 @@ class InitCommand extends Command<int> {
         for (final entry in restageStateBuildInputs) {
           _stdout.writeln('  - $entry');
         }
+        if (apiKey != null || baseUrl != null) {
+          _stdout.writeln(
+            'and these options under '
+            'targets.\$default.builders.$deliveryOptionsBuilderKey.options:',
+          );
+          if (apiKey != null) _stdout.writeln('  api_key: $apiKey');
+          if (baseUrl != null) _stdout.writeln('  base_url: $baseUrl');
+        }
+    }
+    for (final option in plan.kept) {
+      final given = option == 'api_key' ? apiKey : baseUrl;
+      _stdout.writeln(
+        'build.yaml already sets a different $option under '
+        '$deliveryOptionsBuilderKey, so it was kept. Try replacing it there '
+        'with `$option: $given` if you meant to change it.',
+      );
     }
   }
+
+  static String _joined(List<String> parts) => parts.length < 2
+      ? parts.join()
+      : '${parts.sublist(0, parts.length - 1).join(', ')} and ${parts.last}';
 
   void _reportEndpoint(_InitContext context) {
     final endpoint = context.endpoint;
@@ -864,7 +1002,9 @@ class InitCommand extends Command<int> {
     if (pubspecPlan != null && !pubspecPlan.isNoOp) {
       _stdout.writeln('  update pubspec.yaml:');
       for (final entry in pubspecPlan.dependenciesToAdd.entries) {
-        _stdout.writeln('    dependencies: + ${entry.key}: ${entry.value}');
+        _stdout.writeln(
+          '    dependencies: + ${entry.key}: ${_renderSource(entry.value)}',
+        );
       }
       for (final entry in pubspecPlan.dependenciesToKeep.entries) {
         _stdout.writeln(
@@ -873,11 +1013,32 @@ class InitCommand extends Command<int> {
         );
       }
       for (final entry in pubspecPlan.devDependenciesToAdd.entries) {
-        _stdout.writeln('    dev_dependencies: + ${entry.key}: ${entry.value}');
+        _stdout.writeln(
+          '    dev_dependencies: + ${entry.key}: '
+          '${_renderSource(entry.value)}',
+        );
       }
       for (final entry in pubspecPlan.devDependenciesToKeep.entries) {
         _stdout.writeln(
           '    dev_dependencies: = ${entry.key}: '
+          '${_renderConstraint(entry.value)} (kept)',
+        );
+      }
+      for (final name in pubspecPlan.toConvert) {
+        _stdout.writeln('    $name: pub.dev -> git main');
+      }
+      for (final asset in pubspecPlan.assetsToAdd) {
+        _stdout.writeln('    flutter assets: + $asset');
+      }
+      for (final entry in pubspecPlan.overridesToAdd.entries) {
+        _stdout.writeln(
+          '    dependency_overrides: + ${entry.key}: '
+          '${_renderSource(entry.value)}',
+        );
+      }
+      for (final entry in pubspecPlan.overridesToKeep.entries) {
+        _stdout.writeln(
+          '    dependency_overrides: = ${entry.key}: '
           '${_renderConstraint(entry.value)} (kept)',
         );
       }
@@ -897,8 +1058,11 @@ class InitCommand extends Command<int> {
       StateBuildInputsAction.manual => 'update',
       StateBuildInputsAction.keep => 'keep',
     };
+    final buildYamlChanges = buildYamlPlan.written.isEmpty
+        ? 'track Restage state files'
+        : _joined(buildYamlPlan.written);
     _stdout.writeln(
-      '  $buildYamlAction ${buildYamlFile.path} (track Restage state files)',
+      '  $buildYamlAction ${buildYamlFile.path} ($buildYamlChanges)',
     );
     if (manifestFile.existsSync()) {
       _stdout.writeln(
@@ -914,6 +1078,71 @@ class InitCommand extends Command<int> {
   /// pointer.
   String _renderConstraint(String value) =>
       value == complexConstraintMarker ? '(see pubspec)' : value;
+
+  static bool _listsAsset(String pubspec, String asset) {
+    try {
+      final assets = (loadYaml(pubspec) as YamlMap?)?['flutter']?['assets'];
+      return assets is YamlList && assets.contains(asset);
+    } on Object {
+      return false;
+    }
+  }
+
+  // The first block init edits that holds entries but isn't a map, or null.
+  static String? _nonMapBlock(String source) {
+    final Object? doc;
+    try {
+      doc = loadYaml(source);
+    } on YamlException {
+      return null;
+    }
+    if (doc is! YamlMap) return null;
+    for (final key in const [
+      'dependencies',
+      'dev_dependencies',
+      'dependency_overrides',
+      'flutter',
+    ]) {
+      final value = doc[key];
+      final empty =
+          value == null ||
+          (value is String && value.isEmpty) ||
+          (value is YamlList && value.isEmpty);
+      if (!empty && value is! YamlMap) return key;
+    }
+    return null;
+  }
+
+  // The parse error's message without its final period, with its line.
+  static String _describe(FormatException error) {
+    final message = error.message.replaceFirst(RegExp(r'\.+$'), '');
+    final line = error is YamlException ? error.span?.start.line : null;
+    return line == null ? message : '$message at line ${line + 1}';
+  }
+
+  // A YAML parse error is reported with its line by the plan instead.
+  static bool _parsesWithoutMap(String source) {
+    try {
+      return loadYaml(source) is! YamlMap;
+    } on YamlException {
+      return false;
+    }
+  }
+
+  static bool _parsesAsMap(String source) {
+    try {
+      return loadYaml(source) is YamlMap;
+    } on YamlException {
+      return false;
+    }
+  }
+
+  /// Render a constraint or a git source as one short phrase.
+  String _renderSource(Object value) => switch (value) {
+    {'git': {'ref': final Object ref, 'path': final Object path}} =>
+      'git $ref ($path)',
+    _ => '$value',
+  };
 }
 
 class _InitContext {

@@ -10,6 +10,10 @@ void main() {
       expect(src, contains('class StarterPaywall extends StatelessWidget'));
       expect(src, contains("import 'package:flutter/material.dart';"));
       expect(src, contains("import 'package:restage/restage.dart';"));
+      expect(src, contains("part 'restage.generated/starter.restage.g.dart';"));
+      expect(src, contains('final VoidCallback? onContinue;'));
+      expect(src, contains('onPressed: onContinue,'));
+      expect(src, isNot(contains('paywallEvent')));
     });
 
     test('pascal-cases a slug with dashes', () {

@@ -68,10 +68,9 @@ Future<void> main() async {
   if (_baseUrl.isEmpty) {
     slug = _surfaceSlug.isEmpty ? _bundledPaywallId : _surfaceSlug;
     final envelope = await buildPaywallSurfaceEnvelope(slug);
+    // The fake server is in-process, so the SDK itself stays offline.
     Restage.configure(
       deliveryKeys: [demoDeliveryKey],
-      apiKey: _fakeApiKey,
-      baseUrl: _fakeBaseUrl,
       resolver: RestageVariantResolver(
         apiKey: _fakeApiKey,
         environment: RestageEnvironment.sandbox,

@@ -8,11 +8,6 @@ additional_public_assets:
 targets:
   $default:
     builders:
-      # The demo sends its first request from Dart. To build it into the app
-      # instead, replace this with the base_url and api_key it configures.
-      restage_codegen:restage_early_template:
-        options:
-          early_request: false
       restage_codegen:restage_source_roster:
         options:
           bundled_runtime: true

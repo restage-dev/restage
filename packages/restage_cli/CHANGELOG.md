@@ -28,12 +28,12 @@ the same.
 `restage docs search` finds sections of the Restage documentation with their
 URLs; `restage docs read` prints a page, or one section, as Markdown.
 
-`restage experiment`, `restage mutation` and `restage experiment-activation`
-are **experimental** and are hidden from `--help` by default. They call
-endpoints the hosted service does not serve yet, so running one without opting
-in refuses with an explanation rather than failing against a missing route. Set
+`restage mutation` and `restage experiment-activation` are **experimental**
+and are hidden from `--help` by default. They call endpoints the hosted service
+does not serve yet, so running one without opting in refuses with an
+explanation rather than failing against a missing route. Set
 `RESTAGE_EXPERIMENTAL=1` to enable them; expect their interfaces to change
-without a deprecation.
+without a deprecation. `restage experiment` is available by default.
 
 `restage experiment` has one subcommand per operation — `discover`, `create`,
 `read-draft`, `save`, `copy`, `validate`, `review`, `activate`, `pause`,
@@ -70,6 +70,29 @@ supplies it. `restage init --force` updates an existing config without asking.
 `restage init` with a `--organization`, `--project`, `--app`, `--env` or
 `--plane` value the existing config does not hold updates the config without
 `--force`. It changes only the target and keeps every other setting.
+
+`restage init` adds `restage`, `restage_material` and `restage_codegen` from the
+`main` branch of the public repository, with the two overrides that keep every
+Restage package on that commit, and lists `.restage/**` under
+`additional_public_assets` in `build.yaml`, in place of the older
+`.restage/...` entries it covers. A Restage package the pubspec already takes
+from pub.dev moves to the same `main`, so `flutter pub get` resolves. It says
+what it wrote to `build.yaml`. Without a key, builds work offline.
+
+**Breaking:** `--sdk-key` writes `api_key` and `base_url` under the
+`restage_codegen:user_factories` options, where the build reads them, instead
+of under `restage_codegen:restage_early_template`; options already under the old
+builder move there and `early_request` is dropped. The service URL is the
+sign-in's, else the backend every other command uses (`RESTAGE_BACKEND_URL`,
+then Restage Cloud), without a trailing slash; init says when it isn't the
+sign-in's. With a key and an `ios/Runner` directory, init lists
+`ios/Runner/restage_early.json` under `flutter: assets:` and writes it as `{}`
+until the first build fills it, so the app builds before `build_runner` runs.
+`--no-early-request` is removed.
+
+`restage init` adds `build_runner` at `>=2.7.0`, fills an empty
+`dependency_overrides:` key instead of adding a second one, and changes nothing
+when `pubspec.yaml` does not parse.
 
 Commands:
 

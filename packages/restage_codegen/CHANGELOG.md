@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **Breaking:** `api_key`, `base_url` and `channel` move from the
+  `restage_early_template` options to the `restage_codegen:user_factories`
+  options in `build.yaml`, and build.yaml is their only source:
+  `RESTAGE_API_KEY` and `RESTAGE_BASE_URL` are no longer read. With a key and
+  URL set, the generated `kRestageWidgetRegistration`, the app's generated
+  Restage setup, carries them, and the startup request templates are built from
+  them. Without them the build succeeds, writes no template and prints one line
+  saying so. Options left under `restage_early_template` are reported, not
+  read. A package with `user_factories` disabled builds no startup request.
+- **Breaking:** the `early_request: false` option of the
+  `restage_early_template` builder and `RESTAGE_EARLY_REQUEST` are removed; a
+  build without a key no longer needs them.
+- `base_url` is written without trailing slashes.
+- When `pubspec.yaml` lists `ios/Runner/restage_early.json` as a Flutter asset,
+  the build always writes it, as `{}` when there is no key, so a Flutter build
+  never misses the asset. A keyed build with an `ios/Runner` directory warns
+  when the entry is missing. A target whose `sources:` leave out `pubspec.yaml`
+  has it read from the package root for this check.
+
 - **Breaking:** generated flow and screen mounts take optional
   `fallbackBuilder` and `errorBuilder` in place of `unavailable:`; generated
   paywall mounts add `fallbackBuilder` beside `errorBuilder`. Omitting
@@ -30,10 +49,6 @@
 - **Breaking:** generated event types are named `<Class>SurfaceEvent`, and
   per-field events `<Class>Surface<Field>Event`. They were `<Class>Event`, which
   could collide with your own classes. Rename references to them in your code.
-- **Breaking:** the `restage_early_template` builder requires `api_key` and
-  `base_url` options in `build.yaml`. Without them the build stops and prints
-  the lines to add. `early_request: false` under the options opts out; the first
-  request is then sent from Dart.
 - **Breaking, unreleased A2UI 1.0 candidate migration:** generate
   `ComponentImplementation` / `CatalogImplementation` for
   `a2ui_flutter 0.0.1-wip003` and `a2ui_core ^0.4.0` (Dart >=3.11.0,
