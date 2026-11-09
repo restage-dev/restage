@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+**Breaking:** an app built with `restage_codegen` sends its first placement
+request from the Android and iOS plugins, before Dart starts, from a template
+the build writes to `android/app/src/main/assets/restage_early.json` and
+`ios/Runner/restage_early.json`. The template uses the `api_key` and
+`base_url` you set under the `restage_codegen:user_factories` options in
+`build.yaml`. Without them the app builds and runs offline, the build says so
+in one line, and the first request is sent from Dart. The
+`early_request: false` option and `RESTAGE_EARLY_REQUEST` are removed. iOS
+reads the template from the app's Flutter assets when `pubspec.yaml` lists
+`ios/Runner/restage_early.json` under `flutter: assets:`, so nothing has to be
+added to the Xcode project; `restage init` adds the entry.
+
+`Restage.configure` and `Restage.configureWithInstalledCatalog` take the same
+key, service URL and channel from the app's generated setup,
+`kRestageWidgetRegistration`, when you pass it as `registerWidgets:`, so your
+Dart code doesn't repeat them. A value you pass wins. `apiKey: ''` turns hosted
+delivery off in Dart, but the built-in first-launch request is still sent; leave
+`api_key` out of `build.yaml` for an offline app.
+`configureWithInstalledCatalog` now takes `registerWidgets:` too.
+
+The service URL is used without trailing slashes, so `https://api.restage.dev/`
+and `https://api.restage.dev` configure the same service. A blank `baseUrl` is
+no URL.
+
+In debug builds, the app reports through `FlutterError.onError`, with the fix,
+when it configures hosted delivery with no first-launch request in the app
+bundle or with one built for another key or URL, and when it has a first-launch
+request built in but its `Restage.configure` or
+`Restage.configureWithInstalledCatalog` call got no key.
+
 Add `Restage.privacy.request()` for current-install erasure, with durable retries
 and local identity reset after confirmed completion. It uses the existing
 governed transport opt-in. Debug builds warn when an identity, consent or privacy
@@ -120,14 +150,6 @@ again, and they render.
 default is described above). A surface with a saved
 version waits `freshWindow` (150 ms by default) for a newer one, then shows the
 saved version. `dart fix --apply` renames the parameter.
-
-**Breaking:** an app built with `restage_codegen` sends its first placement
-request from the Android and iOS plugins, before Dart starts, from a template
-the build writes to `android/app/src/main/assets/restage_early.json` and
-`ios/Runner/restage_early.json`. The build step needs `api_key` and `base_url`
-options. Without them the build stops and prints the lines to add.
-`early_request: false` under the options opts out; the first request is then
-sent from Dart.
 
 Generated code passes the app's surfaces to the SDK at startup through
 `Restage.declareSurfaces`. Apps don't call it directly.

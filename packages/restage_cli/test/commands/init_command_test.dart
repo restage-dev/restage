@@ -9,6 +9,10 @@ import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
+
+import 'package:restage_cli/src/api/default_endpoint.dart';
+import 'package:restage_shared/restage_shared.dart' show canonicalServiceUrl;
 
 import '../_helpers/test_fixtures.dart';
 
@@ -166,17 +170,45 @@ void main() {
         expect(stdout.toString(), contains('restage surface push starter'));
         expect(stdout.toString(), isNot(contains('restage paywall push')));
 
-        // Pubspec edits applied.
+        // Pubspec edits applied: every Restage package from the same main.
         final pubspecContent = await File(
           p.join(tempDir.path, 'pubspec.yaml'),
         ).readAsString();
-        expect(pubspecContent, contains('restage'));
-        expect(pubspecContent, contains('restage: ^2.0.0'));
-        expect(pubspecContent, contains('restage_material: ^2.0.0'));
-        expect(pubspecContent, contains('restage_codegen'));
-        expect(pubspecContent, contains('restage_codegen: ^2.0.0'));
-        expect(pubspecContent, contains('build_runner'));
+        Map<String, Object?> git(String path) => {
+          'git': {
+            'url': 'https://github.com/restage-dev/restage.git',
+            'ref': 'main',
+            'path': path,
+          },
+        };
+        final written =
+            _plain(loadYaml(pubspecContent))! as Map<String, Object?>;
+        expect(written['dependencies'], {
+          'flutter': {'sdk': 'flutter'},
+          'restage': git('packages/restage'),
+          'restage_material': git('packages/restage_material'),
+        });
+        expect(written['dev_dependencies'], {
+          'build_runner': '>=2.7.0 <3.0.0',
+          'restage_codegen': git('packages/restage_codegen'),
+        });
+        expect(written['dependency_overrides'], {
+          'restage_material': git('packages/restage_material'),
+          'rfw_catalog_schema': git('packages/rfw_catalog_schema'),
+        });
+        expect(
+          pubspecContent,
+          contains('dependency_overrides:\n  restage_material:\n    git:\n'),
+        );
         expect(pubspecContent, isNot(contains('assets/restage/bundles')));
+        expect(
+          stdout.toString(),
+          contains(
+            "No publishable key yet, so the first-launch request isn't built "
+            'into the app. Try `restage init --sdk-key rs_pk_...` when you '
+            'set up hosted delivery.',
+          ),
+        );
 
         final gitignoreContent = await File(
           p.join(tempDir.path, '.gitignore'),
@@ -324,6 +356,215 @@ void main() {
       });
     });
 
+    group('Restage from pub.dev', () {
+      test('moves to git main, with the overrides at the end', () async {
+        await _writePubspec(tempDir, '''
+name: my_app
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  restage: ^2.0.0
+
+dev_dependencies:
+  build_runner: ^2.4.0
+  restage_codegen: ^2.0.0
+
+flutter:
+  uses-material-design: true
+  # assets:
+  #   - images/a_dot_burr.jpeg
+''');
+        expect(
+          await _runInit(
+            stdout,
+            stderr,
+            store,
+            tempDir,
+            extra: const ['--add-deps'],
+          ),
+          0,
+        );
+        final source = File(
+          p.join(tempDir.path, 'pubspec.yaml'),
+        ).readAsStringSync();
+        final written = _plain(loadYaml(source))! as Map<String, Object?>;
+        Map<String, Object?> git(String path) => {
+          'git': {
+            'url': 'https://github.com/restage-dev/restage.git',
+            'ref': 'main',
+            'path': path,
+          },
+        };
+        expect(
+          (written['dependencies']! as Map)['restage'],
+          git('packages/restage'),
+        );
+        expect(
+          (written['dev_dependencies']! as Map)['restage_codegen'],
+          git('packages/restage_codegen'),
+        );
+        expect((written['dev_dependencies']! as Map)['build_runner'], '^2.4.0');
+        expect(
+          source.indexOf('dependency_overrides:'),
+          greaterThan(source.indexOf('#   - images/a_dot_burr.jpeg')),
+        );
+        expect(
+          stdout.toString(),
+          contains(
+            'Moved restage, restage_codegen from pub.dev to the main branch '
+            'of github.com/restage-dev/restage, so every Restage package '
+            'comes from one commit.\n',
+          ),
+        );
+      });
+    });
+
+    group('pubspec.yaml', () {
+      Future<int?> init() =>
+          _runInit(stdout, stderr, store, tempDir, extra: const ['--add-deps']);
+      File pubspec() => File(p.join(tempDir.path, 'pubspec.yaml'));
+
+      test('an empty dependency_overrides key is filled, once', () async {
+        await _writePubspec(
+          tempDir,
+          '$_starterPubspec\ndependency_overrides:\n',
+        );
+        expect(await init(), 0);
+        final source = pubspec().readAsStringSync();
+        expect(
+          'dependency_overrides:'.allMatches(source),
+          hasLength(1),
+          reason: source,
+        );
+        final overrides =
+            (loadYaml(source) as YamlMap)['dependency_overrides'] as YamlMap;
+        expect(
+          overrides.keys,
+          containsAll(['restage_material', 'rfw_catalog_schema']),
+        );
+      });
+
+      test('a list at the top is refused with nothing written', () async {
+        const list = '- a\n- b\n';
+        await _writePubspec(tempDir, list);
+        expect(await init(), 1);
+        expect(pubspec().readAsStringSync(), list);
+        expect(
+          stderr.toString(),
+          contains('pubspec.yaml does not parse as a map of keys'),
+        );
+        expect(File(p.join(tempDir.path, 'build.yaml')).existsSync(), isFalse);
+      });
+
+      test('a dependency block given as a list is refused', () async {
+        const listed =
+            'name: my_app\ndependencies: [flutter, cupertino_icons]\n';
+        await _writePubspec(tempDir, listed);
+        expect(await init(), 1);
+        expect(pubspec().readAsStringSync(), listed);
+        expect(
+          stderr.toString(),
+          contains(
+            'pubspec.yaml gives `dependencies` as something other than a map '
+            'of entries, so init changed nothing.',
+          ),
+        );
+        expect(File(p.join(tempDir.path, 'build.yaml')).existsSync(), isFalse);
+      });
+
+      test('one that does not parse is refused with nothing written', () async {
+        const broken = 'name: my_app\nname: other\n';
+        await _writePubspec(tempDir, broken);
+        expect(await init(), 1);
+        expect(pubspec().readAsStringSync(), broken);
+        expect(
+          stderr.toString(),
+          contains(
+            'pubspec.yaml does not parse, so init changed nothing: Duplicate '
+            'mapping key at line 2. Try fixing that line',
+          ),
+        );
+        expect(File(p.join(tempDir.path, 'build.yaml')).existsSync(), isFalse);
+      });
+    });
+
+    group('the iOS first-launch request', () {
+      setUp(() async {
+        await _writePubspec(tempDir);
+        Directory(
+          p.join(tempDir.path, 'ios', 'Runner'),
+        ).createSync(recursive: true);
+      });
+
+      List<Object?>? assets() =>
+          ((_plain(
+                        loadYaml(
+                          File(
+                            p.join(tempDir.path, 'pubspec.yaml'),
+                          ).readAsStringSync(),
+                        ),
+                      )!
+                      as Map)['flutter']
+                  as Map?)?['assets']
+              as List<Object?>?;
+
+      test('is listed as a Flutter asset with a key', () async {
+        expect(
+          await _runInit(
+            stdout,
+            stderr,
+            store,
+            tempDir,
+            extra: const ['--add-deps', '--sdk-key', 'rs_pk_sandbox_dev_abc'],
+          ),
+          0,
+        );
+        expect(assets(), ['ios/Runner/restage_early.json']);
+        // So a Flutter build before the first build_runner finds it.
+        expect(
+          File(
+            p.join(tempDir.path, 'ios', 'Runner', 'restage_early.json'),
+          ).readAsStringSync(),
+          '{}\n',
+        );
+      });
+
+      test('keeps a request file the build already wrote', () async {
+        final file = File(
+          p.join(tempDir.path, 'ios', 'Runner', 'restage_early.json'),
+        )..writeAsStringSync('{"url":"built"}');
+        expect(
+          await _runInit(
+            stdout,
+            stderr,
+            store,
+            tempDir,
+            extra: const ['--add-deps', '--sdk-key', 'rs_pk_sandbox_dev_abc'],
+          ),
+          0,
+        );
+        expect(file.readAsStringSync(), '{"url":"built"}');
+      });
+
+      test('is not listed without a key', () async {
+        expect(
+          await _runInit(
+            stdout,
+            stderr,
+            store,
+            tempDir,
+            extra: const ['--add-deps'],
+          ),
+          0,
+        );
+        expect(assets(), isNull);
+      });
+    });
+
     group('build.yaml', () {
       setUp(() => _writePubspec(tempDir));
 
@@ -333,11 +574,11 @@ void main() {
         expect(await _runInit(stdout, stderr, store, tempDir), 0);
         expect(
           buildYaml().readAsStringSync(),
-          contains('  - .restage/wire-ids.events.jsonl\n'),
+          'additional_public_assets:\n  - .restage/**\n',
         );
         expect(
           stdout.toString(),
-          contains("Wrote build.yaml so builds track Restage's state files.\n"),
+          contains('Wrote build.yaml: state file tracking.\n'),
         );
 
         stdout.clear();
@@ -354,16 +595,124 @@ void main() {
         buildYaml().writeAsStringSync('targets:\n  \$default: {}\n');
 
         expect(await _runInit(stdout, stderr, store, tempDir), 0);
+        expect(buildYaml().readAsStringSync(), contains('  - .restage/**\n'));
         expect(
-          buildYaml().readAsStringSync(),
-          contains('  - .restage/measurement-state.json\n'),
+          stdout.toString(),
+          contains('Updated build.yaml: state file tracking.\n'),
         );
+      });
+
+      YamlMap deliveryOptions() =>
+          (loadYaml(buildYaml().readAsStringSync())
+                  as YamlMap)['targets'][r'$default']['builders']['restage_codegen:user_factories']['options']
+              as YamlMap;
+
+      test(
+        '--sdk-key signed out writes the default service URL and says so',
+        () async {
+          expect(
+            await _runInit(
+              stdout,
+              stderr,
+              store,
+              tempDir,
+              extra: const ['--sdk-key', 'rs_pk_sandbox_dev_abc'],
+            ),
+            0,
+          );
+          final url = canonicalServiceUrl(defaultRestageEndpoint);
+          expect(deliveryOptions()['api_key'], 'rs_pk_sandbox_dev_abc');
+          expect(deliveryOptions()['base_url'], url);
+          expect(stdout.toString(), isNot(contains('No publishable key')));
+          expect(
+            stdout.toString(),
+            contains(
+              'Wrote build.yaml: state file tracking, the service URL and the '
+              'publishable key.\n',
+            ),
+          );
+          expect(
+            stdout.toString(),
+            contains(
+              "You aren't signed in, so build.yaml uses $url as the service "
+              'URL. If your app uses another server, try replacing `base_url` '
+              'under restage_codegen:user_factories in build.yaml with its '
+              'URL.\n',
+            ),
+          );
+
+          // A rerun without the flag finds the key; a different key is kept.
+          stdout.clear();
+          expect(await _runInit(stdout, stderr, store, tempDir), 0);
+          expect(stdout.toString(), isNot(contains('No publishable key')));
+          stdout.clear();
+          expect(
+            await _runInit(
+              stdout,
+              stderr,
+              store,
+              tempDir,
+              extra: const ['--sdk-key', 'rs_pk_sandbox_dev_new'],
+            ),
+            0,
+          );
+          expect(
+            stdout.toString(),
+            contains(
+              'build.yaml already sets a different api_key under '
+              'restage_codegen:user_factories, so it was kept. Try replacing '
+              'it there with `api_key: rs_pk_sandbox_dev_new` if you meant to '
+              'change it.\n',
+            ),
+          );
+          expect(deliveryOptions()['api_key'], 'rs_pk_sandbox_dev_abc');
+        },
+      );
+
+      test(
+        '--sdk-key signed in writes the sign-in URL without its slash',
+        () async {
+          await seedCredential(store, endpoint: 'https://api.example.com/');
+          expect(
+            await _runInit(
+              stdout,
+              stderr,
+              store,
+              tempDir,
+              extra: const ['--sdk-key', 'rs_pk_sandbox_dev_abc'],
+            ),
+            0,
+          );
+          expect(deliveryOptions()['base_url'], 'https://api.example.com');
+          expect(stdout.toString(), isNot(contains("aren't signed in")));
+        },
+      );
+
+      test('an old startup-request block moves to the new options', () async {
+        buildYaml().writeAsStringSync('''
+additional_public_assets:
+  - .restage/measurement-state.json
+targets:
+  \$default:
+    builders:
+      restage_codegen:restage_early_template:
+        options:
+          api_key: rs_pk_sandbox_dev_old
+          base_url: https://api.example.com
+''');
+        expect(await _runInit(stdout, stderr, store, tempDir), 0);
+        final source = buildYaml().readAsStringSync();
+        expect(source, isNot(contains('restage_early_template')));
+        expect(source, isNot(contains('measurement-state.json')));
+        expect(deliveryOptions()['api_key'], 'rs_pk_sandbox_dev_old');
         expect(
           stdout.toString(),
           contains(
-            "Updated build.yaml so builds track Restage's state files.\n",
+            'Updated build.yaml: state file tracking and moved api_key, '
+            'base_url from restage_codegen:restage_early_template.\n',
           ),
         );
+        expect(stdout.toString(), isNot(contains('No publishable key')));
       });
 
       test('that cannot be edited names the entries to add', () async {
@@ -376,8 +725,7 @@ void main() {
           contains(
             'Could not update build.yaml safely. Add these entries to its '
             'additional_public_assets list:\n'
-            '  - .restage/measurement-state.json\n'
-            '  - .restage/wire-ids.events.jsonl\n',
+            '  - .restage/**\n',
           ),
         );
       });
@@ -1488,3 +1836,12 @@ class _ConfirmingInteractive implements Interactive {
   @override
   Spinner spinner(String message) => fail('spinner should not be called');
 }
+
+/// [node] as plain maps, lists and scalars.
+Object? _plain(Object? node) => switch (node) {
+  YamlMap() => {
+    for (final entry in node.entries) entry.key as String: _plain(entry.value),
+  },
+  YamlList() => [for (final value in node) _plain(value)],
+  _ => node,
+};

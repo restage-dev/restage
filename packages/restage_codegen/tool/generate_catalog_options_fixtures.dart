@@ -33,6 +33,16 @@ Map<String, String> emitCatalogOptionsFixtures() {
             appVocabulary: runtimeVocabulary,
             installWholeCatalog: full,
           ),
+    'packages/restage/test/runtime/fixtures/catalog_options_delivery.g.dart':
+        emitEmptyUserFactoriesDart(
+          appVocabulary: runtimeVocabulary,
+          installWholeCatalog: true,
+          delivery: (
+            apiKey: 'rs_pk_sandbox_dev_build',
+            baseUrl: 'https://build.example.com',
+            channel: 'beta',
+          ),
+        ),
     releaseRegistrationFixturePath: emitEmptyUserFactoriesDart(
       appVocabulary: releaseVocabulary,
       installWholeCatalog: true,

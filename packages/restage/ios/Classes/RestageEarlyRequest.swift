@@ -53,8 +53,8 @@ public final class RestageEarlyRequest: NSObject {
     if persistedJSON?["disabled"] as? Bool == true { return }
     // A kept template describes the build that wrote it.
     let kept = persistedJSON?["builtFor"] as? String == EarlyFacts.buildStamp() ? persisted : nil
-    let data = kept
-      ?? Bundle.main.url(forResource: "restage_early", withExtension: "json").flatMap { try? Data(contentsOf: $0) }
+    let sources: [() -> Data?] = [{ kept }, bundledTemplate, flutterAssetTemplate]
+    let data = sources.lazy.compactMap { $0() }.first { EarlyTemplate($0) != nil }
     guard let data, let template = EarlyTemplate(data) else { return }
     lock.lock()
     templateJson = String(data: data, encoding: .utf8)
@@ -75,6 +75,18 @@ public final class RestageEarlyRequest: NSObject {
     lock.lock()
     result = Result(status: status, body: bytes, headers: headers, sentAtMicros: sentAtMicros, answeredAtMicros: Int64(Date().timeIntervalSince1970 * 1_000_000))
     lock.unlock()
+  }
+
+  // The template added to the Runner target's resources.
+  private static func bundledTemplate() -> Data? {
+    Bundle.main.url(forResource: "restage_early", withExtension: "json").flatMap { try? Data(contentsOf: $0) }
+  }
+
+  // The template pubspec.yaml lists under `flutter: assets:`.
+  private static func flutterAssetTemplate() -> Data? {
+    let key = FlutterDartProject.lookupKey(forAsset: "ios/Runner/restage_early.json")
+    guard let path = Bundle.main.path(forResource: key, ofType: nil) else { return nil }
+    return try? Data(contentsOf: URL(fileURLWithPath: path))
   }
 
   private static func signalConfigured() {

@@ -71,8 +71,8 @@ builders:
 
   # The startup request templates the platform sends at app launch, computed
   # from the generated surface list, registration and parts, which are all
-  # written first. Options: base_url, api_key (or RESTAGE_BASE_URL and
-  # RESTAGE_API_KEY), channel.
+  # written first. The key, service URL and channel come from the
+  # registration, which takes them from the user_factories options.
   restage_early_template:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['restageEarlyTemplateBuilder']
@@ -309,6 +309,9 @@ builders:
   # what this package draws in its own Dart plus what its compiled surfaces
   # render. Both modes retain only app/surface icon entries. Any other value
   # fails the build.
+  # `api_key`, `base_url` and `channel` in the app's build.yaml become the
+  # generated registration's default key, service URL and channel, and the
+  # startup request templates are built from them.
   user_factories:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['userFactoryBuilder']

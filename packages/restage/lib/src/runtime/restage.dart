@@ -311,11 +311,17 @@ abstract final class Restage {
 
   /// Configures the SDK at app startup.
   ///
-  /// Without a nonblank [apiKey], default resolvers use bundled artifacts;
+  /// [apiKey] and [baseUrl] default to the ones in the app's generated setup,
+  /// `kRestageWidgetRegistration` passed as [registerWidgets], which carries
+  /// the build.yaml values as a [RestageBuildDelivery]; a value passed here
+  /// wins. Without a nonblank key, default resolvers use bundled artifacts;
   /// hosted clients, analytics, metering and governed Measurement are inactive.
+  /// `apiKey: ''` turns hosted delivery off in Dart; a first-launch request
+  /// built from build.yaml is still sent, so leave `api_key` out of build.yaml
+  /// for an offline app.
   /// Reconfiguring without a key clears prior hosted configuration. Explicit
   /// resolvers and local settings still apply; typed screens can use their
-  /// compiled fallback. Omitting [baseUrl] disables hosted operations.
+  /// compiled fallback. Without a [baseUrl], hosted operations are off.
   ///
   /// [resolver] defaults to [RestageVariantResolver]: active hosted content,
   /// last accepted content, then bundled `assets/paywalls/<id>.rfw`.
@@ -441,7 +447,11 @@ abstract final class Restage {
     bool showSourceBadges = false,
     List<String> deliveryKeys = const <String>[],
   }) {
-    configureWithInstalledCatalog(
+    _configureShared(
+      entry: 'Restage.configure',
+      registerWidgets: registerWidgets,
+      includeMaterial: includeMaterial,
+      includeCupertino: includeCupertino,
       apiKey: apiKey,
       baseUrl: baseUrl,
       channel: channel,
@@ -468,10 +478,6 @@ abstract final class Restage {
       showSourceBadges: showSourceBadges,
       deliveryKeys: deliveryKeys,
     );
-    registerWidgets?.call(
-      includeMaterial: includeMaterial,
-      includeCupertino: includeCupertino,
-    );
     if (!InstalledWidgetLibraries.hasSelection) {
       final builtIn = RestageWidgetLibraries.builtIn(
         includeMaterial: includeMaterial,
@@ -488,9 +494,11 @@ abstract final class Restage {
 
   /// Configures Restage using only the catalog the app explicitly installs.
   ///
-  /// Call generated `registerRestageWidgets()` before this method when using
-  /// `catalog: derived`. Generated surface references can also add the widgets
-  /// they need later, before mounting. An empty selection remains empty. This entrypoint
+  /// Pass the app's generated setup, `kRestageWidgetRegistration`, as
+  /// [registerWidgets] when using `catalog: derived`; it runs after shared
+  /// configuration, and its build.yaml key and service URL are the defaults
+  /// for [apiKey] and [baseUrl]. Generated surface references can also add the widgets they need
+  /// later, before mounting. An empty selection remains empty. This entrypoint
   /// has no reference to the full built-in widget or icon catalogs, allowing
   /// unused catalog entries to be removed from release builds.
   ///
@@ -499,6 +507,69 @@ abstract final class Restage {
   static void configureWithInstalledCatalog({
     String? apiKey,
     String? baseUrl,
+    RestageWidgetRegistration? registerWidgets,
+    String? channel,
+    bool analyticsEnabled = true,
+    bool measurementEnabled = true,
+    RestageEnvironment environment = RestageEnvironment.production,
+    void Function(SurfaceResolutionReport report)? onSurfaceResolution,
+    VariantResolver? resolver,
+    FlowResolver? flowResolver,
+    SurfaceScreenResolver? surfaceScreenResolver,
+    Locale? locale,
+    Future<RestageIdentity?> Function()? identity,
+    Set<SurfaceRefreshTrigger> liveRefresh = const {},
+    Map<String, Set<SurfaceRefreshTrigger>> liveRefreshOverrides = const {},
+    SurfaceUpdateChannel? updateChannel,
+    Uri? liveRefreshEdgeUrl,
+    bool governedMeasurementTransportEnabled = false,
+    RestageGovernedMeasurementTransport? governedMeasurementTransport,
+    bool deliveryReceiptsEnabled = true,
+    Duration firstLaunchWait = RenderDeadline.defaultFirstLaunchWait,
+    Map<String, Duration> firstLaunchWaits = const {},
+    Duration freshWindow = RenderDeadline.defaultFreshWindow,
+    List<RestageSurfaceRef> surfaces = const <RestageSurfaceRef>[],
+    bool showSourceBadges = false,
+    List<String> deliveryKeys = const <String>[],
+  }) =>
+      _configureShared(
+        entry: 'Restage.configureWithInstalledCatalog',
+        apiKey: apiKey,
+        baseUrl: baseUrl,
+        registerWidgets: registerWidgets,
+        channel: channel,
+        analyticsEnabled: analyticsEnabled,
+        measurementEnabled: measurementEnabled,
+        environment: environment,
+        onSurfaceResolution: onSurfaceResolution,
+        resolver: resolver,
+        flowResolver: flowResolver,
+        surfaceScreenResolver: surfaceScreenResolver,
+        locale: locale,
+        identity: identity,
+        liveRefresh: liveRefresh,
+        liveRefreshOverrides: liveRefreshOverrides,
+        updateChannel: updateChannel,
+        liveRefreshEdgeUrl: liveRefreshEdgeUrl,
+        governedMeasurementTransportEnabled:
+            governedMeasurementTransportEnabled,
+        governedMeasurementTransport: governedMeasurementTransport,
+        deliveryReceiptsEnabled: deliveryReceiptsEnabled,
+        firstLaunchWait: firstLaunchWait,
+        firstLaunchWaits: firstLaunchWaits,
+        freshWindow: freshWindow,
+        surfaces: surfaces,
+        showSourceBadges: showSourceBadges,
+        deliveryKeys: deliveryKeys,
+      );
+
+  static void _configureShared({
+    required String entry,
+    bool includeMaterial = true,
+    bool includeCupertino = true,
+    String? apiKey,
+    String? baseUrl,
+    RestageWidgetRegistration? registerWidgets,
     String? channel,
     bool analyticsEnabled = true,
     bool measurementEnabled = true,
@@ -538,13 +609,38 @@ abstract final class Restage {
         'governedMeasurementTransport, not both.',
       );
     }
+    final built = switch (registerWidgets) {
+      final RestageBuildDelivery built => built,
+      _ => null,
+    };
+    apiKey ??= built?.apiKey;
+    baseUrl ??= built?.baseUrl;
+    channel ??= built?.channel;
+    // `apiKey: ''` asks for offline; no key at all may be a missed setup.
+    final keyOmitted = apiKey == null;
     apiKey = apiKey?.trim();
     if (apiKey == null || apiKey.isEmpty) {
       apiKey = null;
       baseUrl = null;
     }
+    if (baseUrl != null) {
+      baseUrl = canonicalServiceUrl(baseUrl);
+      if (baseUrl.isEmpty) baseUrl = null;
+    }
     if (kDebugMode && apiKey != null && baseUrl != null) {
-      unawaited(EarlyRequest.debugCheckConfiguration(baseUrl, apiKey));
+      unawaited(EarlyRequest.debugCheckConfiguration(
+        baseUrl,
+        apiKey,
+        entry: entry,
+        fromBuild: built != null,
+        declaresPlacements: () => [..._buildPlacements, ...surfaces]
+            .any((ref) => ref is GeneratedPlacementDefinition),
+      ));
+    } else if (kDebugMode && keyOmitted) {
+      unawaited(EarlyRequest.debugCheckUnusedTemplate(
+        entry: entry,
+        registered: registerWidgets != null,
+      ));
     }
     _configurationGeneration += 1;
     DeliveryTrust.configure(parsedDeliveryKeys);
@@ -706,6 +802,10 @@ abstract final class Restage {
         } on Object catch (_) {}
       });
     }
+    registerWidgets?.call(
+      includeMaterial: includeMaterial,
+      includeCupertino: includeCupertino,
+    );
   }
 
   // The declared placements go at once with only in-memory facts, so a mount
@@ -1736,6 +1836,10 @@ abstract final class Restage {
   /// Test-only — exposes the API key passed to [configure].
   @internal
   static String? get debugApiKey => _apiKey;
+
+  /// Test-only — exposes the service URL [configure] uses.
+  @internal
+  static String? get debugBaseUrl => _baseUrl;
 
   /// The environment passed to [configure].
   @internal

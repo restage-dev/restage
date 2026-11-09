@@ -30,15 +30,17 @@ dependencies:
   stream_channel: ^2.1.4
   http: ^1.2.0
   meta: ^1.15.0
-  # Resolved from the workspace (the local restage_cli member). Kept as a
-  # version constraint rather than a path so this package stays publishable.
-  restage_cli: ^0.1.0
-  restage_measurement_schema: ^0.1.0
+  # Path dependencies, so a git install takes these from the same commit.
+  restage_cli:
+    path: ../restage_cli
+  restage_measurement_schema:
+    path: ../restage_measurement_schema
 
 dev_dependencies:
   args: ^2.5.0
   lints: ^6.0.0
   # Test-only: builds a canonical BlobSurfacePayload frame for the draft
-  # download test. Workspace-resolved.
-  restage_shared: ^2.0.0
+  # download test.
+  restage_shared:
+    path: ../restage_shared
   test: ^1.25.0

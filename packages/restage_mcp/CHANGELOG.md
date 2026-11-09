@@ -5,6 +5,13 @@
 Initial release: an MCP server over stdio that wraps the Restage backend,
 reusing the CLI's authenticated session.
 
+Install it from the repository with `dart pub global activate --source git
+https://github.com/restage-dev/restage.git --git-path packages/restage_mcp`.
+Its Restage dependencies come from the same commit.
+
+**Breaking:** `restage_init` no longer takes `earlyRequest`; an app without
+`sdkKey` builds and runs offline.
+
 `restage_login` signs in to Restage Cloud (`https://api.restage.dev/`) unless
 `RESTAGE_BACKEND_URL` names another backend.
 
@@ -16,11 +23,11 @@ returns the draft origin (`code` or `editor`) and `editedAfterCode`.
 `restage_docs_search` and `restage_docs_read` search and read the Restage
 documentation; they need no sign-in.
 
-`restage_experiment_apply`, `restage_apply_canonical_mutation` and
-`restage_activate_experiment` are **experimental** and are not listed by
-default because their hosted endpoints are not yet available. Set
-`RESTAGE_EXPERIMENTAL=1` on the server process to register them. Their interfaces
-may change without deprecation.
+`restage_apply_canonical_mutation` and `restage_activate_experiment` are
+**experimental** and are not listed by default because their hosted endpoints
+are not yet available. Set `RESTAGE_EXPERIMENTAL=1` on the server process to
+register them. Their interfaces may change without deprecation.
+`restage_experiment_apply` is registered by default.
 
 `restage_experiment_apply` accepts one of fifteen experiment operations with
 its typed document. `replaceDraft` takes an accepted draft result with edited
@@ -58,7 +65,7 @@ exists on both planes; it is refused rather than sent to either.
 - **API keys:** `restage_list_api_keys`, `restage_revoke_api_key` (redacted
   views only — no key hash or plaintext; minting is intentionally not exposed).
 - **Experiments:** `restage_experiment_apply` — one semantic operation at one
-  exact target (experimental).
+  exact target.
 
 No secret material (the session token, a key plaintext, a store credential)
 is ever returned on any tool output, progress, or error path.

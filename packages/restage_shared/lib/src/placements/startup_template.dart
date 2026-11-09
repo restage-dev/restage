@@ -14,6 +14,15 @@ const String kRestageSdkVersion = '2.0.0';
 /// The assignment API level this SDK speaks.
 const int kAssignmentSdkApiLevel = 4;
 
+/// [url] with surrounding whitespace and trailing slashes removed: the one
+/// form a service URL takes in build output, configuration and requests.
+String canonicalServiceUrl(String url) =>
+    url.trim().replaceFirst(RegExp(r'/+$'), '');
+
+/// The placement-resolve endpoint of the service at [baseUrl].
+Uri placementResolveUrl(String baseUrl) =>
+    Uri.parse('${canonicalServiceUrl(baseUrl)}/sdk/v1/placements/resolve');
+
 /// The capability a build presents, from its built-in catalog version, its
 /// registered libraries and the widgets and icons it installs.
 ///

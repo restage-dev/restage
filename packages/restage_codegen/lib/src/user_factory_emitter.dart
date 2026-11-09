@@ -1,5 +1,6 @@
 import 'package:restage_codegen/src/surface_publication/split_widgets.dart'
     show SplitRegistration;
+import 'package:restage_codegen/src/build_delivery.dart';
 import 'package:restage_codegen/src/custom_map_plan.dart';
 import 'package:restage_codegen/src/custom_preview_reservation.dart';
 import 'package:restage_codegen/src/custom_record_plan.dart';
@@ -61,6 +62,7 @@ String? emitUserFactoriesDart(
   NativeCatalogIndex? builtInIndex,
   List<SplitRegistration> splitRegistrations = const [],
   bool declaresSurfaces = false,
+  BuildDelivery? delivery,
 }) {
   validateCustomPreviewReservations(widgets);
   final plannedUris = referencedAppWidgetLibraryUris(
@@ -176,7 +178,7 @@ String? emitUserFactoriesDart(
   }.forEach(buf.writeln);
   buf.writeln();
   _writeAppVocabulary(buf, appVocabulary);
-  _writeRegistrationConstant(buf);
+  _writeRegistrationConstant(buf, delivery);
   buf
     ..writeln('/// Registers every emittable @RestageWidget-annotated class')
     ..writeln("/// in this package with Restage. Call once at the app's")
@@ -184,7 +186,7 @@ String? emitUserFactoriesDart(
     ..writeln('/// after `Restage.debugReset`, so test setUps may call it')
     ..writeln('/// again between cases.');
   _writeCatalogConfigurationDoc(buf, installWholeCatalog);
-  _writeRegistrationStart(buf);
+  _writeRegistrationStart(buf, delivery);
   _writeWholeCatalogInstall(buf, installWholeCatalog);
   if (dependencyFactories != null) {
     buf.writeln(dependencyFactories.registrations);
@@ -238,6 +240,7 @@ String emitEmptyUserFactoriesDart({
   bool installWholeCatalog = false,
   AppWidgetRegistrationSource? dependencyFactories,
   bool declaresSurfaces = false,
+  BuildDelivery? delivery,
 }) {
   final buf = StringBuffer();
   writeGeneratedHeader(buf);
@@ -250,10 +253,10 @@ String emitEmptyUserFactoriesDart({
   }.forEach(buf.writeln);
   buf.writeln();
   _writeAppVocabulary(buf, appVocabulary);
-  _writeRegistrationConstant(buf);
+  _writeRegistrationConstant(buf, delivery);
   buf.writeln('/// Registers the currently enabled RFW widgets.');
   _writeCatalogConfigurationDoc(buf, installWholeCatalog);
-  _writeRegistrationStart(buf);
+  _writeRegistrationStart(buf, delivery);
   _writeWholeCatalogInstall(buf, installWholeCatalog);
   if (dependencyFactories != null) {
     buf.writeln(dependencyFactories.registrations);
@@ -295,16 +298,43 @@ void _writeCatalogConfigurationDoc(StringBuffer buf, bool installWholeCatalog) {
     );
 }
 
-void _writeRegistrationConstant(StringBuffer buf) {
+void _writeRegistrationConstant(StringBuffer buf, BuildDelivery? delivery) {
+  if (delivery == null) {
+    buf
+      ..writeln(
+        '/// Pass to Restage.configure(registerWidgets: ...) to register',
+      )
+      ..writeln('/// this package with the configured family options.');
+  } else {
+    buf
+      ..writeln(
+        'const String $kBuildApiKeyName = '
+        '${dartStringLiteral(delivery.apiKey)};',
+      )
+      ..writeln(
+        'const String $kBuildBaseUrlName = '
+        '${dartStringLiteral(delivery.baseUrl)};',
+      )
+      ..writeln(
+        'const String? $kBuildChannelName = '
+        '${delivery.channel == null ? 'null' : dartStringLiteral(delivery.channel!)};',
+      )
+      ..writeln()
+      ..writeln("/// The app's generated Restage setup. Pass it to")
+      ..writeln(
+        '/// Restage.configure(registerWidgets: ...): it registers this',
+      )
+      ..writeln('/// package with the configured family options and supplies')
+      ..writeln('/// the publishable key, service URL and channel from')
+      ..writeln('/// build.yaml.');
+  }
   buf
-    ..writeln('/// Pass to Restage.configure(registerWidgets: ...) to register')
-    ..writeln('/// this package with the configured family options.')
     ..writeln('const RestageWidgetRegistration kRestageWidgetRegistration =')
     ..writeln('    _RestageWidgetRegistration();')
     ..writeln();
 }
 
-void _writeRegistrationStart(StringBuffer buf) {
+void _writeRegistrationStart(StringBuffer buf, BuildDelivery? delivery) {
   buf
     ..writeln('void registerRestageWidgets({')
     ..writeln('  bool includeMaterial = true,')
@@ -317,9 +347,26 @@ void _writeRegistrationStart(StringBuffer buf) {
     ..writeln('}')
     ..writeln()
     ..writeln('final class _RestageWidgetRegistration')
-    ..writeln('    implements RestageWidgetRegistration {')
+    ..writeln(
+      delivery == null
+          ? '    implements RestageWidgetRegistration {'
+          : '    implements RestageWidgetRegistration, RestageBuildDelivery {',
+    )
     ..writeln('  const _RestageWidgetRegistration();')
-    ..writeln()
+    ..writeln();
+  if (delivery != null) {
+    buf
+      ..writeln('  @override')
+      ..writeln('  String get apiKey => $kBuildApiKeyName;')
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln('  String get baseUrl => $kBuildBaseUrlName;')
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln('  String? get channel => $kBuildChannelName;')
+      ..writeln();
+  }
+  buf
     ..writeln('  @override')
     ..writeln('  void call({')
     ..writeln('    bool includeMaterial = true,')

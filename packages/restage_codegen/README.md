@@ -79,13 +79,15 @@ From one annotated source file:
   in the background at startup.
 - **Startup request templates** (`android/app/src/main/assets/restage_early.json`,
   `ios/Runner/restage_early.json`): the first placement request, which the
-  platform sends at app launch before Dart starts. Set `base_url` and
-  `api_key` (the values you pass to `Restage.configure`) and optionally
-  `channel` under the `restage_codegen:restage_early_template` builder options
-  in `build.yaml`; `restage init --sdk-key rs_pk_...` writes them. The build
-  stops with the exact lines to add when they are missing, and
-  `early_request: false` opts out (`RESTAGE_EARLY_REQUEST=false` in the environment skips it for one run). Add the iOS file to the Runner target's
-  resources.
+  platform sends at app launch before Dart starts. Set `api_key`, `base_url`
+  and optionally `channel` under the `restage_codegen:user_factories` builder
+  options in `build.yaml`; `restage init --sdk-key rs_pk_...` writes them. The
+  generated `kRestageWidgetRegistration` carries them, so
+  `Restage.configure(registerWidgets: kRestageWidgetRegistration)` needs no
+  `apiKey` or `baseUrl`. Without a key the build writes no template and says so
+  in one line; the app then runs offline. On iOS, list
+  `ios/Runner/restage_early.json` under `flutter: assets:` in `pubspec.yaml`
+  (`restage init` adds it); the build warns when it is missing.
 - **A publication manifest** (`.restage/build/metadata/restage.publication.json`):
   the generated files for each surface id. `restage surface push` reads it.
 

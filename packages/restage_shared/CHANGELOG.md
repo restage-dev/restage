@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+Add `canonicalServiceUrl`, the one form a service URL takes (no surrounding
+whitespace or trailing slashes), and `placementResolveUrl`, the placement-resolve
+endpoint built from it.
+
 Add `kStandardValueOperations`, the standard set of value operations a payload
 program can call.
 

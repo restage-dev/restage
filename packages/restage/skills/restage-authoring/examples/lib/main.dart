@@ -6,19 +6,12 @@ import 'onboarding/first_run.dart';
 import 'paywalls/pro_upgrade.dart';
 import 'restage_surfaces.g.dart';
 import 'surveys/mood_check.dart';
-
-// The backend's API, such as the endpoint in restage_config.yaml.
-const _baseUrl = String.fromEnvironment(
-  'RESTAGE_BASE_URL',
-  defaultValue: 'https://api.restage.dev',
-);
-// The public SDK key (rs_pk_...) for the environment to serve.
-const _apiKey = String.fromEnvironment('RESTAGE_API_KEY');
+import 'user_factories.g.dart';
 
 void main() {
   Restage.configure(
-    apiKey: _apiKey.isEmpty ? null : _apiKey,
-    baseUrl: _apiKey.isEmpty ? null : _baseUrl,
+    // Carries api_key and base_url from build.yaml; offline without them.
+    registerWidgets: kRestageWidgetRegistration,
     // Fetch every surface in the background at startup.
     surfaces: restageSurfaces,
   );

@@ -1,16 +1,18 @@
-import 'dart:io' show Directory, Platform;
+import 'dart:io' show Directory, File;
 
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:build/build.dart';
 import 'package:glob/glob.dart';
+import 'package:restage_codegen/src/build_delivery.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/surface_publication/surface_list_builder.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show PlacementKeyV1;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+import 'package:yaml/yaml.dart';
 
 /// Where the Android build reads the startup request template.
 const String kEarlyTemplateAndroidPath =
@@ -23,31 +25,18 @@ const String kEarlyTemplateIosPath = 'ios/Runner/restage_early.json';
 ///
 /// The request is computed from the generated code: the declared placements,
 /// their host contracts and the widgets, icons and libraries the app installs.
-/// Options `base_url` and `api_key` (or the environment variables
-/// `RESTAGE_BASE_URL` and `RESTAGE_API_KEY`) name the service and the
-/// publishable key; `channel` names the delivery channel the app configures.
+/// The service URL, publishable key and channel are the ones the generated
+/// registration carries from build.yaml; without them no template is written.
 final class RestageEarlyTemplateBuilder implements Builder {
+  /// Notes which of [options] moved to the user_factories builder.
   RestageEarlyTemplateBuilder(BuilderOptions options)
-    : _baseUrl = _option(options, 'base_url', 'RESTAGE_BASE_URL'),
-      _apiKey = _option(options, 'api_key', 'RESTAGE_API_KEY'),
-      _channel = options.config['channel'] as String?,
-      _enabled = options.config['early_request'] != false;
+    : _movedOptions = [
+        for (final key in const ['api_key', 'base_url', 'channel'])
+          if (options.config.containsKey(key)) key,
+      ];
 
-  final String? _baseUrl;
-  final String? _apiKey;
-  final String? _channel;
-  final bool _enabled;
-
-  /// Only an explicit RESTAGE_EARLY_REQUEST=false builds without the settings.
-  static bool get _unattended =>
-      Platform.environment['RESTAGE_EARLY_REQUEST'] == 'false';
-
-  static String? _option(BuilderOptions options, String key, String env) {
-    final value = options.config[key];
-    if (value is String && value.isNotEmpty) return value;
-    final fromEnv = Platform.environment[env];
-    return fromEnv == null || fromEnv.isEmpty ? null : fromEnv;
-  }
+  // Options this builder no longer reads; user_factories holds them now.
+  final List<String> _movedOptions;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
@@ -57,46 +46,63 @@ final class RestageEarlyTemplateBuilder implements Builder {
   @override
   Future<void> build(BuildStep buildStep) async {
     final package = buildStep.inputId.package;
-    final baseUrl = _baseUrl;
-    final apiKey = _apiKey;
+    if (_movedOptions.isNotEmpty) {
+      log.warning(
+        'build.yaml sets ${_movedOptions.join(', ')} under '
+        'restage_codegen:restage_early_template, which the build no longer '
+        'reads. Try moving them to the restage_codegen:user_factories '
+        'options, or run `restage init`.',
+      );
+    }
+    final templates = await _templates(buildStep);
+    if (templates[kEarlyTemplateAndroidPath] case final android?) {
+      await buildStep.writeAsString(
+        AssetId(package, kEarlyTemplateAndroidPath),
+        android,
+      );
+    }
+    if (!_hasPlatformDirectory(kEarlyTemplateIosPath)) return;
+    final listed = await _listsIosAsset(buildStep);
+    final ios = templates[kEarlyTemplateIosPath];
+    if (ios != null && !listed) {
+      log.warning(
+        'iOS sends the first-launch request only when pubspec.yaml lists '
+        '`$kEarlyTemplateIosPath` under `flutter: assets:`. Try '
+        '`restage init`, or add that line.',
+      );
+    }
+    // A listed asset must exist, so an app with no request gets an empty one.
+    if (ios != null || listed) {
+      await buildStep.writeAsString(
+        AssetId(package, kEarlyTemplateIosPath),
+        ios ?? '{}\n',
+      );
+    }
+  }
+
+  // The templates to write, by path; empty when the build has none.
+  Future<Map<String, String>> _templates(BuildStep buildStep) async {
+    final package = buildStep.inputId.package;
     final listId = AssetId(package, kRestageSurfaceListPath);
     final factoriesId = AssetId(package, 'lib/user_factories.g.dart');
-    if (!await buildStep.canRead(listId)) return;
-    if (!_enabled) return;
-    if (baseUrl == null || apiKey == null) {
-      // A script that opts out through the environment builds without.
-      if (_unattended) {
-        log.info('restage_early_template: no settings, so no startup request.');
-        return;
-      }
-      log.severe(
-        _missingConfigMessage(
-          missing: [
-            if (baseUrl == null) 'base_url',
-            if (apiKey == null) 'api_key',
-          ],
-        ),
-      );
-      return;
-    }
-    final hasFactories = await buildStep.canRead(factoriesId);
-    final factories = hasFactories
-        ? await buildStep.readAsString(factoriesId)
-        : '';
-    // Without app widgets the app installs the whole catalog through
-    // Restage.configure; with them, the generated registration says which.
-    final wholeCatalog =
-        !hasFactories || factories.contains('RestageWidgetLibraries.builtIn(');
-    if (hasFactories &&
-        !wholeCatalog &&
+    if (!await buildStep.canRead(listId)) return const {};
+    if (!await buildStep.canRead(factoriesId)) return const {};
+    final factories = await buildStep.readAsString(factoriesId);
+    // The generated registration owns the build's key, URL and channel; the
+    // user_factories build reports when they are missing.
+    final delivery = _buildDelivery(factories);
+    if (delivery == null) return const {};
+    final (:apiKey, :baseUrl, :channel) = delivery;
+    // The generated registration says which catalog the app installs.
+    final wholeCatalog = factories.contains('RestageWidgetLibraries.builtIn(');
+    if (!wholeCatalog &&
         !factories.contains('kRestageAppVocabulary.addToInstalled')) {
-      return;
+      return const {};
     }
 
     final declared = await _declaredDefinitions(buildStep, listId);
-    if (declared.isEmpty) return;
-    final vocabulary = _Vocabulary();
-    if (hasFactories) vocabulary.scan(factories);
+    if (declared.isEmpty) return const {};
+    final vocabulary = _Vocabulary()..scan(factories);
     await for (final id in buildStep.findAssets(
       Glob('lib/**.restage.g.dart'),
     )) {
@@ -150,6 +156,7 @@ final class RestageEarlyTemplateBuilder implements Builder {
       contracts[host.contentHash] = host;
     }
 
+    final templates = <String, String>{};
     for (final (platform, path) in [
       ('android', kEarlyTemplateAndroidPath),
       ('ios', kEarlyTemplateIosPath),
@@ -166,7 +173,7 @@ final class RestageEarlyTemplateBuilder implements Builder {
           'appBuildOrdinal': 1,
           'country': 'us',
           'daysSinceInstall': 0,
-          if (_channel != null) 'channel': _channel,
+          'channel': ?channel,
           'deviceClass': 'phone',
           'language': 'en',
           'osVersion': 1,
@@ -175,14 +182,44 @@ final class RestageEarlyTemplateBuilder implements Builder {
         },
       );
       final template = startupTemplateJson(
-        Uri.parse('$baseUrl/sdk/v1/placements/resolve'),
+        placementResolveUrl(baseUrl),
         apiKey,
         request,
         identityTokens: true,
       );
-      if (template == null) continue;
-      await buildStep.writeAsString(AssetId(package, path), template);
+      if (template != null) templates[path] = template;
     }
+    return templates;
+  }
+
+  // Whether pubspec.yaml lists the iOS template as a Flutter asset. A target
+  // whose `sources:` leave pubspec.yaml out is read from the package root.
+  static Future<bool> _listsIosAsset(BuildStep buildStep) async {
+    final pubspec = AssetId(buildStep.inputId.package, 'pubspec.yaml');
+    final file = File('pubspec.yaml');
+    final String text;
+    if (await buildStep.canRead(pubspec)) {
+      text = await buildStep.readAsString(pubspec);
+    } else if (file.existsSync()) {
+      text = file.readAsStringSync();
+    } else {
+      return false;
+    }
+    final Object? doc;
+    try {
+      doc = loadYaml(text);
+    } on YamlException {
+      return false;
+    }
+    if (doc is! YamlMap) return false;
+    final flutter = doc['flutter'];
+    final assets = flutter is YamlMap ? flutter['assets'] : null;
+    if (assets is! YamlList) return false;
+    return assets.any(
+      (entry) =>
+          entry == kEarlyTemplateIosPath ||
+          (entry is YamlMap && entry['path'] == kEarlyTemplateIosPath),
+    );
   }
 
   static bool _hasPlatformDirectory(String path) => Directory(
@@ -202,6 +239,28 @@ final class RestageEarlyTemplateBuilder implements Builder {
         ? version
         : kFormattingExpressionClientFloor;
   }
+}
+
+/// The key, service URL and channel the generated registration's constants
+/// spell.
+BuildDelivery? _buildDelivery(String factories) {
+  const names = {kBuildApiKeyName, kBuildBaseUrlName, kBuildChannelName};
+  final values = <String, String>{};
+  parseString(content: factories, throwIfDiagnostics: false).unit.accept(
+    _Visitor(
+      onVariable: (node) {
+        final name = node.name.lexeme;
+        if (!names.contains(name)) return;
+        if (_literal(node.initializer) case final String value) {
+          values[name] = value;
+        }
+      },
+    ),
+  );
+  final apiKey = values[kBuildApiKeyName];
+  final baseUrl = values[kBuildBaseUrlName];
+  if (apiKey == null || baseUrl == null) return null;
+  return (apiKey: apiKey, baseUrl: baseUrl, channel: values[kBuildChannelName]);
 }
 
 /// A placement the app declares at startup, from its generated literals.
@@ -431,24 +490,3 @@ Object? _literal(Expression? node) => switch (node) {
   ParenthesizedExpression(:final expression) => _literal(expression),
   _ => null,
 };
-
-/// What a developer reads when the startup request settings are missing.
-String _missingConfigMessage({required List<String> missing}) =>
-    '''
-Restage needs the service URL and publishable key at build time to build the
-startup request into your app. Missing in build.yaml: ${missing.join(', ')}.
-
-Add these lines to build.yaml (use the same baseUrl and apiKey you pass to
-Restage.configure):
-
-targets:
-  \$default:
-    builders:
-      restage_codegen:restage_early_template:
-        options:
-          base_url: https://api.restage.dev
-          api_key: rs_pk_your_publishable_key
-
-`restage init --sdk-key rs_pk_...` writes them for you. To build without the
-startup request, set `early_request: false` under options instead, or set RESTAGE_EARLY_REQUEST=false in
-the environment for one run.''';

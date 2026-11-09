@@ -1,4 +1,5 @@
 import 'package:dart_mcp/server.dart';
+import 'package:meta/meta.dart';
 import 'package:restage_cli/api.dart';
 
 import 'api_runner.dart';
@@ -56,19 +57,16 @@ final _initTool = Tool(
       ),
       'addDependencies': Schema.bool(
         description:
-            'Add the restage and restage_material dependencies plus '
-            'restage_codegen and build_runner to pubspec.yaml (default true).',
+            'Add restage and restage_material plus restage_codegen and '
+            'build_runner to pubspec.yaml, from the main branch of the public '
+            'Restage repository, with the overrides they need (default true).',
       ),
       'sdkKey': Schema.string(
         description:
-            "The app's publishable key (rs_pk_...), written to build.yaml so "
-            'the startup request is built into the app. Without it, builds '
-            'stop until api_key is added.',
-      ),
-      'earlyRequest': Schema.bool(
-        description:
-            'Build the startup request into the app (default true). Set false '
-            'only for an app that cannot use it.',
+            "The app's publishable key (rs_pk_...), written to build.yaml with "
+            'the service URL, so Restage.configure uses them and the app sends '
+            'its first request before Dart starts. Without it the app builds '
+            'and runs offline.',
       ),
       'previewWrapper': Schema.string(
         description:
@@ -111,43 +109,53 @@ Future<CallToolResult> _status(ToolContext ctx, CallToolRequest request) =>
       ]),
     );
 
-Future<CallToolResult> _init(
-  ToolContext ctx,
-  CallToolRequest request,
-) => ctx.authed('setting up the project', (api) async {
-  // The config records the organization by slug.
-  final organizationId = request.optInt('organizationId');
-  final organization = organizationId == null
-      ? null
-      : (await DiscoveryApi(api).listOrganizations()).firstWhere(
-          (organization) => organization.organizationId == organizationId,
-          orElse: () => throw TargetSelectionException(
-            'No organization found for organizationId: $organizationId.',
-          ),
-        );
-  return cliResult(ctx, [
-    'init',
-    '-C',
-    request.str('projectDirectory'),
-    '--project',
-    request.str('projectSlug'),
-    '--app',
-    request.str('appSlug'),
-    '--env',
-    request.str('environmentSlug'),
-    if (organization != null) ...['--organization', organization.slug],
-    if (request.optStr('runtimePlane') case final plane?) ...['--plane', plane],
-    if (request.optStr('previewWrapper') case final wrapper?) ...[
-      '--preview-wrapper',
-      wrapper,
-    ],
-    if (request.optStr('sdkKey') case final key?) ...['--sdk-key', key],
-    if (request.optBool('earlyRequest') == false) '--no-early-request',
-    if (request.optBool('starter') == false) '--no-starter',
-    if (request.optBool('addDependencies') == false) '--no-add-deps',
-    if (request.optBool('dryRun') ?? false) '--dry-run',
-  ]);
-});
+Future<CallToolResult> _init(ToolContext ctx, CallToolRequest request) =>
+    ctx.authed('setting up the project', (api) async {
+      // The config records the organization by slug.
+      final organizationId = request.optInt('organizationId');
+      final organization = organizationId == null
+          ? null
+          : (await DiscoveryApi(api).listOrganizations()).firstWhere(
+              (organization) => organization.organizationId == organizationId,
+              orElse: () => throw TargetSelectionException(
+                'No organization found for organizationId: $organizationId.',
+              ),
+            );
+      return cliResult(
+        ctx,
+        initArguments(request, organizationSlug: organization?.slug),
+      );
+    });
+
+/// The `restage init` arguments for a `restage_init` [request].
+List<String> initArguments(
+  CallToolRequest request, {
+  String? organizationSlug,
+}) => [
+  'init',
+  '-C',
+  request.str('projectDirectory'),
+  '--project',
+  request.str('projectSlug'),
+  '--app',
+  request.str('appSlug'),
+  '--env',
+  request.str('environmentSlug'),
+  if (organizationSlug != null) ...['--organization', organizationSlug],
+  if (request.optStr('runtimePlane') case final plane?) ...['--plane', plane],
+  if (request.optStr('previewWrapper') case final wrapper?) ...[
+    '--preview-wrapper',
+    wrapper,
+  ],
+  if (request.optStr('sdkKey') case final key?) ...['--sdk-key', key],
+  if (request.optBool('starter') == false) '--no-starter',
+  if (request.optBool('addDependencies') == false) '--no-add-deps',
+  if (request.optBool('dryRun') ?? false) '--dry-run',
+];
+
+/// The `restage_init` tool's input schema.
+@visibleForTesting
+ObjectSchema get initToolSchema => _initTool.inputSchema;
 
 Future<CallToolResult> _doctor(ToolContext ctx, CallToolRequest request) =>
     guardErrors(

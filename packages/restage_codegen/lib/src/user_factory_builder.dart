@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/surface_publication/split_widgets.dart'
 import 'package:restage_codegen/src/app_size_disclosure.dart';
 import 'package:restage_codegen/src/app_widget_vocabulary.dart';
 import 'package:restage_codegen/src/authored_library_predicate.dart';
+import 'package:restage_codegen/src/build_delivery.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/custom_map_plan.dart';
 import 'package:restage_codegen/src/custom_record_plan.dart';
@@ -62,6 +63,7 @@ final class UserFactoryBuilder implements Builder {
   Future<void> build(BuildStep buildStep) async {
     // Read before any other work so a bad option value fails the build loudly.
     final scope = readInstalledCatalogScope(options.config);
+    final settings = readBuildDeliveryOptions(options);
     // The aggregate names SDK types, so a package whose own pubspec does not
     // depend on the SDK never receives one — that is the catalog packages the
     // SDK itself depends on, not an app.
@@ -80,6 +82,7 @@ final class UserFactoryBuilder implements Builder {
     // The same condition under which `restage_surfaces.g.dart` is written.
     final declaresSurfaces =
         handoff?.manifest?.publications.isNotEmpty ?? false;
+    final delivery = completeBuildDelivery(settings);
     final islands = islandRegistration(
       buildStep.inputId.package,
       handoff?.splitSites ?? const [],
@@ -114,6 +117,7 @@ final class UserFactoryBuilder implements Builder {
             installWholeCatalog: installWholeCatalog,
             dependencyFactories: dependencyFactories,
             declaresSurfaces: declaresSurfaces,
+            delivery: delivery,
           )
         : emitAdmittedUserFactoriesDart(
             collection.widgets,
@@ -134,6 +138,7 @@ final class UserFactoryBuilder implements Builder {
             builtInIndex: collection.builtInIndex,
             dependencyFactories: dependencyFactories,
             declaresSurfaces: declaresSurfaces,
+            delivery: delivery,
           );
 
     await buildStep.writeAsString(
@@ -162,6 +167,12 @@ final class UserFactoryBuilder implements Builder {
         docsOrigin: await projectDocsOrigin(buildStep),
       ),
     );
+    if (options.isRoot && declaresSurfaces) {
+      final line = missingBuildDeliveryLine(settings);
+      // The line shows without --verbose, like the summary above.
+      // ignore: avoid_print
+      if (line != null) print(line);
+    }
     final groups = describeMissingWidgetGroups(
       appVocabulary,
       position: position,
@@ -292,6 +303,7 @@ String emitAdmittedUserFactoriesDart(
   NativeCatalogIndex? builtInIndex,
   List<SplitRegistration> splitRegistrations = const [],
   bool declaresSurfaces = false,
+  BuildDelivery? delivery,
 }) {
   final source = emitUserFactoriesDart(
     widgets,
@@ -309,6 +321,7 @@ String emitAdmittedUserFactoriesDart(
     builtInIndex: builtInIndex,
     splitRegistrations: splitRegistrations,
     declaresSurfaces: declaresSurfaces,
+    delivery: delivery,
     onSkip: _throwAdmittedFactoryCoherenceFailure,
   );
   return source ??
@@ -317,6 +330,7 @@ String emitAdmittedUserFactoriesDart(
         installWholeCatalog: installWholeCatalog,
         dependencyFactories: dependencyFactories,
         declaresSurfaces: declaresSurfaces,
+        delivery: delivery,
       );
 }
 

@@ -9,11 +9,11 @@ provide registration, implicit placements and compiled-widget fallback.
 
 | Setting | Default | When to change it |
 | --- | --- | --- |
-| `apiKey`, `baseUrl` | Unset; no hosted delivery | Supply the public SDK key and HTTPS service URL for hosted delivery. A blank key clears hosted configuration. |
+| `apiKey`, `baseUrl` | From `registerWidgets: kRestageWidgetRegistration` (`api_key`, `base_url` in `build.yaml`); else unset, no hosted delivery | Set them in `build.yaml`. A value passed here wins. A blank key turns hosted delivery off in Dart; the built-in first-launch request is still sent. |
 | `surfaces` | Empty list | Pass generated `restageSurfaces` to prefetch known surfaces after the first frame. Prefetch does not enroll experiment participants. |
 | `firstLaunchWait` | `Duration(seconds: 3)` | How long a placement with nothing saved shows nothing while delivered content arrives, before its compiled fallback. `firstLaunchWaits` overrides it per placement id. |
 | `freshWindow` | `Duration(milliseconds: 150)` | How long a placement with saved content waits for a fresher version before showing the saved one. |
-| `channel` | Unset | Label the app build for delivery rules, such as `beta` or `stable`. Empty values and values over 128 UTF-8 bytes are omitted. |
+| `channel` | From `build.yaml` `channel` via `registerWidgets`; else unset | Label the app build for delivery rules, such as `beta` or `stable`. Empty values and values over 128 UTF-8 bytes are omitted. |
 | `environment` | `RestageEnvironment.production` | Set a matching local hint for sandbox integrations. Hosted authorization uses the environment bound to the API key; this setting does not select a server environment. |
 
 Leave `resolver`, `flowResolver` and `surfaceScreenResolver` unset for normal
@@ -75,11 +75,10 @@ import 'package:restage/restage.dart';
 import 'restage_surfaces.g.dart';
 import 'user_factories.g.dart';
 
-void configureReservedCatalog({String? apiKey, String? baseUrl}) {
-  registerRestageWidgets();
+void configureReservedCatalog() {
+  // Registers the app's widgets; carries api_key and base_url from build.yaml.
   Restage.configureWithInstalledCatalog(
-    apiKey: apiKey,
-    baseUrl: baseUrl,
+    registerWidgets: kRestageWidgetRegistration,
     surfaces: restageSurfaces,
   );
 }

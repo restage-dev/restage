@@ -731,9 +731,8 @@ class RestageRpcClient {
 
   /// Keeps [request] as the startup request the platform sends next launch.
   @internal
-  void rememberStartupRequest(PlacementBatchRequestV1 request) =>
-      unawaited(EarlyRequest.remember(
-          Uri.parse('$_baseUrl/sdk/v1/placements/resolve'), _apiKey, request));
+  void rememberStartupRequest(PlacementBatchRequestV1 request) => unawaited(
+      EarlyRequest.remember(placementResolveUrl(_baseUrl), _apiKey, request));
 
   Future<http.StreamedResponse> _sendPlacements(Uri url,
       PlacementBatchRequestV1 request, void Function() checkPublication,
@@ -967,7 +966,7 @@ class RestageRpcClient {
     checkPublication();
     final held = {...heldPlacementArtifacts, ...heldArtifactBytes};
     final requestStartedAtMicros = _utcNowMicros();
-    final endpoint = Uri.parse('$_baseUrl/sdk/v1/placements/resolve');
+    final endpoint = placementResolveUrl(_baseUrl);
     final Uint8List bytes;
     try {
       final response = await _sendPlacements(
