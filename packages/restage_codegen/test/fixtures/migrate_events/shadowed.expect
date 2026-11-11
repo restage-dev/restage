@@ -1,0 +1,12 @@
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+VoidCallback surfaceEvent(String name) => () {};
+
+class Local extends StatelessWidget {
+  const Local({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      TextButton(onPressed: surfaceEvent('mine'), child: const Text('m'));
+}

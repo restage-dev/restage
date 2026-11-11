@@ -35,25 +35,25 @@ class _ProUpgradePaywall extends StatelessWidget {
                 ),
                 const SizedBox(height: 40),
                 ElevatedButton(
-                  onPressed: paywallEvent(
-                    'cta_tapped',
-                    args: const {'action': 'primary'},
+                  onPressed: context.surfaceEvent(
+                    _Events.ctaTapped,
+                    const {'action': 'primary'},
                   ),
                   child: const Text('Subscribe — \$X.XX / mo'),
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton(
-                  onPressed: paywallEvent(
-                    'cta_tapped',
-                    args: const {'action': 'secondary'},
+                  onPressed: context.surfaceEvent(
+                    _Events.ctaTapped,
+                    const {'action': 'secondary'},
                   ),
                   child: const Text('\$X.XX / yr — best value'),
                 ),
                 const SizedBox(height: 16),
                 TextButton(
-                  onPressed: paywallEvent(
-                    'cta_tapped',
-                    args: const {'action': 'tertiary'},
+                  onPressed: context.surfaceEvent(
+                    _Events.ctaTapped,
+                    const {'action': 'tertiary'},
                   ),
                   child: const Text('Restore purchases'),
                 ),
@@ -87,4 +87,8 @@ void main() {
     // sub-percent pixel differences that aren't actionable — skip the
     // pixel comparison on non-mac so CI stays meaningful.
   }, skip: !Platform.isMacOS);
+}
+
+abstract final class _Events {
+  static const ctaTapped = SurfaceEvent<Map<String, Object?>>('cta_tapped');
 }

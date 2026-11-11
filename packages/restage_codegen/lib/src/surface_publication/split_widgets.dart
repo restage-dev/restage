@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
+import 'package:restage_codegen/src/surface_publication/app_widget_events.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart'
@@ -44,6 +45,7 @@ typedef SplitWidgetDefinitions = ({
   Map<String, Map<String, String>> states,
   List<fmt.RfwCatalogConstructorProvenance> origins,
   Set<String> libraries,
+  List<FieldElement> fired,
 });
 
 /// The registered wrapper that hosts a split widget named [catalogName].
@@ -67,7 +69,12 @@ final class SplitWidgetInput {
     this.origins = const [],
     this.custom,
     this.foreign = false,
+    this.placed = const {},
   });
+
+  /// The custom widgets its build places by catalog entry, which may be
+  /// splits too.
+  final Set<ClassElement> placed;
 
   /// The widget's build as a mount: its class, parameters, recorded values,
   /// islands and split.
@@ -262,11 +269,21 @@ Future<List<SplitWidgetInput>> splitWidgetsOf({
         constructorParams: build.constructorParams,
         mountConstructorProblem: build.mountConstructorProblem,
         hoisted: translation.hoisted,
+        // An app widget it shows as an island fires from its own build.
+        firedEvents: {
+          ...translation.firedEvents,
+          ...await AppWidgetEvents(
+            package: assetId.package,
+            astNodeFor: astNodeFor,
+            noticeKeys: noticeKeys,
+          ).firedBy(translation.islands, translation.placedCustomWidgets),
+        }.toList(),
         islands: translation.islands,
         split: translation.split,
         buildArguments: build.buildArguments,
       ),
       entry: entry,
+      placed: translation.placedCustomWidgets,
       definition: splitDefinition(translation.dsl, entry, {
         for (final param in build.rootParams) param.name,
       }),
@@ -458,25 +475,47 @@ Future<CustomReconstruction?> packageReconstruction(BuildStep buildStep) =>
 /// The surface translator's split definitions for [splits], by class key.
 Map<String, SplitWidgetDefinitions> splitWidgetDefinitionsOf(
   Iterable<SplitWidgetInput> splits,
-) => {
-  for (final split in splits)
-    customWidgetKey(split.mount.screen): (
-      definitions: {
-        ...split.inlined.definitions,
-        split.catalogName: split.definition,
-      },
-      states: split.inlined.states,
-      origins: split.origins,
-      libraries: {
-        for (final origin in split.origins)
-          if (WidgetLibrary.builtInByNamespace(
-                origin.catalogLibraryNamespace,
-              ) ==
-              null)
-            origin.catalogLibraryNamespace,
-      },
-    ),
-};
+) {
+  final byKey = {
+    for (final split in splits) customWidgetKey(split.mount.screen): split,
+  };
+  // A split's events, and those of each split it places in turn.
+  List<FieldElement> fired(SplitWidgetInput split) {
+    final events = <FieldElement>{};
+    final seen = <SplitWidgetInput>{};
+    final pending = [split];
+    while (pending.isNotEmpty) {
+      final next = pending.removeLast();
+      if (!seen.add(next)) continue;
+      events.addAll(next.mount.firedEvents);
+      pending.addAll([
+        for (final type in next.placed) ?byKey[customWidgetKey(type)],
+      ]);
+    }
+    return events.toList();
+  }
+
+  return {
+    for (final split in splits)
+      customWidgetKey(split.mount.screen): (
+        definitions: {
+          ...split.inlined.definitions,
+          split.catalogName: split.definition,
+        },
+        states: split.inlined.states,
+        origins: split.origins,
+        libraries: {
+          for (final origin in split.origins)
+            if (WidgetLibrary.builtInByNamespace(
+                  origin.catalogLibraryNamespace,
+                ) ==
+                null)
+              origin.catalogLibraryNamespace,
+        },
+        fired: fired(split),
+      ),
+  };
+}
 
 /// [catalog] with [islands], and each of [splits] with its wrapper and its
 /// islands.

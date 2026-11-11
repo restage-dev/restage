@@ -5,21 +5,26 @@
 /// app-owned callbacks installed by the app.
 library;
 
-export 'src/authoring/event_dispatcher.dart';
+export 'src/authoring/event_dispatcher.dart' hide paywallEventDispatcherAt;
 export 'src/authoring/flow_definition.dart';
 export 'src/authoring/flow_source.dart';
-export 'src/authoring/onboarding_event.dart';
+export 'src/authoring/onboarding_event.dart'
+    hide
+        fireRecordedSurfaceEvent,
+        fireSurfaceEventAt,
+        noWidgetValue,
+        RecordedEventHost,
+        recordedRoute,
+        withWidgetValue;
 export 'src/authoring/onboarding_event_dispatcher.dart'
     hide
         currentSurfaceEventDispatcherOwner,
-        DeclaredEventDispatcher,
         RestageFlowEventRegistration,
         RestageFlowEventHandlerAssociation,
-        surfaceEventDispatcherFor,
+        surfaceEventDispatcherDepth,
         surfaceEventDispatcherOf,
         surfaceEventDispatcherOwnerOf;
 export 'src/authoring/onboarding_source.dart';
-export 'src/authoring/paywall_event.dart';
 export 'src/authoring/paywall_source.dart';
 export 'src/authoring/screen.dart';
 export 'src/delivery/surface_ref.dart';

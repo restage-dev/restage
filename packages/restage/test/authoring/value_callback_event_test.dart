@@ -10,15 +10,15 @@ abstract final class _Survey {
 void main() {
   Future<List<(String, Object?)>> pumpSurface(
     WidgetTester tester,
-    Widget Function() build,
+    Widget Function(BuildContext context) build,
   ) async {
     final events = <(String, Object?)>[];
     await tester.pumpWidget(
       MaterialApp(
         home: Material(
-          child: RestageOnboardingEventDispatcher(
+          child: RestageEventDispatcher(
             onEvent: (eventId, value) => events.add((eventId, value)),
-            child: Builder(builder: (_) => build()),
+            child: Builder(builder: build),
           ),
         ),
       ),
@@ -29,7 +29,8 @@ void main() {
   testWidgets('a Switch fires the event it is given directly', (tester) async {
     final events = await pumpSurface(
       tester,
-      () => Switch(value: false, onChanged: surfaceEvent(_Survey.pick, false)),
+      (context) => Switch(
+          value: false, onChanged: context.surfaceEvent(_Survey.pick, false)),
     );
 
     await tester.tap(find.byType(Switch));
@@ -41,7 +42,8 @@ void main() {
       (tester) async {
     final events = await pumpSurface(
       tester,
-      () => Checkbox(value: false, onChanged: surfaceEvent(_Survey.pick)),
+      (context) =>
+          Checkbox(value: false, onChanged: context.surfaceEvent(_Survey.pick)),
     );
 
     await tester.tap(find.byType(Checkbox));
@@ -53,7 +55,7 @@ void main() {
       (tester) async {
     final events = await pumpSurface(
       tester,
-      () => TextField(onChanged: surfaceEvent(_Survey.pick)),
+      (context) => TextField(onChanged: context.surfaceEvent(_Survey.pick)),
     );
 
     await tester.enterText(find.byType(TextField), 'annual');
@@ -64,8 +66,8 @@ void main() {
   testWidgets('a tap callback keeps the authored value', (tester) async {
     final events = await pumpSurface(
       tester,
-      () => TextButton(
-        onPressed: surfaceEvent(_Survey.pick, 'annual'),
+      (context) => TextButton(
+        onPressed: context.surfaceEvent(_Survey.pick, 'annual'),
         child: const Text('Annual'),
       ),
     );
@@ -78,7 +80,8 @@ void main() {
   testWidgets('a void event fits a value callback', (tester) async {
     final events = await pumpSurface(
       tester,
-      () => Switch(value: false, onChanged: surfaceEvent(_Survey.next)),
+      (context) =>
+          Switch(value: false, onChanged: context.surfaceEvent(_Survey.next)),
     );
 
     await tester.tap(find.byType(Switch));
@@ -86,7 +89,7 @@ void main() {
     expect(events, [('next', true)]);
   });
 
-  testWidgets('paywallEvent carries the widget value in its arguments',
+  testWidgets('a paywall receives the widget value in its arguments',
       (tester) async {
     final received = <(String, Map<String, Object?>)>[];
     await tester.pumpWidget(
@@ -95,17 +98,17 @@ void main() {
           child: RestagePaywallEventDispatcher(
             onEvent: (name, args) => received.add((name, args)),
             child: Builder(
-              builder: (_) => Column(
+              builder: (context) => Column(
                 children: [
                   Switch(
                     value: false,
-                    onChanged: paywallEvent(
-                      'toggle_trial',
-                      args: const <String, Object?>{'plan': 'annual'},
+                    onChanged: context.surfaceEvent(
+                      _Events.toggleTrial,
+                      const <String, Object?>{'plan': 'annual'},
                     ),
                   ),
                   TextButton(
-                    onPressed: paywallEvent('close'),
+                    onPressed: context.surfaceEvent(_Events.close),
                     child: const Text('Close'),
                   ),
                 ],
@@ -123,4 +126,9 @@ void main() {
     expect(received[0].$2, {'plan': 'annual', 'value': true});
     expect(received[1].$2, isEmpty);
   });
+}
+
+abstract final class _Events {
+  static const toggleTrial = SurfaceEvent<Map<String, Object?>>('toggle_trial');
+  static const close = SurfaceEvent<void>('close');
 }

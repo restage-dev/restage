@@ -101,7 +101,7 @@ class LumenRecapScreen extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           GestureDetector(
-                            onTap: surfaceEvent(back),
+                            onTap: context.surfaceEvent(back),
                             child: Container(
                               width: 36,
                               height: 36,
@@ -231,7 +231,7 @@ class LumenRecapScreen extends StatelessWidget {
                         ),
                       ),
                       GestureDetector(
-                        onTap: surfaceEvent(next),
+                        onTap: context.surfaceEvent(next),
                         child: Container(
                           height: 58,
                           decoration: BoxDecoration(

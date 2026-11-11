@@ -11,7 +11,11 @@ class StrayOffer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TextButton(
-        onPressed: paywallEvent('close'),
+        onPressed: context.surfaceEvent(_Events.close),
         child: const Text('Not now'),
       );
+}
+
+abstract final class _Events {
+  static const close = SurfaceEvent<void>('close');
 }

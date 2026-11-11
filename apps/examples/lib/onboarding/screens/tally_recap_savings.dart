@@ -123,7 +123,7 @@ class TallyRecapSavingsScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: surfaceEvent(finish),
+                onPressed: context.surfaceEvent(finish),
                 child: const Text(
                   'Turn on auto-save',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

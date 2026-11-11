@@ -29,7 +29,7 @@ final class StarNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TextButton(
-        onPressed: surfaceEvent(dismiss),
+        onPressed: context.surfaceEvent(dismiss),
         child: const Icon(Icons.star),
       );
 }

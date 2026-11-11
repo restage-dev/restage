@@ -1,0 +1,28 @@
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+
+  static const next = SurfaceEvent<void>('next');
+  static const pick = SurfaceEvent<int>('pick');
+  static const done = SurfaceEvent<void>('done');
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          TextButton(onPressed: surfaceEvent(next), child: const Text('Next')),
+          Slider(value: 0, onChanged: onboardingEvent<int, int>(pick, 1)),
+          LayoutBuilder(
+            builder: (inner, constraints) => TextButton(
+              onPressed: surfaceEventWithContext(inner, done),
+              child: const Text('Done'),
+            ),
+          ),
+          Builder(
+            builder: (scoped) =>
+                TextButton(onPressed: surfaceEvent(next), child: const Text('')),
+          ),
+        ],
+      );
+}

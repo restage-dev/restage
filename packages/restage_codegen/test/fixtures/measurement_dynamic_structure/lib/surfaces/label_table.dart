@@ -19,7 +19,7 @@ final class LabelTableScreen extends StatelessWidget {
               LabelEntry(label: 'Pro'),
               LabelEntry(label: 'Starter')
             ],
-            onTap: surfaceEvent(open),
+            onTap: context.surfaceEvent(open),
           ),
         ],
       );

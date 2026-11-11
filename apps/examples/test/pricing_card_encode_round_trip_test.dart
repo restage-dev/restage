@@ -55,10 +55,7 @@ void main() {
       final bytes =
           readDeliveryArtifact('assets/paywalls/pricing_showcase.rfw');
       final delivered = await render(
-        RestagePaywall(
-          id: 'pricing_showcase',
-          resolver: _StaticResolver(bytes),
-        ),
+        PricingShowcaseSurface(resolver: _StaticResolver(bytes)),
       );
 
       // The 'Pro' card sets every field, including a nested Price

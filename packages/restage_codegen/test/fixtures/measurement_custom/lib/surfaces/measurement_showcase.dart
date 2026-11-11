@@ -16,23 +16,23 @@ final class CustomMeasurementShowcase extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         children: [
           FilledButton(
-            onPressed: surfaceEvent(activate),
+            onPressed: context.surfaceEvent(activate),
             child: const Text('Ordinary'),
           ),
-          InlineAction(onPressed: surfaceEvent(activate)),
-          OpaqueAction(onPressed: surfaceEvent(activate)),
+          InlineAction(onPressed: context.surfaceEvent(activate)),
+          OpaqueAction(onPressed: context.surfaceEvent(activate)),
           FilledButton(
             key: const ValueKey<String>('original-host-key'),
-            onPressed: surfaceEvent(activate),
+            onPressed: context.surfaceEvent(activate),
             child: const Text('Repeated A'),
           ),
           FilledButton(
-            onPressed: surfaceEvent(activate),
+            onPressed: context.surfaceEvent(activate),
             child: const Text('Repeated B'),
           ),
           GestureDetector(
-            onTap: surfaceEvent(activate),
-            onDoubleTap: surfaceEvent(inspect),
+            onTap: context.surfaceEvent(activate),
+            onDoubleTap: context.surfaceEvent(inspect),
             child: const Text('Multi-slot'),
           ),
         ],

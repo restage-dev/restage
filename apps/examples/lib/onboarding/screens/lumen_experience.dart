@@ -103,7 +103,7 @@ class LumenExperienceScreen extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           GestureDetector(
-                            onTap: surfaceEvent(back),
+                            onTap: context.surfaceEvent(back),
                             child: Container(
                               width: 36,
                               height: 36,
@@ -206,7 +206,7 @@ class LumenExperienceScreen extends StatelessWidget {
                               // The first choice carries the selected treatment, so the
                               // pattern is visible at rest.
                               GestureDetector(
-                                onTap: surfaceEvent(next),
+                                onTap: context.surfaceEvent(next),
                                 child: Container(
                                   padding: const EdgeInsets.all(18),
                                   decoration: BoxDecoration(
@@ -282,7 +282,7 @@ class LumenExperienceScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 12),
                               GestureDetector(
-                                onTap: surfaceEvent(next),
+                                onTap: context.surfaceEvent(next),
                                 child: Container(
                                   padding: const EdgeInsets.all(18),
                                   decoration: BoxDecoration(
@@ -346,7 +346,7 @@ class LumenExperienceScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 12),
                               GestureDetector(
-                                onTap: surfaceEvent(next),
+                                onTap: context.surfaceEvent(next),
                                 child: Container(
                                   padding: const EdgeInsets.all(18),
                                   decoration: BoxDecoration(
@@ -414,7 +414,7 @@ class LumenExperienceScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 24),
                       GestureDetector(
-                        onTap: surfaceEvent(next),
+                        onTap: context.surfaceEvent(next),
                         child: Container(
                           height: 58,
                           decoration: BoxDecoration(

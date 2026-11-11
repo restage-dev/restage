@@ -13,7 +13,7 @@ final class ReadyStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: FilledButton(
-          onPressed: surfaceEvent(finish),
+          onPressed: context.surfaceEvent(finish),
           child: const Text('Start'),
         ),
       );

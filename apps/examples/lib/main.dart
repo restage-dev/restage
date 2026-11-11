@@ -22,6 +22,7 @@ import 'paywalls/lumen_annual_upgrade.dart';
 import 'paywalls/lumen_holiday_promo.dart';
 import 'paywalls/lumen_premium.dart';
 import 'paywalls/lumen_welcome_offer.dart';
+import 'paywalls/minimal_paywall.dart';
 import 'paywalls/narrate_membership.dart';
 import 'paywalls/pulse_premium.dart';
 import 'paywalls/sentinel_protection.dart';
@@ -265,7 +266,10 @@ class _GalleryHome extends StatelessWidget {
                     'The smallest plan-select paywall: tap a plan and the '
                     'button reports it. Follows the app theme.',
                 leading: const Icon(Icons.lock_open_outlined),
-                destination: const _RemotePaywallScreen(id: 'minimal_paywall'),
+                destination: _demo((demo) => MinimalPaywallSurface(
+                    onEvent: _logEvent,
+                    fallbackBuilder: _unavailable,
+                    onContinue: demo.plan)),
                 showThemeToggle: true,
               ),
               _ExampleTile(
@@ -387,14 +391,22 @@ class _GalleryHome extends StatelessWidget {
                 subtitle: 'A sunrise hero over one yearly plan: the first year '
                     'discounted against a struck comparison price.',
                 leading: const Icon(Icons.wb_twilight_outlined),
-                destination: const LumenAnnualUpgradePaywall(),
+                destination: _demo((demo) => LumenAnnualUpgradePaywall(
+                    onClose: demo.close,
+                    onContinue: demo.plan,
+                    onTerms: demo.terms,
+                    onPrivacy: demo.privacy)),
               ),
               _ExampleTile(
                 title: 'Lumen Holiday Promo',
                 subtitle: 'A seasonal offer under an aurora sweep, with the '
                     'renewal price stated beside the discount.',
                 leading: const Icon(Icons.ac_unit_outlined),
-                destination: const LumenHolidayPromoPaywall(),
+                destination: _demo((demo) => LumenHolidayPromoPaywall(
+                    onContinue: demo.plan,
+                    onRestore: demo.restore,
+                    onTerms: demo.terms,
+                    onPrivacy: demo.privacy)),
               ),
               const Divider(height: 32),
               const _SectionHeader('Delivered RFW'),
@@ -472,17 +484,25 @@ class _GalleryHome extends StatelessWidget {
                 title: 'Lumen Annual Upgrade — bundled',
                 subtitle: 'The yearly offer as delivered RFW.',
                 leading: const Icon(Icons.wb_twilight),
-                destination: const _RemotePaywallScreen(
-                  id: 'lumen_annual_upgrade',
-                ),
+                destination: _demo((demo) => LumenAnnualUpgradePaywallSurface(
+                    onEvent: _logEvent,
+                    fallbackBuilder: _unavailable,
+                    onClose: demo.close,
+                    onContinue: demo.plan,
+                    onTerms: demo.terms,
+                    onPrivacy: demo.privacy)),
               ),
               _ExampleTile(
                 title: 'Lumen Holiday Promo — bundled',
                 subtitle: 'The seasonal offer as delivered RFW.',
                 leading: const Icon(Icons.ac_unit),
-                destination: const _RemotePaywallScreen(
-                  id: 'lumen_holiday_promo',
-                ),
+                destination: _demo((demo) => LumenHolidayPromoPaywallSurface(
+                    onEvent: _logEvent,
+                    fallbackBuilder: _unavailable,
+                    onContinue: demo.plan,
+                    onRestore: demo.restore,
+                    onTerms: demo.terms,
+                    onPrivacy: demo.privacy)),
               ),
               _ExampleTile(
                 title: 'Hello',
@@ -716,6 +736,29 @@ bool _returnsToGallery(RestageEvent event) =>
     (event is PaywallCustomEvent &&
         (event.eventName == 'close' || event.eventName == 'skip')) ||
     (event is PaywallDismissed && event.reason == DismissReason.userClose);
+
+/// Builds a paywall with the demo's answers to its callbacks.
+Widget _demo(Widget Function(PaywallDemoActions demo) build) =>
+    Builder(builder: (context) => build(PaywallDemoActions(context)));
+
+void _logEvent(RestageEvent event) =>
+    debugPrint('paywall event: ${event.toMap()}');
+
+// If the artifact can't be resolved or decoded, show a plain message instead
+// of a blank screen.
+Widget _unavailable(BuildContext context) => Scaffold(
+      appBar: AppBar(),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            'This paywall is unavailable right now.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+        ),
+      ),
+    );
 
 /// Mounts a bundled `.rfw` asset via `RestagePaywall(id:)`.
 ///

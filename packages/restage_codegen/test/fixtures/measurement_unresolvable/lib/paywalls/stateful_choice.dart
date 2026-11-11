@@ -22,9 +22,13 @@ class _StatefulChoiceState extends State<StatefulChoice> {
             child: const Text('Monthly'),
           ),
           FilledButton(
-            onPressed: paywallEvent('close'),
+            onPressed: context.surfaceEvent(_Events.close),
             child: const Text('Close'),
           ),
         ],
       );
+}
+
+abstract final class _Events {
+  static const close = SurfaceEvent<void>('close');
 }

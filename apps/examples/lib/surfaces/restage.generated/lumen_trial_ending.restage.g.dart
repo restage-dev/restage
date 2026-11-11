@@ -196,13 +196,14 @@ final class LumenTrialEndingScreenSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ignore: unused_local_variable
-    final _restageRecording = RestageRecording();
+    final _restageRecording = RestageRecording(owner: context);
     Widget _restageDesign(Widget _restageBuilt) {
       return RestageScreen<LumenTrialEndingScreenSurfaceEvent>(
         screen: lumenTrialEndingScreenRef,
         placementBinding: RestageScreen.generatedPlacementBinding(
           definition: lumenTrialEndingScreenPlacementDefinition,
           name: _restagePlacementName,
+          eventOwner: context,
         ),
         fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
         errorBuilder: errorBuilder,

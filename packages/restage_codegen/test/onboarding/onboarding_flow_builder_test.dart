@@ -4061,7 +4061,7 @@ final class $className extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: ElevatedButton(
-          onPressed: onboardingEvent($eventName),
+          onPressed: context.surfaceEvent($eventName),
           child: const Text('$className'),
         ),
       );
@@ -4096,7 +4096,7 @@ $fields
   @override
   Widget build(BuildContext context) => Center(
         child: ElevatedButton(
-          onPressed: onboardingEvent($className.$first),
+          onPressed: context.surfaceEvent($className.$first),
           child: const Text('$className'),
         ),
       );
@@ -4734,7 +4734,7 @@ final class NoticeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: ElevatedButton(
-          onPressed: surfaceEvent(dismiss),
+          onPressed: context.surfaceEvent(dismiss),
           child: const Text('Dismiss'),
         ),
       );

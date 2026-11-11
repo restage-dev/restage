@@ -344,7 +344,7 @@ class LumenWelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               GestureDetector(
-                onTap: surfaceEvent(next),
+                onTap: context.surfaceEvent(next),
                 child: Container(
                   height: 58,
                   decoration: BoxDecoration(
@@ -370,7 +370,7 @@ class LumenWelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               GestureDetector(
-                onTap: surfaceEvent(signIn),
+                onTap: context.surfaceEvent(signIn),
                 child: Center(
                   child: Text('Already a member? Sign in',
                       style: TextStyle(

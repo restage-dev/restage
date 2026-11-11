@@ -139,7 +139,9 @@ final class GeneratedPlacementDefinition implements RestageSurfaceRef {
 final class PlacementMountBinding {
   /// Creates a binding using a typed generated definition provider.
   const PlacementMountBinding(
-      {required GeneratedPlacementDefinition Function() definition, this.name})
+      {required GeneratedPlacementDefinition Function() definition,
+      this.name,
+      this.eventOwner})
       : _definition = definition,
         _mount = null,
         _host = null;
@@ -152,7 +154,11 @@ final class PlacementMountBinding {
       : _mount = mount,
         _host = hostContract,
         _definition = null,
-        name = null;
+        name = null,
+        eventOwner = null;
+
+  /// The generated mount whose recorded events this surface receives.
+  final Object? eventOwner;
 
   final GeneratedPlacementDefinition Function()? _definition;
   final PlacementMountRequestV1? _mount;

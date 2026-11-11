@@ -27,7 +27,7 @@ const _secondScreen = 'package:apps_examples/features/second.dart#SecondScreen';
 
 const _button = '''
 FilledButton(
-  onPressed: surfaceEvent(activate),
+  onPressed: context.surfaceEvent(activate),
   child: const Text('Go'),
 )''';
 
@@ -35,7 +35,7 @@ FilledButton(
 /// fingerprint, so nothing here is separable by fingerprint alone.
 const _option = '''
 FilledButton(
-  onPressed: surfaceEvent(activate),
+  onPressed: context.surfaceEvent(activate),
   child: const Row(
     children: [
       Expanded(child: Text('option')),

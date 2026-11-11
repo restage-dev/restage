@@ -26,12 +26,12 @@ final class ConditionalTags extends StatelessWidget {
         for (final tag in tags)
           if (canPick)
             GestureDetector(
-              onTap: surfaceEvent(pick, tag),
+              onTap: context.surfaceEvent(pick, tag),
               child: Text(tag),
             )
           else
             GestureDetector(
-              onTap: surfaceEvent(pick, 'fallback'),
+              onTap: context.surfaceEvent(pick, 'fallback'),
               child: const Text('Fallback'),
             ),
       ],

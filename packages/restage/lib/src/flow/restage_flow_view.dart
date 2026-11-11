@@ -14,10 +14,8 @@ import '../delivery/delivered_fonts.dart';
 import '../delivery/raced_surface_resolver.dart';
 import '../delivery/surface_sections_carrier.dart';
 import '../delivery/surface_delivery_paint_boundary.dart';
-import '../authoring/event_dispatcher.dart';
 import '../authoring/onboarding_event_dispatcher.dart'
     show RestageFlowEventRegistration, RestageFlowEventHandlerAssociation;
-import '../authoring/paywall_event_dispatch.dart';
 import '../measurement/measurement_event_sanitizer.dart'
     show isMeasurementTapEventName;
 import '../runtime/context_data.dart';
@@ -742,20 +740,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>> {
       isCurrent: () =>
           identical(widget.controller, controller) &&
           controller.currentScreenEntryId == screen.entryId,
-      child: screen.nativeScreen == null
-          ? content
-          : RestagePaywallEventTargetScope(
-              flowStep: true,
-              owner: controller,
-              content: screen,
-              isCurrent: () =>
-                  identical(widget.controller, controller) &&
-                  controller.currentScreenEntryId == screen.entryId &&
-                  !controller.isComplete &&
-                  !controller.isUnavailable,
-              child: RestagePaywallEventDispatcher(
-                  onEvent: screen.onEvent, child: content),
-            ),
+      child: content,
     );
 
     // Blocks the nested pop (and, on iOS, the leading-edge swipe) while the

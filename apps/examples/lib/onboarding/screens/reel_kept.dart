@@ -81,7 +81,7 @@ class ReelKeptScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: surfaceEvent(finish),
+                onPressed: context.surfaceEvent(finish),
                 child: const Text(
                   'Continue watching',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

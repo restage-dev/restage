@@ -50,7 +50,7 @@ class StarterDoneExploreScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: surfaceEvent(finish),
+                onPressed: context.surfaceEvent(finish),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

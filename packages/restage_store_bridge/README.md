@@ -150,16 +150,20 @@ widget that displays both fields.
 A purchase button sends the displayed package's map key:
 
 ```dart
+static const purchase =
+    SurfaceEvent<Map<String, Object?>>('in_app_purchase.purchase');
+static const restore = SurfaceEvent<void>('in_app_purchase.restore');
+
 FilledButton(
-  onPressed: paywallEvent(
-    'in_app_purchase.purchase',
-    args: {'packageIdentifier': package.identifier},
+  onPressed: context.surfaceEvent(
+    purchase,
+    {'packageIdentifier': package.identifier},
   ),
   child: Text(package.priceString),
 )
 
 TextButton(
-  onPressed: paywallEvent('in_app_purchase.restore'),
+  onPressed: context.surfaceEvent(restore),
   child: const Text('Restore purchases'),
 )
 ```

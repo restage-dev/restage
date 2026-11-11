@@ -169,13 +169,14 @@ final class WelcomeScreenSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ignore: unused_local_variable
-    final _restageRecording = RestageRecording();
+    final _restageRecording = RestageRecording(owner: context);
     Widget _restageDesign(Widget _restageBuilt) {
       return RestageScreen<WelcomeScreenSurfaceEvent>(
         screen: welcomeScreenRef,
         placementBinding: RestageScreen.generatedPlacementBinding(
           definition: welcomeScreenPlacementDefinition,
           name: _restagePlacementName,
+          eventOwner: context,
         ),
         context: <String, Object?>{
           ..._restageRecording.values,

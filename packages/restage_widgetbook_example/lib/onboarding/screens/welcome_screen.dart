@@ -31,7 +31,7 @@ final class WelcomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ElevatedButton(
-        onPressed: surfaceEvent(continueEvent, 'welcome'),
+        onPressed: context.surfaceEvent(continueEvent, 'welcome'),
         child: Text(title),
       ),
     );

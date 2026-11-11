@@ -14,13 +14,66 @@ final class _HostileAuthoredValue {
   String toString() => throw StateError(_renderingSentinel);
 }
 
-String _expectedRefusal(String helper, String reason) =>
-    '[restage] $helper refused authored event dispatch: $reason.';
+const String _contextHint = ' Try calling `context.surfaceEvent(...)` with the '
+    'context of the widget that builds the button, inside the surface that '
+    'handles the event.';
+
+const String _routeHint = " On a route the surface pushes, wrap the route's "
+    'content in `InheritedTheme.capture(from: context, to: '
+    'Navigator.of(context).context).wrap(...)`, with the context that '
+    "pushes it. A paywall's next screen that its delivered design shows "
+    'needs no change: a coming Restage compiler change carries its '
+    "events in the app's own copy.";
+
+// The message each refusal reports: who refused, why, and the fix.
+String _expectedRefusal(AuthoringRefusalKind refusal) {
+  const authored = 'context.surfaceEvent refused authored event dispatch';
+  const recorded = 'A generated mount refused a recorded event';
+  final (who, reason, hint) = switch (refusal) {
+    AuthoringRefusalKind.missingDispatcher => (
+        authored,
+        'no dispatcher is available',
+        '$_contextHint$_routeHint',
+      ),
+    AuthoringRefusalKind.ambiguousDispatcher => (
+        authored,
+        'dispatcher ownership is ambiguous',
+        ' Try showing the generated mount in one place at a time.',
+      ),
+    AuthoringRefusalKind.staleCallback => (
+        authored,
+        'the flow step that built the callback is no longer current',
+        ' Try building the callback in the step that shows it, so a later '
+            "step never runs an earlier one's callback.",
+      ),
+    AuthoringRefusalKind.callbackRefused => (
+        authored,
+        'callback dispatch is not admitted',
+        ' Try firing the event from a tap on the surface that shows it, not '
+            "from a callback another surface's handler runs.",
+      ),
+    AuthoringRefusalKind.unmountedContext => (
+        authored,
+        'the widget that built the callback is no longer mounted',
+        _contextHint,
+      ),
+    AuthoringRefusalKind.recordedWithoutHost => (
+        recorded,
+        "no surface hosts the generated mount's events",
+        ' Try regenerating the mount with `dart run build_runner build`.',
+      ),
+    AuthoringRefusalKind.recordedHostGone => (
+        recorded,
+        'the surface the generated mount showed is no longer mounted',
+        " Try keeping the callback only while the mount's surface is shown.",
+      ),
+  };
+  return '[restage] $who: $reason.$hint';
+}
 
 void _expectSafeRefusal(
   VoidCallback callback, {
-  required String helper,
-  required String reason,
+  required AuthoringRefusalKind refusal,
 }) {
   Object? failure;
   try {
@@ -31,16 +84,13 @@ void _expectSafeRefusal(
 
   expect(failure, isA<AssertionError>());
   final message = (failure! as AssertionError).message;
-  expect(message, _expectedRefusal(helper, reason));
+  expect(message, _expectedRefusal(refusal));
   expect(message, isNot(contains(_authoredSentinel)));
   expect(message, isNot(contains(_renderingSentinel)));
 }
 
 SurfaceEvent<Object?> _surfaceProbe() =>
     const SurfaceEvent<Object?>(_authoredSentinel);
-
-OnboardingEvent<Object?> _onboardingProbe() =>
-    const OnboardingEvent<Object?>(_authoredSentinel);
 
 Future<
     ({
@@ -91,73 +141,14 @@ Future<
   );
 }
 
-String _helperName(AuthoringHelperKind helper) => switch (helper) {
-      AuthoringHelperKind.paywallEvent => 'paywallEvent',
-      AuthoringHelperKind.surfaceEvent => 'surfaceEvent',
-      AuthoringHelperKind.onboardingEvent => 'onboardingEvent',
-      AuthoringHelperKind.surfaceEventWithContext => 'surfaceEventWithContext',
-    };
-
-String _refusalReason(AuthoringRefusalKind refusal) => switch (refusal) {
-      AuthoringRefusalKind.missingDispatcher => 'no dispatcher is available',
-      AuthoringRefusalKind.ambiguousDispatcher =>
-        'dispatcher ownership is ambiguous',
-      AuthoringRefusalKind.callbackRefused =>
-        'callback dispatch is not admitted',
-    };
-
 void main() {
   group('missing dispatcher diagnostics', () {
-    testWidgets('paywallEvent omits authored details', (tester) async {
-      final callback = paywallEvent(
-        _authoredSentinel,
-        args: <String, Object?>{
-          'tag': _authoredSentinel,
-          'value': _HostileAuthoredValue(),
-        },
-      );
-
-      _expectSafeRefusal(
-        callback,
-        helper: 'paywallEvent',
-        reason: 'no dispatcher is available',
-      );
-    });
-
-    testWidgets('surfaceEvent omits authored details', (tester) async {
-      final callback = surfaceEvent(
-        _surfaceProbe(),
-        _HostileAuthoredValue(),
-      );
-
-      _expectSafeRefusal(
-        callback,
-        helper: 'surfaceEvent',
-        reason: 'no dispatcher is available',
-      );
-    });
-
-    testWidgets('onboardingEvent omits authored details', (tester) async {
-      final callback = onboardingEvent(
-        _onboardingProbe(),
-        _HostileAuthoredValue(),
-      );
-
-      _expectSafeRefusal(
-        callback,
-        helper: 'onboardingEvent',
-        reason: 'no dispatcher is available',
-      );
-    });
-
-    testWidgets('surfaceEventWithContext omits authored details',
-        (tester) async {
+    testWidgets('context.surfaceEvent omits authored details', (tester) async {
       late VoidCallback callback;
       await tester.pumpWidget(
         Builder(
           builder: (context) {
-            callback = surfaceEventWithContext(
-              context,
+            callback = context.surfaceEvent(
               _surfaceProbe(),
               _HostileAuthoredValue(),
             );
@@ -168,108 +159,13 @@ void main() {
 
       _expectSafeRefusal(
         callback,
-        helper: 'surfaceEventWithContext',
-        reason: 'no dispatcher is available',
+        refusal: AuthoringRefusalKind.missingDispatcher,
       );
     });
   });
 
-  group('ambiguous dispatcher diagnostics', () {
-    testWidgets('paywallEvent omits authored details', (tester) async {
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: Row(
-            children: <Widget>[
-              RestagePaywallEventDispatcher(
-                onEvent: (_, __) {},
-                child: const SizedBox(),
-              ),
-              RestagePaywallEventDispatcher(
-                onEvent: (_, __) {},
-                child: const SizedBox(),
-              ),
-            ],
-          ),
-        ),
-      );
-      final callback = paywallEvent(
-        _authoredSentinel,
-        args: <String, Object?>{
-          'tag': _authoredSentinel,
-          'value': _HostileAuthoredValue(),
-        },
-      );
-
-      _expectSafeRefusal(
-        callback,
-        helper: 'paywallEvent',
-        reason: 'dispatcher ownership is ambiguous',
-      );
-    });
-
-    testWidgets('surfaceEvent omits authored details', (tester) async {
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: Row(
-            children: <Widget>[
-              RestageEventDispatcher(
-                onEvent: (_, __) {},
-                child: const SizedBox(),
-              ),
-              RestageEventDispatcher(
-                onEvent: (_, __) {},
-                child: const SizedBox(),
-              ),
-            ],
-          ),
-        ),
-      );
-      final callback = surfaceEvent(
-        _surfaceProbe(),
-        _HostileAuthoredValue(),
-      );
-
-      _expectSafeRefusal(
-        callback,
-        helper: 'surfaceEvent',
-        reason: 'dispatcher ownership is ambiguous',
-      );
-    });
-
-    testWidgets('onboardingEvent omits authored details', (tester) async {
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: Row(
-            children: <Widget>[
-              RestageEventDispatcher(
-                onEvent: (_, __) {},
-                child: const SizedBox(),
-              ),
-              RestageEventDispatcher(
-                onEvent: (_, __) {},
-                child: const SizedBox(),
-              ),
-            ],
-          ),
-        ),
-      );
-      final callback = onboardingEvent(
-        _onboardingProbe(),
-        _HostileAuthoredValue(),
-      );
-
-      _expectSafeRefusal(
-        callback,
-        helper: 'onboardingEvent',
-        reason: 'dispatcher ownership is ambiguous',
-      );
-    });
-
-    testWidgets('surfaceEventWithContext omits authored details',
-        (tester) async {
+  group('stale flow-step diagnostics', () {
+    testWidgets('context.surfaceEvent omits authored details', (tester) async {
       late VoidCallback callback;
       final controller = Object();
       final registration = Object();
@@ -288,8 +184,7 @@ void main() {
             isCurrent: () => true,
             child: Builder(
               builder: (context) {
-                callback = surfaceEventWithContext(
-                  context,
+                callback = context.surfaceEvent(
                   _surfaceProbe(),
                   _HostileAuthoredValue(),
                 );
@@ -302,101 +197,51 @@ void main() {
 
       _expectSafeRefusal(
         callback,
-        helper: 'surfaceEventWithContext',
-        reason: 'dispatcher ownership is ambiguous',
+        refusal: AuthoringRefusalKind.staleCallback,
+      );
+    });
+
+    testWidgets('a step that is no longer current says so', (tester) async {
+      late VoidCallback callback;
+      var current = true;
+      void handler(String _, Object? __) {}
+
+      await tester.pumpWidget(
+        RestageEventDispatcher(
+          onEvent: handler,
+          child: RestageFlowEventRegistration(
+            controller: Object(),
+            registration: Object(),
+            contentToken: Object(),
+            associatedHandler: handler,
+            isCurrent: () => current,
+            child: Builder(
+              builder: (context) {
+                callback = context.surfaceEvent(_surfaceProbe());
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+      current = false;
+
+      _expectSafeRefusal(
+        callback,
+        refusal: AuthoringRefusalKind.staleCallback,
       );
     });
   });
 
   group('callback-time refusal diagnostics', () {
-    testWidgets('paywallEvent omits authored details', (tester) async {
-      late VoidCallback callback;
-      await tester.pumpWidget(
-        RestagePaywallEventDispatcher(
-          onEvent: (_, __) {},
-          child: Builder(
-            builder: (_) {
-              callback = paywallEvent(
-                _authoredSentinel,
-                args: <String, Object?>{
-                  'tag': _authoredSentinel,
-                  'value': _HostileAuthoredValue(),
-                },
-              );
-              return const SizedBox();
-            },
-          ),
-        ),
-      );
-      await tester.pumpWidget(const SizedBox());
-
-      _expectSafeRefusal(
-        callback,
-        helper: 'paywallEvent',
-        reason: 'callback dispatch is not admitted',
-      );
-    });
-
-    testWidgets('surfaceEvent omits authored details', (tester) async {
-      late VoidCallback callback;
-      await tester.pumpWidget(
-        RestageEventDispatcher(
-          onEvent: (_, __) {},
-          child: Builder(
-            builder: (_) {
-              callback = surfaceEvent(
-                _surfaceProbe(),
-                _HostileAuthoredValue(),
-              );
-              return const SizedBox();
-            },
-          ),
-        ),
-      );
-      await tester.pumpWidget(const SizedBox());
-
-      _expectSafeRefusal(
-        callback,
-        helper: 'surfaceEvent',
-        reason: 'callback dispatch is not admitted',
-      );
-    });
-
-    testWidgets('onboardingEvent omits authored details', (tester) async {
-      late VoidCallback callback;
-      await tester.pumpWidget(
-        RestageEventDispatcher(
-          onEvent: (_, __) {},
-          child: Builder(
-            builder: (_) {
-              callback = onboardingEvent(
-                _onboardingProbe(),
-                _HostileAuthoredValue(),
-              );
-              return const SizedBox();
-            },
-          ),
-        ),
-      );
-      await tester.pumpWidget(const SizedBox());
-
-      _expectSafeRefusal(
-        callback,
-        helper: 'onboardingEvent',
-        reason: 'callback dispatch is not admitted',
-      );
-    });
-
-    testWidgets('surfaceEventWithContext omits authored details',
-        (tester) async {
+    testWidgets('context.surfaceEvent omits authored details', (tester) async {
       late VoidCallback callback;
       await tester.pumpWidget(
         RestageEventDispatcher(
           onEvent: (_, __) {},
           child: Builder(
             builder: (context) {
-              callback = surfaceEventWithContext(
-                context,
+              callback = context.surfaceEvent(
                 _surfaceProbe(),
                 _HostileAuthoredValue(),
               );
@@ -409,16 +254,15 @@ void main() {
 
       _expectSafeRefusal(
         callback,
-        helper: 'surfaceEventWithContext',
-        reason: 'callback dispatch is not admitted',
+        refusal: AuthoringRefusalKind.unmountedContext,
       );
     });
 
-    testWidgets('surfaceEvent omits authored details after admission',
+    testWidgets('context.surfaceEvent omits authored details after admission',
         (tester) async {
       final probe = await _captureControllerRefusal(
         tester,
-        (_) => surfaceEvent(
+        (context) => context.surfaceEvent(
           _surfaceProbe(),
           _HostileAuthoredValue(),
         ),
@@ -426,61 +270,40 @@ void main() {
 
       _expectSafeRefusal(
         probe.callback,
-        helper: 'surfaceEvent',
-        reason: 'callback dispatch is not admitted',
-      );
-      expect(probe.handlerWasCalled(), isTrue);
-      expect(probe.eventWasRun(), isFalse);
-    });
-
-    testWidgets('onboardingEvent omits authored details after admission',
-        (tester) async {
-      final probe = await _captureControllerRefusal(
-        tester,
-        (_) => onboardingEvent(
-          _onboardingProbe(),
-          _HostileAuthoredValue(),
-        ),
-      );
-
-      _expectSafeRefusal(
-        probe.callback,
-        helper: 'onboardingEvent',
-        reason: 'callback dispatch is not admitted',
-      );
-      expect(probe.handlerWasCalled(), isTrue);
-      expect(probe.eventWasRun(), isFalse);
-    });
-
-    testWidgets(
-        'surfaceEventWithContext omits authored details after admission',
-        (tester) async {
-      final probe = await _captureControllerRefusal(
-        tester,
-        (context) => surfaceEventWithContext(
-          context,
-          _surfaceProbe(),
-          _HostileAuthoredValue(),
-        ),
-      );
-
-      _expectSafeRefusal(
-        probe.callback,
-        helper: 'surfaceEventWithContext',
-        reason: 'callback dispatch is not admitted',
+        refusal: AuthoringRefusalKind.callbackRefused,
       );
       expect(probe.handlerWasCalled(), isTrue);
       expect(probe.eventWasRun(), isFalse);
     });
   });
 
+  test("a generated mount's refusals name the mount, not a call", () {
+    for (final refusal in AuthoringRefusalKind.values) {
+      final reports = <FlutterErrorDetails>[];
+      reportAuthoringRefusal(
+        refusal: refusal,
+        recorded: true,
+        throwOnRefusal: false,
+        reportError: reports.add,
+      );
+      final message = (reports.single.exception as StateError).message;
+      expect(
+        message,
+        startsWith('[restage] A generated mount refused a recorded event: '),
+        reason: '$refusal',
+      );
+      expect(message, isNot(contains('context.surfaceEvent')),
+          reason: '$refusal');
+      expect(message, contains(' Try '), reason: '$refusal');
+    }
+  });
+
   test('reporting uses the assertion message', () {
-    for (final helper in AuthoringHelperKind.values) {
+    {
       for (final refusal in AuthoringRefusalKind.values) {
         Object? assertion;
         try {
           reportAuthoringRefusal(
-            helper: helper,
             refusal: refusal,
             throwOnRefusal: true,
           );
@@ -490,16 +313,12 @@ void main() {
 
         final reports = <FlutterErrorDetails>[];
         reportAuthoringRefusal(
-          helper: helper,
           refusal: refusal,
           throwOnRefusal: false,
           reportError: reports.add,
         );
 
-        final expected = _expectedRefusal(
-          _helperName(helper),
-          _refusalReason(refusal),
-        );
+        final expected = _expectedRefusal(refusal);
         expect(assertion, isA<AssertionError>());
         expect((assertion! as AssertionError).message, expected);
         expect(reports, hasLength(1));

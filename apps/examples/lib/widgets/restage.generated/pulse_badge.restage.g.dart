@@ -59,7 +59,7 @@ final class __restageWidget$PulseBadgeState
   @override
   Widget build(BuildContext context) {
     // ignore: unused_local_variable
-    final _restageRecording = RestageRecording();
+    final _restageRecording = RestageRecording(owner: context);
     // ignore: unused_local_variable
     final _restageSurface = _restageWidget;
     Widget _restageDesign(Widget _restageBuilt) =>

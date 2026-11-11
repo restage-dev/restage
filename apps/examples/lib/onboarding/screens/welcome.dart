@@ -6,7 +6,7 @@ part 'restage.generated/welcome.restage.g.dart';
 /// First-run onboarding: the welcome screen.
 ///
 /// Each screen declares its events as static `SurfaceEvent` fields, and a button
-/// fires one with `surfaceEvent(...)`. The flow in
+/// fires one with `context.surfaceEvent(...)`. The flow in
 /// `lib/onboarding/flows/first_run.dart` decides where each event leads.
 ///
 /// It uses fixed brand colors on purpose: a first-run flow is one calm brand
@@ -86,7 +86,7 @@ class WelcomeScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: surfaceEvent(next),
+                      onPressed: context.surfaceEvent(next),
                       child: const Text(
                         'Get started',
                         style: TextStyle(

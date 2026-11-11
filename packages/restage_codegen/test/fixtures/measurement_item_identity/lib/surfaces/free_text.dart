@@ -16,15 +16,15 @@ final class FreeText extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         children: [
           TextField(
-            onChanged: surfaceEvent(typed),
-            onSubmitted: surfaceEvent(sent),
+            onChanged: context.surfaceEvent(typed),
+            onSubmitted: context.surfaceEvent(sent),
           ),
           CupertinoTextField(
-            onChanged: surfaceEvent(typed),
-            onSubmitted: surfaceEvent(sent),
+            onChanged: context.surfaceEvent(typed),
+            onSubmitted: context.surfaceEvent(sent),
           ),
           FilledButton(
-            onPressed: surfaceEvent(done),
+            onPressed: context.surfaceEvent(done),
             child: const Text('Done'),
           ),
         ],

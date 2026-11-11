@@ -37,19 +37,18 @@ Set<String> authoredEventNames(Expression callback) {
   return {if (authoredEventName(expression) case final name?) name};
 }
 
-/// The event name a `paywallEvent('name')` or `surfaceEvent(event)` callback
-/// fires, or null for any other callback.
+/// The event name a `context.surfaceEvent(event)` callback fires, or null for
+/// any other callback.
 String? authoredEventName(Expression callback) {
   final expression = callback is ParenthesizedExpression
       ? callback.expression
       : callback;
   if (expression is! MethodInvocation) return null;
   final name = expression.methodName.name;
-  if (name != 'paywallEvent' && name != 'surfaceEvent') return null;
+  if (name != 'surfaceEvent') return null;
   final arguments = expression.argumentList.arguments;
   if (arguments.isEmpty) return null;
   final first = arguments.first.argumentExpression;
-  if (first is SimpleStringLiteral) return first.value;
   final element = switch (first) {
     SimpleIdentifier(:final element) => element,
     PrefixedIdentifier(:final element) => element,

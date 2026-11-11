@@ -60,7 +60,7 @@ class TallyGoalScreen extends StatelessWidget {
               ),
               const SizedBox(height: 28),
               GestureDetector(
-                onTap: surfaceEvent(debt),
+                onTap: context.surfaceEvent(debt),
                 child: Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
@@ -118,7 +118,7 @@ class TallyGoalScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               GestureDetector(
-                onTap: surfaceEvent(savings),
+                onTap: context.surfaceEvent(savings),
                 child: Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
@@ -176,7 +176,7 @@ class TallyGoalScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               GestureDetector(
-                onTap: surfaceEvent(invest),
+                onTap: context.surfaceEvent(invest),
                 child: Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(

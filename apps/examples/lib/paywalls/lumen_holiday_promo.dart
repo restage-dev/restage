@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+part 'restage.generated/lumen_holiday_promo.restage.g.dart';
+
 /// The meditation app's seasonal offer: a night-sky ground with a soft
 /// aurora sweep and scattered stars, one discounted yearly price, and a
 /// deadline pill.
@@ -9,23 +11,27 @@ import 'package:restage/restage.dart';
 /// renders the night and daylight designs.
 @Paywall()
 class LumenHolidayPromoPaywall extends StatelessWidget {
-  /// Continues with the seasonal yearly plan.
-  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
-
   /// Dismisses the offer.
   static const close = SurfaceEvent<void>('close');
 
-  /// Opens the subscription terms.
-  static const terms = SurfaceEvent<void>('terms');
+  const LumenHolidayPromoPaywall(
+      {super.key,
+      this.onContinue,
+      this.onRestore,
+      this.onTerms,
+      this.onPrivacy});
+
+  /// Continues with the selected plan.
+  final ValueChanged<String>? onContinue;
+
+  /// Restores earlier purchases.
+  final VoidCallback? onRestore;
+
+  /// Opens the terms of service.
+  final VoidCallback? onTerms;
 
   /// Opens the privacy policy.
-  static const privacy = SurfaceEvent<void>('privacy');
-
-  /// Asks the app to restore an existing subscription; the app answers this
-  /// event by running its own restore.
-  static const restorePurchases = SurfaceEvent<void>('restore_purchases');
-
-  const LumenHolidayPromoPaywall({super.key});
+  final VoidCallback? onPrivacy;
 
   @override
   Widget build(BuildContext context) {
@@ -464,10 +470,7 @@ class LumenHolidayPromoPaywall extends StatelessWidget {
                       ),
                       const SizedBox(height: 16),
                       GestureDetector(
-                        onTap: paywallEvent(
-                          'continue',
-                          args: {'plan': 'winter_yearly'},
-                        ),
+                        onTap: () => onContinue?.call('winter_yearly'),
                         child: Container(
                           height: 58,
                           decoration: BoxDecoration(
@@ -510,7 +513,7 @@ class LumenHolidayPromoPaywall extends StatelessWidget {
                         children: [
                           Flexible(
                             child: GestureDetector(
-                              onTap: paywallEvent('restore_purchases'),
+                              onTap: onRestore,
                               child: Text(
                                 'Restore',
                                 style: TextStyle(
@@ -525,7 +528,7 @@ class LumenHolidayPromoPaywall extends StatelessWidget {
                           const SizedBox(width: 18),
                           Flexible(
                             child: GestureDetector(
-                              onTap: paywallEvent('terms'),
+                              onTap: onTerms,
                               child: Text(
                                 'Terms',
                                 style: TextStyle(
@@ -540,7 +543,7 @@ class LumenHolidayPromoPaywall extends StatelessWidget {
                           const SizedBox(width: 18),
                           Flexible(
                             child: GestureDetector(
-                              onTap: paywallEvent('privacy'),
+                              onTap: onPrivacy,
                               child: Text(
                                 'Privacy',
                                 style: TextStyle(

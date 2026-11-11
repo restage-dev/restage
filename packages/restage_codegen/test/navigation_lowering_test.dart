@@ -26,60 +26,6 @@ import 'helpers.dart';
 
 void main() {
   group('Navigation lowering translation', () {
-    test('a const-object-field event name is collected so the synthetic nav '
-        'minter does not reuse it', () async {
-      // The authored `paywallEvent(_skin.nav)` folds to 'restageNav0'. The
-      // scanner must see that folded name (via the unified scalar boundary) so
-      // the synthetic nav-event minter avoids it and picks the next free slot —
-      // otherwise an authored button and the navigation trigger collide on the
-      // same event.
-      final translation = await _translateEntry('''
-import 'package:flutter/material.dart';
-import 'package:restage/restage.dart';
-
-class Skin {
-  const Skin({required this.nav});
-  final String nav;
-}
-
-const _skin = Skin(nav: 'restageNav0');
-
-@PaywallSource(id: 'choose_plan')
-class ChoosePlan extends StatelessWidget {
-  const ChoosePlan();
-  Widget build(BuildContext context) => const SizedBox();
-}
-
-Object x(BuildContext context) => Column(
-  children: [
-    ElevatedButton(
-      onPressed: () => Navigator.push<void>(
-        context,
-        MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
-      ),
-      child: const Text('Choose'),
-    ),
-    ElevatedButton(
-      onPressed: paywallEvent(_skin.nav),
-      child: const Text('Terms'),
-    ),
-    ElevatedButton(
-      onPressed: paywallEvent('skip'),
-      child: const Text('Skip'),
-    ),
-  ],
-);
-''');
-      expect(translation.issues, isEmpty);
-      // Authored event name (folded from the const-object field) is present…
-      expect(translation.dsl, contains('event "restageNav0" {}'));
-      // …and the navigation transition fires on a DIFFERENT, minted event —
-      // the minter avoided the authored name rather than colliding on it.
-      expect(translation.navigation, isNotNull);
-      expect(translation.navigation!.transitions, hasLength(1));
-      expect(translation.navigation!.transitions.single.event, 'restageNav1');
-    });
-
     test('event-name census includes custom static string constants', () async {
       final translation = await _translateEntry('''
 import 'package:flutter/material.dart';
@@ -89,6 +35,10 @@ class Alignment {
   static const String nav = 'restageNav0';
 }
 
+abstract final class _Events {
+  static const terms = SurfaceEvent<void>(Alignment.nav);
+}
+
 @PaywallSource(id: 'choose_plan')
 class ChoosePlan extends StatelessWidget {
   const ChoosePlan();
@@ -105,11 +55,11 @@ Object x(BuildContext context) => Column(
       child: const Text('Choose'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent(Alignment.nav),
+      onPressed: context.surfaceEvent(_Events.terms),
       child: const Text('Terms'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Skip'),
     ),
   ],
@@ -133,7 +83,7 @@ class ChoosePlan extends StatelessWidget {
 
 Object x(BuildContext context) {
   final terms = ElevatedButton(
-    onPressed: paywallEvent('restageNav0'),
+    onPressed: context.surfaceEvent(_Events.restageNav0),
     child: const Text('Terms'),
   );
   return Column(
@@ -147,11 +97,15 @@ Object x(BuildContext context) {
         child: const Text('Choose'),
       ),
       ElevatedButton(
-        onPressed: paywallEvent('skip'),
+        onPressed: context.surfaceEvent(PaywallEvents.skip),
         child: const Text('Dismiss'),
       ),
     ],
   );
+}
+
+abstract final class _Events {
+  static const restageNav0 = SurfaceEvent<void>('restageNav0');
 }
 ''');
 
@@ -191,7 +145,7 @@ class TermsAction extends StatelessWidget {
   const TermsAction();
 
   Widget build(BuildContext context) => ElevatedButton(
-    onPressed: paywallEvent('restageNav0'),
+    onPressed: context.surfaceEvent(_Events.restageNav0),
     child: const Text('Terms'),
   );
 }
@@ -213,11 +167,15 @@ Object x(BuildContext context) => Column(
       child: const Text('Choose'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Dismiss'),
     ),
   ],
 );
+
+abstract final class _Events {
+  static const restageNav0 = SurfaceEvent<void>('restageNav0');
+}
 ''');
 
       expect(translation.issues, isEmpty);
@@ -248,7 +206,7 @@ Column(
   children: [
     if (false)
       ElevatedButton(
-        onPressed: paywallEvent('restageNav0'),
+        onPressed: context.surfaceEvent(_Events.restageNav0),
         child: const Text('Hidden'),
       ),
     const Text('Terms'),
@@ -293,7 +251,7 @@ Column(
   children: [
     if (true)
       ElevatedButton(
-        onPressed: paywallEvent('restageNav0'),
+        onPressed: context.surfaceEvent(_Events.restageNav0),
         child: const Text('Terms'),
       ),
   ],
@@ -333,12 +291,12 @@ Column(
   children: [
     if (false)
       ElevatedButton(
-        onPressed: paywallEvent('restageNav0'),
+        onPressed: context.surfaceEvent(_Events.restageNav0),
         child: const Text('First'),
       )
     else
       ElevatedButton(
-        onPressed: paywallEvent('restageNav2'),
+        onPressed: context.surfaceEvent(_Events.restageNav2),
         child: const Text('Second'),
       ),
   ],
@@ -390,7 +348,7 @@ class TermsAction extends StatelessWidget {
   const TermsAction();
 
   Widget build(BuildContext context) => ElevatedButton(
-    onPressed: paywallEvent('restageNav1'),
+    onPressed: context.surfaceEvent(_Events.restageNav1),
     child: const Text('Terms'),
   );
 }
@@ -408,7 +366,7 @@ class TermsGroup extends StatelessWidget {
     children: [
       ...<Widget>[
         ElevatedButton(
-          onPressed: paywallEvent('restageNav0'),
+          onPressed: context.surfaceEvent(_Events.restageNav0),
           child: const Text('Spread'),
         ),
       ],
@@ -434,11 +392,16 @@ Object x(BuildContext context) => Column(
       child: const Text('Choose'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Dismiss'),
     ),
   ],
 );
+
+abstract final class _Events {
+  static const restageNav1 = SurfaceEvent<void>('restageNav1');
+  static const restageNav0 = SurfaceEvent<void>('restageNav0');
+}
 ''');
 
       expect(translation.issues, isEmpty);
@@ -482,7 +445,7 @@ class TermsAction extends StatelessWidget {
   const TermsAction();
 
   Widget build(BuildContext context) => ElevatedButton(
-    onPressed: paywallEvent('restageNav0'),
+    onPressed: context.surfaceEvent(_Events.restageNav0),
     child: const Text('Terms'),
   );
 }
@@ -521,11 +484,15 @@ Object x(BuildContext context) => Column(
       child: const Text('Choose'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Dismiss'),
     ),
   ],
 );
+
+abstract final class _Events {
+  static const restageNav0 = SurfaceEvent<void>('restageNav0');
+}
 ''');
 
         expect(translation.issues, isEmpty);
@@ -557,7 +524,7 @@ class UnusedAction extends StatelessWidget {
   const UnusedAction();
 
   Widget build(BuildContext context) => ElevatedButton(
-    onPressed: paywallEvent('restageNav0'),
+    onPressed: context.surfaceEvent(_Events.restageNav0),
     child: const Text('Unused'),
   );
 }
@@ -578,13 +545,17 @@ Object x(BuildContext context) => Column(
       child: const Text('Choose'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Dismiss'),
     ),
   ],
 );
 
 Object unused() => const UnusedAction();
+
+abstract final class _Events {
+  static const restageNav0 = SurfaceEvent<void>('restageNav0');
+}
 ''',
           additionalFunctions: const ['unused'],
         );
@@ -592,256 +563,6 @@ Object unused() => const UnusedAction();
         expect(translation.issues, isEmpty);
         expect(translation.widgetDefinitions, isEmpty);
         expect(translation.navigation!.transitions.single.event, 'restageNav0');
-      },
-    );
-
-    test(
-      'a parenthesized final chain reserves the exact shadowed name',
-      () async {
-        final translation = await _translateBuildEntry('''
-import 'package:flutter/material.dart';
-import 'package:restage/restage.dart';
-
-const eventName = 'restageNav9';
-
-@PaywallSource(id: 'choose_plan')
-class ChoosePlan extends StatelessWidget {
-  const ChoosePlan();
-  Widget build(BuildContext context) => const SizedBox();
-}
-
-Object x(BuildContext context) {
-  const seed = 'restageNav0';
-  final eventName = (seed);
-  final chainedName = ((eventName));
-  return Column(
-    children: [
-      ElevatedButton(
-        onPressed: () => Navigator.push<void>(
-          context,
-          MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
-        ),
-        child: const Text('Choose'),
-      ),
-      ElevatedButton(
-        onPressed: paywallEvent(chainedName),
-        child: const Text('Terms'),
-      ),
-      ElevatedButton(
-        onPressed: paywallEvent('skip'),
-        child: const Text('Dismiss'),
-      ),
-    ],
-  );
-}
-''');
-
-        expect(translation.issues, isEmpty);
-        expect(
-          RegExp(r'event "restageNav0" \{\}').allMatches(translation.dsl),
-          hasLength(1),
-        );
-        expect(
-          RegExp(r'event "restageNav1" \{\}').allMatches(translation.dsl),
-          hasLength(1),
-        );
-        expect(translation.dsl, isNot(contains('restageNav9')));
-        expect(translation.navigation!.transitions.single.event, 'restageNav1');
-      },
-    );
-
-    test('bound event names match inline navigation bytes', () async {
-      const skin = '''
-class Skin {
-  const Skin({required this.prefix});
-  final String prefix;
-}
-const skin = Skin(prefix: 'restage');
-''';
-      for (final (declarations, prelude, inlineName)
-          in <(String, String, String)>[
-            (
-              '',
-              "final prefix = 'restage';\n"
-                  "final eventName = prefix + 'Nav0';",
-              "'restage' + 'Nav0'",
-            ),
-            (
-              skin,
-              'final selected = skin;\n'
-                  "final eventName = selected.prefix + 'Nav0';",
-              "skin.prefix + 'Nav0'",
-            ),
-          ]) {
-        final bound = await _translateBuildEntry(
-          _paywallSourceWithRoot(
-            _eventNavigationRoot('eventName'),
-            declarations: declarations,
-            prelude: prelude,
-          ),
-        );
-        final inline = await _translateBuildEntry(
-          _paywallSourceWithRoot(
-            _eventNavigationRoot(inlineName),
-            declarations: declarations,
-          ),
-        );
-
-        expect(bound.issues, isEmpty);
-        expect(inline.issues, isEmpty);
-        expect(utf8.encode(bound.dsl), utf8.encode(inline.dsl));
-        expect(
-          RegExp(r'event "restageNav0" \{\}').allMatches(bound.dsl),
-          hasLength(1),
-        );
-        expect(
-          RegExp(r'event "restageNav1" \{\}').allMatches(bound.dsl),
-          hasLength(1),
-        );
-        expect(bound.navigation!.transitions.single.event, 'restageNav1');
-        expect(
-          inline.navigation!.transitions.single.event,
-          bound.navigation!.transitions.single.event,
-        );
-      }
-    });
-
-    test(
-      'reserved event names keep their diagnostic through bindings',
-      () async {
-        final inline = await _translateBuildEntry(
-          _paywallSourceWithRoot(
-            _eventButton("false ? 'continue' : 'restore'"),
-          ),
-        );
-        final local = await _translateBuildEntry(
-          _paywallSourceWithRoot(
-            _eventButton('eventName'),
-            prelude: "final eventName = false ? 'continue' : 'restore';",
-          ),
-        );
-        final formal = await _translateCustomBuildEntry('''
-import 'package:flutter/material.dart';
-import 'package:restage/restage.dart';
-import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-
-@RestageWidget(
-  name: 'RestoreHelperAction',
-  library: WidgetLibrary.custom('acme.ds'),
-  category: WidgetCategory.input,
-  description: 'Restore helper action',
-)
-class RestoreHelperAction extends StatelessWidget {
-  const RestoreHelperAction();
-
-  Widget action(String eventName) => ElevatedButton(
-    onPressed: paywallEvent(eventName),
-    child: const Text('Restore'),
-  );
-
-  Widget build(BuildContext context) =>
-      action(false ? 'continue' : 'restore');
-}
-
-Object x(BuildContext context) => const RestoreHelperAction();
-''');
-        final inlined = await _translateCustomBuildEntry('''
-import 'package:flutter/material.dart';
-import 'package:restage/restage.dart';
-import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-
-@RestageWidget(
-  name: 'RestoreAction',
-  library: WidgetLibrary.custom('acme.ds'),
-  category: WidgetCategory.input,
-  description: 'Restore action',
-)
-class RestoreAction extends StatelessWidget {
-  const RestoreAction();
-
-  Widget build(BuildContext context) {
-    final eventName = false ? 'continue' : 'restore';
-    return ElevatedButton(
-      onPressed: paywallEvent(eventName),
-      child: const Text('Restore'),
-    );
-  }
-}
-
-Object x(BuildContext context) => const RestoreAction();
-''');
-
-        const expectedMessage =
-            "The event name 'restore' is reserved for commerce. The reserved "
-            'names are purchase, restore, restage.purchase, restage.restore and '
-            'their outcome events such as restage.purchase.failed. Rename the '
-            "event, for example to 'restore_tapped'; any other name works. "
-            'Authored surfaces cannot initiate purchases or restores. '
-            'Applications '
-            'invoke the typed commerce boundary from explicit host-controlled '
-            'code. The current facade is unavailable until activated.';
-        expect(
-          [
-            for (final (name, result) in <(String, TranslationResult)>[
-              ('inline', inline),
-              ('local', local),
-              ('formal', formal),
-              ('inlined', inlined),
-            ])
-              (
-                name,
-                result.dsl,
-                result.issues.single.code,
-                result.issues.single.message,
-              ),
-          ],
-          [
-            for (final name in <String>['inline', 'local', 'formal', 'inlined'])
-              (
-                name,
-                '',
-                IssueCode.unsupportedCommerceAuthoring,
-                expectedMessage,
-              ),
-          ],
-        );
-      },
-    );
-
-    test(
-      'runtime and conditional event-name values refuse identically',
-      () async {
-        for (final initializer in <String>[
-          'runtimeName()',
-          "true ? 'first' : 'second'",
-          r"'${'custom'}Event'",
-        ]) {
-          final translation = await _translateBuildEntry('''
-import 'package:flutter/material.dart';
-import 'package:restage/restage.dart';
-
-String runtimeName() => 'runtime';
-
-Object x(BuildContext context) {
-  final name = $initializer;
-  return ElevatedButton(
-    onPressed: paywallEvent(name),
-    child: const Text('Go'),
-  );
-}
-''');
-
-          expect(translation.dsl, isEmpty, reason: initializer);
-          expect(translation.issues, hasLength(1), reason: initializer);
-          expect(
-            (translation.issues.single.code, translation.issues.single.message),
-            (
-              IssueCode.unrecognizedMethodCall,
-              'paywallEvent requires a statically resolved String name.',
-            ),
-            reason: initializer,
-          );
-        }
       },
     );
 
@@ -860,7 +581,7 @@ class ChoosePlan extends StatelessWidget {
 
 Object x(BuildContext context) {
   final dismiss = ElevatedButton(
-    onPressed: paywallEvent('skip'),
+    onPressed: context.surfaceEvent(PaywallEvents.skip),
     child: const Text('Dismiss'),
   );
   return Column(
@@ -911,7 +632,7 @@ Object x(BuildContext context) {
     children: [
       next,
       ElevatedButton(
-        onPressed: paywallEvent('skip'),
+        onPressed: context.surfaceEvent(PaywallEvents.skip),
         child: const Text('Dismiss'),
       ),
     ],
@@ -967,7 +688,7 @@ Column(
       child: const Text('Choose'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Skip'),
     ),
   ],
@@ -986,7 +707,7 @@ Column(
       child: const Text('Choose'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Skip'),
     ),
   ],
@@ -1028,7 +749,7 @@ Column(
       child: const Text('Choose'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Skip'),
     ),
   ],
@@ -1085,9 +806,9 @@ GestureDetector(
         expect(
           standalone.issues.single.message,
           'this paywall uses an in-flow Navigator.pop (back); its standalone '
-          'blob is not emitted — it renders as a flow screen. Use '
-          "paywallEvent('close') for a standalone dismiss, or present it via "
-          'a flow.',
+          'blob is not emitted — it renders as a flow screen. Close a '
+          'standalone paywall through a callback the app passes in, or '
+          'present it via a flow.',
         );
         expect(standalone.navigation, isNull);
       },
@@ -1187,6 +908,10 @@ import 'package:restage/restage.dart';
 
 const authoredNav = 'restageNav0';
 
+abstract final class _Events {
+  static const author = SurfaceEvent<void>(authoredNav);
+}
+
 @PaywallSource(id: 'choose_plan')
 class ChoosePlan extends StatelessWidget {
   const ChoosePlan();
@@ -1196,7 +921,7 @@ class ChoosePlan extends StatelessWidget {
 Object x(BuildContext context) => Column(
   children: [
     ElevatedButton(
-      onPressed: paywallEvent(authoredNav),
+      onPressed: context.surfaceEvent(_Events.author),
       child: const Text('Author'),
     ),
     ElevatedButton(
@@ -1207,7 +932,7 @@ Object x(BuildContext context) => Column(
       child: const Text('Choose'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Skip'),
     ),
   ],
@@ -1295,7 +1020,10 @@ ElevatedButton(
         translation.issues.map((issue) => issue.code),
         contains(IssueCode.navigationFormUnsupported),
       );
-      expect(translation.issues.single.message, contains('paywallEvent'));
+      expect(
+        translation.issues.single.message,
+        contains('context.surfaceEvent(PaywallEvents.skip)'),
+      );
       expect(translation.issues.single.message, contains('skip'));
       expect(translation.navigation, isNull);
     });
@@ -1314,7 +1042,7 @@ Column(
       child: const Text('Choose'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Skip'),
     ),
     ElevatedButton(
@@ -1368,7 +1096,7 @@ Object x(BuildContext context, BuildContext rootContext) => Column(
       child: const Text('Choose'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Skip'),
     ),
   ],
@@ -1422,7 +1150,7 @@ Object x(BuildContext context) => Column(
       child: const Text('Confirm'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Skip'),
     ),
   ],
@@ -1448,7 +1176,7 @@ Object x(BuildContext context) => Column(
     test('non-navigation paywalls are identical across artifacts', () async {
       final source = _paywallSourceWithRoot('''
 ElevatedButton(
-  onPressed: paywallEvent('skip'),
+  onPressed: context.surfaceEvent(PaywallEvents.skip),
   child: const Text('Skip'),
 )
 ''');
@@ -1485,7 +1213,7 @@ class EntryPaywall extends StatelessWidget {
         child: const Text('Choose'),
       ),
       ElevatedButton(
-        onPressed: paywallEvent('skip'),
+        onPressed: context.surfaceEvent(PaywallEvents.skip),
         child: const Text('Skip'),
       ),
     ],
@@ -1559,7 +1287,7 @@ class EntryPaywall extends StatelessWidget {
         child: const Text('Choose'),
       ),
       ElevatedButton(
-        onPressed: paywallEvent('skip'),
+        onPressed: context.surfaceEvent(PaywallEvents.skip),
         child: const Text('Skip'),
       ),
     ],
@@ -1826,6 +1554,11 @@ class TermsAction extends StatelessWidget {
   Widget build(BuildContext context) => $body;
 }
 
+abstract final class _Events {
+  static const restageNav0 = SurfaceEvent<void>('restageNav0');
+  static const restageNav2 = SurfaceEvent<void>('restageNav2');
+}
+
 @PaywallSource(id: 'choose_plan')
 class ChoosePlan extends StatelessWidget {
   const ChoosePlan();
@@ -1843,7 +1576,7 @@ Object x(BuildContext context) => Column(
       child: const Text('Choose'),
     ),
     ElevatedButton(
-      onPressed: paywallEvent('skip'),
+      onPressed: context.surfaceEvent(PaywallEvents.skip),
       child: const Text('Dismiss'),
     ),
   ],
@@ -1949,28 +1682,6 @@ class ChoosePlan extends StatelessWidget {
 $function
 ''';
 }
-
-String _eventNavigationRoot(String eventName) =>
-    '''
-Column(children: [
-  ElevatedButton(
-    onPressed: () => Navigator.push<void>(context,
-      MaterialPageRoute<void>(builder: (_) => const ChoosePlan())),
-    child: const Text('Choose')),
-  ElevatedButton(onPressed: paywallEvent($eventName),
-    child: const Text('Terms')),
-  ElevatedButton(onPressed: paywallEvent('skip'),
-    child: const Text('Dismiss')),
-])
-''';
-
-String _eventButton(String eventName) =>
-    '''
-ElevatedButton(
-  onPressed: paywallEvent($eventName),
-  child: const Text('Restore'),
-)
-''';
 
 final Catalog _navigationCatalog = Catalog(
   schemaVersion: kSupportedSchemaVersion,

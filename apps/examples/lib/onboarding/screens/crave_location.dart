@@ -45,7 +45,7 @@ class CraveLocationScreen extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: surfaceEvent(skip),
+            onPressed: context.surfaceEvent(skip),
             child: const Text(
               'Not now',
               style: TextStyle(
@@ -117,7 +117,7 @@ class CraveLocationScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      onPressed: surfaceEvent(allow),
+                      onPressed: context.surfaceEvent(allow),
                       child: const Text(
                         'Use current location',
                         style: TextStyle(

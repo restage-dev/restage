@@ -17,8 +17,10 @@ import '../delivery/surface_load_cycle.dart';
 import '../delivery/surface_delivery_paint_boundary.dart';
 import '../delivery/surface_race.dart';
 import '../analytics/root_analytics_context.dart';
+import '../authoring/event_dispatch_admission.dart' show RestageEventEpoch;
+import '../authoring/onboarding_event.dart' show RecordedEventHost;
 import '../authoring/onboarding_event_dispatcher.dart'
-    show DeclaredEventDispatcher, SurfaceEventHandler;
+    show RestageEventDispatcher, SurfaceEventHandler;
 import '../events/restage_event.dart'
     show PagerPageChanged, SurfaceLoadFailureReason;
 import '../flow/flow_descriptors.dart';
@@ -105,8 +107,10 @@ final class RestageScreen<E> extends StatefulWidget
   static PlacementMountBinding generatedPlacementBinding({
     required GeneratedPlacementDefinition Function() definition,
     String? name,
+    Object? eventOwner,
   }) =>
-      PlacementMountBinding(definition: definition, name: name);
+      PlacementMountBinding(
+          definition: definition, name: name, eventOwner: eventOwner);
 
   /// The exact generated standalone-screen reference to render.
   final SurfaceScreenRef<E> screen;
@@ -162,6 +166,10 @@ final class RestageScreen<E> extends StatefulWidget
 
 class _RestageScreenState<E> extends State<RestageScreen<E>> {
   _ScreenStage? _stage;
+
+  // The surface events come from; it changes when another screen takes this
+  // element.
+  Object _eventIdentity = Object();
   _ScreenStage? _acceptedStage;
   SurfaceScreenUnavailableError? _unavailableError;
   SurfaceDeliveryObservationCell? _observationCell;
@@ -188,8 +196,6 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   var _dependenciesReady = false;
   ContextSnapshot? _context;
   late final SurfaceEventHandler _fallbackEventHandler = _handleFallbackEvent;
-  late final bool Function(String eventId) _declares = _declaresEvent;
-  Set<String>? _declaredEventIds;
 
   void _refreshContext() {
     final raw = widget.context;
@@ -214,6 +220,11 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   void didUpdateWidget(RestageScreen<E> oldWidget) {
     super.didUpdateWidget(oldWidget);
     _refreshContext();
+    // Another screen taking this element: what the old one showed in a
+    // dialog no longer reaches it. A new handler for the same screen does.
+    if (!identical(oldWidget.screen, widget.screen)) {
+      _eventIdentity = Object();
+    }
     if (!identical(oldWidget.screen, widget.screen) ||
         !identical(oldWidget.resolver, widget.resolver) ||
         !(oldWidget.placementBinding
@@ -251,7 +262,6 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     // render with its own vocabulary.
     widget.screen.provenance.vocabulary.addToInstalled();
     _observationCell = null;
-    _declaredEventIds = null;
     _placementInteracted = false;
     _loadAdvanced = false;
     final epoch = ++_resolutionEpoch;
@@ -896,7 +906,14 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     );
   }
 
-  void _handleEvent(_ScreenStage stage, String name, Object? value) {
+  // An event app code fires that the contract rejects is reported and
+  // dropped; only one the delivered design fires fails the screen.
+  void _handleEvent(
+    _ScreenStage stage,
+    String name,
+    Object? value, {
+    bool fromApp = false,
+  }) {
     if (!identical(_stage, stage)) return;
     _placementInteracted = true;
     if (stage.local.intercept(name, value)) return;
@@ -926,7 +943,18 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
                 identical(_stage, stage) &&
                 stage.transaction.isPaintAcknowledged).run(dispatch);
       }
-    } on Object catch (error) {
+    } on Object catch (error, stack) {
+      if (fromApp) {
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'restage',
+          context: ErrorDescription(
+            'rejecting an app event for screen ${widget.screen.slug}',
+          ),
+        ));
+        return;
+      }
       _fail(
         _resolutionEpoch,
         SurfaceScreenUnavailableError(
@@ -980,11 +1008,9 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   static Object? _sanitizeFallbackEvent(Object? value) =>
       MeasurementEventSanitizer.sanitize(value).businessValue;
 
-  bool _declaresEvent(String eventId) => (_declaredEventIds ??= {
-        for (final event in widget.screen.provenance.eventSchema.events)
-          event.id,
-      })
-          .contains(eventId);
+  // The surface that receives events a generated mount recorded above it.
+  static Widget _hostRecordedEvents(Object? owner, Widget child) =>
+      owner == null ? child : RecordedEventHost(owner: owner, child: child);
 
   void _handleRenderFailure(_ScreenStage stage, Object error) {
     if (!identical(_stage, stage)) return;
@@ -1163,35 +1189,42 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         });
       }
       final screen = widget.screen;
-      return DeclaredEventDispatcher(
-        surfaceName: screen.slug,
-        declares: _declares,
+      final owner = widget.placementBinding?.eventOwner;
+      final epoch = _resolutionEpoch;
+      final identity = _eventIdentity;
+      return RestageEventDispatcher(
         onEvent: _fallbackEventHandler,
-        child: guardSurfaceUnavailableWidget(
-          debugLabel: screen.slug,
-          onFailed: () => _failLoad(load, _policyWidgetFailed),
-          child: Builder(builder: (context) {
-            final fallback = builder(context, error);
-            Widget painted(Widget child) => SurfaceLoadPaint(
-                load: load,
-                onPainted: view == SurfaceUnavailableView.original &&
-                        error.reason !=
-                            SurfaceScreenUnavailableReason.renderFailure
-                    ? () => _completeLoadWithOriginal(load)
-                    : () => _failLoad(load, error),
-                child: child);
-            // A parent-data fallback stays the direct child of its parent.
-            if (fallback is ParentDataWidget) return painted(fallback);
-            final late = _late;
-            return painted(withSourceBadge(
-                () => late == null
-                    ? sourceBadgeLabel(null, null)
-                    : lateSourceBadgeLabel(late.version),
-                fallback,
-                description: () => late == null
-                    ? null
-                    : lateSourceBadgeDescription(late.version)));
-          }),
+        child: RestageEventEpoch(
+          isCurrent: () =>
+              mounted &&
+              epoch == _resolutionEpoch &&
+              identical(identity, _eventIdentity),
+          child: guardSurfaceUnavailableWidget(
+            debugLabel: screen.slug,
+            onFailed: () => _failLoad(load, _policyWidgetFailed),
+            child: _hostRecordedEvents(owner, Builder(builder: (context) {
+              final fallback = builder(context, error);
+              Widget painted(Widget child) => SurfaceLoadPaint(
+                  load: load,
+                  onPainted: view == SurfaceUnavailableView.original &&
+                          error.reason !=
+                              SurfaceScreenUnavailableReason.renderFailure
+                      ? () => _completeLoadWithOriginal(load)
+                      : () => _failLoad(load, error),
+                  child: child);
+              // A parent-data fallback stays the direct child of its parent.
+              if (fallback is ParentDataWidget) return painted(fallback);
+              final late = _late;
+              return painted(withSourceBadge(
+                  () => late == null
+                      ? sourceBadgeLabel(null, null)
+                      : lateSourceBadgeLabel(late.version),
+                  fallback,
+                  description: () => late == null
+                      ? null
+                      : lateSourceBadgeDescription(late.version)));
+            })),
+          ),
         ),
       );
     }
@@ -1206,6 +1239,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   }
 
   Widget _buildStage(_ScreenStage stage) {
+    final identity = _eventIdentity;
     return FirstPaintLeaseScope(
       transaction: stage.transaction,
       child: FirstPaintLeaseGuard(
@@ -1233,13 +1267,27 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
                       stage,
                       DeliveredIconFontLoader.scope(
                         stage.sections.iconFonts,
-                        child: RemoteWidget(
-                          runtime: stage.runtime,
-                          data: stage.data,
-                          widget: placementWidgetNameFor(
-                              stage.resolved, kFlowScreenWidget),
-                          onEvent: (name, value) =>
-                              _handleEvent(stage, name, value),
+                        // App code the design shows fires on this stage.
+                        child: RestageEventDispatcher(
+                          onEvent: stage.appEventHandler ??= (name, value) =>
+                              _handleEvent(stage, name, value, fromApp: true),
+                          child: RestageEventEpoch(
+                            isCurrent: () =>
+                                mounted &&
+                                identical(_stage, stage) &&
+                                identical(identity, _eventIdentity),
+                            child: _hostRecordedEvents(
+                              widget.placementBinding?.eventOwner,
+                              RemoteWidget(
+                                runtime: stage.runtime,
+                                data: stage.data,
+                                widget: placementWidgetNameFor(
+                                    stage.resolved, kFlowScreenWidget),
+                                onEvent: (name, value) =>
+                                    _handleEvent(stage, name, value),
+                              ),
+                            ),
+                          ),
                         ),
                       )),
                 ),
@@ -1283,6 +1331,9 @@ final class _ScreenStage {
   final MountAttributionSnapshotV1? mountAttribution;
   _ScreenStage? previousStage;
   late final FirstPaintLeaseTransaction transaction;
+
+  // Receives the events app code shown in this stage fires.
+  SurfaceEventHandler? appEventHandler;
 
   MeasurementHostSessionController? _measurementSession;
   var _disposed = false;

@@ -125,7 +125,7 @@ final class EventHelper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      Center(child: _button('Continue', surfaceEvent(done)));
+      Center(child: _button('Continue', context.surfaceEvent(done)));
 }
 ''',
       'assets/general/screens/event_helper.rfwtxt',
@@ -152,9 +152,13 @@ final class HelperOffer extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         children: [
           _feature('Unlimited projects'),
-          _cta(paywallEvent('continue')),
+          _cta(context.surfaceEvent(_Events.continueEvent)),
         ],
       );
+}
+
+abstract final class _Events {
+  static const continueEvent = SurfaceEvent<void>('continue');
 }
 ''',
       'assets/paywalls/helper_offer.rfwtxt',

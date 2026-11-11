@@ -93,7 +93,7 @@ class ReelOfferScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: surfaceEvent(keep),
+                onPressed: context.surfaceEvent(keep),
                 child: const Text(
                   'Keep my discount',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
@@ -101,7 +101,7 @@ class ReelOfferScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               TextButton(
-                onPressed: surfaceEvent(cancel),
+                onPressed: context.surfaceEvent(cancel),
                 child: const Text(
                   'No thanks, cancel my membership',
                   style: TextStyle(

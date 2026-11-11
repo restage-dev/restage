@@ -891,6 +891,146 @@ void main() {
     expect(hostBuilds, greaterThan(buildsBefore + 1));
   });
 
+  testWidgets(
+      "a dialog a hosted flow's mount opens fires on the paywall, not outside",
+      (tester) async {
+    final outer = <String>[];
+    final events = <String>[];
+    late BuildContext mount;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestageEventDispatcher(
+          onEvent: (name, _) => outer.add(name),
+          child: Builder(builder: (context) {
+            mount = context;
+            return RestagePaywall(
+              id: 'pro_upgrade',
+              placementBinding: RestagePaywall.generatedPlacementBinding(
+                definition: nativeOfferPlacementDefinition,
+                eventOwner: context,
+              ),
+              resolver: _navPaywallResolver(),
+              onEvent: (event) {
+                if (event is PaywallCustomEvent) events.add(event.eventName);
+              },
+            );
+          }),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('See plans'), findsOneWidget);
+    showDialog<void>(
+      context: mount,
+      builder: (_) => TextButton(
+        onPressed: mount.surfaceEvent(const SurfaceEvent<void>('terms')),
+        child: const Text('terms'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('terms'));
+
+    expect(events, ['terms']);
+    expect(outer, isEmpty);
+  });
+
+  testWidgets("app code moves a hosted flow as the flow's screens do",
+      (tester) async {
+    late BuildContext mount;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(builder: (context) {
+          mount = context;
+          return RestagePaywall(
+            id: 'pro_upgrade',
+            placementBinding: RestagePaywall.generatedPlacementBinding(
+              definition: nativeOfferPlacementDefinition,
+              eventOwner: context,
+            ),
+            resolver: _navPaywallResolver(),
+          );
+        }),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Buy'), findsNothing);
+
+    // A recorded callback firing the flow's own navigation event.
+    mount.surfaceEvent(const SurfaceEvent<void>('restageNav0'))();
+    await tester.pumpAndSettle();
+    expect(find.text('Buy'), findsOneWidget);
+  });
+
+  for (final explicitEvents in [true, false]) {
+    testWidgets(
+        "a staged flow refresh leaves the mount's events on the paywall, "
+        'explicitEvents=$explicitEvents', (tester) async {
+      final resolver = _ControlledFlowPayloadResolver();
+      final events = <String>[];
+      late BuildContext mount;
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+      });
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(builder: (context) {
+          mount = context;
+          // A generated mount with islands routes its events by the mount.
+          return RestageIslandScope(
+            owner: context,
+            explicitEvents: explicitEvents,
+            builders: const {},
+            child: RestagePaywall(
+              id: 'pro_upgrade',
+              placementBinding: RestagePaywall.generatedPlacementBinding(
+                definition: nativeOfferPlacementDefinition,
+                eventOwner: context,
+              ),
+              resolver: resolver,
+              onEvent: (event) {
+                if (event is PaywallCustomEvent) events.add(event.eventName);
+              },
+            ),
+          );
+        }),
+      ));
+      await tester.pump();
+      resolver.responses.single.complete(FlowPaywallPayload(
+        flow: _navResolvedFlowOf(_screenBlob({'See plans': 'restageNav0'}),
+            _screenBlob({'Back': 'back'})),
+        paywallId: 'pro_upgrade',
+      ));
+      await tester.pumpAndSettle();
+      final refresh = Restage.reloadSurfaces();
+      await tester.pump();
+      expect(resolver.responses, hasLength(greaterThan(1)));
+      for (final response in resolver.responses.skip(1)) {
+        response.complete(FlowPaywallPayload(
+          flow: _navResolvedFlowOf(_screenBlob({'Candidate': 'noop'}),
+              _screenBlob({'Back': 'back'})),
+          paywallId: 'pro_upgrade',
+        ));
+      }
+      // Pump until the candidate is built beside the shown layer.
+      for (var frame = 0;
+          frame < 20 &&
+              find.text('Candidate', skipOffstage: false).evaluate().isEmpty;
+          frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(find.text('Candidate', skipOffstage: false), findsOneWidget);
+      expect(find.text('See plans'), findsOneWidget);
+
+      // The copied build's recorded event, while the candidate is staged.
+      RestageRecording(owner: mount).surfaceEvent(
+        const SurfaceEvent<void>('terms'),
+      )();
+      expect(events, ['terms']);
+      await refresh;
+      await tester.pumpAndSettle();
+    });
+  }
+
   testWidgets('a rebound paywall can refresh content the user has not touched',
       (tester) async {
     final resolver = _ControlledFlowPayloadResolver();

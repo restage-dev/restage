@@ -437,14 +437,14 @@ final class WelcomeScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             ElevatedButton(
-              onPressed: onboardingEvent(
+              onPressed: context.surfaceEvent(
                 analyticsTap,
                 const {'ctaId': 'primary', 'secret': 'internal'},
               ),
               child: const Text('AnalyticsTap'),
             ),
             ElevatedButton(
-              onPressed: onboardingEvent(next),
+              onPressed: context.surfaceEvent(next),
               child: const Text('WelcomeScreen'),
             ),
           ],
@@ -469,7 +469,7 @@ final class $className extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: ElevatedButton(
-          onPressed: onboardingEvent($eventName),
+          onPressed: context.surfaceEvent($eventName),
           child: const Text('$className'),
         ),
       );

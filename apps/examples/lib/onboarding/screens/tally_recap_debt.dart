@@ -122,7 +122,7 @@ class TallyRecapDebtScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: surfaceEvent(finish),
+                onPressed: context.surfaceEvent(finish),
                 child: const Text(
                   'Make my first payment',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

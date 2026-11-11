@@ -102,7 +102,7 @@ class LumenReminderScreen extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           GestureDetector(
-                            onTap: surfaceEvent(back),
+                            onTap: context.surfaceEvent(back),
                             child: Container(
                               width: 36,
                               height: 36,
@@ -232,7 +232,7 @@ class LumenReminderScreen extends StatelessWidget {
                         ),
                       ),
                       GestureDetector(
-                        onTap: surfaceEvent(enable),
+                        onTap: context.surfaceEvent(enable),
                         child: Container(
                           height: 58,
                           decoration: BoxDecoration(

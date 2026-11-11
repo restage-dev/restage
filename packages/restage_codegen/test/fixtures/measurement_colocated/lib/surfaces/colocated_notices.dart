@@ -11,7 +11,7 @@ final class FirstColocatedNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: surfaceEvent(dismiss),
+        onPressed: context.surfaceEvent(dismiss),
         child: const Text('First'),
       );
 }
@@ -24,7 +24,7 @@ final class SecondColocatedNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: surfaceEvent(dismiss),
+        onPressed: context.surfaceEvent(dismiss),
         child: const Text('Second'),
       );
 }

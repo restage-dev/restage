@@ -12,7 +12,7 @@ final class MeasurementConfigurationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: surfaceEvent(activate),
+        onPressed: context.surfaceEvent(activate),
         child: const Text('Activate'),
       );
 }

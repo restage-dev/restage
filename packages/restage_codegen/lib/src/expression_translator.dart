@@ -45,6 +45,8 @@ import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/islands/islands.dart';
 import 'package:restage_codegen/src/islands/opt_outs.dart';
+import 'package:restage_codegen/src/surface_publication/app_widget_events.dart'
+    show inlineEventIssue;
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart'
     show spellBesideClass;
 import 'package:restage_codegen/src/surface_publication/split_widgets.dart'
@@ -166,10 +168,7 @@ const Set<String> _kTranslatedTypedListFrameworkItems = {
   'TextDecoration',
   'TextStyle',
 };
-const Set<String> _kScreenEventHelperNames = {
-  'onboardingEvent',
-  'surfaceEvent',
-};
+const Set<String> _kScreenEventHelperNames = {'surfaceEvent'};
 const Set<String> _kRfwLoopReservedWords = {
   'args',
   'data',
@@ -267,6 +266,8 @@ final class TranslationResult {
     this.completesSurface = false,
     Iterable<DslEmissionSource> emissionSources = const [],
     Iterable<HoistedValue> hoisted = const [],
+    Iterable<FieldElement> firedEvents = const [],
+    Iterable<ClassElement> placedCustomWidgets = const [],
     Iterable<Island> islands = const [],
     this.split,
     Set<Element> blocked = const {},
@@ -274,6 +275,8 @@ final class TranslationResult {
        blocked = Set.unmodifiable(blocked),
        emissionSources = List.unmodifiable(emissionSources),
        hoisted = List.unmodifiable(hoisted),
+       firedEvents = List.unmodifiable(firedEvents),
+       placedCustomWidgets = Set.unmodifiable(placedCustomWidgets),
        islands = List.unmodifiable(islands),
        localSeeds = Map.unmodifiable(localSeeds),
        iconReferences = List.unmodifiable(iconReferences),
@@ -351,6 +354,14 @@ final class TranslationResult {
 
   /// Values the generated mount computes, ordered by key.
   final List<HoistedValue> hoisted;
+
+  /// The `SurfaceEvent` constants the build fires, in the order it fires
+  /// them; a screen's contract includes the ones it doesn't declare.
+  final List<FieldElement> firedEvents;
+
+  /// The custom widgets the build places by their catalog entries rather
+  /// than inlining them.
+  final Set<ClassElement> placedCustomWidgets;
 
   /// Widget expressions that render from the app, ordered by ID.
   final List<Island> islands;
@@ -728,6 +739,12 @@ final class ExpressionTranslator {
 
   // Closure-wrapped event notices, reported only when the translation succeeds.
   List<Issue>? _currentEventClosureNotices;
+
+  // The `SurfaceEvent` constants the current translation lowers.
+  Set<FieldElement>? _currentFiredEvents;
+
+  // The custom widgets the current translation places by catalog entry.
+  Set<ClassElement>? _currentPlacedCustomWidgets;
 
   // Whether this translation attached an item to a measured tap.
   bool _currentEmitsInteractionItems = false;
@@ -1113,6 +1130,12 @@ final class ExpressionTranslator {
     final savedEventClosureNotices = _currentEventClosureNotices;
     final eventClosureNotices = <Issue>[];
     _currentEventClosureNotices = eventClosureNotices;
+    final savedFiredEvents = _currentFiredEvents;
+    final firedEvents = <FieldElement>{};
+    _currentFiredEvents = firedEvents;
+    final savedPlaced = _currentPlacedCustomWidgets;
+    final placed = <ClassElement>{};
+    _currentPlacedCustomWidgets = placed;
     final savedEmitsInteractionItems = _currentEmitsInteractionItems;
     _currentEmitsInteractionItems = false;
     var emitsInteractionItems = false;
@@ -1240,6 +1263,9 @@ final class ExpressionTranslator {
       _currentCustomWidgetFactoryRoutes = null;
       _forcedCustomWidgetFactoryRoutes = savedForcedCustomWidgetFactoryRoutes;
       _currentEventClosureNotices = savedEventClosureNotices;
+      // A nested translation's events are the enclosing build's too.
+      _currentFiredEvents = savedFiredEvents?..addAll(firedEvents);
+      _currentPlacedCustomWidgets = savedPlaced?..addAll(placed);
       emitsInteractionItems = _currentEmitsInteractionItems;
       _currentEmitsInteractionItems = savedEmitsInteractionItems;
       _currentLocalFields = savedLocalFields;
@@ -1276,6 +1302,7 @@ final class ExpressionTranslator {
       );
     }
     final recordedSplit = _recorded(islandSession?.split, islandSession, hoist);
+    if (islandSession != null) issues.addAll(islandSession.recordIssues);
     return (
       result: TranslationResult(
         dsl: dsl,
@@ -1307,6 +1334,8 @@ final class ExpressionTranslator {
                     },
               ]..sort((left, right) => left.key.compareTo(right.key))),
         split: recordedSplit,
+        firedEvents: {...firedEvents, ...?islandSession?.firedEvents},
+        placedCustomWidgets: placed,
         blocked: islandSession?.blocked ?? const {},
         islands: islandSession == null
             ? const []
@@ -1638,6 +1667,13 @@ final class ExpressionTranslator {
     List<Issue> issues, {
     SimpleIdentifier? shared,
   }) {
+    // A reserved event stays refused when the widget that fires it renders
+    // from the app.
+    final reserved = _reservedEventIssues(node);
+    if (reserved.isNotEmpty) {
+      issues.addAll(reserved);
+      return '';
+    }
     final session = _islands!;
     final restore = _checkpoint();
     // The ordinal is the order the surface uses its islands, an enclosing
@@ -3582,6 +3618,11 @@ final class ExpressionTranslator {
         '$earlyAfter${branch == null ? ')' : '))'}',
       );
     }
+    // A route or dialog the build pushes shows its content inside the
+    // surface's event scopes.
+    for (final content in routeContents(body)) {
+      at(const [], content, '$recorder.route(', ')');
+    }
     final analyzer = hoist.analyzer;
     final islandNames = {
       for (final island in session.islands.values) island.name,
@@ -3702,9 +3743,9 @@ final class ExpressionTranslator {
           at(island.calls, read, '$recorder.$form(${spotId(read)}, ', ')');
         }
       }
-      final placedAt =
-          '${spots.isEmpty ? '' : ', spots: [${spots.map(spotId).join(', ')}]'}'
-          '${_islandFiresEvents(island.node) ? ', events: true' : ''}';
+      final placedAt = spots.isEmpty
+          ? ''
+          : ', spots: [${spots.map(spotId).join(', ')}]';
       site(
         RecordedSiteKind.island,
         WidgetVocabulary.qualifiedName(
@@ -3899,13 +3940,6 @@ final class ExpressionTranslator {
         '$items$placedAt)',
       );
     }
-    final islandNodes = HashSet<AstNode>.identity()
-      ..addAll([
-        for (final island in session.recordIslands) ...[
-          island.node,
-          island.placement.at,
-        ],
-      ]);
     // [node] in the scope [scope], with each helper call that leads to a
     // recorded value written as its own recorded body.
     String? render(
@@ -3986,6 +4020,7 @@ final class ExpressionTranslator {
       // An event the build fires dispatches through its own mount.
       final events = _EventHelperCalls();
       node.accept(events);
+      final buildContext = _hoist?.analyzer.rootContext?.baseElement;
       for (final call in events.calls) {
         if (holes.keys.any(
           (hole) =>
@@ -3995,34 +4030,34 @@ final class ExpressionTranslator {
         )) {
           continue;
         }
-        final member = call.methodName.name == 'paywallEvent'
-            ? 'event'
-            : 'surfaceEvent';
+        if (call.argumentList.arguments.firstOrNull?.argumentExpression
+            case final event?) {
+          if (_staticConstOnboardingEventField(event) case final field?) {
+            session.firedEvents.add(field);
+          }
+        }
+        if (inlineEventIssue(call) case final issue?) {
+          session.recordIssues.add(issue);
+        }
+        // A reserved event stays refused when the mount fires it.
+        final reserved = _reservedEventIssues(call);
+        if (reserved.isNotEmpty) {
+          session.recordIssues.addAll(reserved);
+          continue;
+        }
+        // Any other receiver runs as written: the SDK resolves the mount's
+        // own context, under any name, to the surface it shows.
+        final receiver = call.realTarget;
+        if (buildContext != null &&
+            !(receiver is SimpleIdentifier &&
+                receiver.element?.baseElement == buildContext)) {
+          continue;
+        }
         final arguments = render(call.argumentList, scope, calls);
         if (arguments == null) return giveUp('event $call');
         holes[call] =
-            '$recorder.$member'
+            '$recorder.surfaceEvent'
             '${call.typeArguments?.toSource() ?? ''}$arguments';
-      }
-      // An app widget the build constructs, whose own code fires events,
-      // builds inside the event registration.
-      final widgets = _AppWidgetConstructions(
-        (type) =>
-            customWidgetClassifications.containsKey(customWidgetKey(type)),
-        skip: islandNodes,
-      );
-      node.accept(widgets);
-      for (final widget in widgets.found) {
-        if (identical(widget, node) ||
-            holes.keys.any(
-              (hole) => hole.offset <= widget.offset && hole.end >= widget.end,
-            ) ||
-            !_islandFiresEvents(widget)) {
-          continue;
-        }
-        final written = render(widget, scope, calls);
-        if (written == null) return giveUp('event widget $widget');
-        holes[widget] = '$recorder.withEvents($written)';
       }
       final aroundHere = around[chainKey(calls)] ?? const {};
       final analysis = analyzer.analyze(
@@ -6150,7 +6185,8 @@ final class ExpressionTranslator {
               issues.add(
                 _navigationUnsupportedIssue(
                   "an entry paywall's Navigator.pop cannot be lowered as a "
-                  "flow back; dismiss via paywallEvent('skip')",
+                  'flow back; dismiss with '
+                  '`context.surfaceEvent(PaywallEvents.skip)`',
                   expr,
                 ),
               );
@@ -6177,8 +6213,8 @@ final class ExpressionTranslator {
                 message:
                     'this paywall uses an in-flow Navigator.pop (back); its '
                     'standalone blob is not emitted — it renders as a flow '
-                    "screen. Use paywallEvent('close') for a standalone "
-                    'dismiss, or present it via a flow.',
+                    'screen. Close a standalone paywall through a callback '
+                    'the app passes in, or present it via a flow.',
                 location: _locationOf(expr),
               ),
             );
@@ -10728,11 +10764,16 @@ final class ExpressionTranslator {
       issues.add(unsupportedCommerceHelperIssue(expr, _locationOf(expr)));
       return '';
     }
-    if (isRestagePaywallEventCall(expr)) {
-      final eventName = _unsupportedCommerceEventName(expr);
-      if (eventName != null) {
-        issues.add(unsupportedCommerceEventIssue(eventName, _locationOf(expr)));
-        return '';
+    // `context.surfaceEvent(...)` lowers as the event helper it is.
+    if (isContextSurfaceEvent(expr)) {
+      final element = expr.methodName.element;
+      final helper = element == null
+          ? helpers.findByNameOnly(method)
+          : helpers.find(method, element.library?.identifier ?? '');
+      if (helper != null) {
+        final helperArgs = _translateOnboardingEventArgs(expr, issues);
+        if (helperArgs == null) return '';
+        return _safeHelperTranslate(expr, helper, helperArgs, issues);
       }
     }
 
@@ -10948,11 +10989,6 @@ final class ExpressionTranslator {
         helper = helpers.findByNameOnly(method);
       }
       if (helper != null) {
-        if (helper.name == 'paywallEvent') {
-          final helperArgs = _translatePaywallEventArgs(expr, issues);
-          if (helperArgs == null) return '';
-          return _safeHelperTranslate(expr, helper, helperArgs, issues);
-        }
         if (_kScreenEventHelperNames.contains(helper.name)) {
           final helperArgs = _translateOnboardingEventArgs(expr, issues);
           if (helperArgs == null) return '';
@@ -11184,44 +11220,6 @@ final class ExpressionTranslator {
     localBindings: _scalarConstantBindings,
   );
 
-  HelperCallArgs? _translatePaywallEventArgs(
-    MethodInvocation expr,
-    List<Issue> issues,
-  ) {
-    final positional = <String>[];
-    final named = <String, String>{};
-    for (final argument in expr.argumentList.arguments) {
-      if (argument is NamedArgument) {
-        named[argument.name.lexeme] = _translateHelperArgument(
-          argument.argumentExpression,
-          issues,
-        );
-        continue;
-      }
-      if (positional.isEmpty) {
-        final eventName = _foldScalarConstant(argument.argumentExpression);
-        if (eventName is! String) {
-          issues.add(
-            Issue(
-              code: IssueCode.unrecognizedMethodCall,
-              message:
-                  'paywallEvent requires a statically resolved String '
-                  'name.',
-              location: _locationOf(argument),
-            ),
-          );
-          return null;
-        }
-        positional.add(_stringLiteral(eventName));
-        continue;
-      }
-      positional.add(
-        _translateHelperArgument(argument.argumentExpression, issues),
-      );
-    }
-    return HelperCallArgs(positional: positional, named: named);
-  }
-
   /// Runs [helper]'s pure translation under the structured-diagnostic guard:
   /// a throw from its per-call validation (an `ArgumentError` on a bad arg
   /// shape, a `StateError`, …) becomes an `unrecognizedMethodCall` issue
@@ -11253,31 +11251,6 @@ final class ExpressionTranslator {
       current = current.expression;
     }
     return current;
-  }
-
-  String? _unsupportedCommerceEventName(MethodInvocation expression) {
-    final args = expression.argumentList.arguments;
-    if (args.isEmpty || args.first is NamedArgument) return null;
-
-    String? blockedName(Expression eventName) {
-      final stripped = _stripParens(eventName);
-      final inspection = inspectScalarConstant(
-        stripped,
-        localBindings: _scalarConstantBindings,
-      );
-      if (!inspection.complete) return null;
-      final resolved = _stripParens(inspection.expression);
-      if (resolved is ConditionalExpression) {
-        return blockedName(resolved.thenExpression) ??
-            blockedName(resolved.elseExpression);
-      }
-      final folded = inspection.value;
-      return folded is String && kReservedCommerceEventNames.contains(folded)
-          ? folded
-          : null;
-    }
-
-    return blockedName(args.first.argumentExpression);
   }
 
   /// Distributes a single conditional argument over a value-reference
@@ -11402,6 +11375,9 @@ final class ExpressionTranslator {
           );
           return null;
         }
+        _currentFiredEvents?.add(
+          _staticConstOnboardingEventField(arg.argumentExpression)!,
+        );
         positional.add(_stringLiteral(descriptorId));
         continue;
       }
@@ -11430,10 +11406,12 @@ final class ExpressionTranslator {
         );
         return null;
       }
-      final translated = _translateHelperArgument(
-        arg.argumentExpression,
-        issues,
-      );
+      final value = arg.argumentExpression;
+      // A map literal is the event's own argument object, entry by entry,
+      // even where the mount computes its values.
+      final translated = value is SetOrMapLiteral && value.isMap
+          ? _setOrMapLiteral(value, issues)
+          : _translateHelperArgument(value, issues);
       positional.add(
         mapType != null
             ? translated
@@ -11480,6 +11458,17 @@ final class ExpressionTranslator {
   }
 
   String? _constDescriptorId(Expression expr) {
+    // An event constructed in place, `const SurfaceEvent<T>('id')`.
+    if (expr is InstanceCreationExpression &&
+        (expr.isConst || expr.inConstantContext) &&
+        expr.constructorName.type.element?.name == 'SurfaceEvent') {
+      final arguments = expr.argumentList.arguments;
+      if (arguments.length != 1 || arguments.single is NamedArgument) {
+        return null;
+      }
+      final id = tryFoldScalarConstant(arguments.single.argumentExpression);
+      return id is String ? id : null;
+    }
     Element? element;
     if (expr is SimpleIdentifier) {
       element = expr.element;
@@ -11571,13 +11560,13 @@ final class ExpressionTranslator {
     required List<Issue> issues,
     required Element? buildContextParameter,
   }) {
-    final existingEventNames = _paywallEventNames(expr).toSet();
+    final existingEventNames = _authoredEventNames(expr).toSet();
     if (triggers.isNotEmpty && !existingEventNames.contains('skip')) {
       issues.add(
         _navigationUnsupportedIssue(
           'a screen-navigation paywall lowers to a flow that needs a '
           'dismiss event to terminate; add a skip affordance '
-          "(paywallEvent('skip'))",
+          '(`context.surfaceEvent(PaywallEvents.skip)`)',
           expr,
         ),
       );
@@ -11597,7 +11586,7 @@ final class ExpressionTranslator {
     );
   }
 
-  Iterable<String> _paywallEventNames(Expression expr) {
+  Iterable<String> _authoredEventNames(Expression expr) {
     final names = <String>[];
     void collect(Expression expression, InlinedDefinitions inlined) {
       final scanner = _PaywallEventNameScanner(helpers, inlined: inlined);
@@ -11613,18 +11602,13 @@ final class ExpressionTranslator {
         admittedHelperPackages: _admittedHelperPackages,
         visit: (expression, bindings) {
           if (expression is! MethodInvocation) return;
-          final name = _paywallEventName(expression, helpers, bindings);
+          final name = _authoredEventCallName(expression);
           if (name != null) names.add(name);
         },
       );
     }
     return names;
   }
-
-  // Whether app code an island runs outside the recorded build can fire an
-  // event; its own event calls are rewritten, so they don't count.
-  bool _islandFiresEvents(AstNode island) =>
-      reachesEvents(island, customWidgetClassifications, helpers: false);
 
   Iterable<CustomWidgetBlueprint> _reachableCustomWidgetBlueprints(
     Expression expr,
@@ -12895,7 +12879,9 @@ final class ExpressionTranslator {
     final body = stripped.body;
     if (body is! ExpressionFunctionBody) return false;
     final call = _stripParens(body.expression);
-    if (call is! MethodInvocation || call.target != null) return false;
+    if (call is! MethodInvocation) return false;
+    if (isContextSurfaceEvent(call)) return true;
+    if (call.target != null) return false;
     final element = call.methodName.element;
     final helper = element != null
         ? helpers.find(call.methodName.name, element.library?.identifier ?? '')
@@ -12904,8 +12890,9 @@ final class ExpressionTranslator {
   }
 
   /// Unwraps a single-expression callback closure to its body expression so the
-  /// declarative event lowers at the event slot. `(s) => paywallEvent('x')`
-  /// yields `paywallEvent('x')`; a direct `paywallEvent('x')` (no closure)
+  /// declarative event lowers at the event slot.
+  /// `(s) => context.surfaceEvent(x)` yields `context.surfaceEvent(x)`; a
+  /// direct call (no closure)
   /// passes through unchanged. A block-bodied closure (`(s) { … }`) or any
   /// other expression is returned as-is — it is not a single declarative event
   /// expression, so the event-slot translation defers it loud rather than
@@ -12927,7 +12914,9 @@ final class ExpressionTranslator {
     final closure = _stripParens(rawExpr);
     if (closure is! FunctionExpression) return event;
     final call = _stripParens(event) as MethodInvocation;
-    final helper = call.methodName.name;
+    final helper = isContextSurfaceEvent(call)
+        ? 'context.surfaceEvent'
+        : call.methodName.name;
     final declared = <Element>{
       for (final parameter
           in closure.parameters?.parameters ?? const <FormalParameter>[])
@@ -13124,6 +13113,10 @@ final class ExpressionTranslator {
         WidgetLibrary.builtInByNamespace(entry.library.namespace) == null) {
       final key = customWidgetKey(widgetClass);
       final classification = customWidgetClassifications[key];
+      // Unclassified, it renders from its registered factory.
+      if (classification == null) {
+        _currentPlacedCustomWidgets?.add(widgetClass);
+      }
       if (classification != null) {
         final identity = (
           classKey: key,
@@ -13165,6 +13158,7 @@ final class ExpressionTranslator {
         // diagnostic): discard any inline-specific diagnostics and reference
         // the registered catalog entry below.
         issues.removeRange(issueMark, issues.length);
+        _currentPlacedCustomWidgets?.add(widgetClass);
         // A split widget's delivered definition shadows that entry.
         if (splitWidgetDefinitions[key] case final split?) {
           splitPlaced = true;
@@ -13177,6 +13171,8 @@ final class ExpressionTranslator {
             );
           }
           _currentReferencedCustomLibraries?.addAll(split.libraries);
+          // The events its build fires are the placing surface's too.
+          _currentFiredEvents?.addAll(split.fired);
         }
       }
     }
@@ -17296,6 +17292,32 @@ final class ExpressionTranslator {
     return _nativeBindingRead(expression, type: type, computed: true);
   }
 
+  // A refusal for each `context.surfaceEvent` below [node] that fires a
+  // reserved commerce event.
+  List<Issue> _reservedEventIssues(AstNode node) {
+    final calls = _EventHelperCalls();
+    node.accept(calls);
+    return [
+      for (final call in calls.calls)
+        if (call.argumentList.arguments.firstOrNull?.argumentExpression
+            case final event?)
+          if (_reservedEventId(event) case final id?)
+            unsupportedCommerceEventIssue(id, _locationOf(event)),
+    ];
+  }
+
+  // The reserved commerce name [event] can fire, either arm of a
+  // conditional included.
+  String? _reservedEventId(Expression event) {
+    final stripped = _stripParens(event);
+    if (stripped is ConditionalExpression) {
+      return _reservedEventId(stripped.thenExpression) ??
+          _reservedEventId(stripped.elseExpression);
+    }
+    final id = _constDescriptorId(stripped);
+    return kReservedCommerceEventNames.contains(id) ? id : null;
+  }
+
   String _translateSlotValueCore(
     Expression rawExpr,
     PropertyType type,
@@ -20446,7 +20468,7 @@ final class _PaywallEventNameScanner extends RecursiveAstVisitor<void> {
 
   @override
   void visitMethodInvocation(MethodInvocation node) {
-    final name = _paywallEventName(node, helpers, _bindings);
+    final name = _authoredEventCallName(node);
     if (name != null) names.add(name);
     final element = node.methodName.element;
     final helper = _inlinedHelpers[element];
@@ -20472,73 +20494,22 @@ final class _PaywallEventNameScanner extends RecursiveAstVisitor<void> {
   }
 }
 
-// The `paywallEvent` and `surfaceEvent` calls a recorded build rewrites.
+// The `context.surfaceEvent` calls a recorded build rewrites.
 final class _EventHelperCalls extends RecursiveAstVisitor<void> {
   final List<MethodInvocation> calls = [];
 
   @override
   void visitMethodInvocation(MethodInvocation node) {
-    final name = node.methodName.name;
-    if ((name == 'paywallEvent' || name == 'surfaceEvent') &&
-        node.methodName.element != null &&
-        callsEventHelper(node) &&
-        switch (node.target) {
-          null || SimpleIdentifier(element: PrefixElement()) => true,
-          _ => false,
-        }) {
+    if (node.methodName.element != null && isContextSurfaceEvent(node)) {
       calls.add(node);
     }
     super.visitMethodInvocation(node);
   }
 }
 
-// The outermost constructions of app widgets below a node, past [skip].
-final class _AppWidgetConstructions extends RecursiveAstVisitor<void> {
-  _AppWidgetConstructions(this.isApp, {required this.skip});
-
-  final bool Function(ClassElement type) isApp;
-  final Set<AstNode> skip;
-  final List<InstanceCreationExpression> found = [];
-
-  @override
-  void visitInstanceCreationExpression(InstanceCreationExpression node) {
-    if (skip.contains(node)) return;
-    if (node.constructorName.type.element case final ClassElement type
-        when isApp(type)) {
-      found.add(node);
-      return;
-    }
-    super.visitInstanceCreationExpression(node);
-  }
-}
-
-String? _paywallEventName(
-  MethodInvocation node,
-  HelperRegistry helpers,
-  Map<Element, Expression> bindings,
-) {
-  final method = node.methodName.name;
-  if (node.realTarget != null ||
-      (method != 'paywallEvent' && method != 'surfaceEvent')) {
-    return null;
-  }
-  final element = node.methodName.element;
-  final helper = element == null
-      ? helpers.findByNameOnly(method)
-      : helpers.find(method, element.library?.identifier ?? '');
-  if (helper?.name != method) return null;
-  final args = node.argumentList.arguments;
-  if (args.isEmpty || args.first is NamedArgument) return null;
-  var first = args.first.argumentExpression;
-  while (first is ParenthesizedExpression) {
-    first = first.expression;
-  }
-  if (method == 'surfaceEvent') return authoredEventName(node);
-  // Fold authored names through the same scalar boundary as emission so
-  // generated navigation events cannot collide with them.
-  final folded = tryFoldScalarConstant(first, localBindings: bindings);
-  return folded is String ? folded : null;
-}
+// The event a `context.surfaceEvent(...)` call fires, or null.
+String? _authoredEventCallName(MethodInvocation node) =>
+    isContextSurfaceEvent(node) ? authoredEventName(node) : null;
 
 final class _RootModalSheetTriggerScanner extends RecursiveAstVisitor<void> {
   final List<RecognisedModalSheet> recognised = [];
@@ -21636,6 +21607,12 @@ final class _IslandSession {
   /// Which root builders run once per build, so the mount can keep them.
   final ContentFreeBuilders contentFree;
 
+  /// Warnings and refusals the recorded build raises.
+  final List<Issue> recordIssues = [];
+
+  /// The `SurfaceEvent` constants the recorded build fires.
+  final Set<FieldElement> firedEvents = {};
+
   final String namespace;
 
   /// The library the mount's part belongs to.
@@ -21771,6 +21748,91 @@ final class _IslandSession {
 }
 
 // The returns of [body] itself, not of a function nested in it.
+const _routeTypes = {
+  'MaterialPageRoute',
+  'CupertinoPageRoute',
+  'PageRouteBuilder',
+  'DialogRoute',
+  'RawDialogRoute',
+  'CupertinoDialogRoute',
+  'CupertinoModalPopupRoute',
+  'ModalBottomSheetRoute',
+};
+
+const _routeFunctions = {
+  'showDialog',
+  'showAdaptiveDialog',
+  'showGeneralDialog',
+  'showModalBottomSheet',
+  'showCupertinoDialog',
+  'showCupertinoModalPopup',
+};
+
+/// The expressions each route or dialog builder in [node] returns: the
+/// content a pushed route shows. With [pushesOnly], page routes only: a
+/// dialog or sheet carries the scopes of the context that opens it.
+List<Expression> routeContents(AstNode node, {bool pushesOnly = false}) {
+  final found = <Expression>[];
+  void contentOf(NodeList<Argument> arguments) {
+    for (final argument in arguments.whereType<NamedArgument>()) {
+      if (!const {'builder', 'pageBuilder'}.contains(argument.name.lexeme)) {
+        continue;
+      }
+      final value = argument.argumentExpression;
+      if (value is! FunctionExpression) continue;
+      switch (value.body) {
+        case ExpressionFunctionBody(:final expression):
+          found.add(expression);
+        case final BlockFunctionBody body:
+          final returns = <ReturnStatement>[];
+          body.accept(_OwnReturns(body, returns));
+          found.addAll([for (final r in returns) ?r.expression]);
+        default:
+      }
+    }
+  }
+
+  bool fromFlutter(Element? element) =>
+      element?.library?.identifier.startsWith('package:flutter/') ?? false;
+  node.accept(
+    _RouteRoots(
+      onRoute: (creation) {
+        final type = creation.constructorName.type.element;
+        if (_routeTypes.contains(type?.name) && fromFlutter(type)) {
+          contentOf(creation.argumentList.arguments);
+        }
+      },
+      onCall: (call) {
+        if (!pushesOnly &&
+            _routeFunctions.contains(call.methodName.name) &&
+            fromFlutter(call.methodName.element)) {
+          contentOf(call.argumentList.arguments);
+        }
+      },
+    ),
+  );
+  return found;
+}
+
+final class _RouteRoots extends RecursiveAstVisitor<void> {
+  _RouteRoots({required this.onRoute, required this.onCall});
+
+  final void Function(InstanceCreationExpression creation) onRoute;
+  final void Function(MethodInvocation call) onCall;
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    onRoute(node);
+    super.visitInstanceCreationExpression(node);
+  }
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    onCall(node);
+    super.visitMethodInvocation(node);
+  }
+}
+
 final class _OwnReturns extends RecursiveAstVisitor<void> {
   _OwnReturns(this.body, this.found);
 

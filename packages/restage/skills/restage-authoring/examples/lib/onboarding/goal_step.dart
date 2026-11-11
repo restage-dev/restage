@@ -15,11 +15,11 @@ final class GoalStep extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           FilledButton(
-            onPressed: surfaceEvent(pick, 'focus'),
+            onPressed: context.surfaceEvent(pick, 'focus'),
             child: const Text('Focus better'),
           ),
           FilledButton(
-            onPressed: surfaceEvent(pick, 'sleep'),
+            onPressed: context.surfaceEvent(pick, 'sleep'),
             child: const Text('Sleep better'),
           ),
         ],

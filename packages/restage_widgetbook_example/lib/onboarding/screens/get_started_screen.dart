@@ -64,7 +64,7 @@ final class GetStartedScreen extends StatelessWidget {
     return Center(
       child: ElevatedButton(
         key: const ValueKey('get-started-action'),
-        onPressed: surfaceEvent(continueEvent, 'preview'),
+        onPressed: context.surfaceEvent(continueEvent, 'preview'),
         child: const Text('Get started'),
       ),
     );

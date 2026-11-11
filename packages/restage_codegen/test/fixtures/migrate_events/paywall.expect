@@ -1,0 +1,29 @@
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@Paywall()
+class Offer extends StatelessWidget {
+  static const closeEvent = SurfaceEvent<void>('close');
+  static const continueEvent = SurfaceEvent<Map<String, Object?>>('continue');
+  static const restorePurchases = SurfaceEvent<void>('restore_purchases');
+
+  const Offer({super.key, this.close});
+
+  final VoidCallback? close;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          TextButton(onPressed: context.surfaceEvent(Offer.closeEvent), child: const Text('x')),
+          FilledButton(
+            onPressed: context.surfaceEvent(Offer.continueEvent, {'plan': 'annual'}),
+            child: const Text('Continue'),
+          ),
+          TextButton(
+            onPressed: context.surfaceEvent(Offer.restorePurchases),
+            child: const Text('Restore'),
+          ),
+          TextButton(onPressed: context.surfaceEvent(Offer.closeEvent), child: const Text('y')),
+        ],
+      );
+}

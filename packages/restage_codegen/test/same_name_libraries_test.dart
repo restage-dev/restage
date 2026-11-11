@@ -52,9 +52,13 @@ class $className extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TextButton(
-        onPressed: paywallEvent('continue'),
+        onPressed: context.surfaceEvent(_Events.continueEvent),
         child: const Text('$id'),
       );
+}
+
+abstract final class _Events {
+  static const continueEvent = SurfaceEvent<void>('continue');
 }
 ''';
 

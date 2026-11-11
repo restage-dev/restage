@@ -11,6 +11,11 @@ import 'package:restage/restage.dart';
 /// legal line is styled only; the Terms / Privacy row handles the taps.
 @Paywall()
 class PulsePremiumPaywall extends StatefulWidget {
+  static const close = SurfaceEvent<void>('close');
+  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+  static const termsOfService = SurfaceEvent<void>('terms_of_service');
+  static const privacyPolicy = SurfaceEvent<void>('privacy_policy');
+
   const PulsePremiumPaywall({super.key});
 
   @override
@@ -52,7 +57,8 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
                       Row(
                         children: [
                           GestureDetector(
-                            onTap: paywallEvent('close'),
+                            onTap:
+                                context.surfaceEvent(PulsePremiumPaywall.close),
                             child: const Icon(
                               Icons.close_rounded,
                               color: Color(0xFFE6E6F0),
@@ -994,9 +1000,9 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
               const SizedBox(height: 12),
               // Continue CTA — violet pill.
               GestureDetector(
-                onTap: paywallEvent(
-                  'continue',
-                  args: {
+                onTap: context.surfaceEvent(
+                  PulsePremiumPaywall.continueFlow,
+                  {
                     'tier': selectedTier == 0
                         ? 'basic'
                         : selectedTier == 1
@@ -1064,7 +1070,8 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   TextButton(
-                    onPressed: paywallEvent('terms_of_service'),
+                    onPressed: context
+                        .surfaceEvent(PulsePremiumPaywall.termsOfService),
                     child: const Text(
                       'Terms',
                       style: TextStyle(color: Color(0xFF7B61FF), fontSize: 11),
@@ -1075,7 +1082,8 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
                     style: TextStyle(color: Color(0xFF6B6B78)),
                   ),
                   TextButton(
-                    onPressed: paywallEvent('privacy_policy'),
+                    onPressed:
+                        context.surfaceEvent(PulsePremiumPaywall.privacyPolicy),
                     child: const Text(
                       'Privacy',
                       style: TextStyle(color: Color(0xFF7B61FF), fontSize: 11),

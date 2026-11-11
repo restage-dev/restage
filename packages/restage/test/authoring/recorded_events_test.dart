@@ -10,7 +10,7 @@ final class _Island extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-        onTap: paywallEvent(name),
+        onTap: context.surfaceEvent(SurfaceEvent<void>(name)),
         child: Text(name, textDirection: TextDirection.ltr),
       );
 }
@@ -22,7 +22,6 @@ void main() {
   Widget dispatcher(Object mount, List<String> into, Widget child) =>
       RestagePaywallEventDispatcher(
         onEvent: (name, _) => into.add(name),
-        scoped: false,
         mount: mount,
         child: child,
       );
@@ -31,7 +30,10 @@ void main() {
       (tester) async {
     final received = <String>[];
     final recording = RestageRecording(owner: owner);
-    final onTap = recording.event('top', args: {'plan': 'pro'});
+    final onTap = recording.surfaceEvent(
+      const SurfaceEvent<Map<String, Object?>>('top'),
+      {'plan': 'pro'},
+    );
     await tester.pumpWidget(dispatcher(
       owner,
       received,
@@ -55,7 +57,7 @@ void main() {
         owner,
         mine,
         GestureDetector(
-          onTap: recording.event('top'),
+          onTap: recording.surfaceEvent(const SurfaceEvent<void>('top')),
           child: const Text('top', textDirection: TextDirection.ltr),
         ),
       ),
@@ -75,12 +77,46 @@ void main() {
       dispatcher(
         owner,
         mine,
-        recording.island('island', const _Island('inner'), events: true),
+        recording.island('island', const _Island('inner')),
       ),
     ]));
     await tester.tap(find.text('inner'));
     expect(tester.takeException(), isNull);
     expect(mine, ['inner']);
     expect(theirs, isEmpty);
+  });
+
+  testWidgets('a step recording fires through the surface its mount is in',
+      (tester) async {
+    final received = <String>[];
+    await tester.pumpWidget(RestageEventDispatcher(
+      onEvent: (name, _) => received.add(name),
+      child: Builder(builder: (context) {
+        final recording = RestageRecording(owner: Object(), mount: context);
+        return GestureDetector(
+          onTap: recording.surfaceEvent(const SurfaceEvent<void>('next')),
+          child: const Text('next', textDirection: TextDirection.ltr),
+        );
+      }),
+    ));
+    await tester.tap(find.text('next'));
+    expect(tester.takeException(), isNull);
+    expect(received, ['next']);
+  });
+
+  testWidgets('a recording with no mount context refuses its events',
+      (tester) async {
+    final received = <String>[];
+    late VoidCallback onTap;
+    await tester.pumpWidget(RestageEventDispatcher(
+      onEvent: (name, _) => received.add(name),
+      child: Builder(builder: (context) {
+        onTap = RestageRecording(owner: Object())
+            .surfaceEvent(const SurfaceEvent<void>('next'));
+        return const SizedBox();
+      }),
+    ));
+    expect(onTap, throwsAssertionError);
+    expect(received, isEmpty);
   });
 }

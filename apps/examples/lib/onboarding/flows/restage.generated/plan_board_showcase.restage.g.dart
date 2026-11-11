@@ -37,7 +37,7 @@ const planBoardShowcaseFlowRef = SurfaceFlowRef<
   decodeResult: _decodePlanBoardShowcaseFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"plan_board_showcase","initial":"plan_board_showcase","minClient":17,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"plan_board_showcase":{"contentHash":"sha256:50937cbdc4872b5db1d7e25cd64ae2d3fb230b55caa01d609a18bcb39e9197c0","minClient":17,"path":"plan_board_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"plan_board_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"plan_board_showcase"}},"version":1}',
+        '{"flow":"plan_board_showcase","initial":"plan_board_showcase","minClient":17,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"plan_board_showcase":{"contentHash":"sha256:0993d7a59d40fcaf71fa2aeecdca59b14e6fa5deb858814c4919d1847714ea01","minClient":17,"path":"plan_board_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"plan_board_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"plan_board_showcase"}},"version":1}',
     screens: {
       'plan_board_showcase': PlanBoardShowcaseScreen.new,
     },
@@ -45,7 +45,7 @@ const planBoardShowcaseFlowRef = SurfaceFlowRef<
   ),
   surfaceWidget: 'PlanBoardShowcaseFlowSurface',
   measurementPublicationDraftDigest:
-      'dda0134bf2bd4754cf29da1a2f33f2dd26ff580365d8393f633f06ac7ba52177',
+      'd18ded6baa53ab1126721e9a47584a63cef9efd80ddc9b56671ebb2891a68700',
   vocabulary: _planBoardShowcaseFlowRefVocabulary,
 );
 

@@ -133,7 +133,7 @@ class TallyWelcomeScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: surfaceEvent(start),
+                onPressed: context.surfaceEvent(start),
                 child: const Text(
                   'Get started',
                   style: TextStyle(

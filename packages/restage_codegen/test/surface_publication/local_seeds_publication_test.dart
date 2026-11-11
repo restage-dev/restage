@@ -188,7 +188,7 @@ class OfferHome extends StatelessWidget {
             child: const Text('Choose'),
           ),
           TextButton(
-            onPressed: paywallEvent('skip'),
+            onPressed: context.surfaceEvent(PaywallEvents.skip),
             child: const Text('Not now'),
           ),
         ],

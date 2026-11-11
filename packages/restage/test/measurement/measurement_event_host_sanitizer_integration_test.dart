@@ -509,7 +509,7 @@ class _AuthoredProbe extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-        onTap: surfaceEvent<Map<String, Object?>, Map<String, Object?>>(
+        onTap: context.surfaceEvent<Map<String, Object?>, Map<String, Object?>>(
           const SurfaceEvent<Map<String, Object?>>('submit'),
           const <String, Object?>{
             'business': 'from local',

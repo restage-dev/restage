@@ -3,17 +3,9 @@ import 'package:restage_codegen/src/helper_registry.dart';
 const String _kSdkLibraryOrigin = 'package:restage';
 
 /// Helper-call definitions for onboarding screen transpilation.
-const List<HelperDefinition> onboardingHelpers = [
-  HelperDefinition(
-    name: 'onboardingEvent',
-    libraryOrigin: _kSdkLibraryOrigin,
-    returnCategory: HelperReturnCategory.voidCallback,
-    translate: _translateScreenEvent,
-  ),
-  surfaceEventHelper,
-];
+const List<HelperDefinition> onboardingHelpers = [surfaceEventHelper];
 
-/// The `surfaceEvent` helper, shared by screens, flows and paywalls.
+/// The `context.surfaceEvent` helper, shared by screens, flows and paywalls.
 const HelperDefinition surfaceEventHelper = HelperDefinition(
   name: 'surfaceEvent',
   libraryOrigin: _kSdkLibraryOrigin,

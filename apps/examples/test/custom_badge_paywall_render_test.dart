@@ -62,8 +62,7 @@ void main() {
 
     final app = await run(const CustomBadgePaywall());
     final failures = <PaywallLoadFailed>[];
-    final delivered = await run(RestagePaywall(
-      id: 'custom_badge',
+    final delivered = await run(CustomBadgePaywallSurface(
       resolver: _StaticResolver(bytes),
       onEvent: (e) {
         if (e is PaywallLoadFailed) failures.add(e);

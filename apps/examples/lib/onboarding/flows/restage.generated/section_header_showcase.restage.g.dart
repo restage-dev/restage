@@ -37,7 +37,7 @@ const sectionHeaderShowcaseFlowRef = SurfaceFlowRef<
   decodeResult: _decodeSectionHeaderShowcaseFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"section_header_showcase","initial":"section_header_showcase","minClient":17,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"section_header_showcase":{"contentHash":"sha256:0cf0af5920a211460a72c0a2f27a7661382890b73f5b99ff6d1d07671b5434b3","minClient":17,"path":"section_header_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"section_header_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"section_header_showcase"}},"version":1}',
+        '{"flow":"section_header_showcase","initial":"section_header_showcase","minClient":17,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"section_header_showcase":{"contentHash":"sha256:7a25cd5ec10d593202bdb433320360d9493abfd60e7115842d953ae3a58b8bc6","minClient":17,"path":"section_header_showcase.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"section_header_showcase":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"section_header_showcase"}},"version":1}',
     screens: {
       'section_header_showcase': SectionHeaderShowcaseScreen.new,
     },
@@ -45,7 +45,7 @@ const sectionHeaderShowcaseFlowRef = SurfaceFlowRef<
   ),
   surfaceWidget: 'SectionHeaderShowcaseFlowSurface',
   measurementPublicationDraftDigest:
-      '85079ffd02ac3ea44284167cdea4c5f5dd77e958f23ac8ef7d97d15f3ed63f46',
+      '2977013a01e78e1751115216cea3239e5bd87d5a5003fa4b4c30e35ca349f209',
   vocabulary: _sectionHeaderShowcaseFlowRefVocabulary,
 );
 

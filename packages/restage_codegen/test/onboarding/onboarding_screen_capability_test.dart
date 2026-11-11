@@ -52,7 +52,7 @@ final class WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: ElevatedButton(
-          onPressed: onboardingEvent(next),
+          onPressed: context.surfaceEvent(next),
           child: const PromoBanner(),
         ),
       );

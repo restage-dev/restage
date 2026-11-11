@@ -23,7 +23,7 @@ final class Steps extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => step == 'a'
-      ? TextButton(onPressed: surfaceEvent(next), child: const Text('A'))
+      ? TextButton(onPressed: context.surfaceEvent(next), child: const Text('A'))
       : const Text('B');
 }
 ''';

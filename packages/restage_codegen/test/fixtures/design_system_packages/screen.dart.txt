@@ -14,7 +14,7 @@ class Welcome extends StatelessWidget {
   Widget build(BuildContext context) => Column(children: [
         const AcmeBadge(),
         acmeTitle('Welcome'),
-        AcmeHelpers.action(surfaceEvent(done)),
+        AcmeHelpers.action(context.surfaceEvent(done)),
         const AcmeMark(),
       ]);
 }

@@ -3,6 +3,8 @@ import 'package:restage/restage.dart';
 
 import '../../widgets/section_header.dart';
 
+import '../../widgets/dismiss_button.dart';
+
 part 'restage.generated/section_header_showcase.restage.g.dart';
 
 /// A general screen that showcases a record-backed section header.
@@ -14,9 +16,6 @@ part 'restage.generated/section_header_showcase.restage.g.dart';
 class SectionHeaderShowcaseScreen extends StatelessWidget {
   /// Continues from the showcased section.
   static const act = SurfaceEvent<void>('act');
-
-  /// Dismisses the surface (host-handled custom event).
-  static const dismiss = SurfaceEvent<void>('dismiss');
 
   /// Const constructor.
   const SectionHeaderShowcaseScreen({super.key});
@@ -33,13 +32,7 @@ class SectionHeaderShowcaseScreen extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  IconButton(
-                    onPressed: surfaceEvent(dismiss),
-                    icon: Icon(
-                      Icons.close_rounded,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
+                  const DismissButton(),
                 ],
               ),
               const Spacer(),
@@ -75,7 +68,7 @@ class SectionHeaderShowcaseScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: surfaceEvent(act),
+                onPressed: context.surfaceEvent(act),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

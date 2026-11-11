@@ -100,7 +100,7 @@ class LumenTrialEndingScreen extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           GestureDetector(
-                            onTap: surfaceEvent(later),
+                            onTap: context.surfaceEvent(later),
                             child: Container(
                               width: 36,
                               height: 36,
@@ -233,7 +233,7 @@ class LumenTrialEndingScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 26),
                                     GestureDetector(
-                                      onTap: surfaceEvent(openOffer),
+                                      onTap: context.surfaceEvent(openOffer),
                                       child: Container(
                                         height: 58,
                                         decoration: BoxDecoration(
@@ -276,7 +276,7 @@ class LumenTrialEndingScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 10),
                                     GestureDetector(
-                                      onTap: surfaceEvent(later),
+                                      onTap: context.surfaceEvent(later),
                                       child: SizedBox(
                                         height: 48,
                                         child: Center(

@@ -24,7 +24,7 @@ class _ExitNoteScreenState extends State<ExitNoteScreen> {
             onChanged: (value) => setState(() => note = value),
           ),
           FilledButton(
-            onPressed: surfaceEvent(ExitNoteScreen.submit, note),
+            onPressed: context.surfaceEvent(ExitNoteScreen.submit, note),
             child: const Text('Send'),
           ),
         ],

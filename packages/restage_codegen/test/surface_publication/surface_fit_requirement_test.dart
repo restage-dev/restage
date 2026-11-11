@@ -56,14 +56,14 @@ part 'restage.generated/surfaces.restage.g.dart';
 final class Offer extends StatelessWidget {
   const Offer({super.key});
 
-  static const start = SurfaceEvent<void>('start');
+  static const start = SurfaceEvent<Map<String, Object?>>('start');
 
   @override
   Widget build(BuildContext context) => Column(children: [
         const StreakBadge(count: 3),
-        TextButton(onPressed: paywallEvent('close'), child: const Text('x')),
+        TextButton(onPressed: context.surfaceEvent(_Events.close), child: const Text('x')),
         FilledButton(
-          onPressed: paywallEvent('start', args: {'plan': 'yearly'}),
+          onPressed: context.surfaceEvent(start, {'plan': 'yearly'}),
           child: const Text('Start'),
         ),
       ]);
@@ -85,10 +85,14 @@ final class Rows extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(children: [
-        TextField(onChanged: surfaceEvent(typed)),
+        TextField(onChanged: context.surfaceEvent(typed)),
         for (final row in rows)
-          InkWell(onTap: surfaceEvent(pick, row.id), child: Text(row.title)),
+          InkWell(onTap: context.surfaceEvent(pick, row.id), child: Text(row.title)),
       ]);
+}
+
+abstract final class _Events {
+  static const close = SurfaceEvent<void>('close');
 }
 ''';
 
@@ -106,7 +110,7 @@ final class Goal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: surfaceEvent(chosen),
+        onPressed: context.surfaceEvent(chosen),
         child: const Text('Go'),
       );
 }

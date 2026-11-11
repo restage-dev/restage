@@ -83,7 +83,7 @@ void main() {
   });
 
   testWidgets(
-      'a scalar onboardingEvent value is captured end-to-end into flow-state',
+      'a scalar context.surfaceEvent value is captured end-to-end into flow-state',
       (tester) async {
     // The full producer->consumer chain a `.capture()` relies on: a rendered
     // screen fires a scalar event carrying its value under the reserved key,
@@ -153,7 +153,7 @@ void main() {
 
     await tester.pumpWidget(Directionality(
       textDirection: TextDirection.ltr,
-      child: RestageOnboardingEventDispatcher(
+      child: RestageEventDispatcher(
         // The exact wiring RestageOnboarding applies for a local-Dart
         // composition: normalize the authored value through the shared funnel,
         // then dispatch to the controller's current screen.
@@ -161,7 +161,7 @@ void main() {
             controller.handleEvent(id, normalizeEventArgs(value)),
         child: Builder(
           builder: (context) => GestureDetector(
-            onTap: onboardingEvent(submitEvent, 42),
+            onTap: context.surfaceEvent(submitEvent, 42),
             child: const Text('LocalRate'),
           ),
         ),
@@ -392,7 +392,7 @@ Uint8List _generatedBlob(String source) {
 
 /// Builds the single capture flow shared by both render-path tests: a screen
 /// whose `submit` event carries a scalar value (wrapped under the reserved key,
-/// the way the SCREEN codegen emits `onPressed: onboardingEvent(rateEvent, 42)`)
+/// the way the SCREEN codegen emits `onPressed: context.surfaceEvent(rateEvent, 42)`)
 /// and a capturing transition that writes that value into exportable flow-state
 /// `captured`, projected by the terminal result. Sharing one fixture is what
 /// makes the RFW-blob render path and the local-Dart composition path a true

@@ -235,8 +235,8 @@ void main() {
                 onEvent: handled.add,
                 fallbackBuilder: (_) => Builder(
                     builder: (context) => TextButton(
-                        onPressed:
-                            surfaceEvent(const SurfaceEvent<void>('tap')),
+                        onPressed: context
+                            .surfaceEvent(const SurfaceEvent<void>('tap')),
                         child: const Text('Fallback'))))));
         await _finishScreenFrames(tester);
         await tester.pump(const Duration(seconds: 4));

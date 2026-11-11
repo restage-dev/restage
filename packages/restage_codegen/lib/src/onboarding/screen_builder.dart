@@ -13,6 +13,7 @@ import 'package:build/build.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_codegen/src/surface_publication/app_widget_events.dart';
 import 'package:restage_codegen/src/analytics_id_lowering.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/capability_derivation.dart';
@@ -100,10 +101,12 @@ final class CompiledResolvedScreen {
     this.vocabulary = SurfaceVocabularyReferences.empty,
     Map<String, Object> localSeeds = const {},
     Iterable<HoistedValue> hoisted = const [],
+    Iterable<FieldElement> firedEvents = const [],
     this.islands = const [],
     this.split,
     Iterable<SplitWidgetInput> splitWidgets = const [],
   }) : blob = Uint8List.fromList(blob),
+       firedEvents = List.unmodifiable(firedEvents),
        splitWidgets = List.unmodifiable(splitWidgets),
        hoisted = List.unmodifiable(hoisted),
        capabilitySidecar = Uint8List.fromList(capabilitySidecar),
@@ -131,6 +134,9 @@ final class CompiledResolvedScreen {
 
   /// Values the screen's mount computes, ordered by key.
   final List<HoistedValue> hoisted;
+
+  /// The `SurfaceEvent` constants the screen's build fires.
+  final List<FieldElement> firedEvents;
 
   /// Widget expressions the screen's mount renders from the app.
   final List<Island> islands;
@@ -498,6 +504,16 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
           analyticsIdDeclarations: lowering.declarations,
           localSeeds: translation.localSeeds,
           hoisted: translation.hoisted,
+          // An app widget it shows as an island fires from its own build.
+          firedEvents: {
+            ...translation.firedEvents,
+            ...await AppWidgetEvents(
+              package: source.assetId.package,
+              noticeKeys: noticeKeys,
+              astNodeFor: (fragment) =>
+                  resolvedNodeInLongForm(buildStep.resolver, fragment),
+            ).firedBy(translation.islands, translation.placedCustomWidgets),
+          },
           islands: translation.islands,
           split: translation.split,
           splitWidgets: splits,

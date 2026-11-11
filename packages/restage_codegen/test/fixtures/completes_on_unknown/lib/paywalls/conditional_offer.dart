@@ -13,7 +13,7 @@ class ConditionalOffer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: enabled ? surfaceEvent(startTrial) : null,
+        onPressed: enabled ? context.surfaceEvent(startTrial) : null,
         child: const Text('Start trial'),
       );
 }

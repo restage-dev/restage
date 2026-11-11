@@ -1065,8 +1065,8 @@ MeasurementPublicationRoutePlanV1 _routePlan(
       if (!measuredNames.contains(name)) {
         throw ArgumentError(
           "completesOn names the event '$name', which no tap on this "
-          "paywall fires. A tap names it with paywallEvent('$name') or "
-          'surfaceEvent(<the declared event constant>).',
+          'paywall fires. A tap fires it with '
+          'context.surfaceEvent(<the declared event constant>).',
         );
       }
     }

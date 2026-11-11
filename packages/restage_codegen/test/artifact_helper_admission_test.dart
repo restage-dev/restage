@@ -267,7 +267,7 @@ import 'package:restage/restage.dart';
 abstract final class Events {
   static const next = SurfaceEvent<void>('next');
 }
-Object x() => surfaceEvent(Events.next);
+Object x() => context.surfaceEvent(Events.next);
 """,
         rootPackage: 'apps_examples',
       );

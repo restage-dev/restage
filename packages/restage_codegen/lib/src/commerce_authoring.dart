@@ -33,13 +33,6 @@ bool isUnsupportedCommerceHelperCall(MethodInvocation expression) {
   return _isRestageInvocation(expression);
 }
 
-/// Whether [expression] invokes the SDK `paywallEvent` helper.
-bool isRestagePaywallEventCall(MethodInvocation expression) {
-  if (expression.methodName.name != 'paywallEvent') return false;
-
-  return _isRestageInvocation(expression);
-}
-
 bool _isRestageInvocation(MethodInvocation expression) {
   final element = expression.methodName.element;
   if (element != null) {

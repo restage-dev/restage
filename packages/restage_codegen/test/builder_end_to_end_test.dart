@@ -436,11 +436,11 @@ widget Paywall = AcmeBanner();
             title: const Text('Plans'),
             actions: [
               TextButton(
-                onPressed: paywallEvent('skip'),
+                onPressed: context.surfaceEvent(PaywallEvents.skip),
                 child: const Text('Skip'),
               ),
               IconButton(
-                onPressed: paywallEvent('help'),
+                onPressed: context.surfaceEvent(_Events.help),
                 icon: const Icon(Icons.help),
               ),
             ],
@@ -455,7 +455,11 @@ widget Paywall = AcmeBanner();
             actionsPadding: const EdgeInsets.only(right: 12.0),
           );
         }
-      ''';
+
+abstract final class _Events {
+  static const help = SurfaceEvent<void>('help');
+}
+''';
 
       final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',

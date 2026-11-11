@@ -3,6 +3,8 @@ import 'package:restage/restage.dart';
 import 'package:restage_example/widgets/pricing_card.dart';
 import 'package:restage_example/widgets/pricing_table.dart';
 
+part 'restage.generated/pricing_table_showcase.restage.g.dart';
+
 /// A paywall with a [PricingTable] that takes a `List<Plan>`.
 ///
 /// The build writes the list into the delivered surface, and the generated factory
@@ -10,7 +12,13 @@ import 'package:restage_example/widgets/pricing_table.dart';
 @Paywall()
 class PricingTableShowcase extends StatelessWidget {
   /// Const constructor.
-  const PricingTableShowcase({super.key});
+  const PricingTableShowcase({super.key, this.onClose, this.onContinue});
+
+  /// Closes the paywall.
+  final VoidCallback? onClose;
+
+  /// Continues to the purchase.
+  final VoidCallback? onContinue;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +32,7 @@ class PricingTableShowcase extends StatelessWidget {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: paywallEvent('close'),
+                    onTap: onClose,
                     child: Icon(
                       Icons.close_rounded,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -59,7 +67,7 @@ class PricingTableShowcase extends StatelessWidget {
               ),
               const Spacer(),
               GestureDetector(
-                onTap: paywallEvent('continue'),
+                onTap: onContinue,
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(

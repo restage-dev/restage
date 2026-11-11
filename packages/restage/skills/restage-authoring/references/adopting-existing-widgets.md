@@ -158,7 +158,7 @@ screen class:
 static const next = SurfaceEvent<void>('next');
 ```
 
-Use `onPressed: surfaceEvent(next)` in the same button. Replace its callback
+Use `onPressed: context.surfaceEvent(next)` in the same button. Replace its callback
 constructor input with the generated event handler at the app's mount:
 
 <!-- skill-check: expression -->
@@ -172,7 +172,7 @@ WelcomeBannerSurface(
 ```
 
 The app's `onContinue` can keep its existing navigation or business logic. Pass
-`surfaceEvent(next)` directly; `() => surfaceEvent(next)` only returns a callback.
+`context.surfaceEvent(next)` directly; `() => context.surfaceEvent(next)` only returns a callback.
 This adaptation is for host behavior, not a requirement to replace supported
 local state callbacks. Paywalls use their paywall event contract, and flows can
 use transitions and host actions; follow the relevant guide for those cases.

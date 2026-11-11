@@ -91,7 +91,7 @@ class StrideReadyScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: surfaceEvent(begin),
+                      onPressed: context.surfaceEvent(begin),
                       child: const Text(
                         'Start running',
                         style: TextStyle(

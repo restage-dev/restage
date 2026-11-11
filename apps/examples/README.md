@@ -193,25 +193,24 @@ Onboarding, message, survey and general surfaces render through the generated
 
 Selection state lives in the widget's `State` as a plain field: a `bool` for a
 two-way choice, an `int` for a three-way strip. Tapping calls `setState`, and
-reading the field in `build` drives both the highlight and the event the button
-sends. The build compiles this logic into the surface, so it works over the air
+reading the field in `build` drives both the highlight and the value the button
+reports. The build compiles this logic into the surface, so it works over the air
 with no app code. See `lib/paywalls/fluent_pro.dart` (`bool personalSelected`)
 or `lib/paywalls/pulse_premium.dart` (`int selectedTier`).
 
 ```dart
 GestureDetector(
-  onTap: paywallEvent(
-    'continue',
-    args: {
-      'plan': personalSelected ? 'personal' : 'family',
-    },
+  onTap: context.surfaceEvent(
+    FluentProPaywall.continueFlow,
+    {'plan': personalSelected ? 'personal' : 'family'},
   ),
   child: /* the styled button */,
 )
 ```
 
-Surfaces send events; they never start a purchase. Your app handles the event
-and runs its own purchase code. For store-connected paywalls, see the
+Surfaces never start a purchase. A standalone paywall calls the callbacks your
+app passes its generated mount, such as `onClose` and `onContinue`; a paywall a
+flow routes fires typed events. Your app runs its own purchase code. For store-connected paywalls, see the
 [RevenueCat example](../../packages/restage_revenuecat/example) or the
 [native store example](../../packages/restage_store_bridge/example).
 

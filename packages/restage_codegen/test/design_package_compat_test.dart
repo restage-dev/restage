@@ -138,14 +138,18 @@ void main() {
                   children: <Widget>[
                     const Card.filled(child: Text('Filled')),
                     FilledButton.tonal(
-                      onPressed: paywallEvent('go'),
+                      onPressed: context.surfaceEvent(_Events.go),
                       child: const Text('Tonal'),
                     ),
                   ],
                 ),
               );
         }
-      ''';
+
+abstract final class _Events {
+  static const go = SurfaceEvent<void>('go');
+}
+''';
 
       await _expectPaywallRfwText(
         source,

@@ -27,10 +27,10 @@ class _PlanPickerState extends State<PlanPicker> {
           AppText('Only ${widget.yearlyPrice} a year'),
           AppButton(
             label: 'Subscribe',
-            onPressed: surfaceEvent(PlanPicker.subscribe, 'yearly'),
+            onPressed: context.surfaceEvent(PlanPicker.subscribe, 'yearly'),
           ),
           TextButton(
-            onPressed: surfaceEvent(PlanPicker.close),
+            onPressed: context.surfaceEvent(PlanPicker.close),
             child: const Text('Not now'),
           ),
         ],

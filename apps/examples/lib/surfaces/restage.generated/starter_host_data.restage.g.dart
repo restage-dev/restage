@@ -206,13 +206,14 @@ final class StarterChecklistSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ignore: unused_local_variable
-    final _restageRecording = RestageRecording();
+    final _restageRecording = RestageRecording(owner: context);
     Widget _restageDesign(Widget _restageBuilt) {
       return RestageScreen<StarterChecklistSurfaceEvent>(
         screen: starterChecklistRef,
         placementBinding: RestageScreen.generatedPlacementBinding(
           definition: starterChecklistPlacementDefinition,
           name: _restagePlacementName,
+          eventOwner: context,
         ),
         context: <String, Object?>{
           ..._restageRecording.values,

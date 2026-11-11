@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/user_factories.g.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
+import 'package:restage_example/paywalls/custom_badge.dart';
 
 import 'restage_render_expectations.dart';
 
@@ -48,8 +49,7 @@ Future<List<PaywallLoadFailed>> _mountCustomBadgePaywall(
         colorSchemeSeed: Colors.indigo,
       ),
       home: Scaffold(
-        body: RestagePaywall(
-          id: 'custom_badge',
+        body: CustomBadgePaywallSurface(
           resolver: _StaticResolver(bytes),
           onEvent: (event) {
             if (event is PaywallLoadFailed) {

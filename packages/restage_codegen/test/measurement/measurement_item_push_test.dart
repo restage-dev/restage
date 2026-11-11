@@ -45,7 +45,7 @@ final class HostPlans extends StatelessWidget {
         children: [
           for (final plan in plans)
             InkWell(
-              onTap: surfaceEvent(selectPlan, plan.id),
+              onTap: context.surfaceEvent(selectPlan, plan.id),
               child: Text(plan.title),
             ),
         ],
@@ -71,7 +71,7 @@ final class StaticPlans extends StatelessWidget {
           for (final plan in const ['yearly', 'monthly'])
             TextButton(
               key: ValueKey(plan),
-              onPressed: surfaceEvent(pick, plan),
+              onPressed: context.surfaceEvent(pick, plan),
               child: Text(plan),
             ),
         ],

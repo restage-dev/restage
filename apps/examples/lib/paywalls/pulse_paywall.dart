@@ -3,6 +3,8 @@ import 'package:restage/restage.dart';
 
 import '../widgets/pulse_badge.dart';
 
+part 'restage.generated/pulse_paywall.restage.g.dart';
+
 /// A minimal paywall that uses the app's [PulseBadge], which runs an animation
 /// controller.
 ///
@@ -11,7 +13,10 @@ import '../widgets/pulse_badge.dart';
 @Paywall()
 class PulsePaywall extends StatefulWidget {
   /// Const constructor.
-  const PulsePaywall({super.key});
+  const PulsePaywall({super.key, this.onContinue});
+
+  /// Continues to the purchase.
+  final VoidCallback? onContinue;
 
   @override
   State<PulsePaywall> createState() => _PulsePaywallState();
@@ -41,7 +46,7 @@ class _PulsePaywallState extends State<PulsePaywall> {
               const Center(child: PulseBadge(label: 'Streak', count: 12)),
               const Spacer(),
               GestureDetector(
-                onTap: paywallEvent('continue'),
+                onTap: widget.onContinue,
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(

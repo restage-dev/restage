@@ -85,7 +85,7 @@ class CraveReadyScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      onPressed: surfaceEvent(start),
+                      onPressed: context.surfaceEvent(start),
                       child: const Text(
                         'Start browsing',
                         style: TextStyle(

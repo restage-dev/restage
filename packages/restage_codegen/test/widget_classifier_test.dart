@@ -1771,9 +1771,13 @@ class AcmeListed extends StatelessWidget {
         {
           'lib/event.dart':
               '''
-import 'package:restage/restage.dart' show paywallEvent;
+import 'package:restage/restage.dart' show SurfaceEvent, SurfaceEventContext;
 
 $kClassifierStubs
+
+abstract final class _Events {
+  static const continueFlow = SurfaceEvent<void>('continue');
+}
 
 class GestureDetector extends StatelessWidget {
   const GestureDetector({this.onTap});
@@ -1790,7 +1794,7 @@ class GestureDetector extends StatelessWidget {
 class AcmeEvent extends StatelessWidget {
   const AcmeEvent();
   Widget build(BuildContext context) =>
-      GestureDetector(onTap: paywallEvent('continue'));
+      GestureDetector(onTap: context.surfaceEvent(_Events.continueFlow));
 }
 ''',
         },
@@ -1809,11 +1813,11 @@ class AcmeEvent extends StatelessWidget {
       expect(result, isA<ComposableWidget>());
     });
 
-    test('a custom paywallEvent look-alike (a non-SDK library) is NOT '
+    test('a custom surfaceEvent look-alike (a non-SDK library) is NOT '
         'recognised as the build helper — the (name, libraryOrigin) gate '
         'holds', () async {
-      // The build registers `paywallEvent` from the SDK library. A custom
-      // function of the SAME NAME, resolved to the app's own
+      // The build registers `surfaceEvent` from the SDK library. A custom
+      // extension method of the SAME NAME, resolved to the app's own
       // library, must NOT be mistaken for it (the look-alike-safe rule): it
       // defers as a `dartCall`, never lowering to an SDK event.
       // This pins the (name, libraryOrigin) gate so registering the build's
@@ -1824,8 +1828,10 @@ class AcmeEvent extends StatelessWidget {
               '''
 $kClassifierStubs
 
-// The app's own paywallEvent — same name, different library.
-void Function() paywallEvent(String name) => () {};
+// The app's own surfaceEvent — same name, different library.
+extension on BuildContext {
+  void Function() surfaceEvent(String name) => () {};
+}
 
 class GestureDetector extends StatelessWidget {
   const GestureDetector({this.onTap});
@@ -1842,7 +1848,7 @@ class GestureDetector extends StatelessWidget {
 class AcmeLookalike extends StatelessWidget {
   const AcmeLookalike();
   Widget build(BuildContext context) =>
-      GestureDetector(onTap: paywallEvent('continue'));
+      GestureDetector(onTap: context.surfaceEvent('continue'));
 }
 ''',
         },
@@ -1864,11 +1870,11 @@ class AcmeLookalike extends StatelessWidget {
         contains(
           isA<Blocker>()
               .having((b) => b.kind, 'kind', BlockerKind.dartCall)
-              .having((b) => b.detail, 'detail', contains('paywallEvent')),
+              .having((b) => b.detail, 'detail', contains('surfaceEvent')),
         ),
         reason:
             'the custom look-alike must defer as a dartCall naming '
-            'paywallEvent, never lower as an SDK event',
+            'surfaceEvent, never lower as an SDK event',
       );
     });
   });

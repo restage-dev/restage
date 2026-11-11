@@ -13,11 +13,15 @@ class MigratedPaywall extends StatelessWidget {
         children: <Widget>[
           const Text('Go Premium'),
           FilledButton(
-            onPressed: paywallEvent('go'),
+            onPressed: context.surfaceEvent(_Events.go),
             child: const Text('Continue'),
           ),
         ],
       ),
     );
   }
+}
+
+abstract final class _Events {
+  static const go = SurfaceEvent<void>('go');
 }

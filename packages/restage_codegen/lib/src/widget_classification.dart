@@ -183,18 +183,11 @@ final class Blocker {
 /// not recognise yields [UnclassifiableWidget] rather than a guessed verdict.
 sealed class WidgetClassification {
   /// Base constructor — records the [classKey].
-  const WidgetClassification(this.classKey, {this.firesEvents = true});
+  const WidgetClassification(this.classKey);
 
   /// Canonical key of the classified widget class —
   /// `'<library URI>#<ClassName>'`, constructor suffix stripped.
   final String classKey;
-
-  /// Whether the widget's own code can fire an authored event; true unless
-  /// its source shows it can't.
-  final bool firesEvents;
-
-  /// This classification with [firesEvents] set to [fires].
-  WidgetClassification withFiresEvents(bool fires);
 }
 
 /// Inlineable pure composition: `build()` (and `State`) reduce to catalog
@@ -206,17 +199,8 @@ final class ComposableWidget extends WidgetClassification {
     super.classKey, {
     required Set<InliningMechanism> requiredMechanisms,
     required List<String> composedCustomWidgets,
-    super.firesEvents,
   }) : requiredMechanisms = Set.unmodifiable(requiredMechanisms),
        composedCustomWidgets = List.unmodifiable(composedCustomWidgets);
-
-  @override
-  ComposableWidget withFiresEvents(bool fires) => ComposableWidget(
-    classKey,
-    requiredMechanisms: requiredMechanisms,
-    composedCustomWidgets: composedCustomWidgets,
-    firesEvents: fires,
-  );
 
   /// Inlining mechanisms this widget needs, **rolled up transitively** across
   /// its whole composition closure: if it composes another custom widget
@@ -241,13 +225,8 @@ final class ImperativeWidget extends WidgetClassification {
   ImperativeWidget(
     super.classKey, {
     required List<Blocker> blockers,
-    super.firesEvents,
   }) : assert(blockers.isNotEmpty, 'an ImperativeWidget needs a blocker'),
        blockers = List.unmodifiable(blockers);
-
-  @override
-  ImperativeWidget withFiresEvents(bool fires) =>
-      ImperativeWidget(classKey, blockers: blockers, firesEvents: fires);
 
   /// The disqualifying construct(s).
   final List<Blocker> blockers;
@@ -277,17 +256,7 @@ final class UnclassifiableWidget extends WidgetClassification {
     required this.reason,
     this.diagnosticCode = IssueCode.customWidgetUnclassified,
     this.ownKey,
-    super.firesEvents,
   });
-
-  @override
-  UnclassifiableWidget withFiresEvents(bool fires) => UnclassifiableWidget(
-    classKey,
-    reason: reason,
-    diagnosticCode: diagnosticCode,
-    ownKey: ownKey,
-    firesEvents: fires,
-  );
 
   /// The source of a key the widget's build creates, when that is why.
   final String? ownKey;

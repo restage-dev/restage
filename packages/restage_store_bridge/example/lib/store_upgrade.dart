@@ -17,6 +17,11 @@ final class PaywallPackage {
 
 @Paywall()
 class StorePaywall extends StatelessWidget {
+  static const purchase = SurfaceEvent<Map<String, Object?>>(
+    'in_app_purchase.purchase',
+  );
+  static const restore = SurfaceEvent<void>('in_app_purchase.restore');
+
   const StorePaywall({required this.packages, super.key});
 
   final List<PaywallPackage> packages;
@@ -35,10 +40,9 @@ class StorePaywall extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               FilledButton(
-                onPressed: paywallEvent(
-                  'in_app_purchase.purchase',
-                  args: {'packageIdentifier': package.identifier},
-                ),
+                onPressed: context.surfaceEvent(StorePaywall.purchase, {
+                  'packageIdentifier': package.identifier,
+                }),
                 child: Text(package.priceString),
               ),
               Text(package.billingTerms),
@@ -46,7 +50,7 @@ class StorePaywall extends StatelessWidget {
             ],
           ),
         TextButton(
-          onPressed: paywallEvent('in_app_purchase.restore'),
+          onPressed: context.surfaceEvent(StorePaywall.restore),
           child: const Text('Restore purchases'),
         ),
       ],

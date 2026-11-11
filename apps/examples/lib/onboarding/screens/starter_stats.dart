@@ -62,7 +62,7 @@ class StarterStatsScreen extends StatelessWidget {
               const Center(child: StatBadge(label: 'Rank', value: 'Top 5%')),
               const Spacer(),
               FilledButton(
-                onPressed: surfaceEvent(done),
+                onPressed: context.surfaceEvent(done),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

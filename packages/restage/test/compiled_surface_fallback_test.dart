@@ -118,7 +118,9 @@ void main() {
     await loading;
     Object? failure;
     try {
-      surfaceEvent(const SurfaceEvent<void>('next'))();
+      tester
+          .element(find.byType(RestageFlowView<support.FirstRunResult>))
+          .surfaceEvent(const SurfaceEvent<void>('next'))();
     } on Object catch (e) {
       failure = e;
     }

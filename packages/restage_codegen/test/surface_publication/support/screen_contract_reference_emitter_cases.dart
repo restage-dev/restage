@@ -457,7 +457,7 @@ final class MaintenanceNotice extends ArgumentBase {
         expect(emitted, isNot(contains(contract.contractFingerprint)));
         expect(
           sha256.convert(utf8.encode(emitted)).toString(),
-          'a13a4df351f9e70d9d46ac5075f2a8e1246e2d008c9ccab7673e507b9b4d9f9d',
+          '845760c590d4c8e7ef2808f4454f92f02732a132b9320b1c0e2d1588bf8d8e4b',
           reason: emitted,
         );
       },

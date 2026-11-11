@@ -26,7 +26,7 @@ final class WeeklyRecap extends StatelessWidget {
   static const openStats = SurfaceEvent<String>('open_stats');
   // ...
     FilledButton(
-      onPressed: surfaceEvent(openStats, 'weekly'),
+      onPressed: context.surfaceEvent(openStats, 'weekly'),
       child: const Text('See your stats'),
     ),
 ```

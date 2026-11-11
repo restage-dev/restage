@@ -162,10 +162,10 @@ void main() {
 
   test('uses the exact canonical PulseBadge blob', () {
     final blob = readDeliveryArtifact('assets/paywalls/pulse_paywall.rfw');
-    expect(blob, hasLength(6951));
+    expect(blob, hasLength(7064));
     expect(
       sha256.convert(blob).toString(),
-      '31d427f881b8b08ea31316db6784436f8e982a20d90a411d0dbded3c5017c202',
+      '148af81d89a7727ecb60a48726f0e9346e21eeb47a4e34d860a9d3b5818cf002',
     );
     // PulseBadge is split: its definition delivers the label around the
     // app's scale.

@@ -164,7 +164,7 @@ class TallySavingsScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: surfaceEvent(next),
+                onPressed: context.surfaceEvent(next),
                 child: const Text(
                   'Continue',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

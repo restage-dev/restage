@@ -106,7 +106,7 @@ final class StorePaywallSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ignore: unused_local_variable
-    final _restageRecording = RestageRecording();
+    final _restageRecording = RestageRecording(owner: context);
     Widget _restageDesign(Widget _restageBuilt) {
       const SurfaceVocabulary(
         widgets: RestageWidgetLibraries.fromVocabulary(
@@ -127,6 +127,7 @@ final class StorePaywallSurface extends StatelessWidget {
         placementBinding: RestagePaywall.generatedPlacementBinding(
           definition: storePaywallPlacementDefinition,
           name: _restagePlacementName,
+          eventOwner: context,
         ),
         context: <String, Object?>{
           ..._restageRecording.values,

@@ -28,9 +28,9 @@ ${[
   @override
   Widget build(BuildContext context) => Column(
         children: [
-          TextButton(onPressed: surfaceEvent(done), child: const Text('Done')),
+          TextButton(onPressed: context.surfaceEvent(done), child: const Text('Done')),
 ${[
-      for (final event in emitted) '          TextButton(onPressed: surfaceEvent(${_field(event)}), '
+      for (final event in emitted) '          TextButton(onPressed: context.surfaceEvent(${_field(event)}), '
             "child: const Text('$event')),",
     ].join('\n')}
         ],
@@ -209,15 +209,19 @@ class EntryPaywall extends StatelessWidget {
         child: const Text('Choose'),
       ),
       ElevatedButton(
-        onPressed: paywallEvent('privacy'),
+        onPressed: context.surfaceEvent(_Events.privacy),
         child: const Text('Privacy'),
       ),
       ElevatedButton(
-        onPressed: paywallEvent('skip'),
+        onPressed: context.surfaceEvent(PaywallEvents.skip),
         child: const Text('Skip'),
       ),
     ],
   );
+}
+
+abstract final class _Events {
+  static const privacy = SurfaceEvent<void>('privacy');
 }
 ''',
       'apps_examples|lib/paywalls/choose_plan.dart': '''

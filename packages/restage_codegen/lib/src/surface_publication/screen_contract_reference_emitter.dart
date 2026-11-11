@@ -1,4 +1,6 @@
 // Analyzer-resolved standalone screen contracts and generated references.
+import 'dart:convert';
+
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
@@ -90,6 +92,7 @@ class ResolvedWidgetMountInput {
     this.plan,
     this.partPath,
     this.hoisted = const [],
+    this.firedEvents = const [],
     this.islands = const [],
     this.split,
     this.buildArguments = const [],
@@ -118,6 +121,10 @@ class ResolvedWidgetMountInput {
 
   /// Values the mount computes for the surface, ordered by key.
   final List<HoistedValue> hoisted;
+
+  /// The `SurfaceEvent` constants the build fires; the contract includes the
+  /// ones the screen doesn't declare.
+  final List<FieldElement> firedEvents;
 
   /// Widget expressions the mount renders from the app.
   final List<Island> islands;
@@ -161,6 +168,7 @@ final class ResolvedStandaloneScreenContractInput
     super.mountConstructorProblem,
     super.plan,
     super.hoisted,
+    super.firedEvents,
     super.islands,
     super.split,
     super.buildArguments,
@@ -205,6 +213,7 @@ final class ResolvedStandaloneScreenContractInput
     mountConstructorProblem: mountConstructorProblem,
     plan: plan,
     hoisted: hoisted,
+    firedEvents: firedEvents,
     islands: islands,
     split: split,
     buildArguments: buildArguments,
@@ -909,8 +918,106 @@ List<_ResolvedScreenEvent> _inspectScreenEvents(
     if (event != null) events.add(event);
   }
 
+  // An event the build fires but the screen doesn't declare joins the
+  // contract. One that matches a declared event's ID and payload is that
+  // event, under its declared name.
+  final fired =
+      input.firedEvents.where((field) => !fields.contains(field)).toList()
+        ..sort(
+          (left, right) =>
+              _qualifiedName(left).compareTo(_qualifiedName(right)),
+        );
+  for (final field in fired) {
+    final id = field.computeConstantValue()?.getField('id')?.toStringValue();
+    final type = field.type;
+    if (id == null ||
+        id.isEmpty ||
+        type is! InterfaceType ||
+        type.typeArguments.length != 1) {
+      continue;
+    }
+    final event = _eventFromType(
+      field: field,
+      id: id,
+      payloadType: type.typeArguments.single,
+      input: input,
+      issues: issues,
+    );
+    if (event == null) continue;
+    final payload = jsonEncode(event.schemaEvent.toJson());
+    if (events.any(
+      (known) =>
+          known.id == id && jsonEncode(known.schemaEvent.toJson()) == payload,
+    )) {
+      continue;
+    }
+    events.add(event);
+  }
+
   _reportDuplicateEventIds(input, events, issues);
+  _reportEventNameCollisions(input, events, issues);
+  // The issues name each clash; drop the rest so they don't repeat it as a
+  // symbol collision.
+  final ids = <String>{};
+  final names = <String?>{};
+  events.retainWhere(
+    (event) => ids.add(event.id) & names.add(event.field.name),
+  );
   return events;
+}
+
+// `Class.field`, how a diagnostic names an event constant.
+String _qualifiedName(FieldElement field) {
+  final owner = field.enclosingElement.name ?? '<unnamed>';
+  return '$owner.${field.name ?? '<unnamed>'}';
+}
+
+// [name] with its first letter in [upper] or lower case.
+String _withInitial(String name, {required bool upper}) => name.isEmpty
+    ? name
+    : (upper ? name[0].toUpperCase() : name[0].toLowerCase()) +
+          name.substring(1);
+
+// Fired events from other classes can share a name; their generated event
+// classes would collide.
+void _reportEventNameCollisions(
+  ResolvedWidgetMountInput input,
+  List<_ResolvedScreenEvent> events,
+  List<Issue> issues,
+) {
+  final byName = <String, List<_ResolvedScreenEvent>>{};
+  for (final event in events) {
+    (byName[event.field.name ?? ''] ??= []).add(event);
+  }
+  final screen = input.screen.name ?? '<unnamed>';
+  for (final entry
+      in byName.entries.toList()
+        ..sort((left, right) => left.key.compareTo(right.key))) {
+    final ids = {for (final event in entry.value) event.id};
+    if (ids.length < 2) continue;
+    final names = [
+      for (final event in entry.value) _qualifiedName(event.field),
+    ];
+    final foreign = entry.value
+        .map((event) => event.field)
+        .firstWhere(
+          (field) => field.enclosingElement != input.screen,
+          orElse: () => entry.value.last.field,
+        );
+    final owner = foreign.enclosingElement.name ?? '';
+    final suggested =
+        _withInitial(owner, upper: false) +
+        _withInitial(entry.key, upper: true);
+    issues.add(
+      _issue(
+        input,
+        IssueCode.duplicateId,
+        '$screen fires events with different IDs under one name, '
+        '${names.map((name) => '`$name`').join(' and ')}. Try declaring '
+        '`static const $suggested = ${_qualifiedName(foreign)};` on $screen.',
+      ),
+    );
+  }
 }
 
 _ResolvedScreenEvent? _eventFromType({
@@ -1093,14 +1200,15 @@ void _reportDuplicateEventIds(
         ..sort((left, right) => left.key.compareTo(right.key));
   for (final entry in duplicateIds) {
     final fields = entry.value
-        .map((event) => event.field.name ?? '<unnamed>')
+        .map((event) => _qualifiedName(event.field))
         .join(', ');
     issues.add(
       _issue(
         input,
         IssueCode.duplicateId,
         'Duplicate standalone SurfaceEvent ID "${entry.key}" declared by '
-        '$fields.',
+        '$fields. Try giving each event its own ID, or the same payload '
+        'type.',
       ),
     );
   }
@@ -1132,7 +1240,8 @@ void _reportGeneratedSymbolCollisions(
       _issue(
         input,
         IssueCode.generatedSymbolCollision,
-        'Standalone declarations would generate colliding symbol $symbol.',
+        'Standalone declarations would generate colliding symbol $symbol. '
+        'Try renaming the declaration that generates it.',
       ),
     );
   }
@@ -2492,6 +2601,7 @@ void _emitScreenMount(
       )
       ..writeln('        definition: $provider,')
       ..writeln('        name: ${read(placementSlot)},')
+      ..writeln('        eventOwner: ${slots[kRootContext]},')
       ..writeln('      ),');
   }
   final hostParameters = constructor.values.where(
@@ -2635,8 +2745,11 @@ void _emitScreenMount(
       ..write(head)
       ..writeln('    // ignore: unused_local_variable')
       ..writeln(
+        // The mount's context resolves the events its build records.
         '    final _restageRecording = ${sdk}RestageRecording('
-        '${scoped ? 'owner: ${owner == null ? slots[kRootContext] : '${sdk}RestageIslandScope.hostOf(${slots[kRootContext]}) ?? $owner'}' : ''});',
+        '${step ? '${scoped ? 'owner: ${sdk}RestageIslandScope.hostOf('
+                            '${slots[kRootContext]}) ?? $owner, ' : ''}'
+                  'mount: ${slots[kRootContext]}' : 'owner: ${slots[kRootContext]}'});',
       )
       ..write(keyLocal);
     if (surfaceInstance != null &&
@@ -3667,8 +3780,6 @@ emitSplitWidgetWrapper(
   );
   final mount = result.mount;
   final recordedTemplate = mount?.split?.recorded;
-  final placesAppWidgets =
-      mount?.split?.recordedBuild?.placesAppWidgets ?? false;
   if (mount == null || recordedTemplate == null) {
     return (
       source: null,
@@ -3825,8 +3936,7 @@ emitSplitWidgetWrapper(
     ..writeln('  ${flutter}Widget build(${flutter}BuildContext context) {')
     ..writeln('    // ignore: unused_local_variable')
     ..writeln(
-      '    final _restageRecording = ${sdk}RestageRecording('
-      '${islands.isEmpty && !placesAppWidgets ? '' : 'owner: context'});',
+      '    final _restageRecording = ${sdk}RestageRecording(owner: context);',
     )
     ..writeln('    // ignore: unused_local_variable')
     ..writeln('    final _restageSurface = _restageWidget;')

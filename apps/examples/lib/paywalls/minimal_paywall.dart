@@ -13,7 +13,10 @@ part 'restage.generated/minimal_paywall.restage.g.dart';
 @Paywall()
 class MinimalPaywall extends StatefulWidget {
   /// Const constructor.
-  const MinimalPaywall({super.key});
+  const MinimalPaywall({super.key, this.onContinue});
+
+  /// Continues with the selected plan.
+  final ValueChanged<String>? onContinue;
 
   @override
   State<MinimalPaywall> createState() => _MinimalPaywallState();
@@ -142,12 +145,8 @@ class _MinimalPaywallState extends State<MinimalPaywall> {
               const Spacer(),
               // Continue CTA — reports the selected plan.
               GestureDetector(
-                onTap: paywallEvent(
-                  'continue',
-                  args: {
-                    'plan': annualSelected ? 'annual' : 'monthly',
-                  },
-                ),
+                onTap: () => widget.onContinue
+                    ?.call(annualSelected ? 'annual' : 'monthly'),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(

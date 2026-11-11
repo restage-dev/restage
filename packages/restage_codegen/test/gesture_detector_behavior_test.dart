@@ -22,9 +22,13 @@ class PassiveTap extends StatelessWidget {
   @override
   Widget build(BuildContext context) => GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: paywallEvent('start'),
+        onTap: context.surfaceEvent(_Events.start),
         child: const IgnorePointer(child: Text('Start')),
       );
+}
+
+abstract final class _Events {
+  static const start = SurfaceEvent<void>('start');
 }
 ''';
     final readerWriter = await readerWriterWithFilesystemSources(

@@ -43,11 +43,11 @@ final class WeeklyRecap extends StatelessWidget {
           for (final highlight in kHighlights) Text(highlight),
           const SizedBox(height: 24),
           FilledButton(
-            onPressed: surfaceEvent(openStats, 'weekly'),
+            onPressed: context.surfaceEvent(openStats, 'weekly'),
             child: const Text('See your stats'),
           ),
           TextButton(
-            onPressed: surfaceEvent(dismiss),
+            onPressed: context.surfaceEvent(dismiss),
             child: const Text('Not now'),
           ),
         ],
@@ -77,21 +77,41 @@ name in UpperCamelCase, then `Event`.
 
 ## Events
 
+- Make things happen with plain Flutter callbacks first: `final VoidCallback? onClose;`
+  and `onPressed: onClose`, or a closure such as `() => cubit.purchase(plan)`. The
+  generated mount takes the same callbacks and hands your closures to the delivered
+  design. Use a typed event when Restage acts on the tap: a flow step's outcome, an
+  outcome a flow or placement routes, or a paywall's `completesOn` event.
+  A design you'll deliver into more than one placement fires typed events; app
+  callbacks tie it to its own mount.
 - Declare each event once as a `static const` `SurfaceEvent<T>` field on the surface
   class. `T` is `void` or the value type it carries.
-- Pass `surfaceEvent(event)` or `surfaceEvent(event, value)` directly as the callback,
-  for taps and value callbacks alike: `onPressed: surfaceEvent(dismiss)`,
-  `onChanged: surfaceEvent(pick)`. When the widget passes a value (a Switch, a
+- Declare an event several surfaces fire once, in a shared class such as
+  `abstract final class CommonEvents { static const dismiss = SurfaceEvent<void>('dismiss'); }`.
+  A shared widget fires `context.surfaceEvent(CommonEvents.dismiss)`, and the event
+  joins the contract of each surface that shows it; don't declare it again. A widget
+  the build never reads, such as one the app passes in at run time, still needs the
+  surface to declare each event it fires.
+- A dialog or sheet a surface opens fires on that surface. A page route doesn't: wrap
+  the pushed page in `InheritedTheme.capture(from: context, to:
+  Navigator.of(context).context).wrap(...)`. Don't wrap a paywall's push to another
+  `@Paywall` screen; the delivered paywall shows that screen.
+- Pass `context.surfaceEvent(event)` or `context.surfaceEvent(event, value)` directly as the callback,
+  for taps and value callbacks alike: `onPressed: context.surfaceEvent(dismiss)`,
+  `onChanged: context.surfaceEvent(pick)`. When the widget passes a value (a Switch, a
   TextField), that value is the event's value.
-- An event can carry a map: `surfaceEvent(submit, {'mood': mood, 'note': note})`
+- An event can carry a map: `context.surfaceEvent(submit, {'mood': mood, 'note': note})`
   with `SurfaceEvent<Map<String, Object?>>`. The generated class exposes it as
   `arguments`.
-- Don't wrap it in a closure: `() => surfaceEvent(...)` returns the callback without
+- Don't wrap it in a closure: `() => context.surfaceEvent(...)` returns the callback without
   calling it, so the event never fires when your own widget shows. The build warns.
-- In a standalone `@Paywall()`, fire events with `paywallEvent('name', args: {...})`
-  or with `surfaceEvent(event)` and a declared `SurfaceEvent`. The generated paywall
-  mount delivers them as `PaywallCustomEvent` with `eventName` and `args`; a
-  `surfaceEvent` value arrives as `args['value']`. The names `purchase`, `restore`
+- A standalone `@Paywall()` makes things happen with plain callbacks, such as
+  `final VoidCallback? onClose;` and `onPressed: onClose`. The generated mount takes the
+  same callbacks and hands your closures to the delivered paywall. Fire a typed event
+  only when Restage acts on it: a flow step's outcome, an outcome a flow or placement
+  routes, or an event in `completesOn`. The generated paywall mount delivers a typed
+  event as `PaywallCustomEvent` with `eventName` and `args`; a map value is its `args`
+  and any other value arrives as `args['value']`. The names `purchase`, `restore`
   and `restage.purchase…`/`restage.restore…` are reserved; use names such as
   `restore_purchases`. A paywall used as a flow step declares `SurfaceEvent`s for its
   transitions, like any screen.
@@ -264,7 +284,7 @@ ListTile(
 
 If a field is also written by a value callback, a named handler can only reset it
 to a literal. Submit the current state through an event, such as
-`surfaceEvent(submit, {'note': note})`. Free text is app data, not a measured answer.
+`context.surfaceEvent(submit, {'note': note})`. Free text is app data, not a measured answer.
 The complete [survey example](../examples/lib/surveys/mood_check.dart) combines
 selection, text entry and typed events.
 

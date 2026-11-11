@@ -46,7 +46,8 @@ void main() {
       resolver: _ThrowingResolver(),
       onEvent: events.add,
       fallbackBuilder: (context) {
-        callback = paywallEvent('continue', args: {'choice': 'original'});
+        callback =
+            context.surfaceEvent(_Events.continueEvent, {'choice': 'original'});
         return TextButton(
             onPressed: callback, child: const Text('Original offer'));
       },
@@ -150,5 +151,10 @@ final class _Offer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TextButton(
-      onPressed: paywallEvent('continue'), child: const Text('Offer'));
+      onPressed: context.surfaceEvent(_Events.continueEvent),
+      child: const Text('Offer'));
+}
+
+abstract final class _Events {
+  static const continueEvent = SurfaceEvent<Map<String, Object?>>('continue');
 }

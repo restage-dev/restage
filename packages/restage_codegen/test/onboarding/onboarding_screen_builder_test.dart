@@ -63,7 +63,7 @@ final class WelcomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ElevatedButton(
-        onPressed: onboardingEvent(next),
+        onPressed: context.surfaceEvent(next),
         child: const Text('Continue'),
       ),
     );
@@ -121,7 +121,7 @@ final class NoticeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ElevatedButton(
-        onPressed: surfaceEvent(dismiss),
+        onPressed: context.surfaceEvent(dismiss),
         child: const Text('Dismiss'),
       ),
     );
@@ -320,7 +320,7 @@ final class _WelcomeScreenState extends State<WelcomeScreen> {
       );
     });
 
-    test('onboardingEvent payload map lowers to an RFW event body', () async {
+    test('an event payload map lowers to an RFW event body', () async {
       const source = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
@@ -338,7 +338,7 @@ final class WelcomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ElevatedButton(
-        onPressed: onboardingEvent(
+        onPressed: context.surfaceEvent(
           analyticsTap,
           const {'ctaId': 'primary', 'secret': 'internal'},
         ),
@@ -378,7 +378,7 @@ final class WelcomeScreen extends StatelessWidget {
     });
 
     test(
-      'onboardingEvent scalar value wraps under the reserved value key',
+      'a scalar event value wraps under the reserved value key',
       () async {
         // The producer side of `.capture()`: a scalar event value must reach the
         // RFW event as `{ value: <v> }` (not a bare scalar a runtime map-decode
@@ -399,7 +399,7 @@ final class WelcomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ElevatedButton(
-        onPressed: onboardingEvent(rating, 42),
+        onPressed: context.surfaceEvent(rating, 42),
         child: const Text('Rate'),
       ),
     );
@@ -645,7 +645,7 @@ final class OnboardingSource {
       final cases = <String, String>{
         'restore': '''
 ElevatedButton(
-  onPressed: paywallEvent('restore'),
+  onPressed: context.surfaceEvent(_Events.restore),
   child: const Text('Continue'),
 )
 ''',
@@ -661,7 +661,12 @@ Text(paywallPriceFor(slot: 'primary'))
       };
 
       for (final entry in cases.entries) {
-        final source = _screenWithBody(entry.value);
+        final source = _screenWithBody(entry.value).replaceFirst(
+          '@OnboardingSource',
+          'abstract final class _Events {\n'
+              "  static const restore = SurfaceEvent<void>('restore');\n"
+              '}\n\n@OnboardingSource',
+        );
         final logs = <LogRecord>[];
         final readerWriter = await readerWriterWithFilesystemSources(
           rootPackage: 'apps_examples',
@@ -748,7 +753,7 @@ final class WelcomeScreen extends StatelessWidget {
       }
     });
 
-    test('unresolved onboardingEvent arguments reject outputs', () async {
+    test('unresolved event arguments reject outputs', () async {
       const source = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
@@ -765,7 +770,7 @@ final class WelcomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ElevatedButton(
-        onPressed: onboardingEvent(WelcomeScreen.nxt),
+        onPressed: context.surfaceEvent(WelcomeScreen.nxt),
         child: const Text('Continue'),
       ),
     );
@@ -817,7 +822,7 @@ final class WelcomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ElevatedButton(
-        onPressed: onboardingEvent(fake),
+        onPressed: context.surfaceEvent(fake),
         child: const Text('Continue'),
       ),
     );

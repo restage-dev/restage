@@ -90,7 +90,7 @@ final class StarterChecklist extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: InkWell(
-                    onTap: surfaceEvent(toggle, item.id),
+                    onTap: context.surfaceEvent(toggle, item.id),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,

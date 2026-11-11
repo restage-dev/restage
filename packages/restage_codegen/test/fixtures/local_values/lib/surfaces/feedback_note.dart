@@ -25,7 +25,7 @@ final class _FeedbackNoteState extends State<FeedbackNote> {
           Text(note),
           TextButton(onPressed: clear, child: const Text('Clear')),
           FilledButton(
-            onPressed: surfaceEvent(FeedbackNote.send, {'note': note}),
+            onPressed: context.surfaceEvent(FeedbackNote.send, {'note': note}),
             child: const Text('Send'),
           ),
         ],

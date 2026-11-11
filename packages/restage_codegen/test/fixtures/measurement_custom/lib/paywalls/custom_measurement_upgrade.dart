@@ -9,7 +9,11 @@ final class CustomMeasurementUpgrade extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: paywallEvent('upgrade'),
+        onPressed: context.surfaceEvent(_Events.upgrade),
         child: const Text('Upgrade'),
       );
+}
+
+abstract final class _Events {
+  static const upgrade = SurfaceEvent<void>('upgrade');
 }

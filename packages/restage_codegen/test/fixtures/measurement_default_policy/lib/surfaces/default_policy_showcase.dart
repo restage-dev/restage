@@ -14,11 +14,11 @@ final class DefaultPolicyShowcase extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         children: [
           FilledButton(
-            onPressed: surfaceEvent(activate),
+            onPressed: context.surfaceEvent(activate),
             child: const Text('Activate'),
           ),
           GestureDetector(
-            onTap: surfaceEvent(inspect),
+            onTap: context.surfaceEvent(inspect),
             child: const Text('Inspect'),
           ),
         ],

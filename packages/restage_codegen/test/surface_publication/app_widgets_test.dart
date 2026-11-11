@@ -190,6 +190,257 @@ class Pill extends StatelessWidget {
     expect(payload.requiredLibraries, isEmpty);
   });
 
+  // A widget the build splits fires a shared event the screen doesn't
+  // declare; the event is still in the screen's contract.
+  test("a split widget's events join the screen's contract", () async {
+    final out = await _compile(
+      _surface(
+        "DismissCard(label: 'Later')",
+        imports:
+            "import 'package:apps_examples/ui.dart';\n"
+            "import 'package:apps_examples/common_events.dart';",
+        annotation: "@Screen(id: 'mounted', surface: Surface.general)",
+      ),
+      otherFiles: {
+        'apps_examples|lib/common_events.dart': '''
+import 'package:restage/restage.dart';
+
+abstract final class CommonEvents {
+  static const dismiss = SurfaceEvent<void>('dismiss');
+}
+''',
+        'apps_examples|lib/ui.dart': '''
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+export 'dismiss_card.dart';
+
+@RestageLibrary(
+  library: WidgetLibrary.custom('apps_examples.ui'),
+  capabilityVersion: 1,
+)
+const restageUiLibrary = 0;
+''',
+        'apps_examples|lib/dismiss_card.dart': '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+import 'common_events.dart';
+
+part 'restage.generated/dismiss_card.restage.g.dart';
+
+/// A card that dismisses its surface.
+@RestageWidget()
+class DismissCard extends StatelessWidget {
+  /// Creates a card.
+  const DismissCard({super.key, required this.label});
+
+  /// The label.
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        CustomPaint(child: Text(label)),
+        TextButton(
+          onPressed: context.surfaceEvent(CommonEvents.dismiss),
+          child: Text(label),
+        ),
+      ]);
+}
+''',
+      },
+    );
+    expect(out.errors, isEmpty);
+    expect(out.text, contains('widget DismissCard = DismissCard__split('));
+    expect(out.part, contains('MountedSurfaceDismissEvent'));
+  });
+
+  test('a split inside a split brings its events too', () async {
+    final out = await _compile(
+      _surface(
+        "OuterCard(label: 'Later')",
+        imports:
+            "import 'package:apps_examples/ui.dart';\n"
+            "import 'package:apps_examples/common_events.dart';",
+        annotation: "@Screen(id: 'mounted', surface: Surface.general)",
+        // Another screen places the inner card, so it splits too.
+        classes: '''
+@Screen(id: 'other', surface: Surface.general)
+final class Other extends StatelessWidget {
+  const Other({super.key});
+  @override
+  Widget build(BuildContext context) => const DismissCard(label: 'Now');
+}
+''',
+      ),
+      otherFiles: {
+        'apps_examples|lib/common_events.dart': '''
+import 'package:restage/restage.dart';
+
+abstract final class CommonEvents {
+  static const dismiss = SurfaceEvent<void>('dismiss');
+}
+''',
+        'apps_examples|lib/ui.dart': '''
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+export 'dismiss_card.dart';
+export 'outer_card.dart';
+
+@RestageLibrary(
+  library: WidgetLibrary.custom('apps_examples.ui'),
+  capabilityVersion: 1,
+)
+const restageUiLibrary = 0;
+''',
+        'apps_examples|lib/dismiss_card.dart': '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+import 'common_events.dart';
+
+part 'restage.generated/dismiss_card.restage.g.dart';
+
+/// A card that dismisses its surface.
+@RestageWidget()
+class DismissCard extends StatelessWidget {
+  /// Creates a card.
+  const DismissCard({super.key, required this.label});
+
+  /// The label.
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        CustomPaint(child: Text(label)),
+        TextButton(
+          onPressed: context.surfaceEvent(CommonEvents.dismiss),
+          child: Text(label),
+        ),
+      ]);
+}
+''',
+        'apps_examples|lib/outer_card.dart': '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+import 'dismiss_card.dart';
+
+part 'restage.generated/outer_card.restage.g.dart';
+
+/// A card that holds a dismiss card.
+@RestageWidget()
+class OuterCard extends StatelessWidget {
+  /// Creates a card.
+  const OuterCard({super.key, required this.label});
+
+  /// The label.
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        CustomPaint(child: Text(label)),
+        DismissCard(label: label),
+      ]);
+}
+''',
+      },
+    );
+    expect(out.errors, isEmpty);
+    expect(out.text, contains('widget OuterCard = OuterCard__split('));
+    expect(out.part, contains('MountedSurfaceDismissEvent'));
+  });
+
+  // Reached only through the outer card, the inner card is an island of
+  // the outer card's build; its own build fires the event.
+  test("an island inside a split brings its build's events", () async {
+    final out = await _compile(
+      _surface(
+        "OuterCard(label: 'Later')",
+        imports:
+            "import 'package:apps_examples/ui.dart';\n"
+            "import 'package:apps_examples/common_events.dart';",
+        annotation: "@Screen(id: 'mounted', surface: Surface.general)",
+      ),
+      otherFiles: {
+        'apps_examples|lib/common_events.dart': '''
+import 'package:restage/restage.dart';
+
+abstract final class CommonEvents {
+  static const dismiss = SurfaceEvent<void>('dismiss');
+}
+''',
+        'apps_examples|lib/ui.dart': '''
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+export 'dismiss_card.dart';
+export 'outer_card.dart';
+
+@RestageLibrary(
+  library: WidgetLibrary.custom('apps_examples.ui'),
+  capabilityVersion: 1,
+)
+const restageUiLibrary = 0;
+''',
+        'apps_examples|lib/dismiss_card.dart': '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+import 'common_events.dart';
+
+part 'restage.generated/dismiss_card.restage.g.dart';
+
+/// A card that dismisses its surface.
+@RestageWidget()
+class DismissCard extends StatelessWidget {
+  /// Creates a card.
+  const DismissCard({super.key, required this.label});
+
+  /// The label.
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        CustomPaint(child: Text(label)),
+        TextButton(
+          onPressed: context.surfaceEvent(CommonEvents.dismiss),
+          child: Text(label),
+        ),
+      ]);
+}
+''',
+        'apps_examples|lib/outer_card.dart': '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+import 'dismiss_card.dart';
+
+part 'restage.generated/outer_card.restage.g.dart';
+
+/// A card that holds a dismiss card.
+@RestageWidget()
+class OuterCard extends StatelessWidget {
+  /// Creates a card.
+  const OuterCard({super.key, required this.label});
+
+  /// The label.
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        CustomPaint(child: Text(label)),
+        DismissCard(label: label),
+      ]);
+}
+''',
+      },
+    );
+    expect(out.errors, isEmpty);
+    expect(out.text, contains('widget OuterCard = OuterCard__split('));
+    expect(out.part, contains('MountedSurfaceDismissEvent'));
+  });
+
   group('a custom widget that does not fully inline', () {
     Map<String, String> files({required bool part}) => {
       'apps_examples|lib/ui.dart': '''

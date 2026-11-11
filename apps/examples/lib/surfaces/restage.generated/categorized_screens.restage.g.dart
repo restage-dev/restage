@@ -165,13 +165,14 @@ final class GeneralStatusSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ignore: unused_local_variable
-    final _restageRecording = RestageRecording();
+    final _restageRecording = RestageRecording(owner: context);
     Widget _restageDesign(Widget _restageBuilt) {
       return RestageScreen<GeneralStatusSurfaceEvent>(
         screen: generalStatusRef,
         placementBinding: RestageScreen.generatedPlacementBinding(
           definition: generalStatusPlacementDefinition,
           name: _restagePlacementName,
+          eventOwner: context,
         ),
         fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
         errorBuilder: errorBuilder,
@@ -350,13 +351,14 @@ final class MessageNoticeSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ignore: unused_local_variable
-    final _restageRecording = RestageRecording();
+    final _restageRecording = RestageRecording(owner: context);
     Widget _restageDesign(Widget _restageBuilt) {
       return RestageScreen<MessageNoticeSurfaceEvent>(
         screen: messageNoticeRef,
         placementBinding: RestageScreen.generatedPlacementBinding(
           definition: messageNoticePlacementDefinition,
           name: _restagePlacementName,
+          eventOwner: context,
         ),
         fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
         errorBuilder: errorBuilder,
@@ -534,13 +536,14 @@ final class OnboardingWelcomeSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ignore: unused_local_variable
-    final _restageRecording = RestageRecording();
+    final _restageRecording = RestageRecording(owner: context);
     Widget _restageDesign(Widget _restageBuilt) {
       return RestageScreen<OnboardingWelcomeSurfaceEvent>(
         screen: onboardingWelcomeRef,
         placementBinding: RestageScreen.generatedPlacementBinding(
           definition: onboardingWelcomePlacementDefinition,
           name: _restagePlacementName,
+          eventOwner: context,
         ),
         fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
         errorBuilder: errorBuilder,

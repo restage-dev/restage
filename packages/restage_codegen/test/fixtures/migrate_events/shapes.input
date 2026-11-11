@@ -1,0 +1,69 @@
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@Paywall()
+class Offer extends StatefulWidget {
+  const Offer({super.key});
+
+  @override
+  State<Offer> createState() => _OfferState();
+}
+
+class _OfferState extends State<Offer> {
+  var annual = true;
+
+  static Widget badge() =>
+      TextButton(onPressed: paywallEvent('badge'), child: const Text('b'));
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          TextButton(
+            onPressed: paywallEvent('continue', args: {'plan': annual}),
+            child: const Text('Continue'),
+          ),
+          Builder(
+            builder: (_) =>
+                TextButton(onPressed: surfaceEvent(Plans.pick), child: badge()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (route) => TextButton(
+                  onPressed: surfaceEvent(Plans.pick),
+                  child: const Text('Pick'),
+                ),
+              ),
+            ),
+            child: const Text('Plans'),
+          ),
+        ],
+      );
+}
+
+@Paywall(id: 'plans')
+class Plans extends StatelessWidget {
+  const Plans({super.key});
+
+  static const pick = SurfaceEvent<void>('pick');
+
+  @override
+  Widget build(BuildContext context) => const Text('Plans');
+}
+
+class Quiet extends StatelessWidget {
+  const Quiet({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      TextButton(onPressed: paywallEvent('hush'), child: const Text('q'));
+}
+
+abstract class Bare extends StatefulWidget;
+
+class _BareState extends State<Bare> {
+  @override
+  Widget build(BuildContext context) =>
+      TextButton(onPressed: paywallEvent('bare'), child: const Text('b'));
+}

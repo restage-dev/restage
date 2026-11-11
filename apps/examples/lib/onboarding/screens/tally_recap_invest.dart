@@ -123,7 +123,7 @@ class TallyRecapInvestScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: surfaceEvent(finish),
+                onPressed: context.surfaceEvent(finish),
                 child: const Text(
                   'Fund my account',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
