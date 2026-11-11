@@ -1503,11 +1503,11 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
       throw const CanonicalFormatException(
           'Only a prefetch can be the startup.');
     }
-    // Only the startup prefetch asks for artifacts in the answer, for mounts
-    // named once each, in order.
+    // A prefetch or mount batch may ask for artifacts in the answer, for
+    // mounts named once each, in order.
     for (var index = 0; index < inlineMounts.length; index++) {
       final mount = inlineMounts[index];
-      if (mode != PlacementBatchModeV1.prefetch ||
+      if (mode == PlacementBatchModeV1.refresh ||
           mount < 0 ||
           mount >= mounts.length ||
           (index > 0 && inlineMounts[index - 1] >= mount)) {

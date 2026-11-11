@@ -153,6 +153,9 @@ final class PlacementNoAnswerStatus extends PlacementNoAnswerCause {
     return switch (status) {
       429 => '$service is rate limiting this app (HTTP 429).'
           '${retryAfter == null ? '' : ' Retry after ${retryAfter!.inSeconds} s.'}',
+      200 when error == 'want_not_met' => '$service answered before it had '
+          'read the content a live update announced, so the shown content '
+          'stays until the next update.',
       >= 300 && < 400 => _redirect(service),
       401 => '$service refused the API key (HTTP 401$code). Set `apiKey` to '
           'the public SDK key (rs_pk_...) for this environment. '

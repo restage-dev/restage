@@ -1419,10 +1419,17 @@ void _batchContractTests() {
       expect(
           () => PlacementBatchRequestV1.fromJson({
                 ...request.toJson(),
-                'mode': 'mount',
+                'mode': 'refresh',
                 'inlineMounts': [0, 1],
               }),
           throwsA(isA<CanonicalFormatException>()));
+      expect(
+          PlacementBatchRequestV1.fromJson({
+            ...request.toJson(),
+            'mode': 'mount',
+            'inlineMounts': [0, 1],
+          }).inlineMounts,
+          [0, 1]);
       for (final bad in [
         [2],
         [-1],

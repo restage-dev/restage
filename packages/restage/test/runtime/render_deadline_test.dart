@@ -1417,7 +1417,11 @@ final class _ScreenResolver
       Future.error(StateError('raced resolvers are not resolved directly'));
 
   @override
-  Future<ResolvedSurfaceScreen?> bestLocal(SurfaceStoreKey key) async => local;
+  Future<ResolvedSurfaceScreen?> bestLocal(SurfaceStoreKey key) async =>
+      local == null
+          ? null
+          : labelSurfaceSource<ResolvedSurfaceScreen>(
+              local!, SurfaceResolutionSource.holdLastGood);
 
   @override
   Future<ResolvedSurfaceScreen?> fresh(

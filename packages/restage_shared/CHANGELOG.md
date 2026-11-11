@@ -16,6 +16,9 @@ declared input with no fact, or a value inside a fact that is absent or has the
 wrong shape, gives `valueMissing`. Record and list results are plain maps and
 lists.
 
+A `mount` placement batch may name `inlineMounts`, so its mounts receive their
+content with the answer. A `refresh` batch may not.
+
 `startupTemplateJson` takes `analytics`, the build's default, and every
 template carries `analyticsOff`: the request as the SDK sends it with analytics
 off. Add `PlacementBatchRequestV1.withoutAnalytics`.

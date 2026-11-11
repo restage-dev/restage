@@ -39,6 +39,7 @@ import '../resolver/surface_delivery_observations.dart'
         readSurfaceDeliveryObservations,
         requestingViewShortestLogicalSide,
         withSurfaceDeliveryObservations;
+import '../refresh/delivery_announcement.dart';
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/surface_update_channel.dart';
@@ -462,6 +463,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     LateRenderReport? report,
     bool firstLoadSettled = false,
   }) async {
+    final announced = currentAnnouncedWant;
     if (!mounted || _controller == null) return;
     // A refresh would race the first load; it runs once that load settles.
     if (adoptedRoot == null && !firstLoadSettled && _firstLoadInFlight) {
@@ -550,6 +552,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         // Re-check before the candidate becomes visible. The user may have
         // interacted while resolution was in flight.
         if (!_canSwap()) {
+          announced?.drop();
           _scheduleDiscardPending(pending);
           return;
         }

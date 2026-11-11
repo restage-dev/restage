@@ -8,6 +8,8 @@ import 'package:http/testing.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage/src/restage_rpc_client/placement_delivery_adapter.dart';
 import 'package:restage/src/delivery/surface_artifact_store.dart';
+import 'package:restage/src/refresh/delivery_announcement.dart';
+import 'package:restage/src/delivery/surface_delivery_receipt.dart';
 import 'package:restage/src/flow/flow_resolver.dart';
 import 'package:restage/src/flow/flow_descriptors.dart';
 import 'package:restage/src/resolver/placement_fallback_log.dart'
@@ -207,6 +209,145 @@ void main() {
       }
     },
   );
+
+  test('a batch carries the records a live-refresh push named, once', () async {
+    final fixture = readPlacementDeliveryFixture();
+    final wanted = <String?>[];
+    final client = RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((request) async {
+        if (request.method == 'POST') {
+          wanted.add(request.headers['restage-want-records']);
+        }
+        return placementFixtureArtifact(request) ??
+            http.Response.bytes(fixture.response.canonicalBytes, 200);
+      }),
+    );
+    addTearDown(client.close);
+    final registry = PlacementRegistry(
+      scope: 'want-test',
+      configurationFingerprint: 'want-test',
+      client: () => client,
+      isCurrent: () => true,
+    );
+    PlacementRequestContext context() => PlacementRequestContext(
+          request: fixture.request,
+          lease: SurfaceAssignmentKeyProvider.captureKeylessLease(),
+          capturedAt: DateTime.utc(2026, 10, 3),
+          isCurrent: () => true,
+        );
+
+    await registry.fetch(context(), wants: [
+      AnnouncedWant('d/1/general/a=${'1' * 64}'),
+      AnnouncedWant('d/1/general/a=${'1' * 64}'),
+      AnnouncedWant('p/1/${'2' * 64}=-'),
+    ]);
+    await registry.fetch(context());
+    await registry.fetch(context(), wants: [
+      AnnouncedWant('s/1/general/a=${'3' * 64}'),
+      AnnouncedWant('*'),
+    ]);
+
+    expect(wanted, [
+      'd/1/general/a=${'1' * 64},p/1/${'2' * 64}=-',
+      null,
+      '*',
+    ]);
+  });
+
+  test(
+      'an answer to a push that does not say it read the named records is '
+      'no answer', () async {
+    final fixture = readPlacementDeliveryFixture();
+    String? met;
+    final client = RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((request) async =>
+          placementFixtureArtifact(request) ??
+          http.Response.bytes(fixture.response.canonicalBytes, 200,
+              headers: {if (met != null) 'restage-want-met': met})),
+    );
+    addTearDown(client.close);
+    final refusals = <(SurfaceDeliveryReceiptReason, PlacementNoAnswerCause)>[];
+    Future<PlacementBatchResponseV1?> fetch(String? want) =>
+        client.fetchPlacements(fixture.request,
+            publicationGuard: () => true,
+            wantRecords: want,
+            onNoAnswer: (reason, cause) => refusals.add((reason, cause)));
+    const want = 'd/1/general/a=-';
+
+    expect(await fetch(want), isNull);
+    met = '0';
+    expect(await fetch(want), isNull);
+    expect(refusals.map((r) => r.$1),
+        everyElement(SurfaceDeliveryReceiptReason.serverError));
+    expect(refusals.first.$2.describe(), contains('live update'));
+
+    refusals.clear();
+    met = '1';
+    expect(await fetch(want), isA<PlacementBatchResolvedV1>());
+    met = null;
+    expect(await fetch(null), isA<PlacementBatchResolvedV1>());
+    expect(refusals, isEmpty);
+  });
+
+  test('only a taken answer meets the wants a request carried', () async {
+    final fixture = readPlacementDeliveryFixture();
+    String? met;
+    String? served;
+    final client = RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((request) async =>
+          placementFixtureArtifact(request) ??
+          http.Response.bytes(fixture.response.canonicalBytes, 200, headers: {
+            if (met != null) 'restage-want-met': met,
+            if (served != null) 'restage-want-served': served,
+          })),
+    );
+    addTearDown(client.close);
+    final registry = PlacementRegistry(
+      scope: 'unmet-test',
+      configurationFingerprint: 'unmet-test',
+      client: () => client,
+      isCurrent: () => true,
+    );
+    var current = true;
+    PlacementRequestContext context() => PlacementRequestContext(
+          request: fixture.request,
+          lease: SurfaceAssignmentKeyProvider.captureKeylessLease(),
+          capturedAt: DateTime.utc(2026, 10, 3),
+          isCurrent: () => current,
+        );
+    const want = 'd/1/general/a=-';
+    List<AnnouncedWant> wants() => [AnnouncedWant(want), AnnouncedWant(want)];
+
+    // Unmet: neither surface the request answered for is met.
+    var sent = wants();
+    expect(await registry.fetch(context(), wants: sent), isNull);
+    expect(sent.map((w) => w.met), [false, false]);
+
+    // Nothing sent.
+    met = '1';
+    current = false;
+    sent = wants();
+    expect(await registry.fetch(context(), wants: sent), isNull);
+    expect(sent.map((w) => w.met), [false, false]);
+
+    current = true;
+    sent = wants();
+    expect(await registry.fetch(context(), wants: sent), isNotNull);
+    expect(sent.map((w) => w.met), [true, true]);
+    expect(sent.map((w) => w.served), [null, null]);
+
+    // Each met want carries what the answer read in place of what was named.
+    served = 'd/1/general/a=${'2' * 64}';
+    sent = wants();
+    expect(await registry.fetch(context(), wants: sent), isNotNull);
+    expect(sent.map((w) => w.served), [served, served]);
+  });
 
   test('held content is assembled without an artifact GET', () async {
     final fixture = readPlacementDeliveryFixture();

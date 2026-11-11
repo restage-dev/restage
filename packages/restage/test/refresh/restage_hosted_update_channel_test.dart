@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -83,6 +84,26 @@ void main() {
   });
 
   tearDown(() => server.close());
+
+  test('a connection that stops answering its pings is replaced', () async {
+    final silent = await _SilentServer.start();
+    addTearDown(silent.close);
+    final channel = RestageHostedUpdateChannel(
+      rpcClient:
+          _stampClient(const [SurfaceStamp(version: 1, watchChannel: 'token')]),
+      edgeUrl: silent.httpUrl,
+      reconnectBaseDelay: const Duration(milliseconds: 1),
+      pingInterval: const Duration(milliseconds: 100),
+      random: const _FixedRandom(0.5),
+    );
+    final subscription = channel.watch(_surface).listen((_) {});
+    addTearDown(subscription.cancel);
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (silent.connections < 2 && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(silent.connections, greaterThanOrEqualTo(2));
+  });
 
   test(
       'missing accepted watch authority resolves before adopting fresh scoped tokens',
@@ -166,6 +187,35 @@ void main() {
     expect(await update, isTrue);
     expect(server.requests.single.uri.queryParameters['channel'],
         _token(watch, scope));
+  });
+
+  test('a frame names its publication pass and the records it changed',
+      () async {
+    final channel = RestageHostedUpdateChannel(
+      rpcClient: _stampClient(const [SurfaceStamp(version: 1)]),
+    );
+    final watch = _watch(edgeOrigin: server.httpUrl.origin);
+    final scope = watch.channels.last.scope;
+    final updates = StreamIterator(channel.watchAnnounced(scope,
+        watch: watch,
+        reconnectProbe: () async => throw StateError('no probe')));
+    addTearDown(updates.cancel);
+    final first = updates.moveNext();
+    final socket = await server.socketAt(0);
+    for (final frame in [
+      {'type': 'surface_update', 'generation': 7, 'want': 'p/1/a=b'},
+      {'type': 'surface_update', 'generation': 0, 'want': ''},
+      {'type': 'surface_update'},
+    ]) {
+      socket.add(jsonEncode(frame));
+    }
+    final announced = <(int?, String?)>[];
+    for (var i = 0; i < 3; i++) {
+      expect(await (i == 0 ? first : updates.moveNext()), isTrue);
+      expect(updates.current.scope, scope);
+      announced.add((updates.current.generation, updates.current.want));
+    }
+    expect(announced, [(7, 'p/1/a=b'), (null, null), (null, null)]);
   });
 
   test('a watch with no advertised origin and no override never connects',
@@ -674,6 +724,51 @@ final class _FixedRandom implements Random {
 
   @override
   int nextInt(int max) => 0;
+}
+
+/// Accepts each upgrade, then neither answers nor closes: a connection the
+/// network dropped.
+final class _SilentServer {
+  _SilentServer._(this._server) {
+    _server.listen((socket) {
+      connections++;
+      final received = <int>[];
+      var upgraded = false;
+      socket.listen((bytes) {
+        if (upgraded) return;
+        received.addAll(bytes);
+        final request = latin1.decode(received);
+        if (!request.contains('\r\n\r\n')) return;
+        upgraded = true;
+        final key = RegExp(r'Sec-WebSocket-Key: (\S+)', caseSensitive: false)
+            .firstMatch(request)!
+            .group(1)!;
+        final accept = base64.encode(sha1
+            .convert(utf8.encode('${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11'))
+            .bytes);
+        socket.add(latin1.encode('HTTP/1.1 101 Switching Protocols\r\n'
+            'Upgrade: websocket\r\nConnection: Upgrade\r\n'
+            'Sec-WebSocket-Accept: $accept\r\n\r\n'));
+      }, onError: (Object _) {});
+      _sockets.add(socket);
+    });
+  }
+
+  static Future<_SilentServer> start() async =>
+      _SilentServer._(await ServerSocket.bind(InternetAddress.loopbackIPv4, 0));
+
+  final ServerSocket _server;
+  final List<Socket> _sockets = [];
+  var connections = 0;
+
+  Uri get httpUrl => Uri.parse('http://127.0.0.1:${_server.port}');
+
+  Future<void> close() async {
+    for (final socket in _sockets) {
+      socket.destroy();
+    }
+    await _server.close();
+  }
 }
 
 final class _WebSocketTestServer {

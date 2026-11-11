@@ -9,6 +9,7 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../delivery/placement_decision_store.dart';
+import '../refresh/delivery_announcement.dart';
 import '../delivery/placement_fit_verdicts.dart';
 import '../delivery/raced_surface_resolver.dart';
 import '../delivery/surface_artifact_store.dart';
@@ -778,7 +779,9 @@ final class PlacementRegistry {
   /// Posts [context]'s batch. With no answer, [onNoAnswer] says why: a
   /// [SurfaceDeliveryReceiptReason] name, or [placementStaleReason].
   Future<PlacementBatchResponseV1?> fetchBatch(PlacementRequestContext context,
-      {TargetCoordinate? expectedTarget,
+      {String? wantRecords,
+      void Function(String? served)? onWantMet,
+      TargetCoordinate? expectedTarget,
       void Function(Duration retryAfter)? onRateLimited,
       void Function(String reason, [PlacementNoAnswerCause? cause])? onNoAnswer,
       void Function()? onStaleBeforeSend,
@@ -796,6 +799,8 @@ final class PlacementRegistry {
     }
     try {
       return await client().fetchPlacements(context.request,
+          wantRecords: wantRecords,
+          onWantMet: onWantMet,
           savedArtifacts: savedFrames,
           onAdopted: context.answeredFor,
           onDecoded: () {
@@ -905,6 +910,14 @@ final class PlacementRegistry {
       final context = await capture(
           mounts: mounts,
           sendAssignmentKey: sendAssignmentKey,
+          // Mounts a live-refresh push told of new content get it in the
+          // answer.
+          inlineMounts: [
+            for (var i = 0; i < mounts.length; i++)
+              if (live.any((waiter) =>
+                  waiter.mount == mounts[i] && waiter.want?.records != null))
+                i,
+          ],
           // No mount waits for its key past its own deadline.
           keyDeadline: _earliest([
             for (final waiter in live)
@@ -923,7 +936,10 @@ final class PlacementRegistry {
           });
       final fetched = context == null
           ? null
-          : await fetch(context, onRefused: (reason) {
+          : await fetch(context, wants: [
+              for (final waiter in live)
+                if (waiter.want case final want?) want,
+            ], onRefused: (reason) {
               for (final waiter in live) {
                 waiter.tell((w) => w.onRefused?.call(reason));
               }
@@ -1044,21 +1060,33 @@ final class PlacementRegistry {
             PlacementDeliveryArtifacts artifacts
           })?>
       fetch(PlacementRequestContext context,
-          {void Function(PlacementBatchRefusalReasonV1 reason)? onRefused,
+          {List<AnnouncedWant> wants = const [],
+          void Function(PlacementBatchRefusalReasonV1 reason)? onRefused,
           void Function(String reason, [PlacementNoAnswerCause? cause])?
               onNoAnswer,
           void Function()? onStaleBeforeSend}) async {
     var counted = false;
+    String? served;
     try {
-      final answered = await _fetchChecked(context, onDecoded: () {
-        counted = true;
-        processing++;
-      },
+      final answered = await _fetchChecked(context,
+          wantRecords: mergeWantRecords(wants.map((want) => want.records)),
+          onWantMet: (read) => served = read,
+          onDecoded: () {
+            counted = true;
+            processing++;
+          },
           onRefused: onRefused,
           onNoAnswer: onNoAnswer,
           onStaleBeforeSend: onStaleBeforeSend);
       // What this device saves changes with every answer it keeps.
-      if (answered != null) savedChanged();
+      if (answered != null) {
+        savedChanged();
+        for (final want in wants) {
+          want
+            ..met = true
+            ..served = served;
+        }
+      }
       return answered;
     } finally {
       if (counted) processing--;
@@ -1071,12 +1099,16 @@ final class PlacementRegistry {
             PlacementDeliveryArtifacts artifacts
           })?>
       _fetchChecked(PlacementRequestContext context,
-          {void Function()? onDecoded,
+          {String? wantRecords,
+          void Function(String? served)? onWantMet,
+          void Function()? onDecoded,
           void Function(PlacementBatchRefusalReasonV1 reason)? onRefused,
           void Function(String reason, [PlacementNoAnswerCause? cause])?
               onNoAnswer,
           void Function()? onStaleBeforeSend}) async {
     final response = await fetchBatch(context,
+        wantRecords: wantRecords,
+        onWantMet: onWantMet,
         expectedTarget: target,
         onNoAnswer: onNoAnswer,
         onStaleBeforeSend: onStaleBeforeSend,
@@ -1313,8 +1345,12 @@ const String placementSupersededReason = 'superseded';
 /// One mount waiting for the batch it joined.
 final class _MountWaiter {
   _MountWaiter(this.mount, this.keyDeadline, this.guard, this.onRefused,
-      this.onNoAnswer, this.onStaleBeforeSend);
+      this.onNoAnswer, this.onStaleBeforeSend)
+      : want = currentAnnouncedWant;
   final PlacementMountRequestV1 mount;
+
+  /// The announcement this mount's resolve answers, if a push started it.
+  final AnnouncedWant? want;
   final Future<void>? keyDeadline;
   final bool Function() guard;
   final void Function(PlacementBatchRefusalReasonV1 reason)? onRefused;

@@ -22,7 +22,7 @@ import '../authoring/onboarding_event.dart' show RecordedEventHost;
 import '../authoring/onboarding_event_dispatcher.dart'
     show RestageEventDispatcher, SurfaceEventHandler;
 import '../events/restage_event.dart'
-    show PagerPageChanged, SurfaceLoadFailureReason;
+    show PagerPageChanged, SurfaceLoadFailureReason, SurfaceLoadSource;
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_runtime_support.dart';
 import '../measurement/measurement_event_sanitizer.dart';
@@ -242,7 +242,8 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     _placementDiscovery.dispose();
     _renderDeadline?.cancel();
     _resolutionEpoch += 1;
-    _disposeStage();
+    _unregisterPlacementValidity();
+    _disposeStages();
     _observationCell = null;
     super.dispose();
   }
@@ -274,7 +275,12 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         surface: widget.screen.surface,
         deadline: deadline)
       ..start(Restage.fireEvent);
-    _disposeStage();
+    _unregisterPlacementValidity();
+    assert(() {
+      _debugHandleRegistered = false;
+      return true;
+    }());
+    _disposeStages();
     setState(() {
       _unavailableError = null;
       _showDeadlineFallback = false;
@@ -349,7 +355,10 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
           declaration: declaration!,
           screen: widget.screen as SurfaceScreenRef<Object?>,
           originalResolver: original.assetFallback)
-        ..onFallbackChanged = _registerPlacementValidity;
+        ..onFallbackChanged = () {
+          _registerPlacementValidity();
+          assert(_debugCheckStageInvariants());
+        };
     }
     return _placementResolver!;
   }
@@ -390,13 +399,16 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     final provenance = widget.screen.provenance;
     try {
       final stage = _validateAndBuildStage(provenance, resolved);
-      if (isRefresh) stage.previousStage = _acceptedStage;
+      // The accepted stage stays until this one paints, and returns if it is
+      // refused.
+      stage.previousStage = _acceptedStage;
       bindSurfaceDeliveryMountAttribution(resolved, stage.mountAttribution);
       stage.transaction = FirstPaintLeaseTransaction(
         canCommit: () =>
             _isCurrent(epoch) &&
             identical(_stage, stage) &&
-            (stage.previousStage == null ||
+            (!isRefresh ||
+                stage.previousStage == null ||
                 (identical(stage.previousStage, _acceptedStage) &&
                     _canRefreshPlacement())) &&
             (surfaceAssignmentLeaseFor(resolved)?.isCurrent ?? true) &&
@@ -410,27 +422,31 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         onPainted: () {
           _placementDiscovery.markPainted(resolved);
           _acceptedStage = stage;
+          _acceptedDecision = null;
           _registerPlacementValidity();
+          assert(_debugCheckStageInvariants(shown: true));
         },
         afterCommit: () {
           if (identical(_stage, stage)) {
             stage.presentation.activate();
+            // The replaced stage left the tree with the commit frame.
             final previous = stage.previousStage;
             stage.previousStage = null;
-            if (previous != null) {
-              WidgetsBinding.instance
-                  .addPostFrameCallback((_) => previous.dispose());
-            }
+            previous?.dispose();
           }
+          assert(_debugCheckStageInvariants());
         },
         afterRejection: () {
-          if (!_isCurrent(epoch) || !identical(_stage, stage)) return;
-          if (stage.previousStage != null) {
+          if (!mounted || !identical(_stage, stage)) return;
+          // A refused stage shows the accepted stage again while its decision
+          // holds, else local content.
+          if (_canRestorePrevious(stage)) {
             _restorePreviousStage(stage);
             return;
           }
-          _disposeStage();
-          unawaited(_resolveLocalAfterInvalidation(epoch));
+          _disposeStages();
+          assert(_debugCheckStageInvariants());
+          unawaited(_resolveLocalAfterInvalidation(_resolutionEpoch));
         },
       );
       _attachMeasurementSession(stage, resolved);
@@ -457,7 +473,9 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         _showDeadlineFallback = false;
         _late = null;
       });
-      if (previous != null && !isRefresh) {
+      assert(_debugCheckStageInvariants());
+      // The accepted stage is kept to restore; any other displaced stage goes.
+      if (previous != null && !identical(previous, stage.previousStage)) {
         WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
       }
       _populateData();
@@ -530,17 +548,25 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
           if (original != null) {
             await _stageResolved(++_resolutionEpoch, original);
           } else {
-            _disposeStage();
+            _disposeStages();
             _fail(++_resolutionEpoch, _missing);
+            assert(_debugCheckStageInvariants());
           }
         });
     _placementValidityHandle = handle;
     SurfaceRefreshRegistry.instance.register(handle);
+    assert(() {
+      _debugHandleRegistered = true;
+      return true;
+    }());
   }
 
   PlacementDeliveryAdmission? get _acceptedAdmission => _acceptedStage == null
       ? null
-      : placementAdmissionFor(_acceptedStage!.resolved);
+      : placementAdmissionFor(_acceptedDecision ?? _acceptedStage!.resolved);
+
+  // A refreshed decision for the accepted stage's unchanged content.
+  Object? _acceptedDecision;
 
   bool get _showsFallback =>
       _stage == null && (_unavailableError != null || _showDeadlineFallback);
@@ -579,8 +605,22 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         return;
       }
       final candidate = placementAdmissionFor(fresh);
+      final accepted = _acceptedAdmission;
       if ((candidate?.isAssigned ?? false) ||
-          (_acceptedAdmission?.matchesDecision(candidate) ?? false)) {
+          (accepted?.matchesDecision(candidate) ?? false)) {
+        return;
+      }
+      // Same content under a new decision: keep the shown stage, with its
+      // presentation and receipt, and watch the new decision.
+      if (candidate != null &&
+          accepted != null &&
+          accepted.isCurrent &&
+          identical(_stage, previous) &&
+          candidate.delivery.publicProjectionDigest ==
+              accepted.delivery.publicProjectionDigest) {
+        _acceptedDecision = fresh;
+        _registerPlacementValidity();
+        assert(_debugCheckStageInvariants(shown: true));
         return;
       }
       await _stageResolved(epoch, fresh, isRefresh: true);
@@ -604,6 +644,9 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     }
   }
 
+  bool _canRestorePrevious(_ScreenStage stage) =>
+      stage.previousStage != null && (_acceptedAdmission?.isCurrent ?? true);
+
   void _restorePreviousStage(_ScreenStage rejected) {
     final previous = rejected.previousStage;
     if (previous == null) return;
@@ -611,6 +654,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     setState(() => _stage = previous);
     rejected.dispose();
     _populateData();
+    assert(_debugCheckStageInvariants(shown: true));
   }
 
   Future<void> _resolveLocalAfterInvalidation(int epoch) async {
@@ -691,6 +735,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
           report(null);
           setState(() => _showDeadlineFallback = true);
           _registerPlacementValidity();
+          assert(_debugCheckStageInvariants());
         } else {
           // Nothing to show yet: the mount settles on fresh's outcome.
           unawaited(freshFuture.then(
@@ -1014,7 +1059,10 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   void _handleRenderFailure(_ScreenStage stage, Object error) {
     if (!identical(_stage, stage)) return;
-    _forgetStoredCandidate();
+    // The stored copy is forgotten only when it is what failed.
+    if (surfaceLoadSourceOf(stage.resolved) != SurfaceLoadSource.original) {
+      _forgetStoredCandidate();
+    }
     _fail(
       _resolutionEpoch,
       SurfaceScreenUnavailableError(
@@ -1059,14 +1107,15 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   void _fail(int epoch, SurfaceScreenUnavailableError error) {
     if (!_isCurrent(epoch)) return;
     final pending = _stage;
-    if (pending?.previousStage != null) {
-      _restorePreviousStage(pending!);
+    if (pending != null && _canRestorePrevious(pending)) {
+      _restorePreviousStage(pending);
       return;
     }
-    _disposeStage();
+    _disposeStages();
     _loadAdvanced = _loadAdvanced || _placementInteracted;
     setState(() => _unavailableError = error);
     _registerPlacementValidity();
+    assert(_debugCheckStageInvariants());
     widget.onUnavailable?.call(error);
   }
 
@@ -1134,16 +1183,69 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     message: 'No content was ready by the render deadline.',
   );
 
-  void _disposeStage() {
+  // Only disposal and a restart end the mount's live refresh.
+  void _unregisterPlacementValidity() {
     final handle = _placementValidityHandle;
     if (handle != null) SurfaceRefreshRegistry.instance.unregister(handle);
     _placementValidityHandle = null;
+  }
+
+  void _disposeStages() {
     final stage = _stage;
     _stage = null;
     final accepted = _acceptedStage;
     _acceptedStage = null;
+    _acceptedDecision = null;
     if (accepted != null && !identical(stage, accepted)) accepted.dispose();
     stage?.dispose();
+  }
+
+  // Whether a live refresh handle was registered since the last restart;
+  // only disposal and a restart may drop it.
+  bool _debugHandleRegistered = false;
+
+  /// The screen's stage contract, checked after each transition in debug
+  /// builds; a broken rule is reported, so no catch can hide it.
+  bool _debugCheckStageInvariants({bool shown = false}) {
+    if (!mounted) return true;
+    void require(bool holds, String rule) {
+      if (holds) return;
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: StateError(rule),
+        library: 'restage',
+        context: ErrorDescription('while checking the screen stage contract'),
+      ));
+    }
+
+    final stage = _stage;
+    final accepted = _acceptedStage;
+    final handle = _placementValidityHandle;
+    if (stage != null) {
+      require(!stage._disposed, 'The staged stage is disposed.');
+      require(stage.transaction.isPending || stage.transaction.isCommitted,
+          'The staged stage can no longer paint.');
+      final previous = stage.previousStage;
+      require(previous == null || !previous._disposed,
+          'The stage kept to restore is disposed.');
+    }
+    require(accepted == null || !accepted._disposed,
+        'The accepted stage is disposed.');
+    require(!_debugHandleRegistered || handle != null,
+        'The live refresh handle was dropped.');
+    require(_acceptedAdmission == null || handle != null,
+        'An accepted decision has no live refresh handle.');
+    require(
+        !_showsFallback ||
+            placementFallbackFor(_placementResolver) == null ||
+            handle != null,
+        'A fallback shown with a watch has no live refresh handle.');
+    require(
+        !shown ||
+            stage == null ||
+            !identical(stage, accepted) ||
+            (_acceptedAdmission?.isCurrent ?? true),
+        'A lapsed decision was put on screen.');
+    return true;
   }
 
   @override
@@ -1317,7 +1419,12 @@ final class _ScreenStage {
     required this.sections,
     required this.local,
     required this.mountAttribution,
-  });
+  }) {
+    assert(() {
+      _live += 1;
+      return true;
+    }());
+  }
 
   final SurfaceScreenRuntimeProvenance provenance;
   final SurfaceSections sections;
@@ -1337,6 +1444,7 @@ final class _ScreenStage {
 
   MeasurementHostSessionController? _measurementSession;
   var _disposed = false;
+  static var _live = 0;
 
   void attachMeasurementSession(MeasurementHostSessionController session) {
     if (_disposed || _measurementSession != null) {
@@ -1366,6 +1474,10 @@ final class _ScreenStage {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    assert(() {
+      _live -= 1;
+      return true;
+    }());
     transaction.supersede();
     local.clear();
     final measurementSession = _measurementSession;
@@ -1374,6 +1486,10 @@ final class _ScreenStage {
     WidgetsBinding.instance.addPostFrameCallback((_) => runtime.dispose());
   }
 }
+
+/// Screen stages built and not yet disposed; counted in debug builds only.
+@visibleForTesting
+int get debugLiveScreenStages => _ScreenStage._live;
 
 /// Deprecated spelling of [RestageScreen].
 ///
