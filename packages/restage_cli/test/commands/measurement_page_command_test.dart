@@ -209,6 +209,77 @@ void main() {
       expect(sent.last['surfaceId'], 'surface.v1.abc');
     });
 
+    test('sends the roster query in canonical bytes', () async {
+      await runSlug('first_run', [
+        page(slug: 'first_run', id: 'surface.v1.abc'),
+      ]);
+
+      final bytes = decodeByteDataWire(
+        sent.first['queryBytes'],
+        maximumBytes: 1024,
+        malformed: FormatException.new,
+      );
+      final query = decodeCanonicalObject(bytes);
+      expect(query['search'], 'first_run');
+      expect(query['cursor'], isNull);
+    });
+
+    test('a refused lookup gives the service\'s reason', () async {
+      final result = await runSlug('first_run', [
+        {
+          'kind': 'refused',
+          'reason': 'invalidCursor',
+          'detail': 'The roster query or cursor is invalid.',
+        },
+      ]);
+
+      expect(result.code, 1);
+      expect(
+        result.err,
+        contains(
+          'Restage refused to look up the surface named first_run: The '
+          'roster query or cursor is invalid. Try passing its measurement '
+          'id, which starts with surface.v1.',
+        ),
+      );
+      expect(sent, hasLength(1));
+    });
+
+    test('a roster that changed mid-read asks for a retry', () async {
+      final result = await runSlug('first_run', [
+        {'state': 'cursorStale', 'rows': <Object?>[], 'nextCursor': null},
+      ]);
+
+      expect(result.code, 1);
+      expect(
+        result.err,
+        contains(
+          'The surface list changed while Restage was reading it. Try the '
+          'command again.',
+        ),
+      );
+    });
+
+    test(
+      'a value that cannot be a slug is refused before any lookup',
+      () async {
+        for (final value in ['First Run', '\u{D800}', 'a' * 65]) {
+          final result = await runSlug(value, const []);
+
+          expect(result.code, 1);
+          expect(
+            result.err,
+            contains(
+              "$value isn't a surface slug. Try the slug shown by "
+              '`restage surface list`, or the measurement id, which starts '
+              'with surface.v1.',
+            ),
+          );
+        }
+        expect(sent, isEmpty);
+      },
+    );
+
     test('is refused when no surface has the slug', () async {
       final result = await runSlug('missing', [
         page(slug: 'other', id: 'surface.v1.o'),

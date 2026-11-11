@@ -24,6 +24,20 @@ void main() {
     expect(guide, contains('<Name>Surface()'));
   });
 
+  test('the key comes from build.yaml, not the configure call', () {
+    for (final kind in [null, ...SurfaceSourceKind.values]) {
+      final guide = mountGuide(kind, 'pro', backend: _cloud);
+      expect(guide, contains('`restage init --sdk-key rs_pk_...`'));
+      expect(
+        guide,
+        contains(
+          'Restage.configure(registerWidgets: kRestageWidgetRegistration)',
+        ),
+      );
+      expect(guide, isNot(contains('apiKey')));
+    }
+  });
+
   test('a screen or flow needs its generated mount compiled in', () {
     for (final kind in [
       SurfaceSourceKind.screen,
@@ -49,9 +63,11 @@ void main() {
       expect(
         guide,
         contains(
-          "In your app, call Restage.configure(apiKey: 'rs_pk_...', baseUrl: "
-          "...) once with this environment's key, then add "
-          'LumenOnboardingFlowSurface(...) where it should appear. New '
+          "In your app, put this environment's publishable key in "
+          'build.yaml using `restage init --sdk-key rs_pk_...` and call '
+          'Restage.configure(registerWidgets: kRestageWidgetRegistration) '
+          'once at startup, then add LumenOnboardingFlowSurface(...) where '
+          'it should appear. New '
           'versions reach app builds made from the same surface code. '
           'Guide: https://docs.restage.dev/delivery/'
           'hosted-delivery',
