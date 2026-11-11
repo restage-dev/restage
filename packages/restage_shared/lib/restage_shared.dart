@@ -89,6 +89,7 @@ export 'src/taps/surface_tap_names.dart';
 export 'src/theme/theme_data_contract.dart';
 
 export 'src/expressions/value_program.dart';
+export 'src/expressions/value_scope.dart';
 export 'src/expressions/builder_program.dart';
 
 export 'src/expressions/builder_context.dart';

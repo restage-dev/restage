@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+Add `scopeMisses`, which lists the captures and parameters of a `ValueProgram`
+that declared facts cannot supply, as `ValueScopeMiss` values with a
+`ValueScopeBinding` and a `ValueScopeMissKind`. A fact fits when the declared
+type accepts its type. Add `evaluateOrMissing`, which evaluates a program over
+capture and parameter facts and returns `valueMissing` instead of throwing; a
+declared input with no fact, or a value inside a fact that is absent or has the
+wrong shape, gives `valueMissing`. Record and list results are plain maps and
+lists.
+
 `startupTemplateJson` takes `analytics`, the build's default, and every
 template carries `analyticsOff`: the request as the SDK sends it with analytics
 off. Add `PlacementBatchRequestV1.withoutAnalytics`.
