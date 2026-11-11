@@ -487,6 +487,8 @@ final class SplitSite {
     this.interface,
     this.widgets,
     this.promotion,
+    this.compiled = const [],
+    this.reasonCode,
   });
 
   /// Decodes one site.
@@ -496,7 +498,15 @@ final class SplitSite {
       json,
       const {'surface', 'mount', 'name', 'widget', 'location', 'kind'},
       path,
-      optional: const {'reason', 'token', 'interface', 'widgets', 'promotion'},
+      optional: const {
+        'reason',
+        'token',
+        'interface',
+        'widgets',
+        'promotion',
+        'compiled',
+        'reasonCode',
+      },
     );
     final kind = _requiredString(json, 'kind', path);
     String? optional(String key) => switch (json[key]) {
@@ -514,6 +524,7 @@ final class SplitSite {
           SplitSiteKind.values.asNameMap()[kind] ??
           (throw FormatException('Unknown split site kind "$kind".')),
       reason: optional('reason'),
+      reasonCode: optional('reasonCode'),
       token: optional('token'),
       interface: optional('interface'),
       widgets: switch (json['widgets']) {
@@ -528,6 +539,27 @@ final class SplitSite {
         final Map<String, Object?> value => value,
         _ => throw const FormatException(
           r'Expected "$.splitSites.promotion" to be an object.',
+        ),
+      },
+      compiled: switch (json['compiled']) {
+        null => const [],
+        final List<Object?> values => [
+          for (final value in values)
+            switch (value) {
+              {
+                'name': final String name,
+                'reason': final String reason,
+                'message': final String message,
+              } =>
+                (name: name, reason: reason, message: message),
+              _ => throw const FormatException(
+                r'Expected "$.splitSites.compiled" to hold names, reasons '
+                'and messages.',
+              ),
+            },
+        ],
+        _ => throw const FormatException(
+          r'Expected "$.splitSites.compiled" to be a list.',
         ),
       },
     );
@@ -569,6 +601,13 @@ final class SplitSite {
   /// `{'refusal': …}` when it can't be.
   final Map<String, Object?>? promotion;
 
+  /// An island's arguments that stay in the app's code, each with its
+  /// reason code and message.
+  final List<({String name, String reason, String message})> compiled;
+
+  /// The issue code of [reason].
+  final String? reasonCode;
+
   /// The JSON form.
   Map<String, Object?> toJson() => {
     'surface': surface,
@@ -578,10 +617,20 @@ final class SplitSite {
     'location': location,
     'kind': kind.name,
     if (reason != null) 'reason': reason,
+    if (reasonCode != null) 'reasonCode': reasonCode,
     if (token != null) 'token': token,
     if (interface != null) 'interface': interface,
     if (widgets != null) 'widgets': widgets,
     if (promotion != null) 'promotion': promotion,
+    if (compiled.isNotEmpty)
+      'compiled': [
+        for (final argument in compiled)
+          {
+            'name': argument.name,
+            'reason': argument.reason,
+            'message': argument.message,
+          },
+      ],
   };
 }
 

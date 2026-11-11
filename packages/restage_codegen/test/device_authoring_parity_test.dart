@@ -344,9 +344,9 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
           'class TextScaler { const TextScaler.linear(double factor); }',
     );
     // No framework recipe stands in for the app's own class: the Text renders
-    // from the app.
+    // from the app, and only its literal text is delivered.
     expect(result.dsl, isNot(contains('kind: "linear"')));
-    expect(result.dsl, 'Probe_Text_0()');
+    expect(result.dsl, 'Probe_Text_0(data: "Hi")');
     expect(result.islands, hasLength(1));
   });
 
@@ -428,7 +428,12 @@ widget Root = Text(text: "Hi", softWrap: data.device.$path);
       ("Text('Hi', softWrap: MediaQuery.viewInsetsOf(context).bottom)", 'Text'),
     ]) {
       final result = await _translate(source);
-      expect(result.dsl, 'Probe_${island}_0()', reason: source);
+      // A `Text` island delivers only its literal text.
+      expect(
+        result.dsl,
+        'Probe_${island}_0(${island == 'Text' ? 'data: "Hi"' : ''})',
+        reason: source,
+      );
       expect(result.hoisted, isEmpty, reason: source);
       expect(result.islands, hasLength(1), reason: source);
     }

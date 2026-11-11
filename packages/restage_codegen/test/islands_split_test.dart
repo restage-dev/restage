@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
@@ -10,6 +11,7 @@ import 'package:restage_codegen/src/islands/islands.dart';
 import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
 import 'package:restage_shared/restage_shared.dart'
     show SurfaceScreenHostDataContractHash;
+import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
@@ -37,6 +39,7 @@ class Shelf extends StatelessWidget {
 
 class Cubit {
   String get name => 'n';
+  String label() => 'l';
   void buy() {}
   void pick(String id) {}
 }
@@ -191,6 +194,117 @@ class Labels {
   static Labels of(BuildContext context) => Labels();
   String get name => 'n';
 }
+
+class Caption extends StatelessWidget {
+  const Caption(this.text, {super.key, this.tint = 0});
+  final String text;
+  final int tint;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Text(text, maxLines: tint),
+  );
+}
+
+class Pair extends StatelessWidget {
+  const Pair(this.first, [this.second = 'none']) : super();
+  final String first;
+  final String second;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Text(first + second),
+  );
+}
+
+class Frame extends StatelessWidget {
+  const Frame(this.child, {super.key});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => child,
+  );
+}
+
+class Press extends StatelessWidget {
+  const Press({
+    super.key,
+    required this.onTap,
+    this.align = TextAlign.left,
+    this.style = const TextStyle(),
+    this.controller,
+  });
+  final void Function() onTap;
+  final TextAlign align;
+  final TextStyle style;
+  final ScrollController? controller;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Text('x', textAlign: align),
+  );
+}
+
+class Accent {
+  const Accent(this.value);
+  final int value;
+}
+
+class Accents {
+  static const sage = Accent(1);
+}
+
+class VIcons {
+  static const leaf = IconData(0xe001);
+}
+
+class Badge extends StatelessWidget {
+  const Badge({super.key, required this.accent, required this.icon});
+  final Accent accent;
+  final IconData icon;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Icon(icon),
+  );
+}
+
+class Keyworded extends StatelessWidget {
+  const Keyworded(this._default, this._new);
+  final String _default;
+  final String _new;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Text(_default + _new),
+  );
+}
+
+class Wild extends StatelessWidget {
+  const Wild(String _, {super.key});
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => const Text('w'),
+  );
+}
+
+class _Row extends StatelessWidget {
+  const _Row(this._label, [this.label = '']);
+  final String _label;
+  final String label;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Text(_label + label),
+  );
+}
+
+class Tag extends StatelessWidget {
+  const Tag(this._text);
+  final String _text;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Text(_text),
+  );
+}
+
+Widget row(String title) => LayoutBuilder(
+  builder: (context, constraints) => Text(title),
+);
 
 class Plan {
   const Plan(this.id, this.rank, [this.features = const []]);
@@ -1052,6 +1166,73 @@ void main() {
       values: ['_atEnd'],
       actions: [],
     ),
+    (
+      name: 'a positional literal is a delivered property',
+      body: "=> Column(children: [Caption('Unlock everything')]);",
+      fields: '',
+      params: '',
+      stateful: false,
+      mount: [],
+      dsl: 'Column(children: [Surface_Caption_0(text: "Unlock everything")])',
+      islands: 'Surface.build/Caption#0 slots= props=text reason=unknownWidget',
+      values: [],
+      actions: [],
+    ),
+    (
+      name: 'positional and named literals are both delivered',
+      body: "=> Column(children: [Caption('Unlock', tint: 3)]);",
+      fields: '',
+      params: '',
+      stateful: false,
+      mount: [],
+      dsl: 'Column(children: [Surface_Caption_0(text: "Unlock", tint: 3)])',
+      islands:
+          'Surface.build/Caption#0 slots= props=text,tint '
+          'reason=unknownWidget',
+      values: [],
+      actions: [],
+    ),
+    (
+      name: 'an omitted optional positional argument stays omitted',
+      body: "=> Column(children: [Pair('a'), Pair('b', 'c')]);",
+      fields: '',
+      params: '',
+      stateful: false,
+      mount: [],
+      dsl:
+          'Column(children: [Surface_Pair_0(first: "a"), '
+          'Surface_Pair_1(first: "b", second: "c")])',
+      islands:
+          'Surface.build/Pair#0 slots= props=first reason=unknownWidget\n'
+          'Surface.build/Pair#1 slots= props=first,second '
+          'reason=unknownWidget',
+      values: [],
+      actions: [],
+    ),
+    (
+      name: 'a positional widget argument is a slot',
+      body: "=> Column(children: [Frame(Text('in'))]);",
+      fields: '',
+      params: '',
+      stateful: false,
+      mount: [],
+      dsl: 'Column(children: [Surface_Frame_0(child: Text(text: "in"))])',
+      islands: 'Surface.build/Frame#0 slots=child props= reason=unknownWidget',
+      values: [],
+      actions: [],
+    ),
+    (
+      name: 'a positional non-literal stays compiled',
+      body: '=> Column(children: [Caption(title)]);',
+      fields: 'final String title;',
+      params: 'required this.title',
+      stateful: false,
+      mount: [],
+      dsl: 'Column(children: [Surface_Caption_0()])',
+      islands: 'Surface.build/Caption#0 slots= props= reason=unknownWidget',
+      values: [],
+      actions: [],
+    ),
   ];
   for (final row in rows) {
     test(row.name, () async {
@@ -1076,6 +1257,279 @@ void main() {
       }
     });
   }
+
+  group('positional island arguments', () {
+    // The design as a delivered library, and its digest.
+    String digest(TranslationResult result) => crypto.sha256
+        .convert(
+          fmt.encodeLibraryBlob(
+            fmt.parseLibraryFile(
+              'import core.widgets;\nwidget root = ${result.dsl};',
+            ),
+          ),
+        )
+        .toString();
+
+    test('a positional literal edit changes the payload digest', () async {
+      final before = await _split(
+        "=> Column(children: [Caption('Happy plants, one small drink')]);",
+      );
+      final after = await _split(
+        "=> Column(children: [Caption('Happy plants, one small sip')]);",
+      );
+      expect(digest(after), isNot(digest(before)));
+      expect(
+        after.dsl,
+        'Column(children: [Surface_Caption_0(text: '
+        '"Happy plants, one small sip")])',
+      );
+      expect(after.islands.single.id, before.islands.single.id);
+      expect(after.islands.single.token, before.islands.single.token);
+    });
+
+    test('the mount reads each positional argument in its position', () async {
+      final result = await _split(
+        "=> Column(children: [Caption('Unlock', tint: 3), Pair('a')]);",
+      );
+      final sources = [
+        for (final island in result.islands)
+          island.source((slot) => slot, hole: (argument) => '<$argument>'),
+      ];
+      expect(sources, ['Caption(<text>, tint: <tint>)', 'Pair(<first>)']);
+    });
+
+    // Each row: a build, then each island's widget and its compiled
+    // arguments with their reasons.
+    for (final (name, body, fields, expected) in [
+      (
+        'a callback, an enum, a catalog type and an app object',
+        '=> Column(children: [Press(onTap: cubit.buy, '
+            'align: TextAlign.center, style: const TextStyle(fontSize: 2), '
+            'controller: _scroll)]);',
+        'final Cubit cubit = Cubit(); '
+            'final ScrollController _scroll = ScrollController();',
+        [
+          'Press onTap:callback align:catalogType style:catalogType '
+              'controller:appObject',
+        ],
+      ),
+      (
+        'an inline callback',
+        '=> Column(children: [Press(onTap: () => cubit.buy())]);',
+        'final Cubit cubit = Cubit();',
+        ['Press onTap:callback'],
+      ),
+      (
+        'a builder whose body a design cannot take',
+        '=> Column(children: [Scope(builder: (context, count) '
+            "{ cubit.buy(); return Text('\$count'); })]);",
+        'final Cubit cubit = Cubit();',
+        ['Scope builder:builderBody'],
+      ),
+      (
+        'a builder the app passes no values',
+        '=> Column(children: [Frame(Builder(builder: (c) => '
+            'Text(Labels.of(c).name)))]);',
+        '',
+        ['Builder builder:builder', 'Frame'],
+      ),
+      (
+        'a computed value',
+        '=> Column(children: [Caption(title, tint: 2)]);',
+        'final String title = "t";',
+        ['Caption text:notLiteral'],
+      ),
+      (
+        'a widget a design cannot deliver',
+        '{ final t = Caption(cubit.label(), tint: 2); '
+            'return Column(children: [t, t]); }',
+        'final Cubit cubit = Cubit();',
+        ['Column children:slotContent'],
+      ),
+      (
+        'an argument without a parameter, counted among the positionals',
+        "=> Column(children: [Caption(tint: 1, 'a', 'b')]);",
+        '',
+        ['Caption argument 2:unresolved'],
+      ),
+      (
+        'a wildcard parameter',
+        "=> Column(children: [Wild('a')]);",
+        '',
+        ['Wild argument 1:wildcard'],
+      ),
+      (
+        'an argument to a helper call',
+        "=> Column(children: [row('Title')]);",
+        '',
+        ['row title:helperCall'],
+      ),
+      (
+        'custom consts',
+        '=> Column(children: [Badge(accent: Accents.sage, '
+            'icon: VIcons.leaf)]);',
+        '',
+        ['Badge accent:appObject icon:appObject'],
+      ),
+      (
+        'a literal for an Object parameter',
+        "=> Column(children: [Hero(tag: 'hero', child: const Text('h'))]);",
+        '',
+        ['Hero tag:untyped'],
+      ),
+      (
+        'a key, which is never reported',
+        "=> Column(children: [Caption('x', key: const ValueKey('k'))]);",
+        '',
+        ['Caption'],
+      ),
+    ]) {
+      test('compiled arguments name their reason: $name', () async {
+        final result = await _split(body, fields: fields);
+        expect(
+          [
+            for (final island in result.islands)
+              [
+                island.widget,
+                for (final argument in island.compiled)
+                  '${argument.name}:${argument.reason.name}',
+              ].join(' '),
+          ],
+          expected,
+        );
+        for (final island in result.islands) {
+          for (final argument in island.compiled) {
+            expect(
+              argument.message(island.widget),
+              allOf(
+                startsWith("`${argument.name}` stays in the app's code: "),
+                anyOf(contains(' Try '), contains('Try ')),
+              ),
+            );
+          }
+        }
+      });
+    }
+
+    test('the messages say why and what to try', () async {
+      final result = await _split(
+        '=> Column(children: [Press(onTap: cubit.buy, '
+        'align: TextAlign.center, controller: _scroll), Caption(title)]);',
+        fields:
+            'final Cubit cubit = Cubit(); final String title = "t"; '
+            'final ScrollController _scroll = ScrollController();',
+      );
+      expect(
+        [
+          for (final island in result.islands)
+            for (final argument in island.compiled)
+              argument.message(island.widget),
+        ],
+        [
+          "`text` stays in the app's code: it reads `title`, which the app "
+              'computes. Try writing a literal if designs should change it.',
+          "`onTap` stays in the app's code: it's a callback, so it runs the "
+              "app's code. Try leaving it as it is: a design changes what "
+              '`Press` shows, not what it does.',
+          "`align` stays in the app's code: a design sets a `TextAlign` only "
+              'on a catalog widget. Try adding `Press` to your widget catalog '
+              'if designs should change it.',
+          "`controller` stays in the app's code: it's a `ScrollController`, "
+              "which a design can't carry. Try leaving it as it is: designs "
+              'change the literal arguments of `Press`.',
+        ],
+      );
+    });
+
+    test('a catalog widget island is never told to join the catalog', () async {
+      final result = await _split(
+        '=> Column(children: [ListView(physics: _physics, '
+        "scrollDirection: Axis.horizontal, children: [const Text('a')])]);",
+        fields: 'final ScrollPhysics _physics = const BouncingScrollPhysics();',
+      );
+      final island = result.islands.single;
+      expect(islandCanJoinCatalog(island), isFalse);
+      expect(
+        [
+          for (final argument in island.compiled)
+            argument.message(
+              island.widget,
+              appWidget: islandCanJoinCatalog(island),
+            ),
+        ],
+        [
+          "`physics` stays in the app's code: it's a `ScrollPhysics`, "
+              "which a design can't carry. Try leaving it as it is: designs "
+              'change the literal arguments of `ListView`.',
+          "`scrollDirection` stays in the app's code: `ListView` renders "
+              'from the app here, so it keeps the `Axis` it is given. Try '
+              'leaving it as it is: designs change it where `ListView` is '
+              'delivered.',
+        ],
+      );
+    });
+
+    test('messages take the article their type needs', () async {
+      final result = await _split(
+        '=> Column(children: [Badge(accent: Accents.sage, '
+        'icon: VIcons.leaf)]);',
+      );
+      final island = result.islands.single;
+      expect(
+        island.compiled.first.message(island.widget),
+        "`accent` stays in the app's code: it's an `Accent`, which a design "
+        "can't carry. Try leaving it as it is: designs change the literal "
+        'arguments of `Badge`.',
+      );
+      expect(
+        island.compiled.last.message(island.widget),
+        "`icon` stays in the app's code: it's an `IconData`, which a design "
+        "can't carry. Try leaving it as it is: designs change the literal "
+        'arguments of `Badge`.',
+      );
+    });
+
+    test('a private name that is a keyword without its underscore', () async {
+      final result = await _split(
+        "=> Column(children: [Keyworded('a', 'b')]);",
+      );
+      expect(
+        result.dsl,
+        'Column(children: [Surface_Keyworded_0(argument1: "a", '
+        'argument2: "b")])',
+      );
+      expect(
+        () => encodeCatalog(withIslands(_sharedCatalog, result.islands)),
+        returnsNormally,
+      );
+    });
+
+    test(
+      'a private positional parameter is delivered by a public name',
+      () async {
+        final result = await _split(
+          "=> Column(children: [_Row('Title', 'b'), Tag('t')]);",
+        );
+        expect(
+          result.dsl,
+          'Column(children: [Surface__Row_0(argument1: "Title", label: "b"), '
+          'Surface_Tag_0(text: "t")])',
+        );
+        expect(
+          [
+            for (final island in result.islands)
+              island.source((slot) => slot, hole: (argument) => '<$argument>'),
+          ],
+          ['Tag(<text>)', '_Row(<argument1>, <label>)'],
+        );
+        // The island library encodes: its property names are public.
+        expect(
+          () => encodeCatalog(withIslands(_sharedCatalog, result.islands)),
+          returnsNormally,
+        );
+      },
+    );
+  });
 
   test('a lifted State without a shell records its own build', () async {
     final result = await _split(
@@ -1240,6 +1694,22 @@ void main() {
           ']);',
           ", Opaque(tint: 1, label: title, child: Text('d'))]);",
         ),
+        true,
+      ),
+      (
+        'a positional literal edit inside one of two same-type islands',
+        "=> Column(children: [Caption('Unlock everything'), "
+            "Caption('Cancel anytime')]);",
+        "=> Column(children: [Caption('Unlock it all'), "
+            "Caption('Cancel anytime')]);",
+        true,
+      ),
+      (
+        'a named literal edit inside one of two same-type islands',
+        "=> Column(children: [Opaque(tint: 1, child: Text('c')), "
+            "Opaque(tint: 2, child: Text('d'))]);",
+        "=> Column(children: [Opaque(tint: 5, child: Text('c')), "
+            "Opaque(tint: 2, child: Text('d'))]);",
         true,
       ),
       (

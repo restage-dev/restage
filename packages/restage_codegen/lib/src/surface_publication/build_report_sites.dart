@@ -30,6 +30,8 @@ List<SplitSite> mountReportSites(
     String? interface,
     int? widgets,
     Map<String, Object?>? promotion,
+    List<({String name, String reason, String message})> compiled = const [],
+    String? reasonCode,
   }) => SplitSite(
     surface: surface,
     mount: mountName,
@@ -42,6 +44,8 @@ List<SplitSite> mountReportSites(
     interface: interface,
     widgets: widgets,
     promotion: promotion,
+    compiled: compiled,
+    reasonCode: reasonCode,
   );
   final split = mount.split;
   return [
@@ -62,6 +66,7 @@ List<SplitSite> mountReportSites(
         island.widget,
         island.location,
         reason: island.reason?.message,
+        reasonCode: island.reason?.code.name,
         token: island.token,
         interface: island.interface,
         widgets: islandWidgetCount(island),
@@ -69,6 +74,17 @@ List<SplitSite> mountReportSites(
           (plan: final plan?, refusal: _) => plan.toJson(),
           (plan: _, refusal: final refusal) => {'refusal': refusal},
         },
+        compiled: [
+          for (final argument in island.compiled)
+            (
+              name: argument.name,
+              reason: argument.reason.name,
+              message: argument.message(
+                island.widget,
+                appWidget: islandCanJoinCatalog(island),
+              ),
+            ),
+        ],
       ),
     for (final value in mount.hoisted)
       if (isIslandAction(value))

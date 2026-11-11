@@ -14,7 +14,7 @@ import 'package:restage_codegen/src/widget_builder_lowering.dart';
 import 'package:restage_shared/restage_shared.dart'
     show WidgetVocabulary, kNativeVoidCallbackType;
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
-    show resolveValueShape, valueShapeNeedsLinking;
+    show knownRecipeStructuredTypes, resolveValueShape, valueShapeNeedsLinking;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// The public name of [island]'s mount-free builder.
@@ -53,11 +53,138 @@ final class IslandSlot {
   final AppValueSlot? builder;
 }
 
+/// Why an island argument stays in the app's compiled code.
+enum IslandCompiledReason {
+  /// It's a callback, which runs the app's code.
+  callback,
+
+  /// It builds widgets in a form a design can't take.
+  builder,
+
+  /// A builder whose body Restage can't deliver.
+  builderBody,
+
+  /// An object of a type a design can't carry.
+  appObject,
+
+  /// A parameter that takes any value, such as `Object`.
+  untyped,
+
+  /// A value of a type only catalog widgets take from a design.
+  catalogType,
+
+  /// A value the build computes.
+  notLiteral,
+
+  /// A literal Restage can't evaluate without running the app.
+  notEvaluable,
+
+  /// A widget Restage can't deliver.
+  slotContent,
+
+  /// It matches no parameter.
+  unresolved,
+
+  /// Its parameter is the wildcard `_`.
+  wildcard,
+
+  /// An argument to a function that renders from the app.
+  helperCall,
+
+  /// An argument of a widget the build keeps in a local.
+  sharedLocal,
+}
+
+/// An island argument that stays in the app's compiled code.
+final class IslandCompiledArgument {
+  /// Creates a record; [detail] is the type, source or nested refusal the
+  /// message names.
+  const IslandCompiledArgument(this.name, this.reason, {this.detail});
+
+  /// The parameter name, or the argument's position when it has none.
+  final String name;
+
+  /// Why it stays compiled.
+  final IslandCompiledReason reason;
+
+  /// What the message names besides the argument.
+  final String? detail;
+
+  /// The problem, then a general fix, for the island of [widget];
+  /// [appWidget] says whether the app could add it to its catalog.
+  String message(String widget, {bool appWidget = true}) {
+    final detail = this.detail ?? '';
+    final because = switch (reason) {
+      IslandCompiledReason.callback =>
+        "it's a callback, so it runs the app's code. Try leaving it as it "
+            'is: a design changes what `$widget` shows, not what it does.',
+      IslandCompiledReason.builder =>
+        "it builds widgets in the app's code, and a design takes a builder "
+            'only when the app passes it values. Try moving what designs '
+            'should change outside the builder.',
+      IslandCompiledReason.builderBody =>
+        "a design can't take its body. ${_withFix(detail, 'Try moving what '
+        'designs should change outside the builder.')}",
+      IslandCompiledReason.appObject =>
+        "it's ${_article(detail)} `$detail`, which a design can't carry. "
+            'Try leaving it as it is: designs change the literal arguments '
+            'of `$widget`.',
+      IslandCompiledReason.untyped =>
+        "its parameter takes any value, so a design can't tell what to "
+            'carry. Try leaving it as it is: designs change the typed '
+            'literal arguments of `$widget`.',
+      IslandCompiledReason.catalogType when appWidget =>
+        'a design sets ${_article(detail)} `$detail` only on a catalog '
+            'widget. Try adding `$widget` to your widget catalog if designs '
+            'should change it.',
+      IslandCompiledReason.catalogType =>
+        '`$widget` renders from the app here, so it keeps the '
+            '`$detail` it is given. Try leaving it as it is: designs '
+            'change it where `$widget` is delivered.',
+      IslandCompiledReason.notLiteral =>
+        'it reads `$detail`, which the app computes. Try writing a literal '
+            'if designs should change it.',
+      IslandCompiledReason.notEvaluable =>
+        "Restage can't read `$detail` without running the app. Try "
+            'writing it as a plain literal if designs should change it.',
+      IslandCompiledReason.slotContent =>
+        "a design can't deliver the widget it passes. ${_withFix(detail, 'Try '
+        'a widget from your widget catalog there.')}",
+      IslandCompiledReason.unresolved =>
+        "Restage can't match it to a parameter of `$widget`. Try running "
+            '`dart analyze` and fixing what it reports.',
+      IslandCompiledReason.wildcard =>
+        'its parameter is the wildcard `_`, so a design has no name to set '
+            'it by. Try naming the parameter.',
+      IslandCompiledReason.helperCall =>
+        "it's an argument to `$widget`, a function that renders from the "
+            'app. Try making `$widget` a widget class if designs should '
+            'change it.',
+      IslandCompiledReason.sharedLocal =>
+        'the build keeps `$widget` in the local `$detail`. Try building it '
+            'where it is placed if designs should change it.',
+    };
+    return "`$name` stays in the app's code: $because";
+  }
+
+  static String _article(String word) =>
+      RegExp('^[AEIOUaeiou]').hasMatch(word) ? 'an' : 'a';
+
+  // A nested refusal, ending with [fix] when it gives none of its own.
+  static String _withFix(String refusal, String fix) {
+    final sentence = refusal.isEmpty || refusal.endsWith('.')
+        ? refusal
+        : '$refusal.';
+    return sentence.contains('Try ') ? sentence : '$sentence $fix'.trim();
+  }
+}
+
 /// A literal argument of an island, passed from the payload.
 final class IslandProperty {
   /// Creates a property.
   const IslandProperty(
     this.name, {
+    required this.argument,
     required this.shape,
     required this.dsl,
     required String fallback,
@@ -74,6 +201,9 @@ final class IslandProperty {
 
   /// The argument name.
   final String name;
+
+  /// The argument as written, named or positional.
+  final Argument argument;
 
   /// How the payload carries it.
   final CatalogValueShape shape;
@@ -98,6 +228,79 @@ final class IslandProperty {
       : nullable
       ? decoded
       : '($decoded)!';
+}
+
+/// Why an argument of [type] can't be an island property, or null when a
+/// design can carry it.
+IslandCompiledReason? islandTypeReason(DartType? type) {
+  if (type is FunctionType) {
+    return classifyHoistType(type.returnType) is HoistIsWidget
+        ? IslandCompiledReason.builder
+        : IslandCompiledReason.callback;
+  }
+  if (islandPropertyShape(type) != null) return null;
+  if (type == null ||
+      type is DynamicType ||
+      type is TypeParameterType ||
+      type.isDartCoreObject) {
+    return IslandCompiledReason.untyped;
+  }
+  final catalogOnly =
+      resolveValueShape(type) != null ||
+      knownRecipeStructuredTypes.contains(type.element?.name);
+  return catalogOnly
+      ? IslandCompiledReason.catalogType
+      : IslandCompiledReason.appObject;
+}
+
+/// Whether [island] is an app widget its app could add to its catalog: one
+/// the app declares, an island only for want of an entry.
+bool islandCanJoinCatalog(Island island) {
+  final cause = island.reason?.code;
+  final element = switch (island.node) {
+    InstanceCreationExpression(:final constructorName) =>
+      constructorName.type.element,
+    _ => null,
+  };
+  final uri = element?.library?.uri.toString() ?? '';
+  return (cause == null ||
+          cause == IssueCode.unknownWidget ||
+          cause.name.startsWith('customWidget')) &&
+      !uri.startsWith('dart:') &&
+      !uri.startsWith('package:flutter/');
+}
+
+/// The name of [type] as a message writes it, without its `?`.
+String islandTypeName(DartType type) =>
+    type.getDisplayString().replaceFirst(RegExp(r'\?$'), '');
+
+/// The name a design sets [parameter] by: its own, without a leading
+/// underscore, or its position when that name is taken or not a legal one.
+
+String? islandArgumentName(FormalParameterElement? parameter) {
+  final name = parameter?.name;
+  if (name == null || name == '_') return null;
+  final public = name.replaceFirst(RegExp('^_+'), '');
+  if (public == name) return name;
+  final names = switch (parameter!.enclosingElement) {
+    final ExecutableElement owner => [
+      for (final other in owner.formalParameters) other.name,
+    ],
+    _ => [name],
+  };
+  // Another parameter may already have, or strip to, the same name.
+  final taken = {
+    for (final other in names)
+      if (other != name) ...[other, other?.replaceFirst(RegExp('^_+'), '')],
+  };
+  return public != 'key' &&
+          !taken.contains(public) &&
+          isPublicDartIdentifier(
+            public,
+            position: DartIdentifierPosition.namedParameter,
+          )
+      ? public
+      : 'argument${names.indexOf(name) + 1}';
 }
 
 /// The catalog shape a literal island argument of [type] crosses as, if the
@@ -136,6 +339,7 @@ final class Island {
     required this.library,
     required this.node,
     required this.scope,
+    this.compiled = const [],
     this.items = const [],
     this.reads = const {},
     this.placements = const [],
@@ -182,6 +386,9 @@ final class Island {
 
   /// Literal arguments the payload passes.
   final List<IslandProperty> properties;
+
+  /// Arguments that stay in the app's compiled code.
+  final List<IslandCompiledArgument> compiled;
 
   final String _template;
 
@@ -242,7 +449,8 @@ final class Island {
   /// What fit matches published content against, set by [assignIslandTokens].
   late final String token;
 
-  /// The implementation hash; equal for islands one builder can render.
+  /// The implementation hash: the compiled code, not the literals a design
+  /// delivers, so a literal edit keeps a twin island's fit token.
   late final String implementation = crypto.sha256
       .convert(
         utf8.encode(
@@ -256,8 +464,6 @@ final class Island {
             interface,
             items.join(','),
             reads.join(','),
-            for (final property in properties)
-              canonicalHoistSource(property._fallback),
           ].join('\n'),
         ),
       )

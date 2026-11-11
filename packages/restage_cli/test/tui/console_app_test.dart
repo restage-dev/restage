@@ -140,6 +140,39 @@ void main() {
     },
   );
 
+  test('a wrapped output line keeps its indent', () async {
+    await testNocterm('indented output', (tester) async {
+      final controller = ConsoleController(
+        repository: FakeConsoleRepository(),
+        operationExecutor: _IndentedOutputExecutor(),
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+      await tester.sendKey(LogicalKey.slash);
+      await tester.enterText('restage build report');
+      await tester.sendEnter();
+      await tester.pump();
+      await tester.pump();
+      final state = tester.terminalState;
+      final rows = [
+        for (var y = 0; y < state.size.height; y++)
+          [
+            for (var x = 0; x < state.size.width; x++)
+              state.getCellAt(x, y)!.char,
+          ].join(),
+      ];
+      final first = rows.indexWhere((row) => row.contains('alpha'));
+      expect(first, isNonNegative);
+      final column = rows[first].indexOf('alpha');
+      final next = rows[first + 1];
+      // The continuation starts under the first word, not at the margin.
+      expect(next.substring(0, column).trim(), anyOf('', '│', '|'));
+      expect(next.substring(column).trimLeft(), isNot(''));
+      expect(next[column], isNot(' '));
+    }, size: const Size(60, 30));
+  });
+
   for (final width in [56, 120]) {
     for (final operation in ['push', 'build', 'freeze', 'rollback']) {
       test(
@@ -2591,6 +2624,20 @@ class OutputConsoleExecutor extends RecordingConsoleOperationExecutor {
           '--plane=${context.runtimePlane.wireName}',
     );
   }
+}
+
+class _IndentedOutputExecutor extends RecordingConsoleOperationExecutor {
+  @override
+  Future<ConsoleOperationResult> runCommand(
+    List<String> arguments, {
+    ConsoleContext? context,
+  }) async => ConsoleOperationResult(
+    exitCode: 0,
+    stdout:
+        '  `Caption` renders from the app.\n'
+        '      alpha ${List.filled(30, 'word').join(' ')}\n',
+    stderr: '',
+  );
 }
 
 class ResizableConsole extends StatefulComponent {

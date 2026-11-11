@@ -47,6 +47,8 @@ final class BuildReportPart {
     this.interface,
     this.widgets,
     this.promotion,
+    this.compiled = const [],
+    this.reasonCode,
   });
 
   /// `design`, `island`, `value`, `action` or `mount`.
@@ -80,14 +82,37 @@ final class BuildReportPart {
   /// `file`, `offset`, `original`, `class` and `call`, or `refusal`.
   final Map<String, Object?>? promotion;
 
+  /// An island's arguments that stay in the app's code, each with its
+  /// reason code and the sentence that explains it.
+  final List<({String name, String reason, String message})> compiled;
+
+  /// The issue code of [reason].
+  final String? reasonCode;
+
+  /// [reason] without the source locations it names, so sites can share it.
+  String? get sharedReason => reason
+      ?.replaceAll(RegExp(r' ?\(?(?:package:)?[\w./-]+\.dart:\d+:\d+\)?'), '')
+      .trim();
+
   /// The source of the class an island would move into, or null.
   String? get promotedClass => promotion?['class'] as String?;
 
   /// How many literal arguments an island takes from the design.
-  int get properties => (interface ?? '')
-      .split('\n')
-      .where((line) => line.startsWith('property '))
-      .length;
+  int get properties => propertyNames.length;
+
+  /// The literal arguments an island takes from the design.
+  List<String> get propertyNames => _interfaceNames('property ');
+
+  /// The widget arguments a design fills.
+  List<String> get slotNames => _interfaceNames('slot ');
+
+  List<String> _interfaceNames(String prefix) => [
+    for (final line in (interface ?? '').split('\n'))
+      if (line.startsWith(prefix))
+        RegExp(
+          r'^[A-Za-z0-9_$]+',
+        ).firstMatch(line.substring(prefix.length))![0]!,
+  ];
 
   /// The JSON form.
   Map<String, Object?> toJson() => {
@@ -100,8 +125,21 @@ final class BuildReportPart {
     'interface': ?interface,
     'widgets': ?widgets,
     'promotion': ?promotion,
+    'reasonCode': ?reasonCode,
+    if (compiled.isNotEmpty) 'compiled': _compiledJson(compiled),
   };
 }
+
+List<Map<String, Object?>> _compiledJson(
+  List<({String name, String reason, String message})> compiled,
+) => [
+  for (final argument in compiled)
+    {
+      'name': argument.name,
+      'reason': argument.reason,
+      'message': argument.message,
+    },
+];
 
 /// What changed in one generated widget since the baseline.
 @experimental
@@ -184,10 +222,21 @@ final class BuildReport {
               widget: site['widget']! as String,
               location: site['location']! as String,
               reason: site['reason'] as String?,
+              reasonCode: site['reasonCode'] as String?,
               token: site['token'] as String?,
               interface: site['interface'] as String?,
               widgets: site['widgets'] as int?,
               promotion: site['promotion'] as Map<String, Object?>?,
+              compiled: [
+                for (final argument
+                    in (site['compiled'] as List<Object?>? ?? const [])
+                        .cast<Map<String, Object?>>())
+                  (
+                    name: argument['name']! as String,
+                    reason: argument['reason']! as String,
+                    message: argument['message']! as String,
+                  ),
+              ],
             ),
         ]);
       }
@@ -302,6 +351,27 @@ final class BuildReport {
             for (final part in of(mount))
               if (part.kind != 'design') part.toJson(),
           ],
+          'islands': [
+            for (final sites in _islandGroups(mount))
+              {
+                'widget': sites.first.widget,
+                'reasonCode': ?sites.first.reasonCode,
+                'reason': ?(sites.length == 1
+                    ? sites.first.reason
+                    : sites.first.sharedReason),
+                'sites': [
+                  for (final site in sites)
+                    {
+                      'name': site.name,
+                      'location': site.location,
+                      'properties': site.propertyNames,
+                      'slots': site.slotNames,
+                      if (site.compiled.isNotEmpty)
+                        'compiled': _compiledJson(site.compiled),
+                    },
+                ],
+              },
+          ],
         },
     ],
     if (changes != null)
@@ -342,25 +412,91 @@ final class BuildReport {
     ];
   }
 
+  // The islands of [mount], those of one widget and cause together, in the
+  // order their first site is built.
+  List<List<BuildReportPart>> _islandGroups(String mount) {
+    final groups = <String, List<BuildReportPart>>{};
+    for (final part in of(mount).where((part) => part.kind == 'island')) {
+      final key = '${part.widget}\n${part.reasonCode}\n${part.sharedReason}';
+      (groups[key] ??= []).add(part);
+    }
+    return groups.values.toList();
+  }
+
   List<String> _mountLines(String mount) {
     final (:delivered, :app) = share(mount);
     final total = delivered + app;
     final percent = total == 0 ? 100 : (delivered * 100 / total).floor();
     final design = of(mount).where((part) => part.kind == 'design');
     final source = design.isEmpty ? '' : ' (${design.first.location})';
+    final groups = _islandGroups(mount);
     return [
       '`$mount`$source: designs can change $delivered of its $total widgets '
           '($percent%).',
       for (final part in of(mount))
-        if (_partLine(part) case final line?) '  $line',
+        if (part.kind == 'island')
+          if (groups.where((sites) => identical(sites.first, part)).firstOrNull
+              case final sites?)
+            ..._islandLines(sites)
+          else
+            ...const <String>[]
+        else if (_partLine(part) case final line?)
+          '  $line',
     ];
   }
+
+  // One group: its header, then what designs can change, once for the sites
+  // that read alike.
+  static List<String> _islandLines(List<BuildReportPart> sites) {
+    final part = sites.first;
+    final alike = <String, List<BuildReportPart>>{};
+    for (final site in sites) {
+      (alike[_argumentLines(site).join('\n')] ??= []).add(site);
+    }
+    String locations(List<BuildReportPart> sites) =>
+        {for (final site in sites) site.location}.join(', ');
+    final reason = sites.length == 1 ? part.reason : part.sharedReason;
+    final where = switch (sites.length) {
+      1 => _at(part.location),
+      final count when alike.length == 1 =>
+        ' at $count sites (${locations(sites)})',
+      final count => ' at $count sites',
+    };
+    return [
+      '  `${part.widget}`$where renders from the app.'
+          '${reason == null || reason.isEmpty ? '' : ' $reason'}',
+      if (alike.length == 1)
+        for (final line in _argumentLines(part)) '    $line'
+      else
+        for (final same in alike.values) ...[
+          '    At ${locations(same)}:',
+          for (final line in _argumentLines(same.first)) '      $line',
+        ],
+    ];
+  }
+
+  // What designs can change in an island, then each argument they can't.
+  static List<String> _argumentLines(BuildReportPart part) {
+    final editable = [
+      for (final name in part.propertyNames) '`$name`',
+      for (final name in part.slotNames) 'the content of `$name`',
+    ];
+    return [
+      if (editable.isNotEmpty)
+        'Designs can change ${_list(editable)}.'
+      else if (part.compiled.isNotEmpty)
+        'Designs can change none of its arguments.',
+      for (final argument in part.compiled) argument.message,
+    ];
+  }
+
+  static String _list(List<String> items) => items.length == 1
+      ? items.single
+      : '${items.take(items.length - 1).join(', ')} and ${items.last}';
 
   static String? _partLine(BuildReportPart part) => switch (part.kind) {
     'value' => 'App code computes `${part.widget}`${_at(part.location)}.',
     'action' => 'App code runs `${part.widget}`${_at(part.location)}.',
-    'island' =>
-      '`${part.widget}`${_at(part.location)} renders from the app.${part.reason == null ? '' : ' ${part.reason}'}',
     'mount' => switch (part.reason) {
       'state' =>
         "App code holds the screen's state in "

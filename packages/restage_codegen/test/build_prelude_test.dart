@@ -839,7 +839,10 @@ void main() {
         contains(
           holder == null
               ? 'widget Paywall = Text(text: "Ready", key: data.context._h'
-              : 'widget Paywall = $island();',
+              // A `Text` island delivers its positional `data`; the key
+              // stays with its holder in the app.
+              : 'widget Paywall = $island('
+                    '${holder == 'Text' ? 'data: "Ready"' : ''});',
         ),
       );
     });

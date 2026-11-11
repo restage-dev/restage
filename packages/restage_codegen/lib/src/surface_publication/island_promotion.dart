@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
@@ -96,14 +97,12 @@ final class IslandPromotion {
     edits.add((slot.node.offset, slot.node.end, slot.name));
   }
   for (final property in island.properties) {
-    final argument = named
-        .where((a) => a.name.lexeme == property.name)
-        .firstOrNull;
-    final type = switch (argument?.correspondingParameter?.type) {
+    final argument = property.argument;
+    final type = switch (argument.correspondingParameter?.type) {
       final type? => _spell(type, library),
       null => null,
     };
-    if (argument == null || type == null) {
+    if (type == null) {
       return (
         plan: null,
         refusal: _refusal(
@@ -122,11 +121,34 @@ final class IslandPromotion {
   }
   // The key moves to the new widget, so its element keeps its identity.
   final key = named.where((a) => a.name.lexeme == 'key').firstOrNull;
-  if (key != null) {
-    final index = named.indexOf(key);
-    final end = index + 1 < named.length ? named[index + 1].offset : key.end;
-    edits.add((key.offset, end, ''));
+  if (key != null && node is InstanceCreationExpression) {
+    // It goes with the separator after it, or, when last, the one before.
+    final all = node.argumentList.arguments;
+    final index = all.indexOf(key);
+    final (start, end) = index + 1 < all.length
+        ? (key.offset, all[index + 1].offset)
+        : (index > 0 ? all[index - 1].end : key.offset, key.end);
+    edits.add((start, end, ''));
     arguments.insert(0, 'key: ${text(key.argumentExpression)}');
+  }
+  // A field replaces each moved value, so no `const` may stay around one.
+  final unconst = <int>{};
+  for (final moved in [
+    for (final slot in island.slots) slot.node,
+    for (final property in island.properties)
+      property.argument.argumentExpression,
+  ]) {
+    for (var at = moved.parent; at != null; at = at.parent) {
+      final keyword = switch (at) {
+        InstanceCreationExpression(:final keyword) => keyword,
+        TypedLiteral(:final constKeyword) => constKeyword,
+        _ => null,
+      };
+      if (keyword?.keyword == Keyword.CONST && unconst.add(keyword!.offset)) {
+        edits.add((keyword.offset, keyword.next!.offset, ''));
+      }
+      if (identical(at, node)) break;
+    }
   }
   edits.sort((a, b) => b.$1.compareTo(a.$1));
   var body = text(node);
@@ -209,12 +231,12 @@ final class _Reads extends GeneralizingAstVisitor<void> {
   _Reads(this.island, this.library)
     : skipped = {
         for (final slot in island.slots) slot.node,
+        for (final property in island.properties)
+          property.argument.argumentExpression,
         if (island.node case InstanceCreationExpression(:final argumentList))
           for (final argument
               in argumentList.arguments.whereType<NamedArgument>())
-            if (argument.name.lexeme == 'key' ||
-                island.properties.any((p) => p.name == argument.name.lexeme))
-              argument.argumentExpression,
+            if (argument.name.lexeme == 'key') argument.argumentExpression,
       };
 
   final Island island;

@@ -1285,8 +1285,17 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
             'Target: $target',
             style: const TextStyle(color: _ConsoleTheme.link),
           ),
+        // A wrapped line keeps its indent.
         for (final line in output.result.stdout.trimRight().split('\n'))
-          Text(line, style: const TextStyle(color: _ConsoleTheme.text)),
+          Padding(
+            padding: EdgeInsets.only(
+              left: (line.length - line.trimLeft().length).toDouble(),
+            ),
+            child: Text(
+              line.trimLeft(),
+              style: const TextStyle(color: _ConsoleTheme.text),
+            ),
+          ),
         if (output.result.stderr.trim().isNotEmpty)
           for (final line in output.result.stderr.trimRight().split('\n'))
             Text(line, style: const TextStyle(color: _ConsoleTheme.danger)),

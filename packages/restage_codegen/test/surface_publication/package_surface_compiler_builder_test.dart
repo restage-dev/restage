@@ -3106,6 +3106,253 @@ const restageLibrary = 0;
     );
   });
 
+  group('positional island arguments', () {
+    const widgets = """
+class Caption extends StatelessWidget {
+  const Caption(this.text, {super.key, this.tint = 0});
+  final String text;
+  final int tint;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) => Text(text, maxLines: tint + 1),
+      );
+}
+
+class Feature extends StatelessWidget {
+  const Feature({super.key, required this.title, required this.detail});
+  final String title;
+  final String detail;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) => Text('\$title \$detail'),
+      );
+}
+
+class Tagline extends StatelessWidget {
+  // ignore: use_key_in_widget_constructors
+  const Tagline(this.lead, [this.tail = '!']);
+  final String lead;
+  final String tail;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) => Text('\$lead\$tail'),
+      );
+}
+
+class Keyworded extends StatelessWidget {
+  const Keyworded(this._default, {super.key});
+  final String _default;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) => Text(_default),
+      );
+}
+
+class _Row extends StatelessWidget {
+  const _Row(this._label, {super.key});
+  final String _label;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) => Text(_label),
+      );
+}
+""";
+    String surface(String body) =>
+        """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/twins.restage.g.dart';
+$widgets
+@Paywall()
+final class Twins extends StatelessWidget {
+  const Twins({super.key});
+  @override
+  Widget build(BuildContext context) => Column(children: [$body]);
+}
+""";
+
+    // Each row: two same-type islands, then one literal edited in source.
+    for (final (name, before, after, shown) in [
+      (
+        'positional',
+        "Caption('Unlock everything'), Caption('Cancel anytime')",
+        "Caption('Unlock it all'), Caption('Cancel anytime')",
+        'text: "Unlock it all"',
+      ),
+      (
+        'named',
+        "Feature(title: 'Unlimited plants', detail: 'a'), "
+            "Feature(title: 'Reminders', detail: 'b')",
+        "Feature(title: 'Every plant', detail: 'a'), "
+            "Feature(title: 'Reminders', detail: 'b')",
+        'title: "Every plant"',
+      ),
+    ]) {
+      test(
+        'a rebuilt $name literal edit of a twin fits the old build',
+        () async {
+          final old = await _generatedPart(surface(before), 'twins');
+          late RestageSurfacePublicationBundle bundle;
+          String? text;
+          await _generatedPart(
+            surface(after),
+            'twins',
+            handoff: (b) => bundle = b,
+            paywallText: (payload) => text = payload,
+          );
+          final requirement = bundle.manifest!.publications
+              .singleWhere((entry) => entry.publication.slug == 'twins')
+              .publication
+              .fitRequirement!;
+          expect(requirement.requiredIslands, hasLength(2));
+          final verdict = SurfaceFitEvaluator.evaluate(
+            host: _hostContractOf(old, ''),
+            requirement: requirement,
+            installed: InstalledCapability(
+              builtInCatalogVersion: 1 << 20,
+              installedLibraries: const [],
+            ),
+          );
+          expect([
+            for (final failure in verdict.failures)
+              if (failure.path.startsWith(r'$.requiredIslands.'))
+                '${failure.path} ${failure.code.name}',
+          ], isEmpty);
+          // The installed build's island renders the new design's value.
+          expect(text, contains(shown));
+        },
+      );
+    }
+
+    // Promotes the one island in [body] and rebuilds the app with it.
+    Future<Map<String, Object?>> promote(String body) async {
+      final source = surface(body);
+      late RestageSurfacePublicationBundle bundle;
+      await _generatedPart(
+        source,
+        'twins',
+        handoff: (b) => bundle = b,
+        renderCatalog: (_) {},
+      );
+      final plan = bundle.splitSites
+          .singleWhere((site) => site.kind.name == 'island')
+          .promotion!;
+      expect(plan['refusal'], isNull);
+      final offset = plan['offset']! as int;
+      final original = plan['original']! as String;
+      String named(Object? text) =>
+          (text! as String).replaceAll('{{name}}', 'Promoted');
+      // The promoted app builds and analyzes clean.
+      await _generatedPart(
+        '${source.replaceRange(offset, offset + original.length, named(plan['call']))}'
+            '\n${named(plan['class'])}\n',
+        'twins',
+        otherFiles: {
+          'apps_examples|lib/widgets.dart': """
+import 'package:restage/restage.dart';
+export 'twins.dart' show Promoted;
+@RestageLibrary(library: WidgetLibrary.custom('twins.widgets'), capabilityVersion: 1)
+const restageLibrary = 0;
+""",
+        },
+      );
+      return plan;
+    }
+
+    test(
+      'a private positional parameter builds, encodes and promotes',
+      () async {
+        final plan = await promote("_Row('Title')");
+        expect(plan['call'], "{{name}}(label: 'Title')");
+        expect(plan['class'], contains('final String label;'));
+        expect(plan['class'], contains('=> _Row(label);'));
+      },
+    );
+
+    test(
+      'promoting a const island drops the const around its fields',
+      () async {
+        final plan = await promote("const Tagline('Go')");
+        expect(plan['call'], "{{name}}(lead: 'Go')");
+        expect(plan['class'], contains('=> Tagline(lead);'));
+      },
+    );
+
+    test('a private keyword-named parameter encodes and promotes', () async {
+      final plan = await promote("Keyworded('Title')");
+      expect(plan['call'], "{{name}}(argument1: 'Title')");
+      expect(plan['class'], contains('=> Keyworded(argument1);'));
+    });
+
+    test('promoting a key that comes last leaves no empty argument', () async {
+      final plan = await promote(
+        "Caption(\n  'Hi',\n  key: const ValueKey('k'),\n)",
+      );
+      expect(plan['call'], "{{name}}(key: const ValueKey('k'), text: 'Hi')");
+      expect(plan['class'], contains('=> Caption(\n  text,\n)'));
+    });
+
+    test('promoting keeps a positional after the key', () async {
+      final plan = await promote("Caption(key: const ValueKey('k'), 'Hi')");
+      expect(plan['call'], "{{name}}(key: const ValueKey('k'), text: 'Hi')");
+      expect(plan['class'], contains('=> Caption(text);'));
+    });
+
+    test('a shared local from a helper call reports its arguments', () async {
+      late RestageSurfacePublicationBundle bundle;
+      await _generatedPart(
+        """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/twins.restage.g.dart';
+$widgets
+var calls = 0;
+
+Widget makeCard(String title) {
+  calls++;
+  return Caption(title);
+}
+
+class Hears extends StatelessWidget {
+  const Hears({super.key, required this.onContext, required this.child});
+  final void Function(BuildContext context) onContext;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    onContext(context);
+    return child;
+  }
+}
+
+@Paywall()
+final class Twins extends StatelessWidget {
+  const Twins({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final card = makeCard('Hi');
+    return Hears(
+      onContext: (context) => Navigator.of(context).maybePop(),
+      child: Column(children: [card, card]),
+    );
+  }
+}
+""",
+        'twins',
+        handoff: (b) => bundle = b,
+      );
+      expect(
+        {
+          for (final site in bundle.splitSites)
+            if (site.kind.name == 'island')
+              '${site.widget} ${[for (final c in site.compiled) '${c.name}:${c.reason}'].join(' ')}',
+        },
+        {'makeCard title:helperCall'},
+      );
+    });
+  });
+
   test('islands render from the app through the generated part', () async {
     const source = '''
 import 'package:flutter/widgets.dart';
@@ -4128,7 +4375,7 @@ final class Mounted extends StatelessWidget {
       for (final (calls, payload) in [
         (
           "t(ObjectKey(1)), t(const ValueKey('a'))",
-          'Column(children: [mounted_t0_Text_0(), '
+          'Column(children: [mounted_t0_Text_0(data: "x"), '
               'Text(text: "x", key: data.context._h',
         ),
         (

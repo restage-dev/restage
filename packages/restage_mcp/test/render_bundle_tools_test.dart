@@ -85,6 +85,10 @@ void main() {
               'location': 'lib/a.dart:3:5',
               'kind': 'island',
               'token': 'w0001',
+              'interface': 'property title: string',
+              'compiled': [
+                {'name': 'style', 'reason': 'notLiteral', 'message': 'm'},
+              ],
             },
           ],
         }),
@@ -102,6 +106,26 @@ void main() {
             'widget': 'ListView',
             'location': 'lib/a.dart:3:5',
             'token': 'w0001',
+            'interface': 'property title: string',
+            'compiled': [
+              {'name': 'style', 'reason': 'notLiteral', 'message': 'm'},
+            ],
+          },
+        ],
+        'islands': [
+          {
+            'widget': 'ListView',
+            'sites': [
+              {
+                'name': 'app.islands:A_ListView_0',
+                'location': 'lib/a.dart:3:5',
+                'properties': ['title'],
+                'slots': <Object?>[],
+                'compiled': [
+                  {'name': 'style', 'reason': 'notLiteral', 'message': 'm'},
+                ],
+              },
+            ],
           },
         ],
       },
