@@ -238,7 +238,7 @@ Future<List<SplitWidgetInput>> splitWidgetsOf({
       liftState: true,
     );
     if (blueprint == null) continue;
-    final build = blueprint.liftable ?? blueprint;
+    final build = blueprint.wholeLift ?? blueprint;
     final translation = translator.translate(
       build.rootExpression,
       entryId: entry.name,

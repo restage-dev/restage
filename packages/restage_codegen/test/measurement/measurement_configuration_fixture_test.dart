@@ -18,6 +18,7 @@ import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 import '../helpers.dart';
+import '../shared_resolvers.dart';
 import 'measurement_fixture_helpers.dart';
 
 const _fixtureRoot = 'test/fixtures/measurement_configuration';
@@ -455,7 +456,7 @@ final class _PersistentMeasurementBuild {
           checkBuilderFreshness: false,
           forceToPackagePathsForTesting: true,
           readerWriter: readerWriter,
-          resolvers: build_runner_internal.ResolversImpl.custom(),
+          resolvers: SummaryReadyResolvers(),
         ),
       ),
     );

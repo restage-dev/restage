@@ -254,10 +254,7 @@ abstract final class MeasurementRfwRouteComposer {
       final missing = required.difference(consumedReferences).toList()..sort();
       final unexpected = consumedReferences.difference(required).toList()
         ..sort();
-      throw FormatException(
-        'Measurement route marker closure disagrees with the publication '
-        'route plan (missing: $missing, unexpected: $unexpected)',
-      );
+      throw MeasurementRouteClosureMismatch(missing, unexpected);
     }
   }
 
@@ -614,10 +611,7 @@ abstract final class MeasurementRfwRouteComposer {
       }
       final itemRoute = route.orderedCaptureV1?.interactionItemsV1 ?? false;
       if (itemRoute != (item != null)) {
-        throw FormatException(
-          'RFW event ${event.eventName} disagrees with its route about an '
-          'item',
-        );
+        throw MeasurementRouteItemMismatch(event.eventName, generatedReference);
       }
       // One route is shared by every element of a repeated static source.
       if (!consumed.add(generatedReference) && item == null) {
@@ -828,4 +822,59 @@ final class _PresentationRoute {
 
   final String carrier;
   final String compactToken;
+}
+
+/// The emitted RFW and the route plan disagree: a compiler bug, never the
+/// author's code.
+sealed class MeasurementRouteDisagreement extends FormatException {
+  MeasurementRouteDisagreement(super.message);
+
+  /// The build issue for [surface].
+  String issueFor(String surface);
+}
+
+/// The emitted route markers and the route plan name different routes.
+final class MeasurementRouteClosureMismatch
+    extends MeasurementRouteDisagreement {
+  /// Creates the mismatch from the plan's missing and unexpected routes.
+  MeasurementRouteClosureMismatch(this.missing, this.unexpected)
+    : super(
+        'Measurement route marker closure disagrees with the publication '
+        'route plan (missing: $missing, unexpected: $unexpected)',
+      );
+
+  /// Planned routes no marker carries.
+  final List<String> missing;
+
+  /// Marked routes the plan does not name.
+  final List<String> unexpected;
+
+  @override
+  String issueFor(String surface) => [
+    'Restage compiler bug: measurement routes disagree for `$surface`',
+    if (missing.isNotEmpty) ' (missing route: ${missing.join(', ')})',
+    if (unexpected.isNotEmpty) ' (unexpected route: ${unexpected.join(', ')})',
+    '. Please report this as a Restage bug.',
+  ].join();
+}
+
+/// An emitted event and its route disagree about carrying an item.
+final class MeasurementRouteItemMismatch extends MeasurementRouteDisagreement {
+  /// Creates the mismatch for [eventName]'s [reference].
+  MeasurementRouteItemMismatch(this.eventName, this.reference)
+    : super(
+        'RFW event $eventName disagrees with its route about an item',
+      );
+
+  /// The emitted event's name.
+  final String eventName;
+
+  /// The generated reference the event carries.
+  final String reference;
+
+  @override
+  String issueFor(String surface) =>
+      'Restage compiler bug: measurement routes disagree for `$surface` '
+      '(route $reference and its event `$eventName` disagree about an item). '
+      'Please report this as a Restage bug.';
 }

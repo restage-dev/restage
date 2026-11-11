@@ -54,6 +54,7 @@ import 'package:restage_codegen/src/surface_publication/split_widgets.dart'
         SplitWidgetDefinitions,
         kPlacementNameArgument,
         kPlacementItemsArgument,
+        declaresGeneratedPart,
         splitAppName;
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/installed_native_call.dart';
@@ -689,8 +690,8 @@ final class ExpressionTranslator {
   _IslandSession? _islands;
 
   Map<Element, HelperDef> _collectionHelpers = const {};
-  CollectionSemanticTraversalSession _collectionSession =
-      CollectionSemanticTraversalSession();
+  late CollectionSemanticTraversalSession _collectionSession =
+      CollectionSemanticTraversalSession(admitsPlacedReuse: _routedPerSpot);
 
   /// Const declarations under translation.
   final Set<Element> _constDeclarationsInFlight = <Element>{};
@@ -977,8 +978,12 @@ final class ExpressionTranslator {
               rootContext: buildContextParameter,
               isStateWidget: _isStateWidgetGetter,
               rootParamFor: _rootParamForElement,
+              // While probing, a local the mount holds is read through its
+              // initializer, so what it depends on is seen.
               isMountScope: (element) =>
-                  _islands?.inMountScope(element) ?? false,
+                  (_islands?.inMountScope(element) ?? false) &&
+                  !(_islands!.probing &&
+                      _walk.inlined.localBindings.containsKey(element)),
               mountNameOf: (element) =>
                   _islands?.mountNames.containsKey(element.baseElement) ?? false
                   ? '\u0000${_islands!.heldSlot(element.baseElement)}\u0000'
@@ -1003,6 +1008,9 @@ final class ExpressionTranslator {
                   _islands?.isSurfaceMember(element) ?? false,
               forwardsWidget: () => _islands?.liftedState != null,
               thisFor: (type) => _islands?.thisFor(type),
+              thisOutOfReach: (type) =>
+                  (_islands?.probing ?? false) &&
+                  type?.element == _islands?.liftedState,
               isDeclaredCallable: (reference) =>
                   _borrowedNativeRoot(
                         _resolveBoundIdentifier(_stripParens(reference)),
@@ -1057,6 +1065,7 @@ final class ExpressionTranslator {
             liftedState,
             islandSurface(expr, id: surfaceId),
             contentFree: contentFree,
+            designOwnsState: rootState != null && liftedState != null,
             stateless: liftedState == null
                 ? switch (expr
                       .thisOrAncestorOfType<ClassDeclaration>()
@@ -1108,7 +1117,9 @@ final class ExpressionTranslator {
       measurementWidgetList: null,
     );
     _collectionHelpers = _collectionHelperDefinitions(expr);
-    _collectionSession = CollectionSemanticTraversalSession();
+    _collectionSession = CollectionSemanticTraversalSession(
+      admitsPlacedReuse: _routedPerSpot,
+    );
     _currentNavigation = null;
     _flowScreenContext = flowScreenContext;
     _currentTranslationSuppressed = false;
@@ -1320,7 +1331,17 @@ final class ExpressionTranslator {
         eventClosureNotices.where((notice) => seen.add(notice.buildNoticeKey)),
       );
     }
-    final recordedSplit = _recorded(islandSession?.split, islandSession, hoist);
+    final recordedSplit = _recorded(
+      islandSession?.split,
+      islandSession,
+      hoist,
+      // A pushed screen needs the recorded copy only where a mount can carry
+      // it; without the generated part the surface compiles as it did.
+      navigates:
+          navigationLowering != null &&
+          hoistLibrary != null &&
+          declaresGeneratedPart(hoistLibrary),
+    );
     if (islandSession != null) issues.addAll(islandSession.recordIssues);
     return (
       result: TranslationResult(
@@ -1412,7 +1433,9 @@ final class ExpressionTranslator {
     List<RootContextParam> rootParams = const [],
   }) {
     final savedCollectionSession = _collectionSession;
-    _collectionSession = CollectionSemanticTraversalSession();
+    _collectionSession = CollectionSemanticTraversalSession(
+      admitsPlacedReuse: _routedPerSpot,
+    );
     try {
       return _attemptInlineEmit(
         classification,
@@ -1539,6 +1562,7 @@ final class ExpressionTranslator {
             : null) ??
         _translateExpression(expr, issues);
     _recordEmission(expr, dsl);
+    _noteParamPlacement(dsl, expr);
     return dsl;
   }
 
@@ -1974,6 +1998,11 @@ final class ExpressionTranslator {
         ),
       );
     }
+    _recordsWithoutDesignState(
+      shared ?? node,
+      holes: {for (final MapEntry(:key, :value) in holes.entries) key: value},
+      kind: _Recorded.widget,
+    );
     session.recordIslands.add((
       name: identity.name,
       node: shared ?? node,
@@ -2213,6 +2242,11 @@ final class ExpressionTranslator {
     if (_islands == null) return;
     final at =
         value.site ?? (site == null ? null : _recordSite(site, value) ?? site);
+    // A binding the mount borrows is provided whatever the design shows.
+    if (at != null &&
+        !(value.kind == HoistValueKind.nativeBinding && !value.computed)) {
+      _recordsWithoutDesignState(at, label: value.label);
+    }
     if (at != null) {
       _hoist!.records.add((
         key: value.key,
@@ -2717,6 +2751,15 @@ final class ExpressionTranslator {
     if (branches.length < 2 || _islands == null || library == null) {
       return null;
     }
+    // Which arm the mount takes must not depend on State the design keeps.
+    for (final expression in branches) {
+      _recordsWithoutDesignState(
+        expression,
+        label: '${_islands!.surface.screen}.build',
+        kind: _Recorded.branch,
+        conditionsOnly: true,
+      );
+    }
     final type = library.typeProvider.intType;
     final branch = _hoist!.add(
       HoistEvaluable(
@@ -2725,14 +2768,19 @@ final class ExpressionTranslator {
       ).value(classifyHoistType(type) as HoistCrosses, type),
     );
     bool throws(Expression e) => _stripParens(e) is ThrowExpression;
-    final translated = {
-      for (final (index, expression) in branches.indexed)
-        if (!throws(expression))
-          expression: _inBuildBranch(
-            index,
-            () => _translate(expression, issues),
-          ),
-    };
+    final session = _islands!;
+    final translated = _armChecked(
+      issues,
+      () => {
+        for (final (index, expression) in branches.indexed)
+          if (!throws(expression))
+            expression: _inArm(
+              session,
+              index,
+              () => _inBuildBranch(index, () => _translate(expression, issues)),
+            ),
+      },
+    );
     return 'switch ${_hoistedRead(branch)} {${[
       for (final (index, expression) in branches.indexed) '${index == branches.length - 1 ? 'default' : index}: '
             // A branch that throws never renders: the build throws there.
@@ -3226,12 +3274,15 @@ final class ExpressionTranslator {
   MountSplit? _recorded(
     MountSplit? split,
     _IslandSession? session,
-    _HoistSession? hoist,
-  ) {
+    _HoistSession? hoist, {
+    bool navigates = false,
+  }) {
     if (session == null || hoist == null) return split;
-    // With nothing to record, no shell to keep and no statement to run, the
-    // fallback is the surface itself.
-    if (hoist.values.isEmpty &&
+    // With nothing to record, no shell to keep, no statement to run and no
+    // screen it pushes, the fallback is the surface itself.
+    if (!navigates &&
+        session.designMiss == null &&
+        hoist.values.isEmpty &&
         session.islands.isEmpty &&
         session.recordPlacements.isEmpty &&
         (split == null || split.kept.isEmpty && split.state == null) &&
@@ -3273,8 +3324,10 @@ final class ExpressionTranslator {
     _hoist = hoist;
     final String? source;
     try {
+      session.recording = true;
       source = _recordedBuild(session, hoist, root);
     } finally {
+      session.recording = false;
       _walk = outer.$1;
       _islands = outer.$2;
       _hoist = outer.$3;
@@ -3299,6 +3352,10 @@ final class ExpressionTranslator {
     _HoistSession hoist,
     Expression root,
   ) {
+    if (session.designMiss case final miss?) {
+      session.recordProblem ??= miss;
+      return null;
+    }
     final body = session.buildBody;
     if (body == null) {
       session.recordProblem ??= Issue(
@@ -4256,6 +4313,14 @@ final class ExpressionTranslator {
     }
     // The recorded copy writes the shell and the design as the app wrote
     // them.
+    for (final pair in shellPairs) {
+      _recordsWithoutDesignState(
+        pair.node,
+        label: islandWidgetType(pair.node),
+        holes: {pair.next: '_'},
+        kind: _Recorded.wrapper,
+      );
+    }
     {
       for (final index in kept) {
         if (chain.steps[index].builder case final builder?) {
@@ -4686,8 +4751,12 @@ final class ExpressionTranslator {
       list(_islands?.recordPlacements),
       map(_islands?.islands),
       list(_islands?.order),
+      _nestedMap(_paramPlacementCounts, (copies) => {...copies}),
+      _nestedMap(_paramPlacements, (placed) => placed),
     ];
     final session = _collectionSession.copy();
+    final islands = _islands;
+    final designMiss = islands?.designMiss;
     final walk = _walk;
     final interactionItems = _currentEmitsInteractionItems;
     final suppressed = _currentTranslationSuppressed;
@@ -4698,10 +4767,27 @@ final class ExpressionTranslator {
         restore();
       }
       _collectionSession = session;
+      islands?.designMiss = designMiss;
       _walk = walk;
       _currentEmitsInteractionItems = interactionItems;
       _currentTranslationSuppressed = suppressed;
     };
+  }
+
+  // Restores [target], a map of maps, to its current contents.
+  static void Function() _nestedMap<V>(
+    Map<String, Map<String, V>> target,
+    V Function(V value) copyValue,
+  ) {
+    final copy = {
+      for (final MapEntry(:key, :value) in target.entries)
+        key: {
+          for (final inner in value.entries) inner.key: copyValue(inner.value),
+        },
+    };
+    return () => target
+      ..clear()
+      ..addAll(copy);
   }
 
   /// The translation of [expr], reading a mount-computed value in place of
@@ -4756,6 +4842,8 @@ final class ExpressionTranslator {
     }
     final analysis = hoist.analyzer.analyze(stripped);
     if (analysis is! HoistEvaluable) return null;
+    // A value that depends on design state is left for the design to lower.
+    if (_designStateRead(stripped) != null) return null;
     if (verdict.kind == HoistValueKind.textScaler) {
       final native = _nativeBindingRead(stripped, type: 'flutter.TextScaler');
       if (native != null) return native;
@@ -5380,6 +5468,10 @@ final class ExpressionTranslator {
       constantStrings: constantStrings,
       isBorrowedCallable: (reference) {
         final expr = _resolveBoundIdentifier(_stripParens(reference));
+        // A split action's callback arrives as an input.
+        if (_splittingAction && _widgetField(expr)?.type is FunctionType) {
+          return true;
+        }
         final root = _borrowedNativeRoot(expr);
         if (root?.type is! FunctionType) return false;
         final analysis = hoist.analyzer.analyze(expr);
@@ -5412,8 +5504,486 @@ final class ExpressionTranslator {
           type,
         );
       },
+      inputOf: _splittingAction
+          ? (expression) => _actionInput(expression, lowering)
+          : null,
       install: (plan) => hoist.add(plan.bindingAt(_locationOf(value))),
     );
+  }
+
+  // Whether an action is lowered as the app's callback, with arguments the
+  // payload evaluates.
+  bool _splittingAction = false;
+
+  // Why the action being split can't take an argument, when that ends it.
+  ({AstNode node, String problem, String fix})? _splitRefusal;
+
+  /// Notes that the mount would depend on design state through [node], so the
+  /// design can't keep its State. The first note is the one reported.
+  void _designMiss(AstNode node, String problem, String fix) {
+    final session = _islands;
+    if (session == null || !session.designOwnsState || session.recording) {
+      return;
+    }
+    session.designMiss ??= Issue(
+      code: IssueCode.stateKeptInApp,
+      message:
+          "`${session.liftedState!.name}` stays in your app's code, so a "
+          "published design can't change it: $problem. Try $fix.",
+      location: _locationOf(node),
+    );
+  }
+
+  // The State member the design owns that [node] reads, directly or through a
+  // helper parameter, a build local or `this`; null when it reads none.
+  Element? _designStateRead(
+    AstNode node, {
+    Map<AstNode, String> holes = const {},
+  }) {
+    final session = _islands;
+    final hoist = _hoist;
+    if (session == null ||
+        hoist == null ||
+        !session.designOwnsState ||
+        session.recording) {
+      return null;
+    }
+    session.probing = true;
+    final HoistAnalysis analysis;
+    try {
+      analysis = hoist.analyzer.analyze(node, holes: holes);
+    } finally {
+      session.probing = false;
+    }
+    if (analysis is! HoistNeedsSurfaceValue) return null;
+    return analysis.elements.firstWhereOrNull(
+      (element) =>
+          session.isDesignStateMember(element) ||
+          element == session.liftedState,
+    );
+  }
+
+  /// Enforces that what the mount records at [node] doesn't depend on design
+  /// state: neither [node] nor a condition that decides whether it runs reads
+  /// a member the design owns.
+  void _recordsWithoutDesignState(
+    AstNode node, {
+    String? label,
+    Map<AstNode, String> holes = const {},
+    _Recorded kind = _Recorded.value,
+    bool conditionsOnly = false,
+  }) {
+    final session = _islands;
+    if (session == null || !session.designOwnsState || session.recording) {
+      return;
+    }
+    final shown = label ?? readableSource(_writtenSource(node));
+    void underCondition(Expression condition, Element member) {
+      final written = readableSource(_writtenSource(condition));
+      final reads = written == member.name
+          ? ''
+          : ', which reads `${member.name}`';
+      if (kind == _Recorded.branch) {
+        _designMiss(
+          condition,
+          '`$shown` picks the widget it returns with `$written`$reads, so '
+              "your app's own copy of `${member.name}` picks it",
+          'choosing between the widgets with a conditional expression, as in '
+              "`annualSelected ? const Text('Annual') : const Text('Monthly')`",
+        );
+        return;
+      }
+      _designMiss(
+        node,
+        '`$shown` is computed by your app under `$written`'
+            '${written == member.name ? '' : ', which reads `${member.name}`'}'
+            ', so your app computes only the value its own copy of '
+            '`${member.name}` picks',
+        'showing each value in its own widget and hiding the other one, as '
+            'in `Offstage(offstage: !annualSelected, child: Text(annual))`',
+      );
+    }
+
+    if (conditionsOnly) {
+      // Only what decides whether [node] runs is checked.
+    } else if (_designStateRead(node, holes: holes) case final member?) {
+      // A condition inside the value is reported as the condition it is.
+      final condition = switch (node) {
+        final Expression value => switch (_stripParens(value)) {
+          ConditionalExpression(:final condition) => condition,
+          SwitchExpression(:final expression) => expression,
+          _ => null,
+        },
+        _ => null,
+      };
+      if (condition != null && _designStateRead(condition) == member) {
+        underCondition(condition, member);
+        return;
+      }
+      final name = member.name;
+      final (problem, fix) = switch ((member, kind, node)) {
+        (ClassElement(), _, _) => (
+          '`$shown` runs in your app and uses `this`, the State the design '
+              'keeps',
+          'passing the State fields it needs instead of the State, as in '
+              '`describe(annualSelected)`',
+        ),
+        (_, _Recorded.wrapper, _) => (
+          '`$shown` wraps the design in your app\'s code and reads `$name`',
+          'moving that read below the wrapper, into the widgets the design '
+              'shows',
+        ),
+        (_, _Recorded.widget, _) => (
+          '`$shown` is a widget your app builds, and it reads `$name`',
+          'promoting it with `restage widget promote ${_locationOf(node)}` '
+              'so the design builds it',
+        ),
+        (FieldElement(isOriginDeclaration: false), _, _) => (
+          '`$name` is a getter your app computes from the State the design '
+              'keeps, and `$shown` reads it',
+          'reading the State fields it computes from in the design, or '
+              'passing the value in as a widget field',
+        ),
+        (MethodElement(), _, _) => (
+          '`$shown` runs in your app and calls `$name` of the State the '
+              'design keeps',
+          'passing `$name` straight to the widget that fires it, as in '
+              '`onTap: $name`, or moving its work into a callback your widget '
+              'takes',
+        ),
+        (_, _, FunctionExpression()) => (
+          '`$shown` runs in your app and reads `$name`, which belongs to the '
+              'State the design keeps',
+          'reading `$name` in the callback\'s arguments rather than through '
+              'a build local or helper, as in '
+              '`() => widget.onDone?.call($name)`',
+        ),
+        _ => (
+          '`$shown` is computed by your app from `$name`, which belongs to '
+              'the State the design keeps',
+          'reading `$name` only in the widgets the design shows and in '
+              'setState handlers, or passing the value in as a widget field',
+        ),
+      };
+      _designMiss(node, problem, fix);
+      return;
+    }
+    for (final start in [node, ..._callSites.reversed]) {
+      for (
+        AstNode child = start, parent = start.parent!;
+        parent is! MethodDeclaration &&
+            parent is! FunctionDeclaration &&
+            parent is! CompilationUnit;
+        child = parent, parent = parent.parent!
+      ) {
+        final conditions = switch (parent) {
+          ConditionalExpression(:final condition) when child != condition => [
+            condition,
+          ],
+          IfElement(:final expression) when child != expression => [
+            expression,
+          ],
+          IfStatement(:final expression) when child != expression => [
+            expression,
+          ],
+          SwitchExpression(:final expression) when child != expression => [
+            expression,
+          ],
+          SwitchStatement(:final expression) when child != expression => [
+            expression,
+          ],
+          // An arm runs only when no earlier guard took the switch.
+          SwitchExpressionCase(parent: SwitchExpression(:final cases))
+              when child != parent.guardedPattern =>
+            [
+              for (final arm in cases.take(cases.indexOf(parent) + 1))
+                ?arm.guardedPattern.whenClause?.expression,
+            ],
+          BinaryExpression(:final leftOperand, :final operator)
+              when child != leftOperand &&
+                  const {'&&', '||', '??'}.contains(operator.lexeme) =>
+            [leftOperand],
+          _ => const <Expression>[],
+        };
+        for (final condition in conditions) {
+          if (_designStateRead(condition) case final member?) {
+            underCondition(condition, member);
+            return;
+          }
+        }
+      }
+    }
+  }
+
+  // How to declare a State field of [type] so the design can pass it, or null
+  // when it already can.
+  static String? _fieldTypeFix(String source, DartType? type) => switch (type) {
+    InterfaceType(element: EnumElement()) =>
+      'declaring `$source` as a `String` that holds the value\'s name',
+    final InterfaceType type
+        when type.nullabilitySuffix == NullabilitySuffix.question =>
+      'declaring `$source` as a non-null `${type.element.name}` with a '
+          'starting value',
+    InterfaceType(element: ClassElement(name: 'num')) =>
+      'declaring `$source` as a `double` or an `int`',
+    _ => null,
+  };
+
+  // An input of a split action: the borrowed callback, or an argument that
+  // reads design state, evaluated by the payload at tap time.
+  InstalledNativeInput? _actionInput(
+    Expression expression,
+    BuilderExpressionLowering lowering,
+  ) {
+    // A widget field arrives as the mount's own value.
+    if (_widgetField(expression) case final root?) {
+      return _widgetFieldCapture(root, lowering, expression: expression);
+    }
+    if (!_readsDesignState(expression)) return null;
+    final type = switch (expression.staticType) {
+      final InterfaceType type
+          when type.nullabilitySuffix == NullabilitySuffix.none &&
+              type.element.library.isDartCore =>
+        switch (type.element.name) {
+          'bool' => ValueType.boolean,
+          'int' => ValueType.integer,
+          'double' => ValueType.real,
+          'String' => ValueType.string,
+          _ => null,
+        },
+      _ => null,
+    };
+    if (type == null && expression.parent is ArgumentList) {
+      final source = readableSource(expression.toSource());
+      _splitRefusal ??= (
+        node: expression,
+        problem:
+            '`$source` is a `${expression.staticType}`, and a value the design '
+            'passes to a callback is a non-null bool, int, double or String',
+        fix:
+            _fieldTypeFix(source, expression.staticType) ??
+            'passing a bool, int, double or String State field instead',
+      );
+      return null;
+    }
+    if (type == null) return null;
+    // A whole capture is the design's own value; anything the mount would
+    // compute for it is left behind, and its parts arrive as inputs instead.
+    final hoist = _hoist!;
+    final restore = _checkpoint();
+    final blocked = Set.of(_islands?.blocked ?? const <Element>{});
+    final scratch = <Issue>[];
+    hoist.speculating = true;
+    final String dsl;
+    try {
+      dsl = _translate(expression, scratch);
+    } finally {
+      hoist.speculating = false;
+    }
+    if (dsl.isEmpty ||
+        scratch.any((issue) => !issue.code.isBuildNotice) ||
+        !_captureKeepsType(dsl, type)) {
+      restore();
+      _islands?.blocked
+        ?..clear()
+        ..addAll(blocked);
+      return null;
+    }
+    return _actionCapture(lowering, type, dsl);
+  }
+
+  // [root] read from the mount as a native capture, or null when its type
+  // has no stable name.
+  InstalledNativeInput? _widgetFieldCapture(
+    RootContextParam root,
+    BuilderExpressionLowering lowering, {
+    required Expression expression,
+  }) {
+    final String nominal;
+    try {
+      nominal = installedNativeTypeId(root.type);
+    } on ArgumentError {
+      _splitRefusal ??= (
+        node: expression,
+        problem:
+            '`widget.${root.name}` has the type `${root.type}`, which a '
+            'published design has no name for',
+        fix: switch (root.type) {
+          final FunctionType type
+              when type.formalParameters.any((p) => p.type is RecordType) =>
+            'taking each value as its own parameter instead of a record',
+          FunctionType() =>
+            'declaring its parameter and result types, as in '
+                '`final void Function(String plan)? ${root.name};`',
+          _ => 'declaring the field with a class type',
+        },
+      );
+      return null;
+    }
+    final type = ValueType.native(
+      nominal,
+      nullable: root.type.nullabilitySuffix == NullabilitySuffix.question,
+    );
+    final dsl = expression is PrefixedIdentifier
+        ? _nativeBindingRead(expression, type: nominal)
+        : _rootBindingRead(root, expression, type: nominal);
+    if (dsl == null) return null;
+    return _actionCapture(lowering, type, dsl);
+  }
+
+  // The mount's binding of [root], as `widget.<root>` at [site] would read it.
+  String? _rootBindingRead(
+    RootContextParam root,
+    AstNode site, {
+    required String type,
+  }) {
+    final hoist = _hoist;
+    if (hoist == null || hoist.speculating) return null;
+    final contract = NativeBindingContract(
+      type: type,
+      nullable: root.type.nullabilitySuffix == NullabilitySuffix.question,
+    );
+    return _hoistedRead(
+      hoist.add(
+        HoistEvaluable(
+          label: 'widget.${root.name}',
+          template: '\u0000${root.name}\u0000',
+          node: site,
+        ).value(
+          HoistCrosses(
+            HoistValueKind.nativeBinding,
+            SurfaceScreenHostDataNativeBindingShapeV1(contract),
+          ),
+          root.type,
+          nativeContract: contract,
+          location: _locationOf(site),
+        ),
+      ),
+    );
+  }
+
+  // The final widget field [expression] reads as `widget.<field>`.
+  RootContextParam? _widgetField(Expression expression) {
+    if (expression is PrefixedIdentifier) {
+      return _borrowedNativeRoot(expression);
+    }
+    if (expression case PropertyAccess(
+      target: SimpleIdentifier target,
+      :final propertyName,
+    ) when _walk.rootStateContext && _isInheritedStateWidgetReceiver(target)) {
+      final root = _rootParamForElement(propertyName.element);
+      final field = root?.field;
+      if (field != null &&
+          field.isFinal &&
+          !field.isLate &&
+          field.isOriginDeclaration &&
+          !field.isAbstract &&
+          !field.isExternal) {
+        return root;
+      }
+    }
+    return null;
+  }
+
+  // The payload types a state read by the value it is seeded with, which the
+  // design writes as a double for a double or num field.
+  bool _captureKeepsType(String dsl, ValueType type) {
+    final read = RegExp(r'^state\.([A-Za-z_$][A-Za-z0-9_$]*)$').firstMatch(dsl);
+    if (read == null) {
+      // An int literal in a double value is seeded as an int.
+      return type.kind != 'double' && !dsl.startsWith('data.local.');
+    }
+    final field = _walk.stateFields?[read.group(1)];
+    final seed = field?.initialValue;
+    return switch (type.kind) {
+      'bool' => seed is bool,
+      'int' => seed is int && !field!.isNumeric,
+      'double' => seed is num && field!.isNumeric,
+      'String' => seed is String,
+      _ => false,
+    };
+  }
+
+  InstalledNativeInput _actionCapture(
+    BuilderExpressionLowering lowering,
+    ValueType type,
+    String dsl,
+  ) {
+    final name = 'c${lowering.captureTypes.length}';
+    lowering.captureTypes[name] = type;
+    lowering.captureDsl[name] = dsl;
+    return InstalledNativeInput(
+      lowering.add(ValueNode('capture', type, name: name)),
+      type,
+    );
+  }
+
+  static bool _isSelector(SimpleIdentifier identifier) =>
+      switch (identifier.parent) {
+        PrefixedIdentifier(identifier: final selector) => identical(
+          selector,
+          identifier,
+        ),
+        PropertyAccess(:final propertyName, :final target) =>
+          identical(propertyName, identifier) && target is! ThisExpression,
+        MethodInvocation(:final methodName, :final target) =>
+          identical(methodName, identifier) && target != null,
+        _ => false,
+      };
+
+  // Whether [expression] is `() => callback(...)` over design state, where
+  // the callback is a field of the widget.
+  bool _splitsAction(Expression expression) {
+    if (expression is! FunctionExpression ||
+        expression.parameters?.parameters.isNotEmpty != false) {
+      return false;
+    }
+    final call = switch (expression.body) {
+      ExpressionFunctionBody(:final expression) => expression,
+      BlockFunctionBody(
+        block: Block(statements: [ExpressionStatement(:final expression)]),
+      ) =>
+        expression,
+      _ => null,
+    };
+    if (call == null || !_readsDesignState(call)) return false;
+    final callee = switch (call) {
+      MethodInvocation(
+        methodName: SimpleIdentifier(name: 'call'),
+        :final target?,
+      ) =>
+        target,
+      FunctionExpressionInvocation(:final function) => function,
+      _ => null,
+    };
+    final root = switch (callee) {
+      PostfixExpression(:final operand) => operand,
+      final Expression callee => callee,
+      null => null,
+    };
+    return root is Expression && _widgetField(root)?.type is FunctionType;
+  }
+
+  // Whether [node] reads a State field the design owns.
+  bool _readsDesignState(AstNode node) {
+    final fields = _walk.stateFields;
+    if (fields == null || !_walk.rootStateContext) return false;
+    var reads = false;
+    node.accept(
+      _IdentifierVisitor((identifier) {
+        final element = identifier.element;
+        if (element is PropertyAccessorElement &&
+            !element.isStatic &&
+            element.variable is FieldElement &&
+            !identifier.inSetterContext() &&
+            !_isSelector(identifier) &&
+            (fields.containsKey(identifier.name) ||
+                _currentLocalFields.contains(identifier.name))) {
+          reads = true;
+        }
+      }),
+    );
+    return reads;
   }
 
   String? _tryNativeCallValue(
@@ -7312,8 +7882,15 @@ final class ExpressionTranslator {
       session: _collectionSession,
       budget: budget,
     );
+    final outer = _walk;
+    _StateShift? shift;
     for (final entry in traversal.entries) {
       final ordinal = ordinals.next(entry);
+      // Each element sits at its own slot, after whatever moves it.
+      _walk = outer
+          .armStep('[$ordinal]')
+          .copyWith(stateShift: shift ?? outer.stateShift);
+      shift ??= _countShift(entry);
       switch (entry) {
         case CollectionListElement(:final occurrence):
           parts.add(
@@ -7359,8 +7936,45 @@ final class ExpressionTranslator {
           if (emitted != null) parts.add(emitted);
       }
     }
+    _walk = outer;
     return '[${parts.join(', ')}]';
   }
+
+  // The shift [entry] causes when its emitted number of widgets can change:
+  // a run-time loop, or a run-time condition whose branches differ in count.
+  _StateShift? _countShift(CollectionListTraversalEntry entry) {
+    if (entry is! CollectionListRefusal) return null;
+    final refusal = entry.refusal;
+    final at = refusal.location;
+    if (refusal.runtimeLoop != null) {
+      return _StateShift(at, at is SpreadElement ? 'spread' : 'loop');
+    }
+    if (refusal.runtimeIf case final candidate?
+        when _branchCount(CollectionRuntimeConditional(candidate)) == null) {
+      return _StateShift(at, 'condition');
+    }
+    return null;
+  }
+
+  // How many widgets [branch] always emits; null when it varies.
+  int? _branchCount(CollectionRuntimeBranch branch) => switch (branch) {
+    CollectionRuntimeLeaf() => 1,
+    CollectionRuntimeIteration() => null,
+    CollectionRuntimeGroup(:final members) => members.fold<int?>(
+      0,
+      (sum, member) => switch ((sum, _branchCount(member))) {
+        (final a?, final b?) => a + b,
+        _ => null,
+      },
+    ),
+    CollectionRuntimeConditional(:final candidate) => switch ((
+      _branchCount(candidate.thenBranch),
+      candidate.elseBranch == null ? 0 : _branchCount(candidate.elseBranch!),
+    )) {
+      (final a?, final b?) when a == b => a,
+      _ => null,
+    },
+  };
 
   /// Lowers a run-time collection-`if` to the elements it contributes.
   String? _emitRuntimeIf(
@@ -7439,14 +8053,18 @@ final class ExpressionTranslator {
     final thenGuard = _ConditionLowering(
       (present, absent) => guard(lowering(present, absent), absent),
     );
-    if (_emitGuardedBranch(
-      candidate.thenBranch,
-      thenGuard,
-      elements,
-      issues,
-      ordinal: ordinal,
-      itemType: itemType,
-      emitLeaf: emitLeaf,
+    if (_copiedUnder(
+      candidate.condition,
+      _copiesBranch(thenGuard, then: true),
+      () => _emitGuardedBranch(
+        candidate.thenBranch,
+        thenGuard,
+        elements,
+        issues,
+        ordinal: ordinal,
+        itemType: itemType,
+        emitLeaf: emitLeaf,
+      ),
     )) {
       return true;
     }
@@ -7455,14 +8073,18 @@ final class ExpressionTranslator {
     final elseGuard = _ConditionLowering(
       (present, absent) => guard(lowering(absent, present), absent),
     );
-    return _emitGuardedBranch(
-      otherwise,
-      elseGuard,
-      elements,
-      issues,
-      ordinal: ordinal,
-      itemType: itemType,
-      emitLeaf: emitLeaf,
+    return _copiedUnder(
+      candidate.condition,
+      _copiesBranch(elseGuard, then: true),
+      () => _emitGuardedBranch(
+        otherwise,
+        elseGuard,
+        elements,
+        issues,
+        ordinal: ordinal,
+        itemType: itemType,
+        emitLeaf: emitLeaf,
+      ),
     );
   }
 
@@ -7544,6 +8166,23 @@ final class ExpressionTranslator {
     required int ordinal,
     PropertyType? itemType,
     String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
+  }) => _armChecked(
+    issues,
+    () => _emitTotalRuntimeIfArms(
+      candidate,
+      issues,
+      ordinal: ordinal,
+      itemType: itemType,
+      emitLeaf: emitLeaf,
+    ),
+  );
+
+  String? _emitTotalRuntimeIfArms(
+    CollectionRuntimeIfCandidate candidate,
+    List<Issue> issues, {
+    required int ordinal,
+    PropertyType? itemType,
+    String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
   }) {
     final conditionIssues = <Issue>[];
     final lowering = _withTranslationBindings(
@@ -7552,20 +8191,36 @@ final class ExpressionTranslator {
     );
     if (lowering == null) return null;
     issues.addAll(conditionIssues);
-    final thenDsl = _emitRuntimeIfBranch(
-      candidate.thenBranch,
-      issues,
-      ordinal: ordinal,
-      itemType: itemType,
-      emitLeaf: emitLeaf,
+    final thenDsl = _inArm(
+      candidate.condition,
+      0,
+      () => _copiedUnder(
+        candidate.condition,
+        _copiesBranch(lowering, then: true),
+        () => _emitRuntimeIfBranch(
+          candidate.thenBranch,
+          issues,
+          ordinal: ordinal,
+          itemType: itemType,
+          emitLeaf: emitLeaf,
+        ),
+      ),
     );
     if (thenDsl == null) return null;
-    final elseDsl = _emitRuntimeIfBranch(
-      candidate.elseBranch!,
-      issues,
-      ordinal: ordinal,
-      itemType: itemType,
-      emitLeaf: emitLeaf,
+    final elseDsl = _inArm(
+      candidate.condition,
+      1,
+      () => _copiedUnder(
+        candidate.condition,
+        _copiesBranch(lowering, then: false),
+        () => _emitRuntimeIfBranch(
+          candidate.elseBranch!,
+          issues,
+          ordinal: ordinal,
+          itemType: itemType,
+          emitLeaf: emitLeaf,
+        ),
+      ),
     );
     if (elseDsl == null) return null;
     return lowering(thenDsl, elseDsl);
@@ -13764,6 +14419,22 @@ final class ExpressionTranslator {
     final hoist = _hoist;
     final loops = _walk.runtimeLoops;
     if (session == null || hoist == null) return const [];
+    // The recorded copy can't place a widget inside another widget's build,
+    // so that widget renders from the app.
+    if (_definitionFrames.lastOrNull case final frame?) {
+      issues.add(
+        Issue(
+          code: IssueCode.nestedStateIsland,
+          message:
+              "`${entry.name}` (${_locationOf(node)}) is an app widget inside "
+              "`${frame.name}`, so `${frame.name}` renders from the app. Try "
+              "passing `${entry.name}` to `${frame.name}` as a widget argument "
+              "from the screen's build.",
+          location: _locationOf(node),
+        ),
+      );
+      return const [];
+    }
     if (loops.any((loop) => !_keysItems(loop))) {
       issues.add(
         Issue(
@@ -13794,6 +14465,7 @@ final class ExpressionTranslator {
     if (!session.recordPlacements.any(
       (placed) => identical(placed.node, node),
     )) {
+      _recordsWithoutDesignState(node, kind: _Recorded.widget);
       session.recordPlacements.add((
         name: name,
         node: node,
@@ -14807,6 +15479,13 @@ final class ExpressionTranslator {
         issues.add(shapeIssue);
         return '';
       }
+      if (blueprint.state?.isNotEmpty ?? false) {
+        if (_stateResetIssue(blueprint, blueprint.rfwName, anchor)
+            case final issue?) {
+          issues.add(issue);
+          return '';
+        }
+      }
       owners[name] = key;
       // Register the body once. Translating it re-enters this method for
       // every custom widget the body composes, so the closure is emitted
@@ -14831,11 +15510,30 @@ final class ExpressionTranslator {
         eventHandlers: blueprint.eventHandlers,
         rootStateContext: false,
         inlined: blueprint.inlined,
-        measurementScope: saved.measurementWidget?.enterInlinedBody(),
+        measurementScope: switch (saved.measurementWidget) {
+          // A body every placement shares takes its definition's scope.
+          final widget?
+              when measurementRouteEmissionPlan?.sharedBodies.contains(
+                    widget.widgetIdentity,
+                  ) ??
+                  false =>
+            widget.enterSharedBody(),
+          final widget => widget?.enterInlinedBody(),
+        },
         measurementWidget: null,
         measurementWidgetList: null,
+        // Positions and branches inside the body are the body's own.
+        stateShift: null,
+        armSites: const [],
+        stateGuard: null,
       );
       final bodyMark = issues.length;
+      _definitionFrames.add((
+        name: name,
+        key: blueprint.classKey,
+        loops: _walk.runtimeLoops.length,
+        builder: _activeWidgetBuilder,
+      ));
       try {
         if (_admitOrdinaryLeaf(blueprint.buildExpression, issues)) {
           final body = _translate(blueprint.buildExpression, issues);
@@ -14852,6 +15550,7 @@ final class ExpressionTranslator {
           };
         }
       } finally {
+        _definitionFrames.removeLast();
         _walk = saved;
       }
       // A body that cannot translate is not inlined; a registered widget is
@@ -14871,6 +15570,19 @@ final class ExpressionTranslator {
     final passThrough = _passThroughs[definitions]?[name];
     if (passThrough != null) definitionStates.remove(name);
     if (passThrough == null && !definitions.containsKey(name)) return '';
+    final holding = _holdingState[definitions] ??= {};
+    final stateful = definitionStates.containsKey(name)
+        ? blueprint.rfwName
+        : holding[name];
+    if (stateful != null) {
+      for (final frame in _definitionFrames) {
+        holding[frame.name] ??= stateful;
+      }
+      if (_stateResetIssue(blueprint, stateful, anchor) case final issue?) {
+        issues.add(issue);
+        return '';
+      }
+    }
     if (emissionIdentity != null) {
       _currentCustomWidgetInlineClaims?.add(emissionIdentity);
     }
@@ -14892,13 +15604,16 @@ final class ExpressionTranslator {
       }
       return values[passThrough];
     }
-    final callArgs = normalizeOptionalChild(
+    final callArgs = _armChecked(
       issues,
-      () => _customWidgetCallArgs(
-        blueprint,
-        args,
+      () => normalizeOptionalChild(
         issues,
-        catalogEntry: catalogEntry,
+        () => _customWidgetCallArgs(
+          blueprint,
+          args,
+          issues,
+          catalogEntry: catalogEntry,
+        ),
       ),
     );
     return switch (callArgs) {
@@ -14906,6 +15621,153 @@ final class ExpressionTranslator {
       AbsentDslEmission() => '$name()',
       RefusedDslEmission() => '',
     };
+  }
+
+  // Why rfw would start the state of [blueprint], or of the [stateful]
+  // widget it places, again where Flutter keeps it; null when it wouldn't.
+  Issue? _stateResetIssue(
+    CustomWidgetBlueprint blueprint,
+    String stateful,
+    Expression anchor,
+  ) {
+    // Without a mount no island can form, so the design delivers as before,
+    // with no notice.
+    if (_islands == null) return null;
+    final key = blueprint.classKey;
+    for (final site in _walk.armSites) {
+      _armLog.add((site.id, site.arm, site.slot, key));
+    }
+    final owner = blueprint.rfwName;
+    final subject = stateful == owner
+        ? "'$owner' keeps its state in the app because it"
+        : "'$stateful' keeps its state in the app because '$owner', which "
+              'places it,';
+    final String cause;
+    final String fix;
+    final shift = _walk.stateShift;
+    if (_repeatedHere() case final repeat?) {
+      cause =
+          'is placed in a $repeat (${_locationOf(anchor)}), where the '
+          'delivered design would start its state again whenever the '
+          '${repeat == 'loop' ? 'data changes' : 'builder runs'}';
+      fix = "placing '$owner' outside the $repeat";
+    } else if (shift != null) {
+      final at = shift.node;
+      cause =
+          'follows `${readableSource(at.toSource())}` (${_locationOf(at)}), '
+          'a ${shift.kind} whose number of widgets can change, and the '
+          'delivered design would start its state again when it does';
+      fix = at is IfElement && at.elseElement == null
+          ? "placing '$owner' before it, or giving the condition an `else` "
+                'that builds one widget'
+          : "placing '$owner' before it";
+    } else if (_walk.stateGuard case final guard?) {
+      cause =
+          'is in a branch of `${readableSource(guard.toSource())}` '
+          '(${_locationOf(guard)}) that the delivered design builds in more '
+          'than one place, so its state would start again whenever a '
+          'different part of the condition decides that branch';
+      fix =
+          'giving the condition a single part, such as one bool the screen '
+          'computes';
+    } else if (_walk.armSites.any(
+      (site) => _forcedArms.contains((site.id, site.slot, key)),
+    )) {
+      // Each branch renders its own copy from the app, so the state still
+      // starts again when the branch changes, as the delivered design's does.
+      final who = stateful == owner
+          ? "'$owner'"
+          : "'$owner', which places '$stateful',";
+      return Issue(
+        code: IssueCode.nestedStateIsland,
+        message:
+            '$who renders from the app because it is placed at the same spot '
+            'in more than one branch of a condition (${_locationOf(anchor)}), '
+            'and its state starts again whenever the condition changes branch. '
+            "Try placing one '$owner' outside the condition and passing it the "
+            'values that change, so it keeps its state.',
+        location: _locationOf(anchor),
+      );
+    } else {
+      return null;
+    }
+    return Issue(
+      code: IssueCode.nestedStateIsland,
+      message: '$subject $cause. Try $fix, if designers should change it.',
+      location: _locationOf(anchor),
+    );
+  }
+
+  // Per declaration class: each widget parameter its body places after a
+  // shifting sibling or in a branch, and where.
+  final Map<String, Map<String, (_StateShift?, List<_ArmSite>, Expression?)>>
+  _paramPlacements = {};
+
+  // Per declaration class: how often its body places each widget parameter.
+  // An argument placed more than once is one island under one key, so it is
+  // never islanded through the parameter.
+  final Map<String, Map<String, Set<String>>> _paramPlacementCounts = {};
+
+  // Notes that the declaration body being translated places its widget
+  // parameter [dsl] where its position or branch can change.
+  void _noteParamPlacement(String dsl, Expression at) {
+    final frame = _definitionFrames.lastOrNull;
+    if (frame != null) {
+      if (_passThroughParam(dsl) case final placed?) {
+        final copies = (_paramPlacementCounts[frame.key] ??= {})[placed] ??= {};
+        // One entry per rendered copy: each unrolled copy of a constant list
+        // is its own, and a loop or builder renders many.
+        final copy =
+            '${_stripParens(at).offset}@'
+            '${[for (final step in _unrolled) step.ordinal].join('.')}';
+        copies.add(copy);
+        if (_repeatedHere() != null) copies.add('$copy+');
+      }
+    }
+    if (frame == null ||
+        (_walk.stateShift == null &&
+            _walk.armSites.isEmpty &&
+            _walk.stateGuard == null)) {
+      return;
+    }
+    final param = _passThroughParam(dsl);
+    if (param == null) return;
+    (_paramPlacements[frame.key] ??= {})[param] = (
+      _walk.stateShift,
+      _walk.armSites,
+      _walk.stateGuard,
+    );
+  }
+
+  // Notes a stateful widget passed as [param] to [holder], which places it
+  // more than once where its position can change: it is delivered there, so
+  // its state starts again when it moves.
+  void _noteRestartWhenMoved(
+    CustomWidgetBlueprint holder,
+    String param,
+    Expression supplied,
+    List<Issue> issues,
+  ) {
+    final moved = _paramPlacements[holder.classKey]?[param];
+    final widget = _stripParens(supplied).staticType?.element;
+    if (moved == null || widget is! ClassElement) return;
+    final placed = customWidgetBlueprints[customWidgetKey(widget)];
+    if (!(placed?.state?.isNotEmpty ?? false)) return;
+    final (shift, _, guard) = moved;
+    final after = shift?.node ?? guard;
+    issues.add(
+      Issue(
+        code: IssueCode.stateRestartsWhenMoved,
+        message:
+            "'${holder.rfwName}' places its `$param` more than once"
+            '${after == null ? ' in branches that can change' : ', after `${readableSource(after.toSource())}`'}, '
+            "so the `${widget.name}` passed to it (${_locationOf(supplied)}) "
+            'starts its state again when '
+            '${after == null ? 'the branch changes' : 'that changes'}. Try '
+            "placing `$param` once in '${holder.rfwName}'.",
+        location: _locationOf(supplied),
+      ),
+    );
   }
 
   // The parameter a translated build [body] returns as is, or null: a
@@ -14932,6 +15794,44 @@ final class ExpressionTranslator {
       }();
 
   final Map<(String, String), String> _definitionNames = {};
+
+  // A callback written in the body of a widget every placement shares is
+  // routed by its spot in that body, as discovery decided.
+  bool _routedPerSpot(Expression callback) {
+    final shared = measurementRouteEmissionPlan?.sharedBodies;
+    if (shared == null || shared.isEmpty) return false;
+    final owner = callback.thisOrAncestorOfType<ClassDeclaration>();
+    final element = owner?.declaredFragment?.element;
+    if (element == null) return false;
+    final widget = element.supertype?.element.name == 'State'
+        ? element.supertype?.typeArguments.firstOrNull?.element
+        : element;
+    return widget is InterfaceElement &&
+        shared.contains(measurementClassIdentity(widget));
+  }
+
+  // Per definitions map: each declaration that places a stateful one, by
+  // name, and the stateful widget's name.
+  final Expando<Map<String, String>> _holdingState = Expando();
+
+  // The declaration bodies being translated, innermost last, with the loops
+  // and builder active where each began.
+  final List<
+    ({String name, String key, int loops, WidgetBuilderLowering? builder})
+  >
+  _definitionFrames = [];
+
+  // 'loop' or 'builder' when the current call site repeats within its own
+  // body: rfw builds a fresh instance there on each rebuild.
+  String? _repeatedHere() {
+    final frame = _definitionFrames.lastOrNull;
+    if (_walk.runtimeLoops.length > (frame?.loops ?? 0)) return 'loop';
+    final builder = _activeWidgetBuilder;
+    if (builder != null && !identical(builder, frame?.builder)) {
+      return 'builder';
+    }
+    return null;
+  }
 
   /// Why the RFW widget name [name] cannot be claimed by the custom widget
   /// [classKey] — a reserved surface root name, or a different catalog widget
@@ -15122,14 +16022,52 @@ final class ExpressionTranslator {
           emitted[param.name] = _coerceParamValue(param, fallback);
         } else {
           final beforeIssues = issues.length;
-          final lowered = _translateParamValue(
-            param,
-            suppliedExpr,
-            issues,
-            property: suppliedProperties[param.name],
-          );
+          // The argument sits where the body places the parameter.
+          final saved = _walk;
+          _walk = _walk.armStep(param.name);
+          final placements =
+              _paramPlacementCounts[blueprint.classKey]?[param.name]?.length ??
+              0;
+          final placed = (placements < 2)
+              ? (_paramPlacements[blueprint.classKey]?[param.name])
+              : null;
+          if (placed case (
+            final shift,
+            final sites,
+            final guard,
+          )) {
+            _walk = _walk.copyWith(
+              stateShift: shift ?? _walk.stateShift,
+              stateGuard: guard ?? _walk.stateGuard,
+              armSites: [
+                ..._walk.armSites,
+                // The argument's own slot step is the parameter's spot.
+                for (final site in sites)
+                  _ArmSite(site.id, site.arm, site.slot, 1),
+              ],
+            );
+          }
+          final String lowered;
+          try {
+            lowered = _translateParamValue(
+              param,
+              suppliedExpr,
+              issues,
+              property: suppliedProperties[param.name],
+            );
+          } finally {
+            _walk = saved;
+          }
           // A refused value emits no argument rather than an empty one.
           if (lowered.isEmpty && issues.length > beforeIssues) continue;
+          if (placements >= 2) {
+            _noteRestartWhenMoved(
+              blueprint,
+              param.name,
+              suppliedExpr,
+              issues,
+            );
+          }
           if (fallback != null &&
               (_isRuntimeMissing(suppliedExpr) ||
                   _lowersToMissableRef(lowered))) {
@@ -15685,32 +16623,78 @@ final class ExpressionTranslator {
     final state = blueprint.state;
     if (state == null) return null;
     final className = blueprint.rfwName;
+    final members =
+        blueprint.buildExpression
+            .thisOrAncestorOfType<ClassDeclaration>()
+            ?.body
+            .members ??
+        const <ClassMember>[];
     for (final field in state) {
       if (field.initialValue == null) {
+        final variable = [
+          for (final member in members.whereType<FieldDeclaration>())
+            ...member.fields.variables,
+        ].firstWhereOrNull((v) => v.name.lexeme == field.name);
+        final location = _locationOf(variable ?? anchor);
+        final start = switch (variable?.initializer) {
+          final initializer? => 'starts from `${initializer.toSource()}`',
+          null => 'has no constant starting value',
+        };
         return Issue(
-          code: IssueCode.stateShapeUnsupported,
+          code: IssueCode.nestedStateIsland,
           message:
-              'State field "${field.name}" in "$className" has an '
-              'initialiser this transpiler increment cannot yet fold to a '
-              'literal. Use a const value like `${_dartTypeHint(field)} '
-              '${field.name} = ${_dartDefaultHint(field)};`.',
+              "'$className' keeps its state in the app: the field "
+              "'${field.name}' ($location) $start, which the delivered design "
+              'cannot set yet. Try starting the field from a constant value, '
+              'if designers should change it.',
           location: _locationOf(anchor),
         );
       }
     }
     // An unrecognised event-handler verdict means the classifier accepted
-    // the widget as composable (any primitive State field qualifies), but the
-    // recogniser found a method body the translator cannot emit. Surface
-    // the diagnostic before any body translation so the failure points at
-    // the specific method shape rather than at a fallback identifier
-    // error.
-    for (final entry in blueprint.eventHandlers.entries) {
-      final verdict = entry.value;
-      if (verdict is SetStateUnrecognised) {
-        return _setStateUnrecognisedIssue(entry.key, verdict.reason, anchor);
+    // the widget as composable, but the translator cannot emit the handler.
+    for (final MapEntry(key: handler, :value)
+        in blueprint.eventHandlers.entries) {
+      if (value case SetStateUnrecognised(:final reason)) {
+        final method = members.whereType<MethodDeclaration>().firstWhereOrNull(
+          (m) => m.name.lexeme == handler,
+        );
+        final location = _locationOf(method ?? anchor);
+        final problem = reason.split(' — ').first;
+        return Issue(
+          code: IssueCode.nestedStateIsland,
+          message:
+              "'$className' keeps its state in the app: '$handler' "
+              "($location) can't be delivered because $problem. Try "
+              '${_setStateFix(reason, handler)}, if designers should change '
+              'it.',
+          location: _locationOf(anchor),
+        );
       }
     }
     return null;
+  }
+
+  // The general fix for an unrecognised setState handler's [reason].
+  static String _setStateFix(String reason, String handler) {
+    const accepted =
+        'one setState(...) call with one assignment of a constant, an enum '
+        'value or `!field`';
+    if (reason.contains('no primitive fields')) {
+      return 'keeping the value it changes in a bool, number, String or '
+          'enum field';
+    }
+    if (reason.contains('single assignment')) {
+      return 'giving each field its own handler with $accepted';
+    }
+    if (reason.contains('rather than')) {
+      return 'setting the field to a constant or `!field` with `=` in $accepted';
+    }
+    if (reason.contains('not a single setState') ||
+        reason.contains('something other than setState')) {
+      return "making '$handler' $accepted, and doing the rest elsewhere";
+    }
+    return 'writing the handler as $accepted';
   }
 
   /// Validates root-source State material before translating the root
@@ -15743,18 +16727,6 @@ final class ExpressionTranslator {
     }
     return null;
   }
-
-  /// Author-facing type hint for the `stateShapeUnsupported` diagnostic's
-  /// remediation example. Numeric fields render as `double`, everything
-  /// else as `bool` — the two most common shapes; the message wording
-  /// elides the rarer int / String / enum forms to stay concise.
-  String _dartTypeHint(CustomWidgetStateField field) =>
-      field.isNumeric ? 'double' : 'bool';
-
-  /// Author-facing default-value hint for the `stateShapeUnsupported`
-  /// diagnostic — `0.0` for numeric, `false` for everything else.
-  String _dartDefaultHint(CustomWidgetStateField field) =>
-      field.isNumeric ? '0.0' : 'false';
 
   /// Emits a `set state.<field> = <value>` event handler from the
   /// classifier-captured [verdict] for the State method named [methodName].
@@ -15797,7 +16769,7 @@ final class ExpressionTranslator {
   /// referenced as an event handler does not match the recognised
   /// single-assignment setState shape. Shared between the emit-time hit
   /// (`_emitSetStateHandler`) and the upfront validation path
-  /// (`_validateStateShape`) so the wording stays in one place.
+  /// (`_validateRootStateShape`) so the wording stays in one place.
   Issue _setStateUnrecognisedIssue(
     String methodName,
     String reason,
@@ -15841,11 +16813,20 @@ final class ExpressionTranslator {
     ConditionalExpression expr,
     List<Issue> issues,
     String Function(Expression) translateBranch,
+  ) => _armChecked(
+    issues,
+    () => _conditionalSwitchArms(expr, issues, translateBranch),
+  );
+
+  String _conditionalSwitchArms(
+    ConditionalExpression expr,
+    List<Issue> issues,
+    String Function(Expression) translateBranch,
   ) {
-    String branch(Expression value) => _inConditionalBranch(
+    String branch(Expression value) => _inArm(
       expr,
-      value,
-      () => translateBranch(value),
+      value.offset,
+      () => _inConditionalBranch(expr, value, () => translateBranch(value)),
     );
     final builder = _activeWidgetBuilder;
     if (builder != null) {
@@ -15884,6 +16865,48 @@ final class ExpressionTranslator {
     refused |= _diagnosedEmpty(elseDsl, issues, beforeElse);
     if (refused) return '';
     return _switchDsl(cond, [('true', thenDsl), ('false', elseDsl)]);
+  }
+
+  /// Translates one branch [arm] of the emitted switch [id].
+  T _inArm<T>(Object id, int arm, T Function() translate) {
+    final saved = _walk;
+    _walk = _walk.copyWith(armSites: [..._walk.armSites, _ArmSite(id, arm)]);
+    try {
+      return translate();
+    } finally {
+      _walk = saved;
+    }
+  }
+
+  // Each stateful placement in a branch: the switch, branch, slot and class.
+  final List<(Object, int, String, String)> _armLog = [];
+
+  // The switches, slots and classes whose branches place one stateful class
+  // at one slot: rfw starts that state again when the branch changes.
+  final Set<(Object, String, String)> _forcedArms = {};
+
+  /// Translates the branches of one or more switches; when two branches
+  /// place one stateful class at one slot, translates them again with that
+  /// placement kept in the app.
+  T _armChecked<T>(List<Issue> issues, T Function() translate) {
+    final logMark = _armLog.length;
+    final issueMark = issues.length;
+    final restore = _checkpoint();
+    final result = translate();
+    final first = <(Object, String, String), int>{};
+    final shared = <(Object, String, String)>{};
+    for (final (id, arm, slot, key) in _armLog.skip(logMark)) {
+      if (first.putIfAbsent((id, slot, key), () => arm) != arm) {
+        shared.add((id, slot, key));
+      }
+    }
+    shared.removeAll(_forcedArms);
+    if (shared.isEmpty) return result;
+    restore();
+    issues.removeRange(issueMark, issues.length);
+    _armLog.length = logMark;
+    _forcedArms.addAll(shared);
+    return translate();
   }
 
   /// Translates the [index]th path of a build with several with the
@@ -16240,13 +17263,41 @@ final class ExpressionTranslator {
     if (lowering == null) return null;
     issues.addAll(conditionIssues);
     final beforeThen = issues.length;
-    final thenDsl = branch(expr.thenExpression);
+    final thenDsl = _copiedUnder(
+      expr.condition,
+      _copiesBranch(lowering, then: true),
+      () => branch(expr.thenExpression),
+    );
     var refused = _diagnosedEmpty(thenDsl, issues, beforeThen);
     final beforeElse = issues.length;
-    final elseDsl = branch(expr.elseExpression);
+    final elseDsl = _copiedUnder(
+      expr.condition,
+      _copiesBranch(lowering, then: false),
+      () => branch(expr.elseExpression),
+    );
     refused |= _diagnosedEmpty(elseDsl, issues, beforeElse);
     if (refused) return '';
     return lowering(thenDsl, elseDsl);
+  }
+
+  // Whether [lowering] emits its true branch, or with [then] false its false
+  // branch, more than once: rfw rebinds such a copy when another part of the
+  // condition starts deciding.
+  static bool _copiesBranch(_ConditionLowering lowering, {required bool then}) {
+    final marker = then ? '\u0001T' : '\u0001F';
+    return marker.allMatches(lowering('\u0001T', '\u0001F')).length > 1;
+  }
+
+  // Runs [translate] with [condition] as the guard of a copied branch.
+  T _copiedUnder<T>(Expression condition, bool copied, T Function() translate) {
+    if (!copied) return translate();
+    final saved = _walk;
+    _walk = _walk.copyWith(stateGuard: condition);
+    try {
+      return translate();
+    } finally {
+      _walk = saved;
+    }
   }
 
   bool _isComposedCondition(Expression cond) {
@@ -17252,6 +18303,9 @@ final class ExpressionTranslator {
         ? null
         : measurementRouteEmissionPlan?.markerFor(eventOccurrence);
     final saved = _walk;
+    if (type == PropertyType.widget || type == PropertyType.widgetList) {
+      _walk = _walk.armStep(property?.name ?? sourceParameter?.name ?? '');
+    }
     if (widgetOccurrence != null && sourceParameter != null) {
       if (type == PropertyType.widget) {
         _walk = _walk.copyWith(
@@ -17322,6 +18376,7 @@ final class ExpressionTranslator {
         .any((issue) => issue.code == IssueCode.propertyValueTypeMismatch)) {
       return '';
     }
+    if (type == PropertyType.widget) _noteParamPlacement(value, expr);
     if (type != PropertyType.event) return value;
     if (value.isEmpty) {
       if (marker != null) {
@@ -17500,6 +18555,80 @@ final class ExpressionTranslator {
               ),
             );
             return '';
+          }
+        }
+        // An action whose arguments read design state calls the app's
+        // callback with values the payload evaluates.
+        if (reference == null &&
+            _islands != null &&
+            _splitsAction(expression)) {
+          final split = <Issue>[];
+          _splitRefusal = null;
+          _splittingAction = true;
+          try {
+            reference = _tryNativeCallValue(
+              expression as FunctionExpression,
+              split,
+              type: kNativeVoidCallbackType,
+            );
+          } on BuilderLoweringException catch (error) {
+            reference = null;
+            final source = readableSource(_writtenSource(error.node));
+            final read = switch (error.node) {
+              SimpleIdentifier(:final element) => element,
+              PropertyAccess(:final propertyName) => propertyName.element,
+              _ => null,
+            };
+            // The argument of the callback itself, not of a call inside it.
+            AstNode? argument;
+            for (AstNode? node = error.node; node != null; node = node.parent) {
+              if (node.parent is ArgumentList) argument = node;
+              if (node is FunctionExpression) break;
+            }
+            _splitRefusal ??=
+                read != null &&
+                    (_islands?.isDesignStateMember(read) ?? false) &&
+                    argument != null
+                ? (
+                    node: error.node,
+                    problem:
+                        'the callback works out '
+                        '`${readableSource(_writtenSource(argument))}` from '
+                        '`$source` in your app\'s code, which the design '
+                        "can't do",
+                    fix:
+                        _fieldTypeFix(source, switch (read) {
+                          PropertyAccessorElement(:final returnType) =>
+                            returnType,
+                          VariableElement(:final type) => type,
+                          _ => null,
+                        }) ??
+                        'passing a bool, int, double or String State field, '
+                            'or choosing between values with `?:`, as in '
+                            "`annualSelected ? 'annual' : 'monthly'`",
+                  )
+                : (
+                    node: error.node,
+                    problem:
+                        'the callback reads `$source`, which is neither a '
+                        'State field, a constant nor a field of the widget, so '
+                        "the design can't pass it",
+                    fix:
+                        'passing only State fields, constants and widget '
+                        'fields, and working out the rest inside your '
+                        'callback',
+                  );
+          } finally {
+            _splittingAction = false;
+          }
+          if (reference != null) {
+            native.addAll(split);
+          } else if (_splitRefusal case (
+            :final node,
+            :final problem,
+            :final fix,
+          )) {
+            _designMiss(node, problem, fix);
           }
         }
         if (reference != null) {
@@ -19781,6 +20910,7 @@ final class ExpressionTranslator {
     }
     final analysis = hoist.analyzer.analyze(stripped);
     if (analysis is! HoistEvaluable) return null;
+    if (_designStateRead(stripped) != null) return null;
     return _hoistedRead(
       hoist.add(
         analysis.value(
@@ -20999,6 +22129,9 @@ final class _WalkContext {
     required this.measurementWidget,
     required this.measurementWidgetList,
     required this.islandScope,
+    this.stateShift,
+    this.armSites = const [],
+    this.stateGuard,
   });
 
   /// The initial root state — matches the pre-bundle field defaults. Not
@@ -21021,7 +22154,10 @@ final class _WalkContext {
       measurementScope = null,
       measurementWidget = null,
       measurementWidgetList = null,
-      islandScope = const [];
+      islandScope = const [],
+      stateShift = null,
+      armSites = const [],
+      stateGuard = null;
 
   /// Constructor parameters keyed by fields read in a custom-widget body.
   /// Empty for root paywalls. Bare names lower to `args`; `widget.X` also lowers
@@ -21113,6 +22249,17 @@ final class _WalkContext {
   /// Helper calls and unrolled iterations from the surface's build.
   final List<String> islandScope;
 
+  /// The earlier element of an enclosing emitted list whose number of
+  /// widgets can change, moving everything after it.
+  final _StateShift? stateShift;
+
+  /// The branches of emitted switches being translated, outermost first.
+  final List<_ArmSite> armSites;
+
+  /// The `&&` or `||` condition guarding this element, whose emitted guard
+  /// rebinds the element when its first part changes.
+  final Expression? stateGuard;
+
   /// Returns a copy with the named fields replaced. Omitted fields keep their
   /// current value (shared by reference). The four nullable fields use the
   /// [_kWalkUnset] sentinel so a caller can set them to null.
@@ -21134,6 +22281,9 @@ final class _WalkContext {
     Object? measurementWidget = _kWalkUnset,
     Object? measurementWidgetList = _kWalkUnset,
     List<String>? islandScope,
+    Object? stateShift = _kWalkUnset,
+    List<_ArmSite>? armSites,
+    Object? stateGuard = _kWalkUnset,
   }) {
     return _WalkContext(
       argNames: argNames ?? this.argNames,
@@ -21168,8 +22318,47 @@ final class _WalkContext {
           ? this.measurementWidgetList
           : measurementWidgetList as MeasurementWidgetListOccurrence?,
       islandScope: islandScope ?? this.islandScope,
+      stateShift: identical(stateShift, _kWalkUnset)
+          ? this.stateShift
+          : stateShift as _StateShift?,
+      armSites: armSites ?? this.armSites,
+      stateGuard: identical(stateGuard, _kWalkUnset)
+          ? this.stateGuard
+          : stateGuard as Expression?,
     );
   }
+
+  /// This walk one step further into each enclosing branch.
+  _WalkContext armStep(String step) => armSites.isEmpty
+      ? this
+      : copyWith(armSites: [for (final site in armSites) site.at(step)]);
+}
+
+/// A list element whose number of widgets changes at run time.
+final class _StateShift {
+  const _StateShift(this.node, this.kind);
+
+  final AstNode node;
+
+  /// 'loop', 'spread' or 'condition'.
+  final String kind;
+}
+
+/// One branch of an emitted switch, and the slot reached inside it.
+final class _ArmSite {
+  const _ArmSite(this.id, this.arm, [this.slot = '', this.skip = 0]);
+
+  final Object id;
+  final int arm;
+  final String slot;
+
+  /// Steps still to pass before this slot path grows: the steps into an
+  /// argument a declaration body places.
+  final int skip;
+
+  _ArmSite at(String step) => skip > 0
+      ? _ArmSite(id, arm, slot, skip - 1)
+      : _ArmSite(id, arm, '$slot/$step');
 }
 
 final class _RuntimeLoopBinding {
@@ -21707,7 +22896,26 @@ final class _IslandSession {
     this.surface, {
     required this.contentFree,
     this.stateless,
+    this.designOwnsState = false,
   });
+
+  /// Whether the design keeps the State, so only the recorded copy reads it.
+  final bool designOwnsState;
+
+  /// Whether the recorded copy is being written.
+  bool recording = false;
+
+  /// Whether an analysis asks what the mount can compute without the State
+  /// the design owns.
+  bool probing = false;
+
+  /// Why the mount would depend on design state, which keeps State in the app.
+  Issue? designMiss;
+
+  /// Whether [element] is a member of the lifted State that the app declares,
+  /// which the design owns while it keeps the State.
+  bool isDesignStateMember(Element element) =>
+      liftedState != null && isDesignStateMemberOf(liftedState!, element);
 
   /// Which root builders run once per build, so the mount can keep them.
   final ContentFreeBuilders contentFree;
@@ -21814,7 +23022,8 @@ final class _IslandSession {
 
   // A lifted State's members, inherited ones too.
   bool inMountScope(Element element) =>
-      scope.contains(element.baseElement) || isStateMember(element);
+      scope.contains(element.baseElement) ||
+      isStateMember(element) && !(probing && isDesignStateMember(element));
 
   /// Whether [element] is an instance member of the lifted State or of one
   /// of its supertypes.
@@ -22101,3 +23310,7 @@ final class _IdentifierVisitor extends RecursiveAstVisitor<void> {
   @override
   void visitSimpleIdentifier(SimpleIdentifier node) => onIdentifier(node);
 }
+
+/// What the mount records at a site: a value, an app widget, a wrapper, or
+/// which widget a build returns.
+enum _Recorded { value, widget, wrapper, branch }

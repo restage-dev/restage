@@ -458,7 +458,8 @@ class P {
   for (final call in {
     '(null as Other).items()': false,
     'Other().items()': false,
-    'this.items()': false,
+    // `this.items()` is the same helper call as `items()`.
+    'this.items()': true,
     'items()': true,
     'Other.staticItems()': true,
     'topItems()': true,
@@ -524,9 +525,6 @@ class P extends StatelessWidget {
           {
             '(null as Other).items()': ['P.build/Column#0'],
             'Other().items()': ['P.build/Column#0'],
-            // `this` reads the surface instance, so the list renders from
-            // the app.
-            'this.items()': ['P.build/Column#0'],
           }[call.key],
         );
         expect(result.dsl, isNot(contains('Text(text: "other")')));

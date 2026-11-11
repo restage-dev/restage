@@ -647,6 +647,13 @@ final class _CollectionSemanticWalk {
 
 /// Callback identity shared by every semantic leaf in one source artifact.
 final class CollectionSemanticTraversalSession {
+  /// Creates a session. [admitsPlacedReuse] admits a callback reached from
+  /// more than one placement when its owner routes each placement's tap.
+  CollectionSemanticTraversalSession({this.admitsPlacedReuse});
+
+  /// Whether a reused callback is routed per placement by its owner.
+  final bool Function(Expression callback)? admitsPlacedReuse;
+
   final Map<Expression, CollectionSemanticOccurrence>
   _firstOccurrenceByCallbackSource =
       HashMap<Expression, CollectionSemanticOccurrence>.identity();
@@ -657,7 +664,7 @@ final class CollectionSemanticTraversalSession {
 
   /// A copy that later admissions on this session do not change.
   CollectionSemanticTraversalSession copy() =>
-      CollectionSemanticTraversalSession()
+      CollectionSemanticTraversalSession(admitsPlacedReuse: admitsPlacedReuse)
         .._firstOccurrenceByCallbackSource.addAll(
           _firstOccurrenceByCallbackSource,
         )
@@ -765,6 +772,7 @@ final class CollectionSemanticTraversalSession {
       _firstOccurrenceByCallbackSource[callback.source] = occurrence;
       return null;
     }
+    if (admitsPlacedReuse?.call(callback.source) ?? false) return null;
     return CollectionUnrollRefused(
       reason: CollectionUnrollRefusal.callbackSourceReused,
       detail: _kCallbackSourceReusedDetail,

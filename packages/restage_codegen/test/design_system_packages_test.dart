@@ -21,6 +21,7 @@ import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
+import 'shared_resolvers.dart';
 
 const _app = 'apps_examples';
 const _design = 'acme_design_system';
@@ -705,7 +706,7 @@ dependencies:
           checkBuilderFreshness: false,
           forceToPackagePathsForTesting: true,
           readerWriter: readerWriter,
-          resolvers: runner.ResolversImpl.custom(),
+          resolvers: SummaryReadyResolvers(),
         ),
       ),
     );

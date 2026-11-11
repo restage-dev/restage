@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage_example/demo_event_feedback.dart';
 import 'package:restage_example/example_viewer.dart';
 import 'package:restage_example/main.dart' show RestageExampleApp;
+import 'package:restage_example/paywalls/ascend_premium.dart';
 import 'package:restage_example/paywalls/fluent_pro.dart';
 import 'package:restage_example/paywalls/narrate_membership.dart';
 import 'package:restage_example/paywalls/pulse_premium.dart';
@@ -68,6 +69,42 @@ Uint8List _encodePaywall(String paywallId) => _blobCache.putIfAbsent(
       ),
     );
 
+/// Mounts the delivered [id]. A paywall that calls the app's callbacks is
+/// mounted through its generated widget, and each call reaches [onEvent] as
+/// the custom event it replaced, with the same arguments.
+Widget _delivered(
+  String id, {
+  VariantResolver? resolver,
+  ValueChanged<RestageEvent>? onEvent,
+}) {
+  void call(String name, [Map<String, Object?> args = const {}]) =>
+      onEvent?.call(
+        PaywallCustomEvent(paywallId: id, eventName: name, args: args),
+      );
+  return switch (id) {
+    'pulse_premium' => PulsePremiumPaywallSurface(
+        resolver: resolver,
+        onEvent: onEvent,
+        onContinue: (tier, term) =>
+            call('continue', {'tier': tier, 'term': term}),
+        onClose: () => call('close'),
+      ),
+    'sentinel_protection' => SentinelProtectionPaywallSurface(
+        resolver: resolver,
+        onEvent: onEvent,
+        onContinue: (plan) => call('continue', {'plan': plan}),
+        onClose: () => call('close'),
+      ),
+    'ascend_premium' => AscendPremiumPaywallSurface(
+        resolver: resolver,
+        onEvent: onEvent,
+        onContinue: (term) => call('continue', {'term': term}),
+        onClose: () => call('close'),
+      ),
+    _ => RestagePaywall(id: id, resolver: resolver, onEvent: onEvent),
+  };
+}
+
 /// The example app's seed color — shared by every test that builds an
 /// indigo-seeded scheme so the tests judge a single, consistent theme.
 const _kExampleSeed = Colors.indigo;
@@ -95,8 +132,8 @@ Future<List<RestageEvent>> _pumpInteractivePaywall(
     MaterialApp(
       theme: _exampleTheme(Brightness.dark),
       home: Scaffold(
-        body: RestagePaywall(
-          id: paywallId,
+        body: _delivered(
+          paywallId,
           resolver: _StaticResolver(bytes),
           onEvent: events.add,
         ),
@@ -296,8 +333,8 @@ void main() {
     testWidgets(
         'default asset resolver loads the committed blob from rootBundle',
         (tester) async {
-      // The gallery's bundled tiles mount RestagePaywall(id:) with no
-      // explicit resolver, falling back to the configured default — here
+      // The gallery's bundled tiles mount with no explicit resolver, falling
+      // back to the configured default — here
       // AssetVariantResolver (set in setUp), which loads
       // assets/paywalls/<id>.rfw from rootBundle. Pinning that path (rather
       // than the _StaticResolver the other tests use) confirms the
@@ -306,7 +343,7 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
-            body: RestagePaywall(id: 'pulse_premium'),
+            body: PulsePremiumPaywallSurface(),
           ),
         ),
       );
@@ -379,8 +416,8 @@ void main() {
       final failures = <PaywallLoadFailed>[];
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
-          body: RestagePaywall(
-            id: 'sentinel_protection',
+          body: _delivered(
+            'sentinel_protection',
             resolver: _StaticResolver(bytes),
             onEvent: (e) {
               if (e is PaywallLoadFailed) failures.add(e);
@@ -524,8 +561,8 @@ void main() {
         MaterialApp(
           theme: _exampleTheme(brightness),
           home: Scaffold(
-            body: RestagePaywall(
-              id: id,
+            body: _delivered(
+              id,
               resolver: _StaticResolver(bytes),
               onEvent: (e) {
                 if (e is PaywallLoadFailed) failures.add(e);
@@ -733,8 +770,8 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         theme: _exampleTheme(Brightness.light),
         home: Scaffold(
-          body: RestagePaywall(
-            id: id,
+          body: _delivered(
+            id,
             resolver: _StaticResolver(_encodePaywall(id)),
             onEvent: (e) {
               if (e is PaywallLoadFailed) failures.add(e);

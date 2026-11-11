@@ -547,6 +547,7 @@ final class BuilderExpressionLowering {
     Expression expression, {
     required ValueType resultType,
     InstalledNativeInput? Function(SimpleIdentifier)? borrow,
+    InstalledNativeInput? Function(Expression)? inputOf,
     bool Function(Expression)? isBorrowedCallable,
     Map<Expression, String?> constantStrings = const {},
     LibraryElement? emissionLibrary,
@@ -556,6 +557,7 @@ final class BuilderExpressionLowering {
       expression,
       resultType: resultType,
       borrowFor: borrow,
+      inputOf: inputOf,
       isDeclaredCallable: (reference) =>
           reference is SimpleIdentifier &&
               _hasNativeCallableBinding(reference.element) ||

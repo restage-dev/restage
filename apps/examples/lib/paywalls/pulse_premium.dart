@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+part 'restage.generated/pulse_premium.restage.g.dart';
+
 /// A dark paywall with a three-way tier strip, a scrolling feature list, two
 /// side-by-side plan cards, and a Terms / Privacy row.
 ///
@@ -11,12 +13,21 @@ import 'package:restage/restage.dart';
 /// legal line is styled only; the Terms / Privacy row handles the taps.
 @Paywall()
 class PulsePremiumPaywall extends StatefulWidget {
-  static const close = SurfaceEvent<void>('close');
-  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
-  static const termsOfService = SurfaceEvent<void>('terms_of_service');
-  static const privacyPolicy = SurfaceEvent<void>('privacy_policy');
+  const PulsePremiumPaywall(
+      {super.key, this.onContinue, this.onClose, this.onTerms, this.onPrivacy});
 
-  const PulsePremiumPaywall({super.key});
+  /// Subscribes to the selected tier and term: `'basic'`, `'premium'` or
+  /// `'premium_plus'`, and `'annual'` or `'monthly'`.
+  final void Function(String tier, String term)? onContinue;
+
+  /// Closes the paywall.
+  final VoidCallback? onClose;
+
+  /// Opens the terms of service.
+  final VoidCallback? onTerms;
+
+  /// Opens the privacy policy.
+  final VoidCallback? onPrivacy;
 
   @override
   State<PulsePremiumPaywall> createState() => _PulsePremiumPaywallState();
@@ -57,8 +68,7 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
                       Row(
                         children: [
                           GestureDetector(
-                            onTap:
-                                context.surfaceEvent(PulsePremiumPaywall.close),
+                            onTap: widget.onClose,
                             child: const Icon(
                               Icons.close_rounded,
                               color: Color(0xFFE6E6F0),
@@ -1000,16 +1010,13 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
               const SizedBox(height: 12),
               // Continue CTA — violet pill.
               GestureDetector(
-                onTap: context.surfaceEvent(
-                  PulsePremiumPaywall.continueFlow,
-                  {
-                    'tier': selectedTier == 0
-                        ? 'basic'
-                        : selectedTier == 1
-                            ? 'premium'
-                            : 'premium_plus',
-                    'term': annualSelected ? 'annual' : 'monthly',
-                  },
+                onTap: () => widget.onContinue?.call(
+                  selectedTier == 0
+                      ? 'basic'
+                      : selectedTier == 1
+                          ? 'premium'
+                          : 'premium_plus',
+                  annualSelected ? 'annual' : 'monthly',
                 ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 15),
@@ -1070,8 +1077,7 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   TextButton(
-                    onPressed: context
-                        .surfaceEvent(PulsePremiumPaywall.termsOfService),
+                    onPressed: widget.onTerms,
                     child: const Text(
                       'Terms',
                       style: TextStyle(color: Color(0xFF7B61FF), fontSize: 11),
@@ -1082,8 +1088,7 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
                     style: TextStyle(color: Color(0xFF6B6B78)),
                   ),
                   TextButton(
-                    onPressed:
-                        context.surfaceEvent(PulsePremiumPaywall.privacyPolicy),
+                    onPressed: widget.onPrivacy,
                     child: const Text(
                       'Privacy',
                       style: TextStyle(color: Color(0xFF7B61FF), fontSize: 11),

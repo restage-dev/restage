@@ -4545,8 +4545,75 @@ Object x() => AcmeExpander();
       expect(switchNode.outputs.keys, containsAll([true, false]));
     });
 
+    test('without a mount, a stateful widget in two branches is delivered '
+        'as before', () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class GestureDetector extends StatelessWidget {
+  const GestureDetector({this.onTap, this.child});
+  final void Function()? onTap;
+  final Widget? child;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Box extends StatelessWidget {
+  const Box({this.label});
+  final String? label;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'Lamp',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'lamp',
+)
+class Lamp extends StatefulWidget {
+  const Lamp({this.label = ''});
+  final String label;
+  _LampState createState() => _LampState();
+}
+
+class _LampState extends State<Lamp> {
+  bool on = false;
+  void flip() => setState(() => on = !on);
+  Widget build(BuildContext context) =>
+      GestureDetector(onTap: flip, child: Box(label: widget.label));
+}
+
+@RestageWidget(
+  name: 'AcmeSwitcher',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'switcher',
+)
+class AcmeSwitcher extends StatelessWidget {
+  const AcmeSwitcher({this.first = false});
+  final bool first;
+  Widget build(BuildContext context) =>
+      first ? Lamp(label: 'a') : Lamp(label: 'b');
+}
+
+Object x() => AcmeSwitcher();
+''',
+        catalogWith([
+          _entry('GestureDetector', [
+            prop('onTap', PropertyType.event),
+            prop('child', PropertyType.widget),
+          ]),
+          _entry('Box', [prop('label', PropertyType.string)]),
+        ]),
+      );
+
+      expect(result.issues, isEmpty);
+      final decoded = result.decoded!;
+      expect(decoded.widgets.map((w) => w.name), contains('Lamp'));
+    });
+
     test('a stateful widget with a non-foldable State initialiser produces a '
-        'stateShapeUnsupported diagnostic, no blob emitted', () async {
+        'nestedStateIsland diagnostic, no blob emitted', () async {
       final result = await _transpile(
         '''
 $kClassifierStubs
@@ -4586,16 +4653,16 @@ Object x() => AcmeBad();
 
       expect(result.decoded, isNull);
       expect(
-        result.issues.any((i) => i.code == IssueCode.stateShapeUnsupported),
+        result.issues.any((i) => i.code == IssueCode.nestedStateIsland),
         isTrue,
         reason:
             'a non-foldable State initialiser must diagnose '
-            'stateShapeUnsupported',
+            'nestedStateIsland',
       );
     });
 
     test('a stateful widget with an unrecognised setState body produces a '
-        'stateShapeUnsupported diagnostic, no blob emitted', () async {
+        'nestedStateIsland diagnostic, no blob emitted', () async {
       final result = await _transpile(
         '''
 $kClassifierStubs
@@ -4637,7 +4704,7 @@ Object x() => AcmeWeird();
 
       expect(result.decoded, isNull);
       expect(
-        result.issues.any((i) => i.code == IssueCode.stateShapeUnsupported),
+        result.issues.any((i) => i.code == IssueCode.nestedStateIsland),
         isTrue,
       );
     });
@@ -4705,10 +4772,8 @@ Object x() => AcmeScale();
         // `DoubleLiteral` finite filter, `1e400` folded to Infinity and was
         // emitted as the bare token `set state.scale = Infinity` — which is not a
         // representable RFW value. The filter makes it fold to null
-        // (captured-but-unfoldable), so the state shape defers loud via
-        // `stateShapeUnsupported` and NO blob is emitted. (The state-path keeps
-        // the generic-but-loud code by design; the precise code is the
-        // slot-path's, not this one's.)
+        // (captured-but-unfoldable), so the widget keeps its state in the app
+        // and NO blob is emitted.
         final result = await _transpile(
           '''
 $kClassifierStubs
@@ -4752,17 +4817,17 @@ Object x() => AcmeNonFiniteState();
               'carrying a bare Infinity token',
         );
         expect(
-          result.issues.any((i) => i.code == IssueCode.stateShapeUnsupported),
+          result.issues.any((i) => i.code == IssueCode.nestedStateIsland),
           isTrue,
           reason:
               'a non-finite (1e400) State-field initialiser folds to null and '
-              'must defer loud via stateShapeUnsupported, never a bare Infinity',
+              'must defer loud via nestedStateIsland, never a bare Infinity',
         );
       },
     );
 
     test('a `widget.X` method tear-off on the StatefulWidget side surfaces a '
-        'stateShapeUnsupported diagnostic, no blob emitted', () async {
+        'nestedStateIsland diagnostic, no blob emitted', () async {
       final result = await _transpile(
         '''
 $kClassifierStubs
@@ -4800,16 +4865,16 @@ Object x() => AcmeMixed();
 
       expect(result.decoded, isNull);
       expect(
-        result.issues.any((i) => i.code == IssueCode.stateShapeUnsupported),
+        result.issues.any((i) => i.code == IssueCode.nestedStateIsland),
         isTrue,
         reason:
             'a method tear-off on the StatefulWidget side is not a '
-            'setState handler — must diagnose stateShapeUnsupported',
+            'setState handler — must diagnose nestedStateIsland',
       );
     });
 
     test('a State method that both mutates state and invokes a callback defers '
-        'with stateShapeUnsupported', () async {
+        'with nestedStateIsland', () async {
       // A multi-statement handler cannot lower as a single state update.
       final result = await _transpile(
         '''
@@ -4858,7 +4923,7 @@ Object x() => AcmeSelectAndBuy();
         reason: 'a combined state-and-callback handler must not emit a blob',
       );
       expect(
-        result.issues.any((i) => i.code == IssueCode.stateShapeUnsupported),
+        result.issues.any((i) => i.code == IssueCode.nestedStateIsland),
         isTrue,
         reason: 'the combined body is not a single setState and must defer',
       );

@@ -31,8 +31,8 @@ void reportAuthoringRefusal({
       'content in `InheritedTheme.capture(from: context, to: '
       'Navigator.of(context).context).wrap(...)`, with the context that '
       "pushes it. A paywall's next screen that its delivered design shows "
-      'needs no change: a coming Restage compiler change carries its '
-      "events in the app's own copy.";
+      'keeps its push: try mounting the paywall with its generated '
+      "`<Paywall>Surface`, whose copy carries the screen's events.";
   const contextHint = ' Try calling `context.surfaceEvent(...)` with the '
       'context of the widget that builds the button, inside the surface that '
       'handles the event.';

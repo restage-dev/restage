@@ -70,6 +70,7 @@ final class MeasurementRouteEmissionPlan {
   factory MeasurementRouteEmissionPlan(
     Iterable<MeasurementRouteEmissionBinding> bindings, {
     String? sourceRootIdentity,
+    Set<String> sharedBodies = const {},
   }) {
     final markerByOccurrence = <MeasurementEventOccurrence, String>{};
     final refs = <String>{};
@@ -99,6 +100,7 @@ final class MeasurementRouteEmissionPlan {
     }
     return MeasurementRouteEmissionPlan._(
       markerByOccurrence,
+      Set.unmodifiable(sharedBodies),
       sourceRootIdentity == null
           ? null
           : MeasurementOccurrenceScope.root(sourceRootIdentity),
@@ -107,6 +109,7 @@ final class MeasurementRouteEmissionPlan {
 
   const MeasurementRouteEmissionPlan._(
     this._markerByOccurrence,
+    this.sharedBodies,
     this.rootScope,
   );
 
@@ -174,10 +177,15 @@ final class MeasurementRouteEmissionPlan {
     return MeasurementRouteEmissionPlan(
       bindings,
       sourceRootIdentity: discovery.sourceProvenance?.resolvedSourceIdentity,
+      sharedBodies: discovery.sharedBodies,
     );
   }
 
   final Map<MeasurementEventOccurrence, String> _markerByOccurrence;
+
+  /// The inlined widgets, by class identity, whose body every placement
+  /// shares; the translator enters each with its definition-keyed scope.
+  final Set<String> sharedBodies;
 
   /// Structural source scope used to begin translation.
   final MeasurementOccurrenceScope? rootScope;

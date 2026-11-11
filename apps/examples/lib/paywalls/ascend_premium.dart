@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+part 'restage.generated/ascend_premium.restage.g.dart';
+
 /// A free-trial paywall with a trial timeline and a bottom sheet.
 ///
 /// The "Start free trial" footer opens the sheet with an ordinary
@@ -10,10 +12,13 @@ import 'package:restage/restage.dart';
 /// uses fixed brand colors. Prices are illustrative.
 @Paywall()
 class AscendPremiumPaywall extends StatefulWidget {
-  static const close = SurfaceEvent<void>('close');
-  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+  const AscendPremiumPaywall({super.key, this.onContinue, this.onClose});
 
-  const AscendPremiumPaywall({super.key});
+  /// Starts the trial on the selected plan: `'annual'` or `'monthly'`.
+  final ValueChanged<String>? onContinue;
+
+  /// Closes the paywall.
+  final VoidCallback? onClose;
 
   @override
   State<AscendPremiumPaywall> createState() => _AscendPremiumPaywallState();
@@ -70,8 +75,7 @@ class _AscendPremiumPaywallState extends State<AscendPremiumPaywall> {
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               GestureDetector(
-                                onTap: context
-                                    .surfaceEvent(AscendPremiumPaywall.close),
+                                onTap: widget.onClose,
                                 child: Container(
                                   width: 36,
                                   height: 36,
@@ -773,12 +777,8 @@ class _AscendPremiumPaywallState extends State<AscendPremiumPaywall> {
                             // Pinned last so it stays at the sheet bottom as the
                             // expanded card grows the sheet.
                             GestureDetector(
-                              onTap: context.surfaceEvent(
-                                AscendPremiumPaywall.continueFlow,
-                                {
-                                  'term': annualSelected ? 'annual' : 'monthly',
-                                },
-                              ),
+                              onTap: () => widget.onContinue
+                                  ?.call(annualSelected ? 'annual' : 'monthly'),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 16,

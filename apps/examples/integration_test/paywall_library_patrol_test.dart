@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:patrol/patrol.dart';
 import 'package:restage/restage.dart';
+import 'package:restage_example/paywalls/ascend_premium.dart';
+import 'package:restage_example/paywalls/pulse_premium.dart';
 import 'package:restage_example/user_factories.g.dart';
 
 /// Proof-slice integration test for the recreated-paywall library's interactive
@@ -47,26 +49,10 @@ ThemeData _theme(Brightness brightness) => ThemeData(
 
 /// Delivered-blob render of [id], loaded from the bundled asset via the default
 /// resolver.
-Widget _delivered(
-  String id,
-  Brightness brightness,
-  void Function(RestageEvent) onEvent,
-) =>
-    MaterialApp(
+Widget _delivered(Widget paywall, Brightness brightness) => MaterialApp(
       theme: _theme(brightness),
-      home: Scaffold(
-        body: RestagePaywall(id: id, onEvent: onEvent),
-      ),
+      home: Scaffold(body: paywall),
     );
-
-Map<String, Object?>? _lastContinueArgs(List<RestageEvent> events) {
-  final actions = events
-      .whereType<PaywallCustomEvent>()
-      .where((event) => event.eventName == 'continue')
-      .map((event) => event.args)
-      .toList();
-  return actions.isEmpty ? null : actions.last;
-}
 
 void main() {
   patrolTest(
@@ -80,9 +66,14 @@ void main() {
       registerRestageWidgets();
 
       // ---- pulse_premium: dark, tri-state tier strip + monthly/annual plan ----
-      final pulse = <RestageEvent>[];
+      final pulse = <(String, String)>[];
       await $.pumpWidgetAndSettle(
-        _delivered('pulse_premium', Brightness.dark, pulse.add),
+        _delivered(
+          PulsePremiumPaywallSurface(
+            onContinue: (tier, term) => pulse.add((tier, term)),
+          ),
+          Brightness.dark,
+        ),
       );
       await $('Pulse').waitUntilVisible();
       await Future<void>.delayed(_dwell); // initial: Premium tier, monthly plan
@@ -101,14 +92,17 @@ void main() {
       await Future<void>.delayed(_dwell);
       await $('Subscribe & pay').tap();
       await $.pumpAndSettle();
-      expect(_lastContinueArgs(pulse), {'tier': 'basic', 'term': 'annual'});
+      expect(pulse.last, ('basic', 'annual'));
 
       // ---- Ascend trial paywall: light, trial-timeline → rising plan sheet ----
       // The delivered blob: a single screen whose footer opens a real modal
       // sheet (the lowered showModalBottomSheet → RestageModalSheet).
-      final ascend = <RestageEvent>[];
+      final ascend = <String>[];
       await $.pumpWidgetAndSettle(
-        _delivered('ascend_premium', Brightness.light, ascend.add),
+        _delivered(
+          AscendPremiumPaywallSurface(onContinue: ascend.add),
+          Brightness.light,
+        ),
       );
       // State 1 — the trial timeline, footer pinned, no scrim.
       await $("Try the very best of Ascend. First month's on us.")
@@ -136,7 +130,7 @@ void main() {
       await Future<void>.delayed(_dwell);
       await $(BottomSheet).$('Start free trial').tap();
       await $.pumpAndSettle();
-      expect(_lastContinueArgs(ascend)?['term'], 'monthly');
+      expect(ascend.last, 'monthly');
     },
   );
 }

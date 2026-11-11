@@ -28,6 +28,7 @@ import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/islands/islands.dart';
+import 'package:restage_codegen/src/design_state.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
@@ -370,7 +371,9 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
           rootBuildArguments: build.buildArguments,
           surfaceId: source.id,
         );
-    var translation = translate(source.build);
+    var build = source.build;
+    var translation = translate(build);
+    final stateNotices = <Issue>[];
     // An island that needs a lowerable State's members moves the State into
     // the mount.
     if (source.build.liftable case final lifted?
@@ -379,11 +382,15 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
             translation.blocked.any(
               (element) => isInstanceMemberOf(lifted.liftedState!, element),
             )) {
-      translation = translate(lifted);
+      final moved = liftState(lifted, translate);
+      translation = moved.translation;
+      build = moved.build;
+      if (moved.notice case final notice?) stateNotices.add(notice);
     }
+    if (build.stateKeptInApp case final notice?) stateNotices.add(notice);
     if (_collectTranslationIssues(
       issues,
-      translation.issues,
+      [...stateNotices, ...translation.issues],
       buildNoticeKeys: noticeKeys,
       sourceIsCanonical: source.isCanonical,
       appFactoryNoticeCollector: appFactoryNoticeCollector,

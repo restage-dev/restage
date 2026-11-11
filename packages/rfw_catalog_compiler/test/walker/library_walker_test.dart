@@ -5,6 +5,8 @@ import 'package:rfw_catalog_compiler/src/walker/library_walker.dart';
 import 'package:rfw_catalog_compiler/src/walker/walker_issue_codes.dart';
 import 'package:test/test.dart';
 
+import '../support/summary_ready_resolvers.dart';
+
 void main() {
   group('walkRestageLibrary — enumeration', () {
     test(
@@ -47,6 +49,7 @@ void main() {
           );
         },
         readAllSourcesFromFilesystem: true,
+        resolvers: summaryReadyResolvers,
       );
 
       expect(result.diagnostics, isEmpty);
@@ -117,6 +120,7 @@ void main() {
           );
         },
         readAllSourcesFromFilesystem: true,
+        resolvers: summaryReadyResolvers,
       );
 
       expect(result.diagnostics, isEmpty);
@@ -168,6 +172,7 @@ void main() {
           );
         },
         readAllSourcesFromFilesystem: true,
+        resolvers: summaryReadyResolvers,
       );
 
       expect(result.declaration, isNotNull);
@@ -202,6 +207,7 @@ void main() {
             );
           },
           readAllSourcesFromFilesystem: true,
+          resolvers: summaryReadyResolvers,
         );
         expect(result.diagnostics, isEmpty);
         expect(result.declaration!.capabilityVersion, expected.$1);
@@ -224,6 +230,7 @@ void main() {
           );
         },
         readAllSourcesFromFilesystem: true,
+        resolvers: summaryReadyResolvers,
       );
       expect(result.declaration, isNull);
       expect(result.widgetClasses, isEmpty);
@@ -254,6 +261,7 @@ void main() {
           );
         },
         readAllSourcesFromFilesystem: true,
+        resolvers: summaryReadyResolvers,
       );
 
       expect(result.declaration, isNull);
@@ -286,6 +294,7 @@ void main() {
           );
         },
         readAllSourcesFromFilesystem: true,
+        resolvers: summaryReadyResolvers,
       );
 
       expect(result.declaration, isNull);
@@ -342,6 +351,7 @@ void main() {
           );
         },
         readAllSourcesFromFilesystem: true,
+        resolvers: summaryReadyResolvers,
       );
 
       // The walk proceeds — declaration is present.
@@ -394,6 +404,7 @@ void main() {
           );
         },
         readAllSourcesFromFilesystem: true,
+        resolvers: summaryReadyResolvers,
       );
 
       // The own-package class is kept.
@@ -458,6 +469,7 @@ void main() {
           );
         },
         readAllSourcesFromFilesystem: true,
+        resolvers: summaryReadyResolvers,
       );
 
       // The walk proceeds — declaration is present.

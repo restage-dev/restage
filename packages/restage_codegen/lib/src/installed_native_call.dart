@@ -318,6 +318,7 @@ InstalledNativeCallPlan planInstalledNativeCall(
   required InstalledNativeCapture? Function(Element) captureFor,
   required InstalledNativeInput? Function(SimpleIdentifier) inputFor,
   InstalledNativeInput? Function(SimpleIdentifier)? borrowFor,
+  InstalledNativeInput? Function(Expression)? inputOf,
   bool Function(Expression)? isDeclaredCallable,
   Map<Expression, String?> constantStrings = const {},
   LibraryElement? emissionLibrary,
@@ -376,6 +377,7 @@ InstalledNativeCallPlan planInstalledNativeCall(
     borrowFor,
     prefix,
     fixedStrings,
+    inputOf,
   );
   expression.accept(visitor);
   var source = contents.substring(expression.offset, expression.end);
@@ -417,8 +419,9 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
     this.inputFor,
     this.borrowFor,
     this.prefix,
-    this.constantStrings,
-  ) {
+    this.constantStrings, [
+    this.inputOf,
+  ]) {
     final locals = _LocalNames();
     root.accept(locals);
     localNames.addAll(locals.names);
@@ -450,6 +453,7 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
   final InstalledNativeCapture? Function(Element) captureFor;
   final InstalledNativeInput? Function(SimpleIdentifier) inputFor;
   final InstalledNativeInput? Function(SimpleIdentifier)? borrowFor;
+  final InstalledNativeInput? Function(Expression)? inputOf;
   final Map<Expression, String?> constantStrings;
   final localNames = <String>{};
   final edits = <(int, int, String)>[];
@@ -486,8 +490,24 @@ final class _NativeCallWriter extends GeneralizingAstVisitor<void> {
   }
 
   bool replaceConstant(AstNode node) {
-    if (!constantStrings.containsKey(node)) return false;
-    edit(node, _dartJson(constantStrings[node]));
+    if (constantStrings.containsKey(node)) {
+      edit(node, _dartJson(constantStrings[node]));
+      return true;
+    }
+    return replaceInput(node);
+  }
+
+  // A subexpression the payload evaluates arrives as an input.
+  bool replaceInput(AstNode node) {
+    if (node is! Expression || identical(node, root)) return false;
+    final input = inputOf?.call(node);
+    if (input == null) return false;
+    final type = node.staticType;
+    final code = type == null ? null : namespace.typeCode(type);
+    if (code == null) refuse(node, 'Native input type is not visible');
+    edit(node, '${prefix}Input${inputs.length}');
+    inputs.add(input);
+    inputTypes.add(code);
     return true;
   }
 

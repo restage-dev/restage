@@ -720,6 +720,7 @@ final class HoistAnalyzer {
     this.isSurfaceMember = _noMountScope,
     this.outerItem = _noOuterItem,
     this.thisFor = _noThis,
+    this.thisOutOfReach = _noThisOutOfReach,
     this.forwardsWidget = _noForward,
     this.mountNameOf = _noMountName,
     this.recordedLocalOf = _noMountName,
@@ -743,6 +744,11 @@ final class HoistAnalyzer {
 
   /// How the mount spells `this` of [type], when it has one.
   final String? Function(DartType? type) thisFor;
+
+  /// Whether `this` of [type] is out of the mount's reach in this analysis.
+  final bool Function(DartType? type) thisOutOfReach;
+
+  static bool _noThisOutOfReach(DartType? type) => false;
 
   static String? _noThis(DartType? _) => null;
 
@@ -1053,7 +1059,9 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
   @override
   void visitThisExpression(ThisExpression node) {
     final spelling = analyzer.thisFor(node.staticType);
-    if (spelling == null) {
+    if (analyzer.thisOutOfReach(node.staticType)) {
+      _surfaceOnly(node, 'this', element: node.staticType?.element);
+    } else if (spelling == null) {
       _surfaceOnly(node, 'this');
     } else if (spelling != 'this') {
       _replace(node, spelling);
@@ -1116,6 +1124,17 @@ final class _HoistVisitor extends RecursiveAstVisitor<void> {
         _replace(node, '\u0000${param.name}\u0000');
         return;
       }
+    }
+    // `this.x` is in the mount's reach exactly when `x` is.
+    final member = node.propertyName.element;
+    if (target is ThisExpression &&
+        analyzer.thisFor(target.staticType) == 'this' &&
+        member is ExecutableElement &&
+        !member.isStatic) {
+      if (!analyzer.isMountScope(member)) {
+        _surfaceOnly(node, node.propertyName.name, element: member);
+      }
+      return;
     }
     target?.accept(this);
   }

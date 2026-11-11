@@ -387,7 +387,9 @@ bool isArtifactHelperInvocation(
     return false;
   }
   if (element is MethodElement && !element.isStatic) {
-    if (invocation.target != null) return false;
+    // `this.m()` is the same call as `m()`.
+    final target = invocation.target;
+    if (target != null && target is! ThisExpression) return false;
     final owner = invocation
         .thisOrAncestorOfType<ClassDeclaration>()
         ?.declaredFragment

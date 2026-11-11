@@ -40,7 +40,13 @@ import 'design_package_sources.dart';
 import 'shared_resolvers.dart';
 
 export 'package:build_test/build_test.dart'
-    hide resolveSources, testBuilder, testBuilders;
+    hide
+        resolveAsset,
+        resolveSource,
+        resolveSources,
+        testBuilder,
+        testBuilderFactories,
+        testBuilders;
 
 /// A minimal encoded widget library whose one widget is named [name], so each
 /// name gives distinct, decodable screen blob bytes.
@@ -1091,7 +1097,11 @@ Future<TestBuilderResult> testBuilder(
   onLog: onLog,
   reportUnusedAssetsForInput: reportUnusedAssetsForInput,
   packageConfig: packageConfig,
-  resolvers: resolvers ?? (packageConfig == null ? sharedResolvers : null),
+  resolvers:
+      resolvers ??
+      (packageConfig == null
+          ? sharedResolvers
+          : SummaryReadyResolvers(packageConfig: packageConfig)),
   readerWriter: readerWriter,
   verbose: verbose,
   flattenOutput: flattenOutput,
@@ -1129,7 +1139,11 @@ Future<TestBuilderResult> testBuilders(
   onLog: onLog,
   reportUnusedAssetsForInput: reportUnusedAssetsForInput,
   packageConfig: packageConfig,
-  resolvers: resolvers ?? (packageConfig == null ? sharedResolvers : null),
+  resolvers:
+      resolvers ??
+      (packageConfig == null
+          ? sharedResolvers
+          : SummaryReadyResolvers(packageConfig: packageConfig)),
   optionalBuilders: optionalBuilders,
   visibleOutputBuilders: visibleOutputBuilders,
   appliesBuilders: appliesBuilders,
@@ -1178,7 +1192,11 @@ Future<T> resolveSources<T>(
     rootPackage: rootPackage,
     assetReaderChecks: assetReaderChecks,
     tearDown: tearDown,
-    resolvers: resolvers ?? (packageConfig == null ? sharedResolvers : null),
+    resolvers:
+        resolvers ??
+        (packageConfig == null
+            ? sharedResolvers
+            : SummaryReadyResolvers(packageConfig: packageConfig)),
   );
 }
 

@@ -339,8 +339,9 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
         final sites = _eventSites(
           library,
           operations: screenOperations,
-          onCapture: (value, type) {
-            _validateProgramCapture(value, type, contract.context, local);
+          onCapture: (value, type, states) {
+            _validateProgramCapture(
+                value, type, contract.context, local, states);
           },
         );
         for (final raw in body.events) {
@@ -1519,7 +1520,8 @@ const _kMaxTreeDepth = 2048;
 _EventSites _eventSites(
   rfw.RemoteWidgetLibrary library, {
   Map<String, ValueOperation> operations = kStandardValueOperations,
-  void Function(Object? value, ValueType type)? onCapture,
+  void Function(Object? value, ValueType type, Map<String, Object?> states)?
+      onCapture,
 }) {
   final programScope = RfwProgramScope([
     for (final widget in library.widgets) ...[widget.initialState, widget.root]
@@ -1528,6 +1530,8 @@ _EventSites _eventSites(
   final declarations = {for (final widget in library.widgets) widget.name};
   final uses = <String, List<_DeclarationUse>>{};
   var current = '';
+  // The state of the declaration being visited, which its captures read.
+  var states = const <String, Object?>{};
   var depth = 0;
   late void Function(
     Object? value,
@@ -1602,6 +1606,7 @@ _EventSites _eventSites(
             onCapture?.call(
               _rewriteScopedValue(capture.value, loops, frames),
               envelope.values.captures[capture.key]!,
+              states,
             );
             visit(capture.value, loops, frames: frames);
           }
@@ -1645,6 +1650,7 @@ _EventSites _eventSites(
 
   for (final declaration in library.widgets) {
     current = declaration.name;
+    states = {...?declaration.initialState};
     visit(declaration.root, const []);
   }
   return _EventSites(sites, uses);
@@ -1915,8 +1921,9 @@ void _validateProgramCapture(
   Object? value,
   ValueType type,
   SurfaceScreenHostDataSchema context,
-  Map<String, Object> local,
-) {
+  Map<String, Object> local, [
+  Map<String, Object?> states = const {},
+]) {
   if (value is _BuilderFrameValue) {
     if (value.types.every(type.accepts)) return;
   } else if (value is rfw.DataReference) {
@@ -1932,12 +1939,20 @@ void _validateProgramCapture(
     } else if (value.parts.length == 2 &&
         value.parts.first == _localValuesDataKey &&
         local.containsKey(value.parts[1])) {
-      _validateProgramCapture(local[value.parts[1]], type, context, local);
+      _validateProgramCapture(
+          local[value.parts[1]], type, context, local, states);
+      return;
+    }
+  } else if (value is rfw.AnyStateReference) {
+    // A state read has the type of the value its own widget starts it at.
+    if (value.parts.length == 1 && states[value.parts.single] != null) {
+      _validateProgramCapture(
+          states[value.parts.single], type, context, local, states);
       return;
     }
   } else if (value is rfw.Switch) {
     for (final output in value.outputs.values) {
-      _validateProgramCapture(output, type, context, local);
+      _validateProgramCapture(output, type, context, local, states);
     }
     return;
   } else if ((value == null || identical(value, rfw.missing)) &&
@@ -1960,12 +1975,13 @@ void _validateProgramCapture(
       if (!value.containsKey(field.key)) {
         throw const FormatException('Missing typed expression capture field.');
       }
-      _validateProgramCapture(value[field.key], field.value, context, local);
+      _validateProgramCapture(
+          value[field.key], field.value, context, local, states);
     }
     return;
   } else if (type.kind == 'list' && value is List) {
     for (final item in value) {
-      _validateProgramCapture(item, type.item!, context, local);
+      _validateProgramCapture(item, type.item!, context, local, states);
     }
     return;
   } else if (switch (type.kind) {
@@ -2369,8 +2385,8 @@ List<SurfaceScreenContractGap> surfaceScreenContractGaps(
   final sites = _eventSites(
     library,
     operations: operations,
-    onCapture: (value, type) {
-      _validateProgramCapture(value, type, context, localValues);
+    onCapture: (value, type, states) {
+      _validateProgramCapture(value, type, context, localValues, states);
     },
   );
   var depth = 0;

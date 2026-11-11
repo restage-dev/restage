@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+part 'restage.generated/sentinel_protection.restage.g.dart';
+
 /// A light paywall with a discount badge and two radio plan cards; the yearly
 /// plan is selected by default and shows "Save 50%".
 ///
@@ -9,11 +11,17 @@ import 'package:restage/restage.dart';
 /// the delivered surface. Prices are illustrative.
 @Paywall()
 class SentinelProtectionPaywall extends StatefulWidget {
-  static const close = SurfaceEvent<void>('close');
-  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
-  static const subscriptionInfo = SurfaceEvent<void>('subscription_info');
+  const SentinelProtectionPaywall(
+      {super.key, this.onContinue, this.onClose, this.onSubscriptionInfo});
 
-  const SentinelProtectionPaywall({super.key});
+  /// Starts the selected plan: `'annual'` or `'monthly'`.
+  final ValueChanged<String>? onContinue;
+
+  /// Closes the paywall.
+  final VoidCallback? onClose;
+
+  /// Opens the subscription and privacy info.
+  final VoidCallback? onSubscriptionInfo;
 
   @override
   State<SentinelProtectionPaywall> createState() =>
@@ -43,8 +51,7 @@ class _SentinelProtectionPaywallState extends State<SentinelProtectionPaywall> {
               Row(
                 children: [
                   GestureDetector(
-                    onTap:
-                        context.surfaceEvent(SentinelProtectionPaywall.close),
+                    onTap: widget.onClose,
                     child: const Icon(
                       Icons.chevron_left_rounded,
                       color: Color(0xFF0EA5A4),
@@ -337,10 +344,8 @@ class _SentinelProtectionPaywallState extends State<SentinelProtectionPaywall> {
               const SizedBox(height: 12),
               // Start subscription CTA — teal pill.
               GestureDetector(
-                onTap: context.surfaceEvent(
-                  SentinelProtectionPaywall.continueFlow,
-                  {'plan': yearSelected ? 'annual' : 'monthly'},
-                ),
+                onTap: () => widget.onContinue
+                    ?.call(yearSelected ? 'annual' : 'monthly'),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
@@ -361,8 +366,7 @@ class _SentinelProtectionPaywallState extends State<SentinelProtectionPaywall> {
               const SizedBox(height: 12),
               Center(
                 child: GestureDetector(
-                  onTap: context
-                      .surfaceEvent(SentinelProtectionPaywall.subscriptionInfo),
+                  onTap: widget.onSubscriptionInfo,
                   child: const Text(
                     'Subscription and privacy info',
                     style: TextStyle(

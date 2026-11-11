@@ -261,4 +261,63 @@ void main() {
             context: schema),
         throwsFormatException);
   });
+
+  test('a state capture has the type of the value the state starts as', () {
+    const value = ValueProgram(
+        nodes: [ValueNode('capture', ValueType.string, name: 'plan')],
+        root: 0,
+        captures: {'plan': ValueType.string});
+    rfw.RemoteWidgetLibrary library(Object seed) =>
+        rfw.RemoteWidgetLibrary(const [], [
+          rfw.WidgetDeclaration(
+              'Root',
+              {'plan': seed},
+              rfw.ConstructorCall('Text', {
+                'text': {
+                  'version': 1,
+                  'program': value.encode(),
+                  'captures': {
+                    'plan': const rfw.StateReference(['plan'])
+                  }
+                }
+              }))
+        ]);
+    List<SurfaceScreenContractGap> gaps(Object seed) =>
+        surfaceScreenContractGaps(library(seed),
+            events: SurfaceScreenEventSchema(events: const []),
+            context: SurfaceScreenHostDataSchema(const {}));
+    expect(gaps('annual'), isEmpty);
+    expect(() => gaps(true), throwsFormatException);
+    expect(() => gaps(0), throwsFormatException);
+  });
+
+  test('a state capture reads its own widget\'s state, not a sibling\'s', () {
+    const value = ValueProgram(
+        nodes: [ValueNode('capture', ValueType.string, name: 'plan')],
+        root: 0,
+        captures: {'plan': ValueType.string});
+    rfw.RemoteWidgetLibrary library(Object sibling) =>
+        rfw.RemoteWidgetLibrary(const [], [
+          rfw.WidgetDeclaration(
+              'Root',
+              {'plan': 'annual'},
+              rfw.ConstructorCall('Text', {
+                'text': {
+                  'version': 1,
+                  'program': value.encode(),
+                  'captures': {
+                    'plan': const rfw.StateReference(['plan'])
+                  }
+                }
+              })),
+          rfw.WidgetDeclaration(
+              'Row', {'plan': sibling}, rfw.ConstructorCall('Text', {})),
+        ]);
+    List<SurfaceScreenContractGap> gaps(Object sibling) =>
+        surfaceScreenContractGaps(library(sibling),
+            events: SurfaceScreenEventSchema(events: const []),
+            context: SurfaceScreenHostDataSchema(const {}));
+    expect(gaps(false), isEmpty);
+    expect(gaps('monthly'), isEmpty);
+  });
 }

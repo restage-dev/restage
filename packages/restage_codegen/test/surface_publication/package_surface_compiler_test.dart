@@ -6,6 +6,7 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
+import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_publication_planner.dart';
@@ -428,6 +429,86 @@ final foreignGeneratedRef = Object();
         }
         expect(emittedCarriers, hasLength(routeReferences.length));
         expect(emittedCarriers.toSet(), hasLength(routeReferences.length));
+      },
+    );
+
+    test(
+      'reports routes the emitted blob and the plan disagree on as a '
+      'compiler bug',
+      () async {
+        final scenario = await _loadScenario();
+        const referenceIds = [
+          'reference.route-ordinary',
+          'reference.route-inline',
+          'reference.route-repeated',
+        ];
+        final input = PackageSurfaceCompilationInput(
+          roster: scenario.input.roster,
+          flows: scenario.input.flows,
+          renderedSources: [
+            _artifactWithBlob(
+              scenario.input.renderedSources[0].declaration,
+              id: 'announcement',
+              blob: _routeLibraryBlob(referenceIds),
+            ),
+            _artifactWithBlob(
+              scenario.input.renderedSources[1].declaration,
+              id: 'welcome',
+              blob: _emptyRfwLibraryBlob(),
+            ),
+            CompiledSurfaceArtifact.fromPaywallAdapter(
+              declaration: scenario.input.renderedSources[2].declaration,
+              facts: _paywallFacts(
+                standaloneBlob: _emptyRfwLibraryBlob(),
+                adapterBlob: _emptyRfwLibraryBlob(),
+              ),
+              flowArtifactPath: 'premium.rfw',
+              rfwText: utf8.encode('premium'),
+            ),
+          ],
+          standaloneScreens: scenario.input.standaloneScreens,
+        );
+        final provisional = compilePackageSurfacePublications(input).bundle!;
+        final announcement = provisional.manifest.publications.singleWhere(
+          (entry) => entry.publication.slug == 'announcement',
+        );
+        final routePlan = _routePlanForEntry(announcement, referenceIds);
+        // The blob carries two of the plan's three routes.
+        final carried = referenceIds.take(2).toList();
+        final result = compilePackageSurfacePublications(
+          PackageSurfaceCompilationInput(
+            roster: input.roster,
+            flows: input.flows,
+            renderedSources: [
+              _artifactWithBlob(
+                input.renderedSources[0].declaration,
+                id: 'announcement',
+                blob: _routeLibraryBlob(carried),
+                text: _routeLibraryText(routePlan, carried),
+              ),
+              ...input.renderedSources.skip(1),
+            ],
+            standaloneScreens: input.standaloneScreens,
+            measurementRoutePlansByPublicationKey: {
+              MeasurementPublicationSelectorV1.fromPublication(
+                announcement.publication,
+              ).key: routePlan,
+            },
+          ),
+        );
+
+        expect(
+          [for (final issue in result.issues) issue.code],
+          contains(IssueCode.measurementRoutesDisagree),
+        );
+        expect(
+          [for (final issue in result.issues) issue.message],
+          contains(
+            'Restage compiler bug: measurement routes disagree for '
+            '`announcement` (missing route: reference.route-repeated). '
+            'Please report this as a Restage bug.',
+          ),
+        );
       },
     );
 

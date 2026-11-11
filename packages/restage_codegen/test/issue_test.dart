@@ -22,6 +22,7 @@ void main() {
       IssueCode.stablePropertyDeferred,
       IssueCode.customWidgetInliningDeferred,
       IssueCode.customWidgetUnsupportedReducible,
+      IssueCode.nestedStateIsland,
       // The announced-rewrite build notice — a non-failing annotation.
       IssueCode.idiomAutoSubstituted,
       IssueCode.navigationStandaloneArtifactSkipped,
@@ -30,6 +31,8 @@ void main() {
       IssueCode.customWidgetNotSplit,
       IssueCode.interactionItemUnavailable,
       IssueCode.islandSpotsIndistinct,
+      IssueCode.stateKeptInApp,
+      IssueCode.stateRestartsWhenMoved,
     };
 
     test('classifies exactly the informational set as informational', () {
@@ -92,6 +95,8 @@ void main() {
           IssueCode.customWidgetAppFactoryUsed,
           IssueCode.interactionItemUnavailable,
           IssueCode.islandSpotsIndistinct,
+          IssueCode.stateKeptInApp,
+          IssueCode.stateRestartsWhenMoved,
         }),
       );
 
@@ -288,5 +293,10 @@ void main() {
       expect(body, isNot(contains('"subject"')));
       expect(body, isNot(contains('Gap subject:')));
     });
+  });
+
+  test('a measurement route disagreement is reported as a Restage bug', () {
+    expect(IssueCode.measurementRoutesDisagree.isRestageBug, isTrue);
+    expect(IssueCode.measurementRoutesDisagree.isInformational, isFalse);
   });
 }
