@@ -196,8 +196,12 @@ void main() {
   paywalls and flows. Do not add an explicit `flowResolver` for ordinary setup: a
   custom resolver overrides normal placement-aware flow resolution.
 - To render only what the app contains, leave `api_key` out of `build.yaml`.
-  `apiKey: ''` turns hosted delivery off in Dart, but the built-in first-launch
-  request is still sent.
+  `apiKey: ''` turns hosted delivery off; from the next launch the built-in
+  first-launch request is not sent.
+- `analytics: false` under the `restage_codegen:user_factories` options starts the
+  app with analytics off, first launch included. Pass `analyticsEnabled: true` to
+  turn it on. A runtime `analyticsEnabled` reaches the first-launch request from
+  the next launch.
 - `surfaces: restageSurfaces` prefetches known surfaces after the first frame.
   Prefetch can prepare later mounts, but does not create experiment assignments.
 - Published content can appear on later mounts when eligible. Live refresh is

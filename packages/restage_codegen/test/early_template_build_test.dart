@@ -31,8 +31,12 @@ dependencies:
     path: ${p.join(packages, 'restage')}
 dev_dependencies:
   build_runner: any
+  flutter_test:
+    sdk: flutter
   restage_codegen:
     path: ${p.join(packages, 'restage_codegen')}
+  restage_shared:
+    path: ${p.join(packages, 'restage_shared')}
 dependency_overrides:
 ${[for (final MapEntry(key: name, value: path) in overrides.entries) '  $name:\n    path: $path'].join('\n')}
 ''');
@@ -112,6 +116,7 @@ targets:
           api_key: rs_pk_sandbox_dev_build
           base_url: https://api.example.com/
           channel: beta
+          analytics: false
 ''');
       final keyed = await _build(app);
       expect(keyed.exitCode, 0, reason: _output(keyed));
@@ -133,6 +138,7 @@ targets:
         contains("const String _restageBaseUrl = 'https://api.example.com';"),
       );
       expect(generated, contains("const String? _restageChannel = 'beta';"));
+      expect(generated, contains('const bool _restageAnalytics = false;'));
       for (final file in [template, iosTemplate]) {
         final json =
             jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
@@ -142,7 +148,112 @@ targets:
         );
         expect(json['authorization'], 'Bearer rs_pk_sandbox_dev_build');
         expect((json['builtIns']! as Map)['channel'], 'beta');
+        expect(json['analytics'], isFalse);
+        expect(
+          (json['analyticsOff']! as Map)['body'],
+          isNot(contains('analyticsAnonymousId')),
+        );
+        expect(json['measurement'], isTrue);
       }
+
+      // The contract the build wrote is the one the SDK computes at runtime
+      // for the same app, or one it covers, so the platform's first request
+      // is adopted.
+      _write(app, 'test/early_contract_test.dart', '''
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:app/restage_surfaces.g.dart';
+import 'package:app/user_factories.g.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:restage/early_template.dart';
+import 'package:restage/restage.dart' show InstalledIconTable, builtInIconTable;
+import 'package:restage_shared/restage_shared.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+Future<Map<String, Object?>> record(
+  WidgetTester tester,
+  void Function() registerWidgets,
+) async {
+  SharedPreferences.setMockInitialValues({});
+  PackageInfo.setMockInitialValues(
+    appName: 'app',
+    packageName: 'app',
+    version: '1.0.0',
+    buildNumber: '7',
+    buildSignature: '',
+  );
+  final recorded = await tester.runAsync(
+    () => recordEarlyTemplate(
+      platform: TargetPlatform.android,
+      apiKey: 'rs_pk_sandbox_dev_build',
+      baseUrl: 'https://api.example.com',
+      surfaces: restageSurfaces,
+      registerWidgets: registerWidgets,
+    ),
+  );
+  return jsonDecode(recorded!) as Map<String, Object?>;
+}
+
+final built = jsonDecode(
+  File('android/app/src/main/assets/restage_early.json').readAsStringSync(),
+) as Map<String, Object?>;
+
+PlacementBuildContractV1 contract(Map<String, Object?> template) =>
+    PlacementBuildContractV1.fromCanonicalBytes(utf8.encode(
+      (template['contract']! as String).replaceAll('@@buildOrdinal@@', '7'),
+    ));
+
+void main() {
+  testWidgets('the built contract is the runtime contract', (tester) async {
+    final runtime = await record(tester, registerRestageWidgets);
+    expect(built['contract'], isA<String>());
+    expect(runtime['contract'], built['contract']);
+  });
+
+  testWidgets('an app that adds every icon still covers the built contract',
+      (tester) async {
+    final runtime = await record(tester, () {
+      registerRestageWidgets();
+      InstalledIconTable.add(builtInIconTable());
+    });
+    final claimed = contract(built);
+    final installed = contract(runtime);
+    expect(runtime['contract'], isNot(built['contract']));
+    expect(installed.mounts, claimed.mounts);
+    expect(
+      capabilityCovers(
+        installed: installed.installedCapability,
+        claimed: claimed.installedCapability,
+      ),
+      isTrue,
+    );
+  });
+}
+''');
+      final contract = await Process.run('flutter', [
+        'test',
+        'test/early_contract_test.dart',
+      ], workingDirectory: app);
+      expect(contract.exitCode, 0, reason: _output(contract));
+
+      // An app that turns measurement off: its first launch registers nothing.
+      _write(app, 'lib/main.dart', '''
+import 'package:restage/restage.dart';
+
+void main() => Restage.configure(measurementEnabled: false);
+''');
+      final unmeasured = await _build(app);
+      expect(unmeasured.exitCode, 0, reason: _output(unmeasured));
+      final json = jsonDecode(template.readAsStringSync()) as Map;
+      expect(json['measurement'], isFalse);
+      expect(
+        (json['measurementOff']! as Map)['body'],
+        isNot(contains('registrationNonce')),
+      );
+      File(p.join(app, 'lib/main.dart')).deleteSync();
 
       // Listed as an asset with no key, the iOS file stays as an empty one.
       final pubspec = File(p.join(app, 'pubspec.yaml'));

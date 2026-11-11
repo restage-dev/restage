@@ -164,11 +164,17 @@ const _nativeBuiltIns = {
 ///
 /// With [identityTokens] the request's metering key and anonymous id become
 /// tokens the platform fills with the ones it made, for the first launch.
+///
+/// [analytics] and [measurement] are the build's defaults for the two
+/// switches. The template also holds `analyticsOff` and `measurementOff`, the
+/// request as the SDK sends it with each switch off.
 String? startupTemplateJson(
   Uri url,
   String apiKey,
   PlacementBatchRequestV1 request, {
   bool identityTokens = false,
+  bool analytics = true,
+  bool measurement = true,
 }) {
   final contract = request.buildContract;
   final ordinal = contract.buildOrdinal;
@@ -205,11 +211,11 @@ String? startupTemplateJson(
     swap('"mode":"prefetch","mounts":',
         '"mode":"prefetch"$_mountedToken,"mounts":');
     if (identityTokens) {
-      final metering = request.meteringKey;
+      final metering = form.meteringKey;
       if (metering != null) {
         swap('"meteringKey":"$metering"', '"meteringKey":"$_meteringToken"');
       }
-      final anonymous = request.analyticsAnonymousId;
+      final anonymous = form.analyticsAnonymousId;
       if (anonymous != null) {
         swap(
           '"analyticsAnonymousId":"$anonymous"',
@@ -217,7 +223,7 @@ String? startupTemplateJson(
         );
       }
     }
-    final registration = request.registration;
+    final registration = form.registration;
     if (registration != null) {
       swap(
         '"registrationNonce":"${registration.registrationNonce}"',
@@ -229,7 +235,7 @@ String? startupTemplateJson(
         '"registrationCreatedAtMicros":$_createdToken',
       );
     }
-    if (request.localClock case final clock?) {
+    if (form.localClock case final clock?) {
       swap(
         '"utcOffsetMinutes":${clock.utcOffsetMinutes}}',
         '"utcOffsetMinutes":$_offsetToken}',
@@ -238,12 +244,12 @@ String? startupTemplateJson(
     for (final (key, carrier, token) in [
       (
         'sdkBuiltInsCanonicalBase64',
-        request.sdkBuiltInsCanonicalBase64,
+        form.sdkBuiltInsCanonicalBase64,
         _builtInsToken,
       ),
       (
         'sdkInstalledLibraries',
-        request.sdkInstalledLibraries,
+        form.sdkInstalledLibraries,
         _librariesToken,
       ),
     ]) {
@@ -264,6 +270,15 @@ String? startupTemplateJson(
   final body = tokenized(unreported.withBuildContract(carried: false));
   final full = tokenized(unreported.withBuildContract(carried: true));
   if (body == null || full == null) return null;
+  final quiet = unreported.withoutAnalytics();
+  final quietBody = tokenized(quiet.withBuildContract(carried: false));
+  final quietFull = tokenized(quiet.withBuildContract(carried: true));
+  if (quietBody == null || quietFull == null) return null;
+  final unmeasured = unreported.withoutAssignment();
+  final unmeasuredBody =
+      tokenized(unmeasured.withBuildContract(carried: false));
+  final unmeasuredFull = tokenized(unmeasured.withBuildContract(carried: true));
+  if (unmeasuredBody == null || unmeasuredFull == null) return null;
   final builtIns = tree(request.sdkBuiltInsCanonicalBase64);
   final libraries = tree(request.sdkInstalledLibraries);
   return jsonEncode({
@@ -273,6 +288,10 @@ String? startupTemplateJson(
     if (tokenizesOrdinal) 'contract': contractTokenized,
     'body': body,
     'fullBody': full,
+    'analytics': analytics,
+    'analyticsOff': {'body': quietBody, 'fullBody': quietFull},
+    'measurement': measurement,
+    'measurementOff': {'body': unmeasuredBody, 'fullBody': unmeasuredFull},
     if (builtIns != null) 'builtIns': builtIns,
     if (libraries != null) 'installedLibraries': libraries,
     'fills': [
@@ -285,4 +304,126 @@ String? startupTemplateJson(
         'appVersion',
     ],
   });
+}
+
+/// Why the platform's startup answer cannot stand for the startup request the
+/// SDK would send, by the first condition that failed.
+enum StartupAnswerMismatch {
+  /// Another platform, build ordinal, mount list or host contract.
+  build,
+
+  /// The platform claimed a widget, icon or library the app does not install.
+  capability,
+
+  /// One request carries an install id and the other does not.
+  analytics,
+
+  /// The same install id, but only one request registers: measurement is off.
+  measurement,
+
+  /// Another metering key, registration, assignment or held state.
+  assignment,
+}
+
+/// Why the answer to [sent], the request the platform sent at launch, cannot be
+/// used for [mine], the startup request the SDK would send; null when it can.
+///
+/// Fields the platform fills from the device or that only shape the answer's
+/// size (inline artifacts, the mounted-surface report, device facts, the local
+/// clock) are not compared.
+StartupAnswerMismatch? startupAnswerMismatch({
+  required PlacementBatchRequestV1 sent,
+  required PlacementBatchRequestV1 mine,
+}) {
+  final a = sent.buildContract;
+  final b = mine.buildContract;
+  if (a.platform != b.platform ||
+      a.buildOrdinal != b.buildOrdinal ||
+      !_sameJson(
+        [for (final mount in sent.mounts) mount.toJson()],
+        [for (final mount in mine.mounts) mount.toJson()],
+      ) ||
+      !_sameJson(
+        {for (final e in a.contractsByHash.entries) e.key: e.value.toJson()},
+        {for (final e in b.contractsByHash.entries) e.key: e.value.toJson()},
+      )) {
+    return StartupAnswerMismatch.build;
+  }
+  if (!capabilityCovers(
+    installed: b.installedCapability,
+    claimed: a.installedCapability,
+  )) {
+    return StartupAnswerMismatch.capability;
+  }
+  if (sent.analyticsAnonymousId != mine.analyticsAnonymousId) {
+    return StartupAnswerMismatch.analytics;
+  }
+  if ((sent.registration == null) != (mine.registration == null)) {
+    return StartupAnswerMismatch.measurement;
+  }
+  if (sent.meteringKey != mine.meteringKey ||
+      sent.assignmentKey != mine.assignmentKey ||
+      !_sameJson(sent.registration?.toJson(), mine.registration?.toJson()) ||
+      !_sameJson(
+        [for (final held in sent.heldAssignments) held.toJson()],
+        [for (final held in mine.heldAssignments) held.toJson()],
+      ) ||
+      !_sameJson(
+        [for (final held in sent.heldDeclines) held.toJson()],
+        [for (final held in mine.heldDeclines) held.toJson()],
+      )) {
+    return StartupAnswerMismatch.assignment;
+  }
+  return null;
+}
+
+/// Whether an app that [installed] this capability renders everything chosen
+/// for [claimed]: no newer built-in catalog, no widget, icon or library it
+/// lacks.
+bool capabilityCovers({
+  required InstalledCapability installed,
+  required InstalledCapability claimed,
+}) {
+  if (claimed.builtInCatalogVersion > installed.builtInCatalogVersion) {
+    return false;
+  }
+  for (final library in claimed.installedLibraries) {
+    final have = [
+      for (final candidate in installed.installedLibraries)
+        if (candidate.namespace == library.namespace) candidate,
+    ].firstOrNull;
+    if (have == null) return false;
+    if (have == library) continue;
+    final wanted = library.version;
+    final version = have.version;
+    if (wanted == null ||
+        version == null ||
+        version < wanted ||
+        have.effectiveCompatibleSince > library.effectiveCompatibleSince ||
+        have.effectiveGenerated < library.effectiveGenerated) {
+      return false;
+    }
+  }
+  final want = claimed.vocabulary;
+  final has = installed.vocabulary;
+  if (want == null || has == null) return want == has;
+  if (!has.widgetNames.containsAll(want.widgetNames)) return false;
+  for (final family in want.iconCodePoints.entries) {
+    final icons = has.iconCodePoints[family.key] ?? const <int>{};
+    if (!icons.containsAll(family.value)) return false;
+  }
+  return true;
+}
+
+bool _sameJson(Object? a, Object? b) => _sorted(a) == _sorted(b);
+
+// JSON text with every map's keys sorted, so key order is never a difference.
+String _sorted(Object? value) {
+  if (value is List) return '[${value.map(_sorted).join(',')}]';
+  if (value is! Map) return jsonEncode(value);
+  final keys = [for (final key in value.keys) '$key']..sort();
+  final members = [
+    for (final key in keys) '${jsonEncode(key)}:${_sorted(value[key])}',
+  ];
+  return '{${members.join(',')}}';
 }

@@ -476,8 +476,13 @@ the IP address to the server you point them at.
 **Turning it off:** pass `measurementEnabled: false` to
 `Restage.configure(...)`. The value must be a constant: the build reads it, so
 generated surfaces carry nothing to measure, and the SDK starts no measurement
-sessions. `analyticsEnabled: false` also turns measurement off and stops the
-SDK from creating the install id, while keeping hosted delivery.
+sessions. `analyticsEnabled: false` also turns measurement off and keeps the
+install id off every request, while keeping hosted delivery. On Android and
+iOS the plugin still creates the install id at app start and stores it on the
+device; with analytics off it is never sent. The
+first-launch request the platform sends before Dart starts follows it from the
+next launch; set `analytics: false` under the `restage_codegen:user_factories`
+options in `build.yaml` for an app that starts with analytics off.
 
 **`Restage.reset()`** gives the install a new pseudonymous id and a new
 session. Experiment assignment is drawn again on the next surface

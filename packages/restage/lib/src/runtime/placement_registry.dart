@@ -108,7 +108,8 @@ final class PlacementRegistry {
     if (accepted == null) return null;
     final request = accepted.context.request;
     final key = decisions.decisionKey(request, request.mounts.single,
-        target: accepted.decision.descriptor.placement.target);
+        target: accepted.decision.descriptor.placement.target,
+        installedCapabilityHash: accepted.context.installedCapabilityHash);
     final rows = _saved?.rowsNow;
     if (rows == null) return null;
     // A later answer with the same delivery keeps it; another delivery or
@@ -267,10 +268,10 @@ final class PlacementRegistry {
           mode: PlacementBatchModeV1.prefetch,
           inlineMounts: await _mountsNeedingArtifacts(mounts),
           startup: true);
+      // A tuple still waiting for its handle is never sent twice.
       if (next == null ||
           !next.isCurrent() ||
-          (next.request.assignmentKey == null &&
-              !(registering && next.request.registration != null))) {
+          (next.request.registration != null && !registering)) {
         return;
       }
       client().rememberStartupRequest(next.request);
@@ -463,12 +464,16 @@ final class PlacementRegistry {
       final localNow = now();
       final clock = DeliveryLocalClockV1(localNow.timeZoneOffset.inMinutes);
       // An answer is judged by the facts its request was sent with.
+      // The facts of the request answered, which may be the platform's.
+      PlacementRequestContext? created;
       List<String> changedFacts(List<String> consulted) {
         if (cell == null || consulted.isEmpty) return const [];
         final current = cell.currentBuiltInsBase64;
-        if (current == inputs.builtIns) return const [];
+        final sent =
+            created?.request.sdkBuiltInsCanonicalBase64 ?? inputs.builtIns;
+        if (current == sent) return const [];
         final now = placementBuiltInFacts(current);
-        final then = placementBuiltInFacts(inputs.builtIns);
+        final then = placementBuiltInFacts(sent);
         if (now == null || then == null) return consulted;
         return [
           for (final name in consulted)
@@ -558,7 +563,7 @@ final class PlacementRegistry {
           analyticsAnonymousId: inputs.analyticsAnonymousId,
           inlineMounts: inlineMounts,
           startup: startup);
-      return PlacementRequestContext(
+      return created = PlacementRequestContext(
           request: request,
           lease: lease,
           capturedAt: localNow.toUtc(),
@@ -792,6 +797,7 @@ final class PlacementRegistry {
     try {
       return await client().fetchPlacements(context.request,
           savedArtifacts: savedFrames,
+          onAdopted: context.answeredFor,
           onDecoded: () {
             arrivals++;
             onDecoded?.call();
@@ -991,6 +997,7 @@ final class PlacementRegistry {
                 analyticsAnonymousId: batch.analyticsAnonymousId),
         lease: context.lease,
         capturedAt: context.capturedAt,
+        installedCapabilityHash: context.installedCapabilityHash,
         isCurrent: () => context.isCurrent() && waiter.guard(),
         capabilityChanged: context.capabilityChanged,
         changedFacts: context.changedFacts,
@@ -1100,6 +1107,7 @@ final class PlacementRegistry {
         final mount = context.request.mounts[index];
         _accepted.remove(mount);
         await decisions.remove(decisions.decisionKey(context.request, mount,
+            installedCapabilityHash: context.installedCapabilityHash,
             target: entry.descriptor.placement.target));
         savedChanged();
       }
@@ -1140,7 +1148,8 @@ final class PlacementRegistry {
       }
       final key = decisions.decisionKey(
           context.request, context.request.mounts[index],
-          target: entry.descriptor.placement.target);
+          target: entry.descriptor.placement.target,
+          installedCapabilityHash: context.installedCapabilityHash);
       try {
         final assignment = entry.publicDelivery.assignment;
         if (assignment != null) {
@@ -1174,6 +1183,12 @@ final class PlacementRegistry {
                   'assignmentKey': context.lease.assignmentKey,
                   'registrationFingerprint':
                       context.lease.registration?.fingerprint,
+                  // Chosen for a capability the installed one covers.
+                  if (context.request.buildContract.installedCapabilityHash !=
+                      context.installedCapabilityHash)
+                    PlacementDecisionStore.claimedCapabilityKey: context
+                        .request.buildContract.installedCapability
+                        .toJson(),
                 },
                 context.isCurrent)
             .catchError((Object error) {
@@ -1208,6 +1223,7 @@ final class PlacementRegistry {
         // The withdrawn decision is neither painted again nor read back.
         _accepted.remove(mount);
         await decisions.remove(decisions.decisionKey(context.request, mount,
+            installedCapabilityHash: context.installedCapabilityHash,
             target: entry.descriptor.placement.target));
         savedChanged();
       }
@@ -1259,6 +1275,7 @@ final class PlacementRegistry {
     }
     final localContext = PlacementRequestContext(
         request: context.request,
+        installedCapabilityHash: context.installedCapabilityHash,
         lease: storedLease!,
         capturedAt: context.capturedAt,
         isCurrent: () => context.isCurrent() && storedLease!.isCurrent,
@@ -1349,18 +1366,33 @@ typedef PlacementAccepted = ({
 @internal
 final class PlacementRequestContext {
   PlacementRequestContext(
-      {required this.request,
+      {required PlacementBatchRequestV1 request,
       required this.lease,
       required this.capturedAt,
       required this.isCurrent,
       bool Function()? capabilityChanged,
       List<String> Function(List<String> consulted)? changedFacts,
       this.pendingFacts = const {},
-      bool Function()? superseded})
-      : capabilityChanged = capabilityChanged ?? _unchanged,
+      bool Function()? superseded,
+      String? installedCapabilityHash})
+      : _request = request,
+        installedCapabilityHash = installedCapabilityHash ??
+            request.buildContract.installedCapabilityHash,
+        capabilityChanged = capabilityChanged ?? _unchanged,
         changedFacts = changedFacts ?? _unconsulted,
         superseded = superseded ?? _unchanged;
-  final PlacementBatchRequestV1 request;
+
+  /// The request the answer is for: the one gathered, or the platform's
+  /// startup request when its answer was adopted.
+  PlacementBatchRequestV1 get request => _request;
+  PlacementBatchRequestV1 _request;
+
+  /// The answer came for [sent], the platform's startup request.
+  void answeredFor(PlacementBatchRequestV1 sent) => _request = sent;
+
+  /// The capability this app runs with when the request was gathered; its
+  /// saved decisions are kept under it, as the next launch reads them.
+  final String installedCapabilityHash;
   final SurfaceAssignmentResolutionLease lease;
   final DateTime capturedAt;
 

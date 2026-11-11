@@ -3,8 +3,12 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/measurement/measurement_outbox.dart';
+import 'package:restage/src/measurement/measurement_outbox_io.dart'
+    show MeasurementOutboxIoFileSystem;
 import 'package:restage/src/measurement/measurement_outbox_stub.dart'
     as unsupported;
+import 'package:restage/src/measurement/measurement_worker_protocol.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 import 'support/measurement_outbox_test_support.dart';
 
@@ -60,10 +64,12 @@ void main() {
           _batch(sessionId: 'session.order', sequence: 1, body: 'one');
       final second =
           _batch(sessionId: 'session.order', sequence: 2, body: 'two');
+      final other =
+          _batch(sessionId: 'session.order.other', sequence: 1, body: 'one');
 
       expect((await store.commit(first)).outcome,
           MeasurementOutboxCommitOutcome.committed);
-      expect((await store.commit(second)).outcome,
+      expect((await store.commit(other)).outcome,
           MeasurementOutboxCommitOutcome.committed);
       expect((await store.commit(first)).outcome,
           MeasurementOutboxCommitOutcome.duplicate);
@@ -74,10 +80,224 @@ void main() {
             .outcome,
         MeasurementOutboxCommitOutcome.sequenceConflict,
       );
+      expect((await store.commit(second)).outcome,
+          MeasurementOutboxCommitOutcome.committed);
+      // The later frame holds everything the earlier one did.
+      expect((await store.commit(first)).outcome,
+          MeasurementOutboxCommitOutcome.duplicate);
 
       final restarted = _store(support);
       await restarted.open();
-      expect((await restarted.nextReady())!.record.batch.sequence, 1);
+      final lease = (await restarted.nextReady())!;
+      expect(lease.record.batch.sessionId, 'session.order.other');
+      await restarted.quarantine(
+        lease,
+        MeasurementOutboxQuarantineReason.permanentRejection,
+      );
+      // Only the later frame of the first session remains.
+      final next = (await restarted.nextReady())!;
+      expect(next.record.batch.sessionId, 'session.order');
+      expect(next.record.batch.sequence, 2);
+    });
+
+    test('a quarantined frame holds back none of its session\'s later frames',
+        () async {
+      final support = await _temporarySupportDirectory();
+      addTearDown(() => support.delete(recursive: true));
+      final store = _store(support);
+      await store.open();
+      await store.commit(_batch(sessionId: 'session.refused', sequence: 1));
+      final refused = (await store.nextReady())!;
+      expect(refused.record.batch.sequence, 1);
+      // In flight, it is not superseded until its delivery ends.
+      await store.commit(
+          _batch(sessionId: 'session.refused', sequence: 2, body: 'final'));
+
+      expect(
+        (await store.quarantine(
+          refused,
+          MeasurementOutboxQuarantineReason.permanentRejection,
+        ))
+            .outcome,
+        MeasurementOutboxStateOutcome.quarantined,
+      );
+      expect((await store.nextReady())!.record.batch.sequence, 2);
+    });
+
+    test('a held frame holds back none of its session\'s later records',
+        () async {
+      final support = await _temporarySupportDirectory();
+      addTearDown(() => support.delete(recursive: true));
+      final store = _store(support);
+      await store.open();
+      final frame = _batch(sessionId: 'session.held', sequence: 1);
+      await store.commit(frame);
+      final held = (await store.nextReady())!;
+      expect(
+        (await store.hold(
+          held,
+          MeasurementOutboxHoldReason.authenticationFailure,
+        ))
+            .outcome,
+        MeasurementOutboxStateOutcome.held,
+      );
+      // A diagnostic does not supersede the frame; only ordering lets it go.
+      await store.commit(_diagnostic(frame, sequence: 2));
+      final next = (await store.nextReady())!;
+      expect(next.record.batch.diagnosticSha256, isNotNull);
+    });
+
+    test('a later frame retires its session\'s earlier ones, unless in flight',
+        () async {
+      final support = await _temporarySupportDirectory();
+      addTearDown(() => support.delete(recursive: true));
+      final journal =
+          Directory('${support.path}/restage/measurement/outbox-v1');
+      // A held clock keeps the scheduled retry from coming due mid-test.
+      final now = DateTime.now().toUtc();
+      final store = _store(support, clock: () => now);
+      await store.open();
+      final early = (await store.commit(
+        _batch(sessionId: 'session.retire', sequence: 1),
+      ))
+          .record!;
+      final inFlight = (await store.nextReady())!;
+      await store.commit(
+        _batch(sessionId: 'session.retire', sequence: 2, body: 'two'),
+      );
+      // The leased frame stays until its delivery ends.
+      expect(
+        await File('${journal.path}/${early.fileStem}.ready').exists(),
+        isTrue,
+      );
+      expect(await store.nextReady(), isNull);
+      expect((await store.scheduleRetry(inFlight)).outcome,
+          MeasurementOutboxRetryOutcome.scheduled);
+      expect(
+        await File('${journal.path}/${early.fileStem}.ready').exists(),
+        isFalse,
+      );
+      final second = (await store.commit(
+        _batch(sessionId: 'session.retire', sequence: 3, body: 'three'),
+      ))
+          .record!;
+      // An unleased earlier frame leaves on commit.
+      final remaining = await journal
+          .list()
+          .map((entity) => entity.path)
+          .where((path) => path.endsWith('.ready'))
+          .toList();
+      expect(remaining, [endsWith('${second.fileStem}.ready')]);
+    });
+
+    test('a session id another launch used is neither refused nor retired',
+        () async {
+      final support = await _temporarySupportDirectory();
+      addTearDown(() => support.delete(recursive: true));
+      final store = _store(support);
+      await store.open();
+      final earlier = _batch(
+        sessionId: 'measurement-host.1',
+        sequence: 1,
+        nonce: 'n.launch1',
+      );
+      await store.commit(earlier);
+      expect(
+        (await store.commit(_batch(
+          sessionId: 'measurement-host.1',
+          sequence: 1,
+          body: 'next',
+          nonce: 'n.launch2',
+        )))
+            .outcome,
+        MeasurementOutboxCommitOutcome.committed,
+      );
+      expect(
+        (await store.commit(_batch(
+          sessionId: 'measurement-host.1',
+          sequence: 2,
+          body: 'last',
+          nonce: 'n.launch2',
+        )))
+            .outcome,
+        MeasurementOutboxCommitOutcome.committed,
+      );
+      final first = (await store.nextReady())!;
+      expect(
+          first.record.batch.captureSessionNonce, earlier.captureSessionNonce);
+    });
+
+    test('startup retires a frame a later one superseded before a crash',
+        () async {
+      final support = await _temporarySupportDirectory();
+      addTearDown(() => support.delete(recursive: true));
+      final journal = await _journal(support);
+      final early = await _write(journal, sequence: 1, body: 'early');
+      final last = await _write(journal, sequence: 2, body: 'last');
+
+      final store = _store(support);
+      await store.open();
+
+      expect(await File('${journal.path}/${early.fileStem}.ready').exists(),
+          isFalse);
+      expect(await File('${journal.path}/${last.fileStem}.ready').exists(),
+          isTrue);
+    });
+
+    test(
+        'a frame quarantined at startup supersedes none of its session\'s '
+        'earlier ones', () async {
+      final support = await _temporarySupportDirectory();
+      addTearDown(() => support.delete(recursive: true));
+      final journal = await _journal(support);
+      final early = await _write(journal, sequence: 1, body: 'early');
+      final last = await _write(journal, sequence: 2, body: 'last');
+      // The later frame's marker is corrupt, so recovery quarantines it.
+      await File('${journal.path}/${last.fileStem}.hold')
+          .writeAsBytes(const <int>[1, 2, 3], flush: true);
+
+      final store = _store(support);
+      final opened = await store.open();
+
+      expect(opened.recovery.quarantinedReadyRecords, 1);
+      final lease = (await store.nextReady())!;
+      expect(lease.record.fileStem, early.fileStem);
+    });
+
+    test('an acknowledged later frame covers a re-commit of an earlier one',
+        () async {
+      final support = await _temporarySupportDirectory();
+      addTearDown(() => support.delete(recursive: true));
+      final fileSystem = _FailingDeleteFileSystem();
+      final store = createMeasurementOutboxStore(
+        configuration: MeasurementOutboxConfiguration(
+          applicationSupportPath: support.path,
+          configurationFingerprint: 'config.test.v1',
+        ),
+        clock: null,
+        fileSystem: fileSystem,
+      );
+      await store.open();
+      await store.commit(
+        _batch(sessionId: 'session.acked', sequence: 2, body: 'last'),
+      );
+      final lease = (await store.nextReady())!;
+      // Delivered, but its files outlive the acknowledgement.
+      fileSystem.failDeletes = true;
+      final acknowledgement = MeasurementOutboxAcknowledgement.fromReceipt(
+        record: lease.record,
+        receipt: receiptForRecord(lease.record),
+      )!;
+      expect((await store.acknowledge(lease, acknowledgement)).outcome,
+          MeasurementOutboxAcknowledgementOutcome.acknowledgedPendingCleanup);
+      fileSystem.failDeletes = false;
+      expect(
+        (await store.commit(
+          _batch(sessionId: 'session.acked', sequence: 1, body: 'early'),
+        ))
+            .outcome,
+        MeasurementOutboxCommitOutcome.duplicate,
+      );
     });
 
     test('quarantines duplicate ready coordinates found at startup', () async {
@@ -403,13 +623,75 @@ MeasurementOutboxPreparedBatch _batch({
   int sequence = 1,
   String body = 'body',
   int factCount = 1,
+  String? nonce,
 }) =>
     outboxPreparedBatch(
       sessionId: sessionId,
       sequence: sequence,
       variant: body,
       factCount: factCount,
+      nonce: nonce ?? 'n.$sessionId',
     );
+
+// The terminal diagnostic of [frame]'s session.
+MeasurementOutboxPreparedBatch _diagnostic(
+  MeasurementOutboxPreparedBatch frame, {
+  required int sequence,
+}) {
+  final binding = MeasurementPublicationBindingReferenceV1.fromCanonicalBytes(
+    frame.publicationBindingReferenceCanonicalBytes,
+  );
+  final request = MeasurementPresentationDiagnosticRequestV1.fromDiagnostic(
+    const MeasurementPresentationDiagnosticV1(
+      rootPresentationReports: MeasurementRootPresentationReportsV1.none,
+      stepObserved: false,
+      finishReason: MeasurementPresentationFinishReasonV1.paintFailed,
+      captureIncomplete: true,
+    ),
+    captureSessionNonce: frame.captureSessionNonce,
+    publicationBindingReference: binding,
+    sequence: sequence,
+  );
+  return MeasurementOutboxPreparedBatch.fromWorkerPreparedDiagnosticBatch(
+    MeasurementWorkerPreparedBatch(
+      batchId: 'batch.diagnostic',
+      sessionId: frame.sessionId,
+      isFinal: true,
+      sequence: sequence,
+      canonicalFrameBytes: const [],
+      frameSha256: '',
+      canonicalRequestBytes: request.canonicalBytes,
+      canonicalRequestBase64: request.canonicalRequestBase64,
+      requestSha256: request.requestSha256,
+      ownedByteCount: 1,
+    ),
+    captureSessionNonce: frame.captureSessionNonce,
+    publicationBindingReferenceCanonicalBytes:
+        frame.publicationBindingReferenceCanonicalBytes,
+  );
+}
+
+Future<Directory> _journal(Directory support) =>
+    Directory('${support.path}/restage/measurement/outbox-v1')
+        .create(recursive: true);
+
+// A record of one session as a crashed run left it in [journal].
+Future<MeasurementOutboxRecord> _write(
+  Directory journal, {
+  required int sequence,
+  required String body,
+}) async {
+  final record = MeasurementOutboxRecord(
+    batch: _batch(sessionId: 'session.crash', sequence: sequence, body: body),
+    createdAtUtcMicros: DateTime.now().toUtc().microsecondsSinceEpoch,
+    configurationFingerprint: 'config.test.v1',
+  );
+  await File('${journal.path}/${record.fileStem}.ready').writeAsBytes(
+    MeasurementOutboxRecordCodec.encode(record),
+    flush: true,
+  );
+  return record;
+}
 
 MeasurementOutboxRecord _record({
   required String sessionId,
@@ -432,6 +714,35 @@ final class _MutableClock {
   void advance(Duration duration) {
     now = now.add(duration);
   }
+}
+
+// The native filesystem, with deletes that fail while [failDeletes] is set.
+final class _FailingDeleteFileSystem implements MeasurementOutboxFileSystem {
+  final _io = const MeasurementOutboxIoFileSystem();
+  bool failDeletes = false;
+
+  @override
+  Future<void> createDirectory(String path) => _io.createDirectory(path);
+
+  @override
+  Future<void> delete(String path) => failDeletes
+      ? Future.error(const FileSystemException('held'))
+      : _io.delete(path);
+
+  @override
+  Future<List<MeasurementOutboxFileEntry>> listDirectory(String path) =>
+      _io.listDirectory(path);
+
+  @override
+  Future<Uint8List> readBytes(String path) => _io.readBytes(path);
+
+  @override
+  Future<void> rename(String sourcePath, String destinationPath) =>
+      _io.rename(sourcePath, destinationPath);
+
+  @override
+  Future<void> writeAndFlush(String path, Uint8List bytes) =>
+      _io.writeAndFlush(path, bytes);
 }
 
 final class _RecordingFileSystem implements MeasurementOutboxFileSystem {

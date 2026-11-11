@@ -33,8 +33,8 @@ object EarlyFacts {
             "firstLaunchMicros" to firstLaunchMicros(context),
             "meteringKey" to identity(context).first,
             "analyticsAnonymousId" to identity(context).second,
-            "registrationNonce" to registration(context).first,
-            "registrationCreatedAtMicros" to registration(context).second,
+            "registrationNonce" to existingRegistration(context)?.first,
+            "registrationCreatedAtMicros" to existingRegistration(context)?.second,
             "utcOffsetMinutes" to TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60000,
         )
     }
@@ -59,14 +59,18 @@ object EarlyFacts {
     private fun validVersion(v: String) =
         v.isNotEmpty() && v.length <= 64 && v.none { it.code < 0x20 || it.code == 0x7f }
 
+    /** The install's registration identity if one was made, without making one. */
+    @Synchronized
+    fun existingRegistration(context: Context): Pair<String, Long>? = runCatching {
+        val (nonce, created) = File(context.filesDir, "restage_install_registration").readText().trim().split(":")
+        if (nonce.length == 43) nonce to created.toLong() else null
+    }.getOrNull()
+
     /** The install's registration identity: made once before the first request, kept in app storage. */
     @Synchronized
     fun registration(context: Context): Pair<String, Long> {
         val file = File(context.filesDir, "restage_install_registration")
-        runCatching {
-            val (nonce, created) = file.readText().trim().split(":")
-            if (nonce.length == 43) return nonce to created.toLong()
-        }
+        existingRegistration(context)?.let { return it }
         val bytes = ByteArray(32).also { SecureRandom().nextBytes(it) }
         val nonce = Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
         val created = System.currentTimeMillis() * 1000

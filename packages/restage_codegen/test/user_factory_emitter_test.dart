@@ -169,6 +169,7 @@ void main() {
         apiKey: r"rs_pk_sandbox_dev_'$x",
         baseUrl: 'https://api.example.com',
         channel: 'beta',
+        analytics: false,
       );
       final sources = [
         emitUserFactoriesDart(
@@ -206,11 +207,22 @@ void main() {
           source,
           _containsCode('String? get channel => _restageChannel;'),
         );
+        expect(source, _containsCode('const bool _restageAnalytics = false;'));
+        expect(
+          source,
+          _containsCode('bool get analyticsEnabled => _restageAnalytics;'),
+        );
+        expect(
+          source,
+          _containsCode(
+            'Restage.declareBuildAnalytics(enabled: _restageAnalytics);',
+          ),
+        );
         expect(source, contains("The app's generated Restage setup."));
       }
       expect(
         emitEmptyUserFactoriesDart(
-          delivery: (apiKey: 'k', baseUrl: 'u', channel: null),
+          delivery: (apiKey: 'k', baseUrl: 'u', channel: null, analytics: true),
         ),
         _containsCode('const String? _restageChannel = null;'),
       );
@@ -222,6 +234,44 @@ void main() {
       ]) {
         expect(source, isNot(contains('_restageApiKey')));
         expect(source, isNot(contains('RestageBuildDelivery')));
+      }
+    });
+
+    test('a build with no key still carries analytics: false', () {
+      for (final source in [
+        emitUserFactoriesDart(
+          [_widgetEntry(name: 'AcmeBadge', properties: const [])],
+          analytics: false,
+        )!,
+        emitEmptyUserFactoriesDart(analytics: false),
+      ]) {
+        expect(source, _containsCode('const bool _restageAnalytics = false;'));
+        expect(
+          source,
+          _containsCode(
+            'implements RestageWidgetRegistration, RestageBuildAnalytics {',
+          ),
+        );
+        expect(
+          source,
+          _containsCode('bool get analyticsEnabled => _restageAnalytics;'),
+        );
+        expect(
+          source,
+          _containsCode(
+            'Restage.declareBuildAnalytics(enabled: _restageAnalytics);',
+          ),
+        );
+        expect(source, isNot(contains('RestageBuildDelivery')));
+      }
+      for (final source in [
+        emitUserFactoriesDart([
+          _widgetEntry(name: 'AcmeBadge', properties: const []),
+        ])!,
+        emitEmptyUserFactoriesDart(),
+      ]) {
+        expect(source, isNot(contains('_restageAnalytics')));
+        expect(source, isNot(contains('declareBuildAnalytics')));
       }
     });
 

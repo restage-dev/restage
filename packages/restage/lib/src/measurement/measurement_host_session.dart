@@ -685,16 +685,18 @@ final class MeasurementHostSessionController
         if (constructionSession == null) {
           return MeasurementHostSessionController._disabled();
         }
+        final sink = _FirstPaintSink(constructionSession);
         final controller = MeasurementHostSessionController._workerOwned(
           constructionSession: constructionSession,
           routeTable: routeTable,
           presentationRouteHandle: MeasurementPresentationRouteHandle.open(
             publishedSurfaceRevision: resolvedMount.publishedSurfaceRevision,
-            captureSink: constructionSession,
+            captureSink: sink,
             observer: constructionSession.presentationAttemptObserver,
             onUncommittedAbort: constructionSession.abortBeforeSuccessfulPaint,
           ),
         );
+        sink.onPresented = controller._scheduleFirstPaintCheckpoint;
         controller._purchaseExposure = (
           captureSessionNonce: captureNonce,
           publicationBindingReference:
@@ -725,16 +727,18 @@ final class MeasurementHostSessionController
         routeTable: routeTable,
         sequence: 1,
       );
+      final sink = _FirstPaintSink(captureSession);
       final controller = MeasurementHostSessionController._active(
         captureSession: captureSession,
         presentationRouteHandle: MeasurementPresentationRouteHandle.open(
           publishedSurfaceRevision: resolvedMount.publishedSurfaceRevision,
-          captureSink: captureSession,
+          captureSink: sink,
         ),
         routeTable: routeTable,
         transport: authority.transport,
         routingSelectionReceipt: routingSelectionReceipt,
       );
+      sink.onPresented = controller._scheduleFirstPaintCheckpoint;
       controller._purchaseExposure = (
         captureSessionNonce: captureNonce,
         publicationBindingReference:
@@ -780,6 +784,7 @@ final class MeasurementHostSessionController
   MeasurementHostSessionLifecycleRegistration? _lifecycleRegistration;
   final Set<Future<void>> _pendingLifecycleCheckpoints = <Future<void>>{};
   bool _backgroundCheckpointIssued = false;
+  Timer? _firstPaintCheckpoint;
   Future<MeasurementIngestTransportOutcome?>? _teardownFuture;
   ({
     String captureSessionNonce,
@@ -883,6 +888,7 @@ final class MeasurementHostSessionController
 
   void _disableAfterConstructionFailure() {
     _debugState = MeasurementHostSessionDebugState.disabled;
+    _cancelFirstPaintCheckpoint();
     try {
       _lifecycleRegistration?.unregister();
     } on Object {
@@ -909,6 +915,7 @@ final class MeasurementHostSessionController
         case AppLifecycleState.paused:
           if (_backgroundCheckpointIssued) return;
           _backgroundCheckpointIssued = true;
+          _cancelFirstPaintCheckpoint();
           final checkpointFuture = checkpoint().then<void>((_) {});
           _pendingLifecycleCheckpoints.add(checkpointFuture);
           unawaited(
@@ -925,6 +932,29 @@ final class MeasurementHostSessionController
       // Lifecycle observation is never allowed to interfere with the host.
     }
   }
+
+  /// How long after the first successful paint the presented frame is sent,
+  /// so a surface left on screen is counted before the app backgrounds or the
+  /// surface closes.
+  static const Duration firstPaintCheckpointDelay = Duration(seconds: 3);
+
+  void _scheduleFirstPaintCheckpoint() {
+    if (_debugState != MeasurementHostSessionDebugState.active ||
+        _backgroundCheckpointIssued ||
+        _firstPaintCheckpoint != null) {
+      return;
+    }
+    _firstPaintCheckpoint = Timer(firstPaintCheckpointDelay, () {
+      if (_debugState != MeasurementHostSessionDebugState.active ||
+          _backgroundCheckpointIssued) {
+        return;
+      }
+      unawaited(checkpoint());
+    });
+  }
+
+  // Leaves the timer non-null, so a presentation sends this frame once.
+  void _cancelFirstPaintCheckpoint() => _firstPaintCheckpoint?.cancel();
 
   /// Wraps an admitted root with the exact successful-first-paint hook.
   Widget wrapRootSubtree(Widget child) {
@@ -1281,6 +1311,7 @@ final class MeasurementHostSessionController
   Future<MeasurementIngestTransportOutcome?> _teardownActive() async {
     _debugState = MeasurementHostSessionDebugState.finalized;
     _backgroundCheckpointIssued = true;
+    _cancelFirstPaintCheckpoint();
     try {
       _lifecycleRegistration?.unregister();
     } on Object {
@@ -1386,5 +1417,21 @@ final class _DeferredMeasurementRoot extends StatelessWidget {
       binder: session._pendingBinder,
       child: hooked,
     );
+  }
+}
+
+// Tells the session when its presentation first paints successfully.
+final class _FirstPaintSink implements MeasurementPresentationCaptureSink {
+  _FirstPaintSink(this._inner);
+
+  final MeasurementPresentationCaptureSink _inner;
+  void Function()? onPresented;
+
+  @override
+  void recordSuccessfulPresentation(
+    MeasurementSuccessfulPresentationFact fact,
+  ) {
+    _inner.recordSuccessfulPresentation(fact);
+    onPresented?.call();
   }
 }

@@ -1885,6 +1885,40 @@ final class PlacementBatchRequestV1 extends _PlacementValue {
         startup: startup,
       );
 
+  /// This request as the SDK sends it with analytics off: no anonymous id, no
+  /// registration, no assignment key and no held assignments or declines.
+  PlacementBatchRequestV1 withoutAnalytics() =>
+      _withoutAssignment(analyticsAnonymousId: null);
+
+  /// This request as the SDK sends it with measurement off: the anonymous id
+  /// stays; no registration, assignment key, held assignments or declines.
+  PlacementBatchRequestV1 withoutAssignment() =>
+      _withoutAssignment(analyticsAnonymousId: analyticsAnonymousId);
+
+  PlacementBatchRequestV1 _withoutAssignment({
+    required String? analyticsAnonymousId,
+  }) =>
+      PlacementBatchRequestV1._(
+        mounts: mounts,
+        buildContract: buildContract,
+        appBuildContractHash: appBuildContractHash,
+        mode: mode,
+        localClock: localClock,
+        sdkInstalledLibraries: sdkInstalledLibraries,
+        sdkBuiltInsCanonicalBase64: sdkBuiltInsCanonicalBase64,
+        sdkSupportedPolicyRevisions: sdkSupportedPolicyRevisions,
+        assignmentKey: null,
+        heldAssignments: const [],
+        heldDeclines: const [],
+        mountedSince: mountedSince,
+        registration: null,
+        meteringKey: meteringKey,
+        analyticsAnonymousId: analyticsAnonymousId,
+        carriesBuildContract: carriesBuildContract,
+        inlineMounts: inlineMounts,
+        startup: startup,
+      );
+
   /// This request with its wire form carrying the build contract or not.
   PlacementBatchRequestV1 withBuildContract({required bool carried}) =>
       carried == carriesBuildContract

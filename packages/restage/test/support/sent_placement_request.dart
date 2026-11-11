@@ -10,3 +10,7 @@ PlacementBatchRequestV1 sentPlacementRequest(List<int> bytes) {
   _sentBuilds[request.appBuildContractHash] = request.buildContract;
   return request;
 }
+
+/// Forgets every build sent so far, as a service seeing this app for the first
+/// time would.
+void forgetSentBuilds() => _sentBuilds.clear();

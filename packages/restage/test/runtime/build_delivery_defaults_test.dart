@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import 'package:restage/src/resolver/surface_delivery_observations.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../support/placement_delivery_fixture.dart';
 import '../support/restage_runtime_test_support.dart';
 import 'fixtures/catalog_options_delivery.g.dart' as delivery;
 import 'fixtures/catalog_options_full.g.dart' as offline;
@@ -29,6 +31,21 @@ final class _SlashedSetup
 
   @override
   String? get channel => null;
+
+  @override
+  bool get analyticsEnabled => true;
+
+  @override
+  void call({required bool includeMaterial, required bool includeCupertino}) {}
+}
+
+/// A generated setup with `analytics: false` and no key in build.yaml.
+final class _KeylessAnalyticsOff
+    implements RestageWidgetRegistration, RestageBuildAnalytics {
+  const _KeylessAnalyticsOff();
+
+  @override
+  bool get analyticsEnabled => false;
 
   @override
   void call({required bool includeMaterial, required bool includeCupertino}) {}
@@ -156,6 +173,261 @@ void main() {
       expect(Restage.debugBaseUrl, _buildUrl);
     });
   }
+
+  group('the choice kept for the next first-launch request', () {
+    late List<({bool hosted, bool? analytics})> saved;
+    late List<bool> measured;
+    setUp(() {
+      saved = [];
+      measured = [];
+      EarlyRequest.choiceRecorder = ({
+        required hosted,
+        required analytics,
+        required measurement,
+      }) {
+        saved.add((hosted: hosted, analytics: analytics));
+        measured.add(measurement);
+      };
+    });
+    tearDown(() {
+      EarlyRequest.choiceRecorder = null;
+      EarlyRequest.debugBindingExists = null;
+    });
+
+    void configureNow({
+      String? apiKey,
+      bool? analyticsEnabled,
+      RestageWidgetRegistration? registerWidgets,
+      bool installedCatalog = false,
+    }) =>
+        installedCatalog
+            ? Restage.configureWithInstalledCatalog(
+                apiKey: apiKey,
+                analyticsEnabled: analyticsEnabled,
+                registerWidgets: registerWidgets,
+                measurementEnabled: false,
+                deliveryReceiptsEnabled: false,
+              )
+            : Restage.configure(
+                apiKey: apiKey,
+                analyticsEnabled: analyticsEnabled,
+                registerWidgets: registerWidgets,
+                measurementEnabled: false,
+                deliveryReceiptsEnabled: false,
+              );
+
+    Future<void> configure({
+      String? apiKey,
+      bool? analyticsEnabled,
+      RestageWidgetRegistration? registerWidgets,
+      bool installedCatalog = false,
+    }) async {
+      configureNow(
+        apiKey: apiKey,
+        analyticsEnabled: analyticsEnabled,
+        registerWidgets: registerWidgets,
+        installedCatalog: installedCatalog,
+      );
+      await pumpEventQueue();
+    }
+
+    for (final installedCatalog in [false, true]) {
+      final entry = installedCatalog ? 'installed catalog' : 'configure';
+
+      test("$entry keeps the app's own choice and leaves the rest to the build",
+          () async {
+        await configure(
+          registerWidgets: delivery.kRestageWidgetRegistration,
+          installedCatalog: installedCatalog,
+        );
+        await configure(
+          registerWidgets: delivery.kRestageWidgetRegistration,
+          analyticsEnabled: true,
+          installedCatalog: installedCatalog,
+        );
+        expect(saved, [
+          (hosted: true, analytics: null),
+          (hosted: true, analytics: true),
+        ]);
+      });
+
+      test('$entry keeps offline when it has no key', () async {
+        await configure(
+          apiKey: '',
+          registerWidgets: delivery.kRestageWidgetRegistration,
+          installedCatalog: installedCatalog,
+        );
+        await configure(installedCatalog: installedCatalog);
+        expect(saved, [
+          (hosted: false, analytics: null),
+          (hosted: false, analytics: null),
+        ]);
+      });
+    }
+
+    test('an app that changes nothing keeps hosted', () async {
+      Restage.configure(apiKey: _buildKey, baseUrl: _buildUrl);
+      await pumpEventQueue();
+      expect(saved, [(hosted: true, analytics: null)]);
+    });
+
+    test('the measurement setting is kept beside the choice', () async {
+      Restage.configure(apiKey: _buildKey, baseUrl: _buildUrl);
+      await pumpEventQueue();
+      Restage.configure(
+        apiKey: _buildKey,
+        baseUrl: _buildUrl,
+        measurementEnabled: false,
+      );
+      await pumpEventQueue();
+      expect(measured, [true, false]);
+    });
+
+    test('the last of several configures is the one kept', () async {
+      configureNow(
+          registerWidgets: delivery.kRestageWidgetRegistration,
+          analyticsEnabled: true);
+      configureNow(
+          registerWidgets: delivery.kRestageWidgetRegistration,
+          analyticsEnabled: false);
+      await pumpEventQueue();
+      expect(saved, [(hosted: true, analytics: false)]);
+    });
+
+    test('a choice made before the binding never lands after a later one',
+        () async {
+      var exists = false;
+      EarlyRequest.debugBindingExists = () => exists;
+      // Before runApp: this save waits for the binding.
+      configureNow(
+          registerWidgets: delivery.kRestageWidgetRegistration,
+          analyticsEnabled: true);
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      exists = true;
+      configureNow(
+          registerWidgets: delivery.kRestageWidgetRegistration,
+          analyticsEnabled: false);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(saved, [(hosted: true, analytics: false)]);
+    });
+
+    testWidgets('a binding that comes within the wait still gets the choice',
+        (tester) async {
+      var exists = false;
+      EarlyRequest.debugBindingExists = () => exists;
+      unawaited(EarlyRequest.saveChoice(hosted: true, analytics: false));
+      await tester.pump(EarlyRequest.bindingWait - const Duration(seconds: 1));
+      expect(saved, isEmpty);
+      exists = true;
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(saved, [(hosted: true, analytics: false)]);
+    });
+
+    testWidgets('a binding that never comes drops the choice after the wait',
+        (tester) async {
+      var exists = false;
+      EarlyRequest.debugBindingExists = () => exists;
+      unawaited(EarlyRequest.saveChoice(hosted: true, analytics: false));
+      await tester.pump(EarlyRequest.bindingWait + const Duration(seconds: 1));
+      exists = true;
+      await tester.pump(const Duration(seconds: 1));
+      expect(saved, isEmpty);
+      // The next choice starts a new wait and is kept.
+      unawaited(EarlyRequest.saveChoice(hosted: false));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(saved, [(hosted: false, analytics: null)]);
+    });
+  });
+
+  group("the build's analytics default", () {
+    void configure({
+      bool? analyticsEnabled,
+      RestageWidgetRegistration? registerWidgets,
+    }) =>
+        Restage.configure(
+          apiKey: _buildKey,
+          baseUrl: _buildUrl,
+          analyticsEnabled: analyticsEnabled,
+          registerWidgets: registerWidgets,
+          measurementEnabled: false,
+          deliveryReceiptsEnabled: false,
+        );
+
+    test('reaches a key set in code', () {
+      configure(registerWidgets: const _KeylessAnalyticsOff());
+      expect(Restage.debugAnalyticsEnabled, isFalse);
+      configure(
+        registerWidgets: const _KeylessAnalyticsOff(),
+        analyticsEnabled: true,
+      );
+      expect(Restage.debugAnalyticsEnabled, isTrue);
+    });
+
+    test('declared by registerRestageWidgets() before configure applies', () {
+      Restage.declareBuildAnalytics(enabled: false);
+      configure();
+      expect(Restage.debugAnalyticsEnabled, isFalse);
+      configure(analyticsEnabled: true);
+      expect(Restage.debugAnalyticsEnabled, isTrue);
+    });
+
+    test('declared after configure is reported, unless the app chose', () {
+      final reported = <String>[];
+      final previous = FlutterError.onError;
+      FlutterError.onError = (details) => reported.add('${details.exception}');
+      addTearDown(() => FlutterError.onError = previous);
+      configure(analyticsEnabled: true);
+      Restage.declareBuildAnalytics(enabled: false);
+      expect(reported, isEmpty);
+      Restage.debugReset();
+      configure();
+      Restage.declareBuildAnalytics(enabled: false);
+      expect(reported, [
+        contains(Restage.buildAnalyticsAfterConfigureMessage),
+      ]);
+    });
+  });
+
+  group('a kept first-launch template', () {
+    final build = readPlacementDeliveryFixture().request.buildContract;
+    final request = startupRequestFor(
+      platform: 'android',
+      mounts: build.mounts.toList(),
+      contractsByHash: build.contractsByHash,
+      capability: build.installedCapability,
+      builtIns: const {'platform': 'android'},
+    );
+    Map<String, Object?> kept() => jsonDecode(
+          EarlyRequest.rememberedTemplate(
+              Uri.parse(_resolve), _buildKey, request)!,
+        ) as Map<String, Object?>;
+
+    test("carries the build's analytics default, not the app's choice", () {
+      Restage.configure(
+        apiKey: _buildKey,
+        baseUrl: _buildUrl,
+        registerWidgets: const _KeylessAnalyticsOff(),
+        analyticsEnabled: true,
+      );
+      // A launch that ends before its choice is saved sends analytics off.
+      expect(kept()['analytics'], isFalse);
+      Restage.debugReset();
+      Restage.configure(apiKey: _buildKey, baseUrl: _buildUrl);
+      expect(kept()['analytics'], isTrue);
+    });
+
+    test("carries the app's measurement setting", () {
+      Restage.configure(
+        apiKey: _buildKey,
+        baseUrl: _buildUrl,
+        measurementEnabled: false,
+      );
+      expect(kept()['measurement'], isFalse);
+      Restage.debugReset();
+      Restage.configure(apiKey: _buildKey, baseUrl: _buildUrl);
+      expect(kept()['measurement'], isTrue);
+    });
+  });
 
   test('a blank URL is no URL', () {
     _configure(apiKey: 'rs_pk_sandbox_dev_x', baseUrl: ' ');

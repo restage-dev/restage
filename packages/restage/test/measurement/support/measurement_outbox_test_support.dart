@@ -13,6 +13,7 @@ MeasurementOutboxPreparedBatch outboxPreparedBatch({
   int factCount = 1,
   String? registrationFingerprint,
   String? outcomeLinkCarrier,
+  String? nonce,
 }) =>
     MeasurementOutboxPreparedBatch.fromWorkerPreparedBatch(
       workerPreparedBatch(
@@ -22,6 +23,7 @@ MeasurementOutboxPreparedBatch outboxPreparedBatch({
         variant: variant,
         factCount: factCount,
         outcomeLinkCarrier: outcomeLinkCarrier,
+        nonce: nonce,
       ),
       registrationFingerprint: registrationFingerprint,
     );
@@ -33,6 +35,7 @@ MeasurementWorkerPreparedBatch workerPreparedBatch({
   String variant = 'default',
   int factCount = 1,
   String? outcomeLinkCarrier,
+  String? nonce,
 }) =>
     workerPreparedBatchForRequest(
       ingestRequest(
@@ -41,6 +44,7 @@ MeasurementWorkerPreparedBatch workerPreparedBatch({
         variant: variant,
         factCount: factCount,
         outcomeLinkCarrier: outcomeLinkCarrier,
+        nonce: nonce,
       ),
       sessionId: sessionId,
       sequence: sequence,
@@ -80,12 +84,14 @@ MeasurementIngestRequestV1 ingestRequest({
   int factCount = 1,
   MeasurementPublicationBindingReferenceV1? bindingReference,
   String? outcomeLinkCarrier,
+  String? nonce,
 }) {
   if (factCount <= 0 || factCount > 1024) {
     throw ArgumentError.value(factCount, 'factCount');
   }
   final binding = bindingReference ?? _bindingReference;
-  final nonce =
+  // A given nonce keeps one capture session; [variant] then names the revision.
+  final captureNonce = nonce ??
       crypto.sha256.convert(utf8.encode(variant)).toString().substring(0, 24);
   final frame = MeasurementFactFrameV1.fromCanonicalBytes(
     CanonicalJsonCodec.encode({
@@ -95,7 +101,7 @@ MeasurementIngestRequestV1 ingestRequest({
         'maximumMissingnessEntries': 0,
         'maximumPresentedPoints': factCount,
       },
-      'captureSessionNonce': 'capture.$nonce',
+      'captureSessionNonce': 'capture.$captureNonce',
       'facts': [
         for (var index = 0; index < factCount; index += 1)
           {
@@ -124,7 +130,9 @@ MeasurementIngestRequestV1 ingestRequest({
           ),
           surfaceId: SurfaceId('surface.outbox.test'),
         ),
-        surfaceRevisionId: SurfaceRevisionId('surface.outbox.test.v1'),
+        surfaceRevisionId: SurfaceRevisionId(
+          nonce == null ? 'surface.outbox.test.v1' : 'surface.outbox.$variant',
+        ),
         artifactGraphHash: CanonicalDigest('b' * 64),
         measurementManifestHash: CanonicalDigest('c' * 64),
       ).toJson(),

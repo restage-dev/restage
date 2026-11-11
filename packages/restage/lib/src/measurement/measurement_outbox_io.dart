@@ -212,6 +212,7 @@ final class _MeasurementFileOutboxStore
         }
       }
 
+      await _retireSuperseded();
       await _cleanupOrphanMarkers();
       final result = MeasurementOutboxOpenResult(
         outcome: MeasurementOutboxOpenOutcome.opened,
@@ -237,7 +238,7 @@ final class _MeasurementFileOutboxStore
     if (!_isOpened) return _unavailableCommitResult();
     final sameSequence = _records.values.where(
       (record) =>
-          record.record.batch.sessionId == batch.sessionId &&
+          _sameSession(record.record.batch, batch) &&
           record.record.batch.sequence == batch.sequence,
     );
     if (sameSequence.isNotEmpty) {
@@ -247,6 +248,19 @@ final class _MeasurementFileOutboxStore
             ? MeasurementOutboxCommitOutcome.duplicate
             : MeasurementOutboxCommitOutcome.sequenceConflict,
         record: existing,
+      );
+    }
+    // A later frame of the session already holds everything this one does.
+    final covering = _records.values.where(
+      (stored) =>
+          (stored.state == _StoredOutboxState.ready ||
+              stored.state == _StoredOutboxState.acknowledged) &&
+          _covers(stored.record.batch, batch),
+    );
+    if (covering.isNotEmpty) {
+      return MeasurementOutboxCommitResult(
+        outcome: MeasurementOutboxCommitOutcome.duplicate,
+        record: covering.first.record,
       );
     }
 
@@ -271,8 +285,20 @@ final class _MeasurementFileOutboxStore
       );
     }
     try {
-      final currentBytes = await _physicalByteCount();
-      final logicalRecords = _records.length + _opaqueQuarantinePaths.length;
+      // The frames this one supersedes leave on commit, so they take no slot;
+      // a leased one leaves when its delivery ends.
+      final superseded = [
+        for (final stored in _records.values)
+          if (_supersedes(batch, stored)) stored,
+      ];
+      final entries = await _sortedEntries();
+      final currentBytes = entries.fold<int>(
+            0,
+            (total, entry) => total + entry.byteLength,
+          ) -
+          _bytesOf(superseded, entries);
+      final logicalRecords =
+          _records.length + _opaqueQuarantinePaths.length - superseded.length;
       if (logicalRecords >= kMeasurementOutboxMaximumPendingRecords ||
           currentBytes +
                   encoded.length +
@@ -298,6 +324,7 @@ final class _MeasurementFileOutboxStore
         record: record,
         readyPath: readyPath,
       );
+      await _retireSuperseded();
       return MeasurementOutboxCommitResult(
         outcome: MeasurementOutboxCommitOutcome.committed,
         record: record,
@@ -316,6 +343,7 @@ final class _MeasurementFileOutboxStore
     if (_records.values.any((record) => record.leased)) return null;
     final purged = await _purgeExpiredInternal();
     if (purged.failed) return null;
+    await _retireSuperseded();
     final now = _nowUtcMicros();
     final candidates = _records.values
         .where(
@@ -469,6 +497,7 @@ final class _MeasurementFileOutboxStore
         ..retryAttempt = attempt
         ..nextRetryUtcMicros = nextRetryUtcMicros
         ..retryPaths = <String>[path];
+      await _retireSuperseded();
       return MeasurementOutboxRetryResult(
         outcome: MeasurementOutboxRetryOutcome.scheduled,
         attempt: attempt,
@@ -498,6 +527,7 @@ final class _MeasurementFileOutboxStore
     stored.leased = false;
     try {
       await _enterHold(stored, reason);
+      await _retireSuperseded();
       return const MeasurementOutboxStateResult(
         MeasurementOutboxStateOutcome.held,
       );
@@ -523,6 +553,7 @@ final class _MeasurementFileOutboxStore
     stored.leased = false;
     try {
       await _enterQuarantine(stored, reason);
+      await _retireSuperseded();
       return const MeasurementOutboxStateResult(
         MeasurementOutboxStateOutcome.quarantined,
       );
@@ -816,11 +847,6 @@ final class _MeasurementFileOutboxStore
     return entries;
   }
 
-  Future<int> _physicalByteCount() async => (await _sortedEntries()).fold<int>(
-        0,
-        (total, entry) => total + entry.byteLength,
-      );
-
   _StoredOutboxRecord? _recordForLease(MeasurementOutboxLease lease) {
     final stored = _records[lease.fileStem];
     if (stored == null || !_sameRecord(stored.record, lease.record)) {
@@ -829,13 +855,61 @@ final class _MeasurementFileOutboxStore
     return stored;
   }
 
+  // Only an earlier record that can still be sent holds back its session's
+  // later ones; frames are cumulative, so a held or quarantined one never does.
   bool _isEarliestForSession(_StoredOutboxRecord candidate) =>
       !_records.values.any(
         (other) =>
-            other.record.batch.sessionId == candidate.record.batch.sessionId &&
+            _sameSession(other.record.batch, candidate.record.batch) &&
             other.record.batch.sequence < candidate.record.batch.sequence &&
-            other.state != _StoredOutboxState.acknowledged,
+            other.state == _StoredOutboxState.ready,
       );
+
+  // Whether [batch], a later fact frame of the same session, contains
+  // everything [stored] does.
+  bool _supersedes(
+    MeasurementOutboxPreparedBatch batch,
+    _StoredOutboxRecord stored,
+  ) =>
+      stored.state != _StoredOutboxState.acknowledged &&
+      _covers(batch, stored.record.batch);
+
+  // Deletes every unleased record a later frame of its session supersedes;
+  // only a later frame that can still be sent, or was, supersedes.
+  Future<void> _retireSuperseded() async {
+    for (final stored in List<_StoredOutboxRecord>.from(_records.values)) {
+      if (stored.leased) continue;
+      final later = _records.values.any(
+        (other) =>
+            (other.state == _StoredOutboxState.ready ||
+                other.state == _StoredOutboxState.acknowledged) &&
+            _supersedes(other.record.batch, stored),
+      );
+      if (!later) continue;
+      try {
+        await _deleteReadyAndState(stored);
+        _records.remove(stored.record.fileStem);
+      } on Object {
+        // It stays, and is sent or expires as any record does.
+      }
+    }
+  }
+
+  int _bytesOf(
+    List<_StoredOutboxRecord> records,
+    List<MeasurementOutboxFileEntry> entries,
+  ) {
+    final stems = {for (final stored in records) stored.record.fileStem};
+    var total = 0;
+    for (final entry in entries) {
+      final name = _name(entry.path);
+      final stem = name.endsWith('.ready')
+          ? name.substring(0, name.length - '.ready'.length)
+          : _markerStem(name);
+      if (stems.contains(stem)) total += entry.byteLength;
+    }
+    return total;
+  }
 
   bool _isExpired(MeasurementOutboxRecord record) =>
       _nowUtcMicros() - record.createdAtUtcMicros >=
@@ -924,15 +998,35 @@ int _compareReadyRecords(_StoredOutboxRecord left, _StoredOutboxRecord right) {
     right.record.createdAtUtcMicros,
   );
   if (byCreated != 0) return byCreated;
-  final bySession = left.record.batch.sessionId.compareTo(
-    right.record.batch.sessionId,
+  final bySession = _sessionKey(left.record.batch).compareTo(
+    _sessionKey(right.record.batch),
   );
   if (bySession != 0) return bySession;
   return left.record.batch.sequence.compareTo(right.record.batch.sequence);
 }
 
+// Whether [later], a fact frame, holds everything [earlier] of its session does.
+bool _covers(
+  MeasurementOutboxPreparedBatch later,
+  MeasurementOutboxPreparedBatch earlier,
+) =>
+    later.factFrameSha256 != null &&
+    earlier.factFrameSha256 != null &&
+    _sameSession(later, earlier) &&
+    earlier.sequence < later.sequence;
+
+// A worker session id repeats across launches; its capture nonce does not.
+String _sessionKey(MeasurementOutboxPreparedBatch batch) =>
+    '${batch.captureSessionNonce}\u0000${batch.sessionId}';
+
+bool _sameSession(
+  MeasurementOutboxPreparedBatch left,
+  MeasurementOutboxPreparedBatch right,
+) =>
+    _sessionKey(left) == _sessionKey(right);
+
 String _sequenceKey(MeasurementOutboxRecord record) =>
-    '${record.batch.sessionId}\u0000${record.batch.sequence}';
+    '${_sessionKey(record.batch)}\u0000${record.batch.sequence}';
 
 bool _sameRecord(MeasurementOutboxRecord left, MeasurementOutboxRecord right) =>
     left.batch.sessionId == right.batch.sessionId &&

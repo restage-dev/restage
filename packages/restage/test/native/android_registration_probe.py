@@ -71,12 +71,12 @@ class MethodChannel(messenger: Any, name: String) {
 import android.content.Context
 object EarlyRequest {
     class Result(val status: Int, val body: ByteArray, val headers: Map<String, String>, val sentAtMicros: Long, val answeredAtMicros: Long)
-    fun take(request: ByteArray, url: String, authorization: String, timeout: Long): Result? = null
     fun inFlight(timeout: Long): Pair<ByteArray, Result?>? = null
     fun remember(context: Context, template: String) {}
+    fun saveChoice(context: Context, hosted: Boolean, analytics: Boolean?, measurement: Boolean) {}
     fun invalidateStartup(context: Context) {}
     fun templateText(): String? = null
-    fun sentBytes(): ByteArray? = null
+    fun sentBytes(timeoutMs: Long): ByteArray? = null
 }
 ''',
     'Probe.kt': '''package dev.restage.early

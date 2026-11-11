@@ -343,8 +343,11 @@ abstract final class Restage {
   /// sessions when measurement is enabled.
   ///
   /// [analyticsEnabled] controls the anonymous install id and experiment
-  /// assignment. Turning it off keeps hosted delivery, the measurement link and
-  /// privacy calls, and metering. [measurementEnabled] controls new measurement sessions;
+  /// assignment. It defaults to the generated setup's `analytics` option, else
+  /// true. Turning it off keeps hosted delivery, the measurement link and
+  /// privacy calls, and metering. The choice, and whether the app is hosted at
+  /// all, is kept for the first-launch request the platform sends at the next
+  /// launch. [measurementEnabled] controls new measurement sessions;
   /// with it off, the SDK loads no measurement configuration and sends no
   /// measurement data. Experiment assignment needs both options on.
   ///
@@ -421,7 +424,7 @@ abstract final class Restage {
     String? apiKey,
     String? baseUrl,
     String? channel,
-    bool analyticsEnabled = true,
+    bool? analyticsEnabled,
     bool measurementEnabled = true,
     bool includeMaterial = true,
     bool includeCupertino = true,
@@ -509,7 +512,7 @@ abstract final class Restage {
     String? baseUrl,
     RestageWidgetRegistration? registerWidgets,
     String? channel,
-    bool analyticsEnabled = true,
+    bool? analyticsEnabled,
     bool measurementEnabled = true,
     RestageEnvironment environment = RestageEnvironment.production,
     void Function(SurfaceResolutionReport report)? onSurfaceResolution,
@@ -571,7 +574,7 @@ abstract final class Restage {
     String? baseUrl,
     RestageWidgetRegistration? registerWidgets,
     String? channel,
-    bool analyticsEnabled = true,
+    bool? analyticsEnabled,
     bool measurementEnabled = true,
     RestageEnvironment environment = RestageEnvironment.production,
     void Function(SurfaceResolutionReport report)? onSurfaceResolution,
@@ -616,6 +619,13 @@ abstract final class Restage {
     apiKey ??= built?.apiKey;
     baseUrl ??= built?.baseUrl;
     channel ??= built?.channel;
+    final buildAnalytics = switch (registerWidgets) {
+      final RestageBuildAnalytics build => build.analyticsEnabled,
+      _ => _declaredBuildAnalytics,
+    };
+    final analytics = analyticsEnabled ?? buildAnalytics ?? true;
+    _analyticsFollowsBuild = analyticsEnabled == null;
+    _resolvedAnalytics = analytics;
     // `apiKey: ''` asks for offline; no key at all may be a missed setup.
     final keyOmitted = apiKey == null;
     apiKey = apiKey?.trim();
@@ -642,6 +652,16 @@ abstract final class Restage {
         registered: registerWidgets != null,
       ));
     }
+    // The next launch's first-launch request follows this configuration.
+    EarlyRequest.setStartupDefaults(
+      analytics: buildAnalytics ?? true,
+      measurement: measurementEnabled,
+    );
+    unawaited(EarlyRequest.saveChoice(
+      hosted: apiKey != null && baseUrl != null,
+      analytics: analyticsEnabled,
+      measurement: measurementEnabled,
+    ));
     _configurationGeneration += 1;
     DeliveryTrust.configure(parsedDeliveryKeys);
     _environment = environment;
@@ -772,19 +792,19 @@ abstract final class Restage {
       apiKey: apiKey,
       baseUrl: baseUrl,
       locale: locale,
-      enabled: analyticsEnabled,
+      enabled: analytics,
       environment: environment,
     );
     _configureSurfaceAssignmentKeyProvider(
       baseUrl: baseUrl,
-      enabled: analyticsEnabled && measurementEnabled,
+      enabled: analytics && measurementEnabled,
     );
     _configureSurfaceMeteringKeyProvider(baseUrl: baseUrl);
     SurfaceDeliveryEvidence.install(
       _noteSurfaceDeliveryArtifactFailed,
       rateLimited: _emitSurfaceDeliveryRateLimited,
     );
-    _configureMeasurementHost(enabled: analyticsEnabled && measurementEnabled);
+    _configureMeasurementHost(enabled: analytics && measurementEnabled);
     if (apiKey != null) unawaited(_prefetchSurfaces(surfaces));
     notifyRestageCommerceConfigurationChanged();
     _configured = true;
@@ -1606,6 +1626,36 @@ abstract final class Restage {
     return _placementDiscoveryConfigured ? PlacementDiscovery.instance : null;
   }
 
+  static bool? _declaredBuildAnalytics;
+  static bool? _resolvedAnalytics;
+  static var _analyticsFollowsBuild = true;
+
+  /// Declares the analytics default build.yaml sets. Generated
+  /// `registerRestageWidgets()` calls it when build.yaml sets
+  /// `analytics: false`; it applies from the next [configure].
+  static void declareBuildAnalytics({required bool enabled}) {
+    _declaredBuildAnalytics = enabled;
+    final resolved = _resolvedAnalytics;
+    if (kDebugMode &&
+        resolved != null &&
+        _analyticsFollowsBuild &&
+        resolved != enabled) {
+      final message = buildAnalyticsAfterConfigureMessage;
+      debugPrint('[restage] $message');
+      FlutterError.reportError(FlutterErrorDetails(
+          exception: StateError(message), library: 'restage'));
+    }
+  }
+
+  /// The debug report when the build's analytics default arrives after
+  /// [configure] chose analytics.
+  @visibleForTesting
+  static const buildAnalyticsAfterConfigureMessage =
+      'build.yaml sets `analytics: false`, but Restage.configure ran before '
+      'registerRestageWidgets(), so this launch started with analytics on. '
+      'Try calling registerRestageWidgets() before Restage.configure, or '
+      'passing `registerWidgets: kRestageWidgetRegistration` to it.';
+
   /// Declares every placement this build can mount, so each request
   /// describes the whole build from the first launch. Generated
   /// `registerRestageWidgets()` calls it with `restageSurfaces`.
@@ -1837,6 +1887,10 @@ abstract final class Restage {
   @internal
   static String? get debugApiKey => _apiKey;
 
+  /// Whether the last [configure] turned analytics on.
+  @visibleForTesting
+  static bool? get debugAnalyticsEnabled => _resolvedAnalytics;
+
   /// Test-only — exposes the service URL [configure] uses.
   @internal
   static String? get debugBaseUrl => _baseUrl;
@@ -1877,6 +1931,10 @@ abstract final class Restage {
   @visibleForTesting
   static void debugReset() {
     privacy.debugResetSelfErasure();
+    _declaredBuildAnalytics = null;
+    _resolvedAnalytics = null;
+    _analyticsFollowsBuild = true;
+    EarlyRequest.debugForget();
     _configurationGeneration += 1;
     _paywallSurfaceWidgets = const {};
     _placementNow = null;

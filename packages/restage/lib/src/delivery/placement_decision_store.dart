@@ -179,10 +179,11 @@ final class PlacementDecisionStore {
   // judged like any fact it consulted.
   SurfaceStoreKey decisionKey(
           PlacementBatchRequestV1 request, PlacementMountRequestV1 mount,
-          {required TargetCoordinate target}) =>
+          {required TargetCoordinate target,
+          String? installedCapabilityHash}) =>
       decisionKeyFor(mount,
           platform: request.buildContract.platform,
-          installedCapabilityHash:
+          installedCapabilityHash: installedCapabilityHash ??
               request.buildContract.installedCapabilityHash,
           target: target);
 
@@ -449,8 +450,11 @@ final class PlacementDecisionStore {
         }
         final target = decision.descriptor.placement.target;
         if ((expectedTarget != null && target != expectedTarget) ||
-            key != decisionKey(request, mount, target: target) ||
-            !await acceptsStored(stored, decision)) {
+            key != decisionKey(request, mount, target: target)) {
+          continue;
+        }
+        final answered = _answeredRequest(request, decision, stored.sidecar);
+        if (answered == null || !await acceptsStored(stored, decision)) {
           continue;
         }
         final frames = <ArtifactIdentityV1, Uint8List>{};
@@ -471,12 +475,12 @@ final class PlacementDecisionStore {
           // A decision decoded from these exact bytes is not decoded again.
           response: identical(_decodedFrom[decision], stored.descriptorJson)
               ? PlacementBatchResolvedV1.fromBuiltRows(
-                  request: request,
+                  request: answered,
                   expectedTarget: target,
                   decisions: [decision],
                   heldBytes: true)
               : PlacementBatchResolvedV1(
-                  request: request,
+                  request: answered,
                   expectedTarget: target,
                   decisions: [decision],
                   heldBytes: true),
@@ -488,6 +492,40 @@ final class PlacementDecisionStore {
     }
     return null;
   }
+
+  // The request [decision] was chosen for: [request], or one claiming the
+  // capability kept beside it, which [request]'s installed capability covers.
+  static PlacementBatchRequestV1? _answeredRequest(
+      PlacementBatchRequestV1 request,
+      PlacementBatchAvailableV1 decision,
+      Map<String, Object?> sidecar) {
+    final hash = decision.publicDelivery.cacheValidity.installedCapabilityHash;
+    final build = request.buildContract;
+    if (hash == build.installedCapabilityHash) return request;
+    final json = sidecar[claimedCapabilityKey];
+    if (json is! Map<String, dynamic>) return null;
+    final claimed = InstalledCapability.fromJson(json);
+    if (claimed.contentHash != hash ||
+        !capabilityCovers(
+            installed: build.installedCapability, claimed: claimed)) {
+      return null;
+    }
+    final contract = PlacementBuildContractV1(
+        platform: build.platform,
+        buildOrdinal: build.buildOrdinal,
+        mounts: build.mounts.toList(),
+        contractsByHash: build.contractsByHash,
+        installedCapability: claimed,
+        installedCapabilityHash: hash);
+    return PlacementBatchRequestV1.fromJson({
+      ...request.withBuildContract(carried: false).toJson(),
+      'appBuildContractHash': contract.appBuildContractHash,
+    }, verifiedBuildContract: (_) => contract);
+  }
+
+  /// The sidecar entry holding the capability a decision was chosen for, when
+  /// it is not the one installed.
+  static const claimedCapabilityKey = 'claimedInstalledCapability';
 
   Future<void> remove(SurfaceStoreKey key) {
     saved?.update((rows) => rows.remove(key));

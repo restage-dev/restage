@@ -1254,6 +1254,61 @@ void _batchContractTests() {
       expect(built.startup, isTrue);
     });
 
+    test('a startup template carries an analytics-off body for every source',
+        () {
+      final (fixtureRequest, _, __, ___) = _batchFixture();
+      final built = startupRequestFor(
+        platform: 'android',
+        mounts: fixtureRequest.mounts,
+        contractsByHash: fixtureRequest.buildContract.contractsByHash,
+        capability: fixtureRequest.buildContract.installedCapability,
+        builtIns: const {'platform': 'android'},
+      );
+      final url = Uri.parse('https://example.com/sdk/v1/placements/resolve');
+      // As a build writes it, and as the SDK keeps its own request.
+      for (final identityTokens in [true, false]) {
+        final template = jsonDecode(
+          startupTemplateJson(
+            url,
+            'rs_pk_test',
+            built,
+            identityTokens: identityTokens,
+          )!,
+        ) as Map<String, Object?>;
+        expect(template['analytics'], isTrue);
+        expect(template['body'], contains('"analyticsAnonymousId"'));
+        expect(template['body'], contains('"registrationNonce"'));
+        final off = template['analyticsOff']! as Map<String, Object?>;
+        for (final key in ['body', 'fullBody']) {
+          final text = off[key]! as String;
+          expect(text, contains('"meteringKey"'));
+          expect(text, isNot(contains('analyticsAnonymousId')));
+          expect(text, isNot(contains('registration')));
+          expect(text, isNot(contains('assignmentKey')));
+        }
+        expect(template['measurement'], isTrue);
+        final unmeasured = template['measurementOff']! as Map<String, Object?>;
+        for (final key in ['body', 'fullBody']) {
+          final text = unmeasured[key]! as String;
+          expect(text, contains('"meteringKey"'));
+          expect(text, contains('"analyticsAnonymousId"'));
+          expect(text, isNot(contains('registration')));
+          expect(text, isNot(contains('assignmentKey')));
+        }
+      }
+      final defaults = jsonDecode(
+        startupTemplateJson(
+          url,
+          'rs_pk_test',
+          built,
+          analytics: false,
+          measurement: false,
+        )!,
+      ) as Map;
+      expect(defaults['analytics'], isFalse);
+      expect(defaults['measurement'], isFalse);
+    });
+
     test(
         'the startup mark is only ever on a prefetch and is carried only when set',
         () {

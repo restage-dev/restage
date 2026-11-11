@@ -118,6 +118,7 @@ final class UserFactoryBuilder implements Builder {
             dependencyFactories: dependencyFactories,
             declaresSurfaces: declaresSurfaces,
             delivery: delivery,
+            analytics: settings.analytics,
           )
         : emitAdmittedUserFactoriesDart(
             collection.widgets,
@@ -139,6 +140,7 @@ final class UserFactoryBuilder implements Builder {
             dependencyFactories: dependencyFactories,
             declaresSurfaces: declaresSurfaces,
             delivery: delivery,
+            analytics: settings.analytics,
           );
 
     await buildStep.writeAsString(
@@ -304,6 +306,7 @@ String emitAdmittedUserFactoriesDart(
   List<SplitRegistration> splitRegistrations = const [],
   bool declaresSurfaces = false,
   BuildDelivery? delivery,
+  bool analytics = true,
 }) {
   final source = emitUserFactoriesDart(
     widgets,
@@ -322,6 +325,7 @@ String emitAdmittedUserFactoriesDart(
     splitRegistrations: splitRegistrations,
     declaresSurfaces: declaresSurfaces,
     delivery: delivery,
+    analytics: analytics,
     onSkip: _throwAdmittedFactoryCoherenceFailure,
   );
   return source ??
@@ -331,6 +335,7 @@ String emitAdmittedUserFactoriesDart(
         dependencyFactories: dependencyFactories,
         declaresSurfaces: declaresSurfaces,
         delivery: delivery,
+        analytics: analytics,
       );
 }
 

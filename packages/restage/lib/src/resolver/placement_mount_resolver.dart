@@ -126,7 +126,8 @@ final class PlacementDeliveryAdmission {
     registry.decisions.markStale(
         registry.decisions.decisionKey(
             context.request, context.request.mounts.single,
-            target: decision.descriptor.placement.target),
+            target: decision.descriptor.placement.target,
+            installedCapabilityHash: context.installedCapabilityHash),
         decision);
   }
 
@@ -162,8 +163,14 @@ final class PlacementDeliveryAdmission {
         const PlacementNoAnswerStale(PlacementStaleChange.configuration)
       );
     }
+    // A decision renders on any capability that covers the one it was for.
+    final claimed = context.request.buildContract;
     if (currentInstalledCapability().contentHash !=
-        context.request.buildContract.installedCapabilityHash) {
+            claimed.installedCapabilityHash &&
+        !capabilityCovers(
+          installed: currentInstalledCapability(),
+          claimed: claimed.installedCapability,
+        )) {
       return (
         placementStaleReason,
         const PlacementNoAnswerStale(PlacementStaleChange.installedWidgets)
@@ -694,6 +701,7 @@ abstract class PlacementMountResolver<T extends Object>
     final held = accepted.context;
     final context = PlacementRequestContext(
         request: held.request,
+        installedCapabilityHash: held.installedCapabilityHash,
         lease: held.lease,
         capturedAt: held.capturedAt,
         isCurrent: () =>

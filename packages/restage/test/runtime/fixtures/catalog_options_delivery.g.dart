@@ -35,6 +35,7 @@ const SurfaceVocabulary kRestageAppVocabulary = SurfaceVocabulary(
 const String _restageApiKey = 'rs_pk_sandbox_dev_build';
 const String _restageBaseUrl = 'https://build.example.com';
 const String? _restageChannel = 'beta';
+const bool _restageAnalytics = false;
 
 /// The app's generated Restage setup. Pass it to
 /// Restage.configure(registerWidgets: ...): it registers this
@@ -73,6 +74,9 @@ final class _RestageWidgetRegistration
   String? get channel => _restageChannel;
 
   @override
+  bool get analyticsEnabled => _restageAnalytics;
+
+  @override
   void call({
     bool includeMaterial = true,
     bool includeCupertino = true,
@@ -82,6 +86,7 @@ final class _RestageWidgetRegistration
       includeCupertino: includeCupertino,
     ));
     kRestageAppVocabulary.addToInstalled(explicitSelection: true);
+    Restage.declareBuildAnalytics(enabled: _restageAnalytics);
   }
 }
 

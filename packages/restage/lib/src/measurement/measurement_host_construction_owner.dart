@@ -754,6 +754,7 @@ final class MeasurementHostConstructionSession
   var _successfulFirstPaint = false;
   var _rootLifecyclePresented = false;
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult?>? _teardownFuture;
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult?>? _checkpointInFlight;
   Future<void>? _discardFuture;
   Future<void>? _abortFuture;
 
@@ -935,13 +936,26 @@ final class MeasurementHostConstructionSession
     recordLifecycle(MeasurementOccurrenceChannelV1.presentation);
   }
 
-  /// Schedules one nonblocking worker checkpoint after backgrounding.
-  Future<MeasurementWorkerOwnedDeliveryCheckpointResult?> checkpoint() async {
+  /// Delivers one non-final frame; a call while one is in flight shares it,
+  /// since the worker holds one request per session until its upload ends.
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult?> checkpoint() {
+    final inFlight = _checkpointInFlight;
+    if (inFlight != null) return inFlight;
     if (!_active ||
         !_successfulFirstPaint ||
         !_owner._admissionRemainsUsable(_admission)) {
-      return null;
+      return Future<MeasurementWorkerOwnedDeliveryCheckpointResult?>.value();
     }
+    final future = _checkpoint();
+    _checkpointInFlight = future;
+    unawaited(
+        future.then<void>((_) {}, onError: (Object _) {}).whenComplete(() {
+      if (identical(_checkpointInFlight, future)) _checkpointInFlight = null;
+    }));
+    return future;
+  }
+
+  Future<MeasurementWorkerOwnedDeliveryCheckpointResult?> _checkpoint() async {
     final result = await _workerSession.checkpoint(
         frameElapsedMicros: _monotonicClock.readMicros());
     _owner._observeDeliveryResult(result);
@@ -973,6 +987,15 @@ final class MeasurementHostConstructionSession
     _active = false;
     _closeCaptureEdge();
     try {
+      // The final frame and the discard would be refused while it uploads.
+      final inFlight = _checkpointInFlight;
+      if (inFlight != null) {
+        try {
+          await inFlight;
+        } on Object {
+          // A failed checkpoint still leaves the final frame to deliver.
+        }
+      }
       if (!_successfulFirstPaint) {
         await _reportTerminalDiagnostic();
         await _releaseWorkerSession();

@@ -448,6 +448,213 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
+    for (final analytics in [true, false]) {
+      final state = analytics ? 'on' : 'off';
+      testWidgets(
+          'with analytics $state, the second launch adopts the request the '
+          'platform sent from the first', (tester) async {
+        final requests = <PlacementBatchRequestV1>[];
+        final remembered = <PlacementBatchRequestV1>[];
+        EarlyRequest.recorder =
+            (url, apiKey, request) async => remembered.add(request);
+        addTearDown(() => EarlyRequest.recorder = null);
+        Future<void> run() async {
+          Restage.declareSurfaces([definition]);
+          launch(requests,
+              keyed: analytics, analytics: analytics, surfaces: [definition]);
+          await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+          await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 150)));
+          await tester.pump(const Duration(seconds: 1));
+          await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 150)));
+        }
+
+        await run();
+        expect(remembered, isNotEmpty);
+        final next = remembered.last;
+        expect(next.analyticsAnonymousId != null, analytics);
+        // With analytics on, the kept request carries the confirmed handle.
+        expect(next.assignmentKey != null, analytics);
+        expect(next.registration, isNull);
+        final before = requests.length;
+        // A new process: the platform sent the kept request at its start.
+        EarlyRequest.debugForget();
+        var adopted = false;
+        EarlyRequest.debugSent =
+            (mine) => next.withBuildContract(carried: false).canonicalBytes;
+        EarlyRequest.debugInFlight = ({int timeoutMs = 20000}) async {
+          adopted = true;
+          return (
+            sent: next.withBuildContract(carried: false).canonicalBytes,
+            response: EarlyResponse(
+                status: 200,
+                body: Uint8List.fromList(
+                    placementFixtureResponse(next).canonicalBytes),
+                headers: const {}),
+          );
+        };
+        addTearDown(() {
+          EarlyRequest.debugSent = null;
+          EarlyRequest.debugInFlight = null;
+        });
+        await run();
+        expect(adopted, isTrue);
+        expect(requests.skip(before).where((r) => r.startup), isEmpty);
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
+
+    testWidgets(
+        'an answer adopted for a smaller claimed capability is read at the '
+        'next launch without a refetch', (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      Restage.declareSurfaces([definition]);
+      launch(requests, surfaces: [definition]);
+      // As an app that installs more icons than its build claims: the
+      // platform's request names a capability the runtime covers.
+      PlacementBatchRequestV1? sent;
+      String? claimedHash;
+      String? runtimeHash;
+      EarlyRequest.debugSent = (mine) {
+        final build = mine.buildContract;
+        final installed = build.installedCapability;
+        final vocabulary = installed.vocabulary!;
+        final claimed = InstalledCapability(
+          builtInCatalogVersion: installed.builtInCatalogVersion,
+          installedLibraries: installed.installedLibraries,
+          vocabulary: WidgetVocabulary(
+            widgetNames: vocabulary.widgetNames
+                .difference({vocabulary.widgetNames.last}),
+            iconCodePoints: vocabulary.iconCodePoints,
+          ),
+        );
+        final smaller = PlacementBuildContractV1(
+            platform: build.platform,
+            buildOrdinal: build.buildOrdinal,
+            mounts: build.mounts.toList(),
+            contractsByHash: build.contractsByHash,
+            installedCapability: claimed,
+            installedCapabilityHash: claimed.contentHash);
+        EarlyRequest.debugTemplate = () async => jsonEncode({
+              'url': 'https://example.com/sdk/v1/placements/resolve',
+              'authorization': 'Bearer rs_pk_test',
+              'contract': utf8.decode(smaller.canonicalBytes),
+            });
+        claimedHash = claimed.contentHash;
+        runtimeHash = installed.contentHash;
+        sent = PlacementBatchRequestV1.fromJson(
+          {
+            ...mine.withBuildContract(carried: false).toJson(),
+            'appBuildContractHash': smaller.appBuildContractHash,
+          },
+          verifiedBuildContract: (_) => smaller,
+        );
+        return sent!.withBuildContract(carried: false).canonicalBytes;
+      };
+      EarlyRequest.debugInFlight = ({int timeoutMs = 20000}) async => (
+            sent: sent!.withBuildContract(carried: false).canonicalBytes,
+            response: EarlyResponse(
+                status: 200,
+                body: Uint8List.fromList(
+                    placementFixtureResponse(sent!).canonicalBytes),
+                headers: const {}),
+          );
+      addTearDown(() {
+        EarlyRequest.debugSent = null;
+        EarlyRequest.debugInFlight = null;
+        EarlyRequest.debugTemplate = null;
+      });
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 150)));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 150)));
+      expect(sent, isNotNull);
+      expect(claimedHash, isNot(runtimeHash));
+      expect(requests.where((r) => r.startup), isEmpty);
+      // The next launch, with no platform request: the saved decision paints
+      // before the mount's own answer.
+      EarlyRequest.debugSent = null;
+      EarlyRequest.debugInFlight = null;
+      EarlyRequest.debugTemplate = null;
+      EarlyRequest.debugForget();
+      launch(requests, surfaces: [definition], prefetchDelay: slowMount);
+      expect(await atDeadline(tester), 'Welcome');
+      await tester.pump(slowMount);
+      await _finish(tester);
+    });
+
+    testWidgets(
+        'inline bytes the platform asked for are judged by its request, not '
+        "Dart's", (tester) async {
+      final requests = <PlacementBatchRequestV1>[];
+      final remembered = <PlacementBatchRequestV1>[];
+      EarlyRequest.recorder =
+          (url, apiKey, request) async => remembered.add(request);
+      addTearDown(() => EarlyRequest.recorder = null);
+      Future<void> run() async {
+        Restage.declareSurfaces([definition]);
+        launch(requests, keyed: true, surfaces: [definition]);
+        await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 150)));
+        await tester.pump(const Duration(seconds: 1));
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 150)));
+      }
+
+      await run();
+      final next = remembered.last;
+      // Dart holds the artifact; the platform sent from a template that
+      // asks for it inline, as the bundled one does.
+      expect(next.inlineMounts, isEmpty);
+      final sent = PlacementBatchRequestV1.fromJson({
+        ...next.toJson(),
+        'inlineMounts': [0],
+      });
+      final artifact = readPlacementDeliveryFixture().artifacts.single;
+      final answer = PlacementBatchResolvedV1.fromBuiltRows(
+          request: sent,
+          expectedTarget: readPlacementDeliveryFixture().target,
+          decisions: placementFixtureResponse(sent).decisions,
+          inlineArtifacts: {artifact.identity: artifact.bytes});
+      final before = requests.length;
+      final printed = <String>[];
+      final print = debugPrint;
+      debugPrint = (message, {wrapWidth}) => printed.add(message ?? '');
+      EarlyRequest.debugForget();
+      PlacementBatchRequestV1? mine;
+      var adopted = false;
+      EarlyRequest.debugSent = (request) {
+        mine = request;
+        return sent.withBuildContract(carried: false).canonicalBytes;
+      };
+      EarlyRequest.debugInFlight = ({int timeoutMs = 20000}) async {
+        adopted = true;
+        return (
+          sent: sent.withBuildContract(carried: false).canonicalBytes,
+          response: EarlyResponse(
+              status: 200,
+              body: Uint8List.fromList(answer.canonicalBytes),
+              headers: const {}),
+        );
+      };
+      try {
+        await run();
+      } finally {
+        debugPrint = print;
+        EarlyRequest.debugSent = null;
+        EarlyRequest.debugInFlight = null;
+      }
+      expect(mine?.inlineMounts, isEmpty);
+      expect(adopted, isTrue);
+      expect(printed.where((line) => line.contains('malformed')), isEmpty);
+      expect(requests.skip(before).where((r) => r.startup), isEmpty);
+      await tester.pumpWidget(const SizedBox());
+    });
+
     testWidgets(
         'a reset reaches the platform and renews the next launch request',
         (tester) async {
@@ -1983,20 +2190,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets(
-      'a registering request the platform has in flight is adopted, not sent again',
-      (tester) async {
-    final requests = <PlacementBatchRequestV1>[];
-    final handle = 'ic1.${'e' * 64}';
-    final host = readPlacementDeliveryFixture()
-        .request
-        .buildContract
-        .contractsByHash
-        .values
-        .first;
-    final definition = _paywallDefinition('original', host);
-    Restage.declareSurfaces([definition]);
-    _configure(requests, surfaces: [definition]);
+  SurfaceAssignmentCredentialStore installCredentialStore() {
     final store = SurfaceAssignmentCredentialStore(
       namespace: 'placements',
       actor: () async => 'actor',
@@ -2019,46 +2213,68 @@ void main() {
       ),
       refuseRegistration: store.refuse,
     );
-    final attempt = (await store.capture())!;
-    PlacementBatchRequestV1? dartRequest;
-    EarlyRequest.recorder =
-        (url, apiKey, request) async => dartRequest = request;
-    addTearDown(() => EarlyRequest.recorder = null);
-    // The platform's own request registered this tuple and differed from Dart's
-    // in other fields, so Dart did not take it; its answer is still coming.
-    EarlyRequest.debugInFlight = ({int timeoutMs = 20000}) async {
-      final context = (request: dartRequest!);
-      final answer = placementFixtureResponse(context.request);
-      final now = DateTime.now().microsecondsSinceEpoch;
-      final confirmed = PlacementBatchResolvedV1(
-          request: context.request,
-          expectedTarget: readPlacementDeliveryFixture().target,
-          decisions: answer.decisions,
-          registration: SurfaceRegistrationMetadataV1(
-              credentialHandle: handle,
-              expiresAtMicros: now + Duration.microsecondsPerDay,
-              serverNowMicros: now));
-      return (
-        sent: Uint8List.fromList(utf8.encode(jsonEncode({
-          'registrationNonce': attempt.registrationNonce,
-          'registrationCreatedAtMicros': attempt.registrationCreatedAtMicros,
-        }))),
-        response: EarlyResponse(
-            status: 200,
-            body: Uint8List.fromList(confirmed.canonicalBytes),
-            headers: const {}),
-      );
-    };
-    addTearDown(() => EarlyRequest.debugInFlight = null);
+    return store;
+  }
+
+  PlacementBatchResolvedV1 confirming(
+      PlacementBatchRequestV1 request, String handle) {
+    final now = DateTime.now().microsecondsSinceEpoch;
+    return PlacementBatchResolvedV1(
+        request: request,
+        expectedTarget: readPlacementDeliveryFixture().target,
+        decisions: placementFixtureResponse(request).decisions,
+        registration: SurfaceRegistrationMetadataV1(
+            credentialHandle: handle,
+            expiresAtMicros: now + Duration.microsecondsPerDay,
+            serverNowMicros: now));
+  }
+
+  Future<void> settle(WidgetTester tester) async {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
     await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 200)));
     await tester.pump(const Duration(seconds: 1));
     await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 100)));
-    // No second registering request left the device, and the platform's
-    // answer confirmed the handle.
-    expect(requests.where((request) => request.registration != null), isEmpty);
+  }
+
+  testWidgets(
+      'the platform request that means the same is adopted, not sent again',
+      (tester) async {
+    final requests = <PlacementBatchRequestV1>[];
+    final handle = 'ic1.${'e' * 64}';
+    final host = readPlacementDeliveryFixture()
+        .request
+        .buildContract
+        .contractsByHash
+        .values
+        .first;
+    final definition = _paywallDefinition('original', host);
+    Restage.declareSurfaces([definition]);
+    _configure(requests, surfaces: [definition]);
+    final store = installCredentialStore();
+    PlacementBatchRequestV1? sent;
+    // The platform went by hash and reported no mounted surfaces: the same
+    // request in meaning, not in bytes.
+    EarlyRequest.debugSent = (mine) {
+      sent = mine.withMountedSince(const []);
+      return sent!.withBuildContract(carried: false).canonicalBytes;
+    };
+    addTearDown(() => EarlyRequest.debugSent = null);
+    EarlyRequest.debugInFlight = ({int timeoutMs = 20000}) async => (
+          sent: sent!.withBuildContract(carried: false).canonicalBytes,
+          response: EarlyResponse(
+              status: 200,
+              body:
+                  Uint8List.fromList(confirming(sent!, handle).canonicalBytes),
+              headers: const {}),
+        );
+    addTearDown(() => EarlyRequest.debugInFlight = null);
+    await settle(tester);
+    expect(sent?.registration, isNotNull);
+    // No startup request left from Dart, and the platform's answer confirmed
+    // the handle.
+    expect(requests.where((request) => request.startup), isEmpty);
     expect(store.currentHandle, handle);
     await tester.pumpWidget(const SizedBox());
   });
@@ -2076,69 +2292,130 @@ void main() {
         .first;
     final definition = _paywallDefinition('original', host);
     Restage.declareSurfaces([definition]);
-    _configure(requests, surfaces: [definition], respond: (request) {
-      final answer = placementFixtureResponse(request);
-      if (request.registration == null) return answer;
-      final now = DateTime.now().microsecondsSinceEpoch;
-      return PlacementBatchResolvedV1(
-          request: request,
-          expectedTarget: readPlacementDeliveryFixture().target,
-          decisions: answer.decisions,
-          registration: SurfaceRegistrationMetadataV1(
-              credentialHandle: handle,
-              expiresAtMicros: now + Duration.microsecondsPerDay,
-              serverNowMicros: now));
-    });
-    final store = SurfaceAssignmentCredentialStore(
-      namespace: 'placements',
-      actor: () async => 'actor',
-      identityGeneration: () => 0,
-      onRetentionRollover: SurfaceCanonicalCarrierProvider.clearHeldAssignments,
-    );
-    SurfaceAssignmentKeyProvider.install(
-      key: store.resolve,
-      localKey: store.resolveLocal,
-      identityGeneration: () => store.generation,
-      registration: store.capture,
-      confirmedKey: () => store.currentHandle,
-      confirmRegistration: (attempt, start, confirmed, expiry, serverNow) =>
-          store.confirm(
-        attempt: attempt,
-        localRequestStartMicros: start,
-        credentialHandle: confirmed,
-        expiresAtMicros: expiry,
-        serverNowMicros: serverNow,
-      ),
-      refuseRegistration: store.refuse,
-    );
-    final attempt = (await store.capture())!;
-    EarlyRequest.recorder = (url, apiKey, request) async {};
-    addTearDown(() => EarlyRequest.recorder = null);
-    // The platform's own request registered this tuple and differed from Dart's
-    // in other fields, so Dart did not take it; its answer is still coming.
+    _configure(requests,
+        surfaces: [definition],
+        respond: (request) => request.registration == null
+            ? placementFixtureResponse(request)
+            : confirming(request, handle));
+    final store = installCredentialStore();
+    EarlyRequest.debugSent = (mine) => mine.canonicalBytes;
+    addTearDown(() => EarlyRequest.debugSent = null);
     EarlyRequest.debugInFlight = ({int timeoutMs = 20000}) async => (
-          sent: Uint8List.fromList(utf8.encode(jsonEncode({
-            'registrationNonce': attempt.registrationNonce,
-            'registrationCreatedAtMicros': attempt.registrationCreatedAtMicros,
-          }))),
+          sent: Uint8List(0),
           response: EarlyResponse(
               status: 200,
               body: Uint8List.fromList([1, 2, 3]),
               headers: const {}),
         );
     addTearDown(() => EarlyRequest.debugInFlight = null);
-    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
-    await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 200)));
-    await tester.pump(const Duration(seconds: 1));
-    await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 100)));
+    await settle(tester);
     // The platform's answer was refused, so Dart sent its own request and its
     // answer confirmed the handle.
     expect(requests.where((request) => request.registration != null),
         hasLength(1));
     expect(store.currentHandle, handle);
     await tester.pumpWidget(const SizedBox());
+  });
+
+  group('a platform request that means something else is not adopted', () {
+    const otherUuid = '0b8e7a52-6f2d-4c3a-9e1f-7d4b2a6c8e10';
+    final cases = <StartupAnswerMismatch,
+        Map<String, Object?> Function(PlacementBatchRequestV1 mine)>{
+      StartupAnswerMismatch.build: (mine) => {
+            ...mine.withBuildContract(carried: false).toJson(),
+            'appBuildContractHash': 'sha256:${'f' * 64}',
+          },
+      StartupAnswerMismatch.capability: (mine) {
+        final build = mine.buildContract;
+        final installed = build.installedCapability;
+        final claimed = InstalledCapability(
+          builtInCatalogVersion: installed.builtInCatalogVersion,
+          installedLibraries: installed.installedLibraries,
+          vocabulary: WidgetVocabulary(
+            widgetNames: {
+              ...?installed.vocabulary?.widgetNames,
+              'restage.core:NotInstalled',
+            },
+            iconCodePoints: installed.vocabulary?.iconCodePoints ?? const {},
+          ),
+        );
+        final larger = PlacementBuildContractV1(
+            platform: build.platform,
+            buildOrdinal: build.buildOrdinal,
+            mounts: build.mounts.toList(),
+            contractsByHash: build.contractsByHash,
+            installedCapability: claimed,
+            installedCapabilityHash: claimed.contentHash);
+        // The template the platform sent from spells that build.
+        EarlyRequest.debugTemplate = () async => jsonEncode({
+              'url': 'https://example.com/sdk/v1/placements/resolve',
+              'authorization': 'Bearer rs_pk_test',
+              'contract': utf8.decode(larger.canonicalBytes),
+            });
+        return {
+          ...mine.withBuildContract(carried: false).toJson(),
+          'appBuildContractHash': larger.appBuildContractHash,
+        };
+      },
+      StartupAnswerMismatch.analytics: (mine) =>
+          {...mine.toJson(), 'analyticsAnonymousId': otherUuid},
+      StartupAnswerMismatch.measurement: (mine) => {
+            ...mine.toJson(),
+            'registrationNonce': 'A' * 43,
+            'registrationCreatedAtMicros': 1,
+          },
+      StartupAnswerMismatch.assignment: (mine) =>
+          {...mine.toJson(), 'meteringKey': otherUuid},
+    };
+    for (final MapEntry(key: reason, value: edit) in cases.entries) {
+      testWidgets('${reason.name}: Dart sends its own and says why',
+          (tester) async {
+        final requests = <PlacementBatchRequestV1>[];
+        final host = readPlacementDeliveryFixture()
+            .request
+            .buildContract
+            .contractsByHash
+            .values
+            .first;
+        final definition = _paywallDefinition('original', host);
+        Restage.declareSurfaces([definition]);
+        _configure(requests, surfaces: [definition]);
+        final printed = <String>[];
+        final reported = <String>[];
+        final print = debugPrint;
+        final onError = FlutterError.onError;
+        debugPrint = (message, {wrapWidth}) => printed.add(message ?? '');
+        FlutterError.onError =
+            (details) => reported.add('${details.exception}');
+        var consulted = false;
+        EarlyRequest.debugSent =
+            (mine) => CanonicalJsonCodec.encode(edit(mine));
+        EarlyRequest.debugInFlight = ({int timeoutMs = 20000}) async {
+          consulted = true;
+          return null;
+        };
+        try {
+          await settle(tester);
+        } finally {
+          debugPrint = print;
+          FlutterError.onError = onError;
+          EarlyRequest.debugSent = null;
+          EarlyRequest.debugInFlight = null;
+          EarlyRequest.debugTemplate = null;
+        }
+        final message = unadoptedStartupMessage(reason);
+        expect(printed, contains('[restage] $message'));
+        // A choice that changed this launch is followed from the next one;
+        // the others are reported as errors to fix.
+        final followed = reason == StartupAnswerMismatch.analytics ||
+            reason == StartupAnswerMismatch.assignment;
+        expect(reported.where((r) => r.contains(message)),
+            followed ? isEmpty : hasLength(1));
+        expect(consulted, isFalse);
+        expect(requests.where((request) => request.startup), hasLength(1));
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
   });
 
   testWidgets('a credential the service no longer holds registers again',

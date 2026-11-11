@@ -9,7 +9,7 @@ provide registration, implicit placements and compiled-widget fallback.
 
 | Setting | Default | When to change it |
 | --- | --- | --- |
-| `apiKey`, `baseUrl` | From `registerWidgets: kRestageWidgetRegistration` (`api_key`, `base_url` in `build.yaml`); else unset, no hosted delivery | Set them in `build.yaml`. A value passed here wins. A blank key turns hosted delivery off in Dart; the built-in first-launch request is still sent. |
+| `apiKey`, `baseUrl` | From `registerWidgets: kRestageWidgetRegistration` (`api_key`, `base_url` in `build.yaml`); else unset, no hosted delivery | Set them in `build.yaml`. A value passed here wins. A blank key turns hosted delivery off; from the next launch the built-in first-launch request is not sent. |
 | `surfaces` | Empty list | Pass generated `restageSurfaces` to prefetch known surfaces after the first frame. Prefetch does not enroll experiment participants. |
 | `firstLaunchWait` | `Duration(seconds: 3)` | How long a placement with nothing saved shows nothing while delivered content arrives, before its compiled fallback. `firstLaunchWaits` overrides it per placement id. |
 | `freshWindow` | `Duration(milliseconds: 150)` | How long a placement with saved content waits for a fresher version before showing the saved one. |
