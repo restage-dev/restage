@@ -9,6 +9,25 @@ screen on the pushed build, because widget app code it draws is gone or
 changed, until it is republished. Render bundles build each surface's
 app-rendered widgets outside its screen.
 
+Reads that name a surface by its slug, such as `restage analytics surface
+--surface <slug>` and `restage surface results <slug>`, look the slug up in the
+target's surface list. A value that can't be a slug is refused before the
+lookup. When the service refuses the lookup, the error gives its reason; when
+the list changes during the lookup, the error asks you to run the command
+again.
+
+`restage init` adds `restage`, `restage_material` and `rfw_catalog_schema` as
+dependency overrides from the main branch, so packages added later that ask
+for them by version resolve to the same commit. With `--sdk-key` in an app
+with an `ios/Runner` folder, it lists `ios/Runner/restage_early.json` under
+`flutter: assets:` in `pubspec.yaml`, with or without `--add-deps`.
+
+After a publish, `restage surface publish` says how to show the surface in an
+app: put the environment's publishable key in `build.yaml` with
+`restage init --sdk-key`, call
+`Restage.configure(registerWidgets: kRestageWidgetRegistration)` once at
+startup, and mount the generated widget.
+
 `restage keys delivery` prints the public keys an app passes to
 `Restage.configure(deliveryKeys: ...)`.
 

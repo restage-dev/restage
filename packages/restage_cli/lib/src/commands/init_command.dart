@@ -79,9 +79,10 @@ final Map<String, Object> restageSources = {
 /// The Flutter asset the iOS plugin reads the first-launch request from.
 const String iosEarlyTemplateAsset = 'ios/Runner/restage_early.json';
 
-/// The overrides that keep every Restage package on that `main`: some
-/// Restage packages ask for these two by version.
+/// The overrides that keep every Restage package on that `main`, including
+/// packages added later that ask for these by version.
 final Map<String, Object> initOverrides = {
+  'restage': restageGitSource('packages/restage'),
   'restage_material': restageGitSource('packages/restage_material'),
   'rfw_catalog_schema': restageGitSource('packages/rfw_catalog_schema'),
 };
@@ -139,7 +140,9 @@ class InitCommand extends Command<int> {
         help:
             'Your app\'s publishable key (rs_pk_...). Written to build.yaml, '
             'so the app sends its first request before Dart starts and '
-            'Restage.configure uses it by default.',
+            'Restage.configure uses it by default. In an app with an iOS '
+            'folder, ios/Runner/restage_early.json is also listed under '
+            'flutter assets in pubspec.yaml, with or without --add-deps.',
       )
       ..addFlag(
         'starter',
@@ -261,21 +264,27 @@ class InitCommand extends Command<int> {
     );
     final hasIos = Directory(p.join(root.path, 'ios', 'Runner')).existsSync();
 
-    // Read the pubspec once; both the dry-run plan and the apply path
-    // consume the same source.
-    final pubspecSource = wantsDeps ? await pubspec.readAsString() : '';
     final assets = [
       if (hasIos && buildYamlPlan.hasApiKey) iosEarlyTemplateAsset,
     ];
+    // The iOS asset is listed whether or not init adds dependencies.
+    final editsPubspec = wantsDeps || assets.isNotEmpty;
+    final deps = wantsDeps ? initRuntimeDeps : const <String, Object>{};
+    final devDeps = wantsDeps ? initDevDeps : const <String, Object>{};
+    final overrides = wantsDeps ? initOverrides : const <String, Object>{};
+    final sources = wantsDeps ? restageSources : const <String, Object>{};
+    // Read the pubspec once; both the dry-run plan and the apply path
+    // consume the same source.
+    final pubspecSource = editsPubspec ? await pubspec.readAsString() : '';
     // A pubspec the editor can't walk is refused before anything is written.
-    if (wantsDeps && _parsesWithoutMap(pubspecSource)) {
+    if (editsPubspec && _parsesWithoutMap(pubspecSource)) {
       _stderr.writeln(
         'pubspec.yaml does not parse as a map of keys, so init changed '
         'nothing. Try fixing it, then run init again.',
       );
       return 1;
     }
-    if (wantsDeps) {
+    if (editsPubspec) {
       if (_nonMapBlock(pubspecSource) case final key?) {
         _stderr.writeln(
           'pubspec.yaml gives `$key` as something other than a map of '
@@ -287,13 +296,13 @@ class InitCommand extends Command<int> {
     }
     final AddDependenciesPlan? pubspecPlan;
     try {
-      pubspecPlan = wantsDeps
+      pubspecPlan = editsPubspec
           ? planAddDependencies(
               pubspecSource,
-              deps: initRuntimeDeps,
-              devDeps: initDevDeps,
-              overrides: initOverrides,
-              sources: restageSources,
+              deps: deps,
+              devDeps: devDeps,
+              overrides: overrides,
+              sources: sources,
               flutterAssets: assets,
             )
           : null;
@@ -345,14 +354,13 @@ class InitCommand extends Command<int> {
     if (dryRun) return 0;
 
     // Composed and checked before anything is written.
-    final pubspecResult =
-        wantsDeps && pubspecPlan != null && !pubspecPlan.isNoOp
+    final pubspecResult = pubspecPlan != null && !pubspecPlan.isNoOp
         ? addDependencies(
             pubspecSource,
-            deps: initRuntimeDeps,
-            devDeps: initDevDeps,
-            overrides: initOverrides,
-            sources: restageSources,
+            deps: deps,
+            devDeps: devDeps,
+            overrides: overrides,
+            sources: sources,
             flutterAssets: assets,
           )
         : null;

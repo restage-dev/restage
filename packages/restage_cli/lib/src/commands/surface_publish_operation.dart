@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/backend_sites.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
@@ -180,19 +181,25 @@ String mountGuide(
   required Uri backend,
   String? mountName,
 }) {
-  const configure =
-      "In the app, call Restage.configure(apiKey: 'rs_pk_...', baseUrl: ...) "
-      'once with the key of this environment';
+  final init = currentSelectorSyntax.command(
+    const FollowUp('init', 'restage_init', [
+      FollowUpArg('sdkKey', 'rs_pk_...', flag: 'sdk-key'),
+    ]),
+  );
+  final configure =
+      "In your app, put this environment's publishable key in build.yaml "
+      'using $init and call '
+      'Restage.configure(registerWidgets: kRestageWidgetRegistration) once '
+      'at startup';
   final docs = '${backendSites(backend).docs}/delivery/hosted-delivery';
   return switch (kind) {
     SurfaceSourceKind.paywall =>
       '$configure, then mount the generated <Name>Surface() of the paywall '
           "class, or RestagePaywall(id: '$slug'). See $docs.",
     _ when mountName != null =>
-      "In your app, call Restage.configure(apiKey: 'rs_pk_...', baseUrl: "
-          "...) once with this environment's key, then add $mountName(...) "
-          'where it should appear. New versions reach app builds made from '
-          'the same surface code. Guide: $docs',
+      '$configure, then add $mountName(...) where it should appear. New '
+          'versions reach app builds made from the same surface code. '
+          'Guide: $docs',
     _ =>
       '$configure, then mount the generated <Name>Surface() of the class '
           'that declares it. A screen or flow has no mount by id: it runs '

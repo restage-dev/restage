@@ -47,7 +47,7 @@ Custom widgets (your own @RestageWidget classes):
 - In the dashboard editor palette: restage_push_catalog uploads the widget list. Devices and previews do not need it.
 
 Show a published surface in an app (restage_publish_surface returns this as showInApp):
-- Configure hosted delivery once at startup: `Restage.configure(apiKey: 'rs_pk_...', baseUrl: 'https://...')`. The key picks the environment; restage_resolve_api_key shows which.
+- Configure hosted delivery: restage_init with sdkKey writes the publishable key and service URL to build.yaml, and `Restage.configure(registerWidgets: kRestageWidgetRegistration)` once at startup uses them. The key picks the environment; restage_resolve_api_key shows which.
 - Paywalls: mount the generated typed mount, such as `ProUpgradePaywallSurface()` for a class `ProUpgradePaywall`, or render by slug with `RestagePaywall(id: '<slug>')`.
 - Screens and flows (onboarding, messages, surveys, general): there is no mount by slug. The app must compile the generated mount, such as `WelcomeFlowSurface(onComplete: ...)`, and a published version must match the contract that app build carries. Add `part 'restage.generated/<file>.restage.g.dart';` to the declaring library.
 - A generated mount fetches the live version and falls back to the compiled widget.

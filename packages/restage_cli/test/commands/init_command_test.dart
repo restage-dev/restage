@@ -193,12 +193,13 @@ void main() {
           'restage_codegen': git('packages/restage_codegen'),
         });
         expect(written['dependency_overrides'], {
+          'restage': git('packages/restage'),
           'restage_material': git('packages/restage_material'),
           'rfw_catalog_schema': git('packages/rfw_catalog_schema'),
         });
         expect(
           pubspecContent,
-          contains('dependency_overrides:\n  restage_material:\n    git:\n'),
+          contains('dependency_overrides:\n  restage:\n    git:\n'),
         );
         expect(pubspecContent, isNot(contains('assets/restage/bundles')));
         expect(
@@ -548,6 +549,41 @@ flutter:
           0,
         );
         expect(file.readAsStringSync(), '{"url":"built"}');
+      });
+
+      test('is listed with a key and --no-add-deps', () async {
+        expect(
+          await _runInit(
+            stdout,
+            stderr,
+            store,
+            tempDir,
+            extra: const [
+              '--no-add-deps',
+              '--sdk-key',
+              'rs_pk_sandbox_dev_abc',
+            ],
+          ),
+          0,
+        );
+        expect(assets(), ['ios/Runner/restage_early.json']);
+        final written =
+            _plain(
+                  loadYaml(
+                    File(
+                      p.join(tempDir.path, 'pubspec.yaml'),
+                    ).readAsStringSync(),
+                  ),
+                )!
+                as Map;
+        expect(written['dev_dependencies'], isNot(contains('restage_codegen')));
+        expect(written['dependency_overrides'], isNull);
+        expect(
+          File(
+            p.join(tempDir.path, 'ios', 'Runner', 'restage_early.json'),
+          ).readAsStringSync(),
+          '{}\n',
+        );
       });
 
       test('is not listed without a key', () async {
