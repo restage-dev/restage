@@ -8,6 +8,8 @@ import 'package:built_collection/built_collection.dart';
 import 'package:glob/glob.dart';
 import 'package:test/test.dart';
 
+import 'shared_resolvers.dart';
+
 const _package = 'dynamic_output_fixture';
 const _bundlePath = 'assets/restage/dynamic-proof.bundle.json';
 const _failureMarkerPath = 'assets/restage/dynamic-proof.invalid';
@@ -541,6 +543,7 @@ final class _PersistentDynamicOutputBuild {
       checkBuilderFreshness: false,
       forceToPackagePathsForTesting: true,
       readerWriter: readerWriter,
+      resolvers: SummaryReadyResolvers(),
     );
     final builderFactories = build_runner_internal.BuilderFactories(
       <String, List<BuilderFactory>>{

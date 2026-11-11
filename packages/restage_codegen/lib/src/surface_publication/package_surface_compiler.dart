@@ -2539,6 +2539,13 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
                 pending.flowDocumentPath,
         },
       );
+    } on _MeasurementRoutesDisagree catch (error) {
+      _addIssue(
+        issues,
+        code: IssueCode.measurementRoutesDisagree,
+        message: error.message,
+        location: 'the package Measurement publication closure',
+      );
     } on Object catch (error) {
       _addIssue(
         issues,
@@ -5147,31 +5154,38 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
       );
       final occurrenceSet =
           rfwCatalogOccurrenceSetsByArtifactPath[entry.value.path];
-      final composition = switch ((presentationPlan, occurrenceSet)) {
-        (
-          final MeasurementRfwPresentationPublicationPlan presentationPlan,
-          final ResolvedRfwCatalogOccurrenceSet occurrenceSet,
-        ) =>
-          () {
-            final finalLibrary = fmt.decodeLibraryBlob(
-              Uint8List.fromList(entry.value.bytes),
-            );
-            final materialization = presentationPlan.materializeArtifact(
-              occurrenceSet: occurrenceSet,
-              finalLibrary: finalLibrary,
-              artifactOccurrenceEdgeToken: topology.occurrenceEdgeToken,
-            );
-            presentationMaterializations.add(materialization);
-            return MeasurementRfwRouteComposer.composeMaterializedLibrary(
+      MeasurementRfwRouteComposition compose() =>
+          switch ((presentationPlan, occurrenceSet)) {
+            (
+              final MeasurementRfwPresentationPublicationPlan presentationPlan,
+              final ResolvedRfwCatalogOccurrenceSet occurrenceSet,
+            ) =>
+              () {
+                final finalLibrary = fmt.decodeLibraryBlob(
+                  Uint8List.fromList(entry.value.bytes),
+                );
+                final materialization = presentationPlan.materializeArtifact(
+                  occurrenceSet: occurrenceSet,
+                  finalLibrary: finalLibrary,
+                  artifactOccurrenceEdgeToken: topology.occurrenceEdgeToken,
+                );
+                presentationMaterializations.add(materialization);
+                return MeasurementRfwRouteComposer.composeMaterializedLibrary(
+                  routePlan: routePlan,
+                  presentationMaterialization: materialization,
+                );
+              }(),
+            _ => MeasurementRfwRouteComposer.composeBlob(
+              blob: entry.value.bytes,
               routePlan: routePlan,
-              presentationMaterialization: materialization,
-            );
-          }(),
-        _ => MeasurementRfwRouteComposer.composeBlob(
-          blob: entry.value.bytes,
-          routePlan: routePlan,
-        ),
-      };
+            ),
+          };
+      final MeasurementRfwRouteComposition composition;
+      try {
+        composition = compose();
+      } on MeasurementRouteDisagreement catch (error) {
+        throw _MeasurementRoutesDisagree(error.issueFor(selector.slug));
+      }
       final duplicate = consumed.intersection(composition.generatedReferences);
       if (duplicate.isNotEmpty) {
         throw FormatException(
@@ -5205,10 +5219,14 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
         _sidecarForComposedBlob(sidecar, composition.blob),
       );
     }
-    MeasurementRfwRouteComposer.requireCompleteRouteClosure(
-      routePlan: routePlan,
-      consumedReferences: consumed,
-    );
+    try {
+      MeasurementRfwRouteComposer.requireCompleteRouteClosure(
+        routePlan: routePlan,
+        consumedReferences: consumed,
+      );
+    } on MeasurementRouteDisagreement catch (error) {
+      throw _MeasurementRoutesDisagree(error.issueFor(selector.slug));
+    }
     MeasurementRfwRouteComposer.requireCompletePresentationRouteClosure(
       routePlan: routePlan,
       consumedPresentationReferences: consumedPresentations,
@@ -6469,3 +6487,9 @@ String _surfaceNameOf(RestageSourceDeclaration source) => generatedSurfaceName(
   source.declarationIdentity.split('#').last,
   fallback: 'SurfaceScreen',
 );
+
+final class _MeasurementRoutesDisagree implements Exception {
+  const _MeasurementRoutesDisagree(this.message);
+
+  final String message;
+}

@@ -901,6 +901,16 @@ bool isInstanceMemberOf(ClassElement owner, Element element) {
           owner.allSupertypes.any((type) => type.element == declaring));
 }
 
+/// Whether [element] is an instance member of [state] that the app declares,
+/// not one Flutter's `State` or `Object` provides.
+bool isDesignStateMemberOf(ClassElement state, Element element) {
+  final library = element.library?.uri;
+  return isInstanceMemberOf(state, element) &&
+      library != null &&
+      !library.isScheme('dart') &&
+      !library.toString().startsWith('package:flutter/');
+}
+
 /// [source] as a developer reads it in a message: one line, shortened with
 /// an ellipsis past [limit] characters.
 String readableSource(String source, {int limit = 60}) {

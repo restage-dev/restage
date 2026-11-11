@@ -7,11 +7,13 @@ import 'package:restage_codegen/src/annotation_lookup.dart'
 import 'package:restage_codegen/src/expression_translator.dart'
     show routeContents;
 import 'package:restage_codegen/src/surface_publication/app_widget_events.dart';
+import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart'
+    show generatedSurfaceName;
 
 /// A warning for each route or dialog in [library] whose content fires
 /// `context.surfaceEvent(...)` without carrying the event scopes of the
-/// surface that pushes it. A class in [recorded] has a generated copy that
-/// carries them.
+/// surface that pushes it. A class in [recorded], or the State of one, has a
+/// generated copy that carries them.
 Future<List<String>> pushedRouteEventWarnings(
   LibraryElement library, {
   required String path,
@@ -27,7 +29,7 @@ Future<List<String>> pushedRouteEventWarnings(
 
   final warnings = <String>[];
   for (final cls in library.classes) {
-    if (recorded.contains(cls)) continue;
+    if (recorded.contains(cls) || recorded.contains(_widgetOf(cls))) continue;
     final declaration = await astNodeFor(cls.firstFragment);
     if (declaration == null) continue;
     for (final content in routeContents(declaration, pushesOnly: true)) {
@@ -46,17 +48,25 @@ Future<List<String>> pushedRouteEventWarnings(
       final shown = type?.element;
       final name = type == null ? 'content' : '`${type.toSource()}`';
       // A paywall's next screen becomes part of its delivered design;
-      // wrapping it would stop that.
-      if (firstAnnotation(_widgetOf(cls), 'Paywall') != null &&
+      // wrapping it would stop that. Its generated mount carries the events.
+      final paywall = _widgetOf(cls);
+      if (firstAnnotation(paywall, 'Paywall') != null &&
           shown is ClassElement &&
           firstAnnotation(shown, 'Paywall') != null) {
+        final stem = path.split('/').last.replaceFirst(RegExp(r'\.dart$'), '');
+        final mount = generatedSurfaceName(
+          paywall.name ?? '',
+          fallback: 'Paywall',
+        );
         warnings.add(
           'The route at $location shows the paywall screen $name, which '
           'fires `context.surfaceEvent(...)`. The delivered paywall carries '
           'its events, but when the app shows its own copy of the paywall, '
-          'events on that screen refuse until a coming Restage compiler change '
-          'carries them too. Keep the push as it is: wrapping it would stop '
-          'the delivered paywall from showing the screen.',
+          'events on that screen refuse. Try adding '
+          "`part 'restage.generated/$stem.restage.g.dart';` to $path and "
+          'mounting `$mount`, whose copy carries them. Keep the push as it '
+          'is: wrapping it would stop the delivered paywall from showing the '
+          'screen.',
         );
         continue;
       }

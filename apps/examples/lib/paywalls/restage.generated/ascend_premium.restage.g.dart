@@ -1,0 +1,1152 @@
+part of '../ascend_premium.dart';
+
+// ignore_for_file: type=lint, unnecessary_cast
+
+final _ascendPremiumPaywallPlacementDefinitionValue =
+    RestagePaywall.generatedPlacementDefinition(
+  id: 'ascend_premium',
+  defaultSurfaceLocatorJson: <String, Object?>{
+    'surfaceType': 'paywall',
+    'slug': 'ascend_premium',
+    'family': <String, Object?>{'kind': 'general'}
+  },
+  hostContractJson: <String, Object?>{
+    'schemaVersion': 1,
+    'hosting': <String, Object?>{
+      'contentKind': 'single',
+      'presentation': 'inline'
+    },
+    'providedContext': <String, Object?>{
+      'schemaVersion': 1,
+      'inputs': <String, Object?>{
+        '_h48fcb3f166': <String, Object?>{
+          'kind': 'nativeBinding',
+          'contract': <String, Object?>{
+            'type': 'installed.call',
+            'nullable': false,
+            'call': <String, Object?>{
+              'inputs': <Object?>[
+                <String, Object?>{
+                  'kind': 'native',
+                  'nativeType': '(dart:core#String)->void?',
+                  'nullable': true
+                },
+                <String, Object?>{'kind': 'String'}
+              ],
+              'captures': <String, Object?>{},
+              'result': <String, Object?>{
+                'kind': 'native',
+                'nativeType': '()->void'
+              },
+              'implementation':
+                  '48fcb3f1661106e4c5f370b545ecd2f3fe831d1b22a76be1bd03b08200ea4bd9'
+            }
+          }
+        },
+        '_hbb09c834d3': <String, Object?>{
+          'kind': 'nativeBinding',
+          'contract': <String, Object?>{'type': '()->void', 'nullable': true},
+          'label': 'widget.onClose'
+        },
+        '_hce0a6b3f04': <String, Object?>{
+          'kind': 'nativeBinding',
+          'contract': <String, Object?>{
+            'type': '(dart:core#String)->void?',
+            'nullable': true
+          },
+          'label': 'widget.onContinue'
+        }
+      }
+    },
+    'handledEvents': <String, Object?>{
+      'schemaVersion': 1,
+      'events': <Object?>[]
+    },
+    'flowBoundary': null
+  },
+  vocabulary: const SurfaceVocabulary(
+    widgets: RestageWidgetLibraries.fromVocabulary(
+      core: {
+        'Center': buildCenter,
+        'Column': buildColumn,
+        'Container': buildContainer,
+        'Expanded': buildExpanded,
+        'GestureDetector': buildGestureDetector,
+        'IntrinsicHeight': buildIntrinsicHeight,
+        'Padding': buildPadding,
+        'Positioned': buildPositioned,
+        'Row': buildRow,
+        'SafeArea': buildSafeArea,
+        'SingleChildScrollView': buildSingleChildScrollView,
+        'SizedBox': buildSizedBox,
+        'Stack': buildStack,
+        'Text': buildText,
+      },
+      material: {
+        'Divider': buildDivider,
+        'Icon': buildIcon,
+        'RestageModalSheet': buildRestageModalSheet,
+        'Scaffold': buildScaffold,
+      },
+    ),
+    icons: RestageIconTable.fromFamilies(families: {
+      'MaterialIcons': {
+        0xe246: IconData(0xe246, fontFamily: 'MaterialIcons'),
+        0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+      },
+    }),
+  ),
+  surfaceWidget: 'AscendPremiumPaywallSurface',
+);
+
+final ascendPremiumPaywallPlacementDefinition =
+    () => _ascendPremiumPaywallPlacementDefinitionValue;
+
+final _restageAscendPremiumPaywallSurface_h48fcb3f166Contract =
+    NativeBindingContract.fromJson(<String, Object?>{
+  "type": "installed.call",
+  "nullable": false,
+  "call": <String, Object?>{
+    "inputs": <Object?>[
+      <String, Object?>{
+        "kind": "native",
+        "nativeType": "(dart:core#String)->void?",
+        "nullable": true
+      },
+      <String, Object?>{"kind": "String"}
+    ],
+    "captures": <String, Object?>{},
+    "result": <String, Object?>{"kind": "native", "nativeType": "()->void"},
+    "implementation":
+        "48fcb3f1661106e4c5f370b545ecd2f3fe831d1b22a76be1bd03b08200ea4bd9"
+  }
+});
+final NativeCallAdapter _restageAscendPremiumPaywallSurface_h48fcb3f166Native =
+    NativeCallAdapter(_restageAscendPremiumPaywallSurface_h48fcb3f166Contract,
+        (_restageInputs, _restageCells) {
+  T _restageAs<T>(Object? value) => value as T;
+  final ValueChanged<String>? _restageInput0 =
+      _restageAs<ValueChanged<String>?>((_restageInputs[0] == null
+          ? null
+          : (_restageInputs[0] as ValueNative).value));
+  final String _restageInput1 = _restageAs<String>(_restageInputs[1]);
+  final void Function() _restageResult =
+      () => _restageInput0?.call(_restageInput1);
+  return NativeBinding<void Function()>(
+      contract: NativeBindingContract(type: "()->void", nullable: false),
+      value: _restageResult);
+});
+
+final class AscendPremiumPaywallSurface extends StatefulWidget {
+  /// Mounts this surface at its implicit placement by default.
+  ///
+  /// Use this constructor for ordinary mounts; no placement name is needed.
+  const AscendPremiumPaywallSurface({
+    super.key,
+    ValueChanged<String>? onContinue,
+    VoidCallback? onClose,
+    String? placement,
+    this.onEvent,
+    this.resolver,
+    this.loadingBuilder,
+    this.fallbackBuilder,
+    this.errorBuilder,
+  })  : _restageStored1 = onContinue,
+        _restageStored2 = onClose,
+        _restagePlacementName = placement;
+
+  /// Overrides the implicit placement with an explicit name.
+  ///
+  /// Use [AscendPremiumPaywallSurface] for the default placement; no name is needed.
+  const AscendPremiumPaywallSurface.atPlacement(
+    String restagePlacementId, {
+    super.key,
+    ValueChanged<String>? onContinue,
+    VoidCallback? onClose,
+    this.onEvent,
+    this.resolver,
+    this.loadingBuilder,
+    this.fallbackBuilder,
+    this.errorBuilder,
+  })  : _restageStored1 = onContinue,
+        _restageStored2 = onClose,
+        _restagePlacementName = restagePlacementId;
+
+  final ValueChanged<String>? _restageStored1;
+  ValueChanged<String>? get _restageArgument1 => _restageStored1;
+
+  final VoidCallback? _restageStored2;
+  VoidCallback? get _restageArgument2 => _restageStored2;
+  final String? _restagePlacementName;
+
+  final ValueChanged<RestageEvent>? onEvent;
+
+  final VariantResolver? resolver;
+
+  final WidgetBuilder? loadingBuilder;
+
+  final WidgetBuilder? fallbackBuilder;
+
+  final Widget Function(BuildContext, RestagePaywallError)? errorBuilder;
+
+  @override
+  _AscendPremiumPaywallSurfaceState createState() =>
+      _AscendPremiumPaywallSurfaceState();
+}
+
+final class _AscendPremiumPaywallSurfaceState
+    extends State<AscendPremiumPaywallSurface> {
+  // ignore: unused_element
+  /// Whether the full plan list is shown. Collapsed by default — the sheet opens
+  /// on the default (Annual) plan with a "See All Plans" affordance.
+  bool plansExpanded = false;
+
+  // ignore: unused_element
+  /// Plan selection: annual when true, monthly when false. Annual is default.
+  bool annualSelected = true;
+
+  // ignore: unused_element
+  void showAllPlans() => setState(() => plansExpanded = true);
+
+  // ignore: unused_element
+  void selectAnnual() => setState(() => annualSelected = true);
+
+  // ignore: unused_element
+  void selectMonthly() => setState(() => annualSelected = false);
+
+  @override
+  Widget build(BuildContext context) {
+    // ignore: unused_local_variable
+    final _restageRecording = RestageRecording(owner: context);
+    Widget _restageDesign(Widget _restageBuilt) {
+      const SurfaceVocabulary(
+        widgets: RestageWidgetLibraries.fromVocabulary(
+          core: {
+            'Center': buildCenter,
+            'Column': buildColumn,
+            'Container': buildContainer,
+            'Expanded': buildExpanded,
+            'GestureDetector': buildGestureDetector,
+            'IntrinsicHeight': buildIntrinsicHeight,
+            'Padding': buildPadding,
+            'Positioned': buildPositioned,
+            'Row': buildRow,
+            'SafeArea': buildSafeArea,
+            'SingleChildScrollView': buildSingleChildScrollView,
+            'SizedBox': buildSizedBox,
+            'Stack': buildStack,
+            'Text': buildText,
+          },
+          material: {
+            'Divider': buildDivider,
+            'Icon': buildIcon,
+            'RestageModalSheet': buildRestageModalSheet,
+            'Scaffold': buildScaffold,
+          },
+        ),
+        icons: RestageIconTable.fromFamilies(families: {
+          'MaterialIcons': {
+            0xe246: IconData(0xe246, fontFamily: 'MaterialIcons'),
+            0xf647: IconData(0xf647, fontFamily: 'MaterialIcons'),
+          },
+        }),
+      ).addToInstalled();
+      final restageContent = RestageNativeValues(
+        bindings: _restageRecording.bindings(
+            (key) =>
+                switch (key.split('#').first) { _ => throw StateError(key) },
+            {
+              '_h48fcb3f166': NativeBinding(
+                  contract:
+                      _restageAscendPremiumPaywallSurface_h48fcb3f166Contract,
+                  value: _restageAscendPremiumPaywallSurface_h48fcb3f166Native),
+              '_hbb09c834d3': NativeBinding(
+                  contract:
+                      NativeBindingContract(type: '()->void', nullable: true),
+                  value: widget._restageArgument2),
+              '_hce0a6b3f04': NativeBinding(
+                  contract: NativeBindingContract(
+                      type: '(dart:core#String)->void?', nullable: true),
+                  value: widget._restageArgument1),
+            }),
+        labels: const bool.fromEnvironment('dart.vm.product')
+            ? const <String, String>{}
+            : const <String, String>{
+                '_h48fcb3f166':
+                    '() => _restageInput0\n                                  ?.call(_restageInput1)',
+                '_hbb09c834d3': 'widget.onClose',
+                '_hce0a6b3f04': 'widget.onContinue',
+              },
+        child: RestagePaywall(
+          id: 'ascend_premium',
+          placementBinding: RestagePaywall.generatedPlacementBinding(
+            definition: ascendPremiumPaywallPlacementDefinition,
+            name: widget._restagePlacementName,
+            eventOwner: context,
+          ),
+          context: <String, Object?>{
+            ..._restageRecording.values,
+            '_h48fcb3f166': <String, Object?>{
+              "kind": "nativeBinding",
+              "key": '_h48fcb3f166',
+              "type": 'installed.call',
+              "nullable": false
+            },
+            '_hbb09c834d3': <String, Object?>{
+              "kind": "nativeBinding",
+              "key": '_hbb09c834d3',
+              "type": '()->void',
+              "nullable": true
+            },
+            '_hce0a6b3f04': <String, Object?>{
+              "kind": "nativeBinding",
+              "key": '_hce0a6b3f04',
+              "type": '(dart:core#String)->void?',
+              "nullable": true
+            },
+          },
+          fallbackBuilder: widget.fallbackBuilder ?? ((_) => _restageBuilt),
+          errorBuilder: widget.errorBuilder,
+          onEvent: widget.onEvent,
+          resolver: widget.resolver,
+          loadingBuilder: widget.loadingBuilder,
+        ),
+      );
+      return RestageIslandScope(
+          owner: context,
+          explicitEvents: true,
+          builders: {},
+          child: restageContent);
+    }
+
+    return (() {
+      return _restageDesign(Scaffold(
+        backgroundColor: const Color(0xFFFFFFFF),
+        body: Stack(
+          children: [
+            // Soft warm hero glow bleeding from the top, behind the content.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 260,
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.topCenter,
+                    radius: 0.9,
+                    colors: [Color(0x3306B6A4), Color(0x0006B6A4)],
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              bottom: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 10, 22, 0),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Close affordance, top-right (grey circle).
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                GestureDetector(
+                                  onTap: widget._restageArgument2,
+                                  child: Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFEDEDF0),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.close_rounded,
+                                      color: Color(0xFF55555C),
+                                      size: 22,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              "Try the very best of Ascend. First month's on us.",
+                              style: TextStyle(
+                                color: Color(0xFF1A1A1A),
+                                fontSize: 30,
+                                fontWeight: FontWeight.w800,
+                                height: 1.15,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 26),
+                            // Trial timeline — step 1 (Today). Each step is an
+                            // IntrinsicHeight Row: a left rail (dot + connecting
+                            // line that fills the row height) and the step text.
+                            IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    width: 48,
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          width: 14,
+                                          height: 14,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF06B6A4),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 4,
+                                            ),
+                                            child: Container(
+                                              width: 6,
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF06B6A4),
+                                                borderRadius:
+                                                    BorderRadius.circular(3),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Today',
+                                          style: TextStyle(
+                                            color: Color(0xFF1A1A1A),
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        SizedBox(height: 6),
+                                        Text(
+                                          'Unlock premium features including route '
+                                          'planning, segment insights, and advanced '
+                                          'training analysis.',
+                                          style: TextStyle(
+                                            color: Color(0xFF6D6D72),
+                                            fontSize: 14,
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                        SizedBox(height: 30),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Step 2 (2 Days before).
+                            IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    width: 48,
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          width: 14,
+                                          height: 14,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF06B6A4),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 4,
+                                            ),
+                                            child: Container(
+                                              width: 6,
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF06B6A4),
+                                                borderRadius:
+                                                    BorderRadius.circular(3),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          '2 Days before',
+                                          style: TextStyle(
+                                            color: Color(0xFF1A1A1A),
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        SizedBox(height: 6),
+                                        Text(
+                                          'Get a reminder before your trial ends.',
+                                          style: TextStyle(
+                                            color: Color(0xFF6D6D72),
+                                            fontSize: 14,
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                        SizedBox(height: 30),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Step 3 (In 30 days) — the rail closes with a
+                            // down-arrow pushed to the bottom of the rail.
+                            IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    width: 48,
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          width: 14,
+                                          height: 14,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF06B6A4),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.end,
+                                            children: [
+                                              // Bold chunky down-arrow: a thick
+                                              // rounded grey shaft overlapping a
+                                              // wide chevron arrowhead (head wider
+                                              // than the bars). Composed because a
+                                              // thin Icon reads too light; the
+                                              // shaft is Positioned over the glyph
+                                              // so they read as one arrow.
+                                              SizedBox(
+                                                width: 48,
+                                                height: 50,
+                                                child: Stack(
+                                                  children: [
+                                                    // Thick rounded shaft from the
+                                                    // top, centered on the rail.
+                                                    Positioned(
+                                                      top: 0,
+                                                      left: 0,
+                                                      right: 0,
+                                                      child: Center(
+                                                        child: Container(
+                                                          width: 7,
+                                                          height: 28,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: const Color(
+                                                              0xFF8A8A8A,
+                                                            ),
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        3.5),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    // Wide heavy chevron head at the
+                                                    // bottom, overlapping the shaft
+                                                    // so they read as one arrow.
+                                                    const Positioned(
+                                                      bottom: 0,
+                                                      left: 0,
+                                                      right: 0,
+                                                      child: Center(
+                                                        child: Icon(
+                                                          Icons.expand_more,
+                                                          color:
+                                                              Color(0xFF8A8A8A),
+                                                          size: 46,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'In 30 days',
+                                          style: TextStyle(
+                                            color: Color(0xFF1A1A1A),
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        SizedBox(height: 6),
+                                        Text(
+                                          "You'll be charged for your plan. Cancel "
+                                          'at least 24 hours before.',
+                                          style: TextStyle(
+                                            color: Color(0xFF6D6D72),
+                                            fontSize: 14,
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                        SizedBox(height: 8),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Flat grey footer band (full-bleed). Its "Start free trial" pill
+                  // opens the plan sheet via a real showModalBottomSheet.
+                  Container(
+                    color: const Color(0xFFEFEFF2),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                    child: GestureDetector(
+                      onTap: () => showModalBottomSheet<void>(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: const Color(0xFFFFFFFF),
+                        // The build turns this builder body into the sheet's child.
+                        // It reads the outer paywall state and not its own
+                        // BuildContext (named `_`), so it compiles.
+                        builder: (_) => _restageRecording.route(Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Collapsed (default-plan summary + See All Plans) vs
+                              // expanded (the full Annual/Monthly radio card). A
+                              // widget-level ternary on the state field compiles to
+                              // `switch state.plansExpanded { true: …, false: … }`.
+                              plansExpanded
+                                  ? Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        const Text(
+                                          'Free 30-Day Trial',
+                                          style: TextStyle(
+                                            color: Color(0xFF1A1A1A),
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF6F6F8),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                          ),
+                                          child: Column(
+                                            children: [
+                                              // Annual row.
+                                              GestureDetector(
+                                                onTap: selectAnnual,
+                                                child: Container(
+                                                  color:
+                                                      const Color(0x00000000),
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    vertical: 16,
+                                                  ),
+                                                  child: Row(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Row(
+                                                              children: [
+                                                                const Text(
+                                                                  'Annual',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    color:
+                                                                        Color(
+                                                                      0xFF1A1A1A,
+                                                                    ),
+                                                                    fontSize:
+                                                                        17,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w800,
+                                                                  ),
+                                                                ),
+                                                                const SizedBox(
+                                                                  width: 10,
+                                                                ),
+                                                                Container(
+                                                                  padding:
+                                                                      const EdgeInsets
+                                                                          .symmetric(
+                                                                    horizontal:
+                                                                        8,
+                                                                    vertical: 3,
+                                                                  ),
+                                                                  decoration:
+                                                                      BoxDecoration(
+                                                                    color:
+                                                                        const Color(
+                                                                      0xFF06B6A4,
+                                                                    ),
+                                                                    borderRadius:
+                                                                        BorderRadius
+                                                                            .circular(
+                                                                      6,
+                                                                    ),
+                                                                  ),
+                                                                  child:
+                                                                      const Text(
+                                                                    'Save 44%',
+                                                                    style:
+                                                                        TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontSize:
+                                                                          12,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w800,
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 6,
+                                                            ),
+                                                            Row(
+                                                              children: [
+                                                                const Text(
+                                                                  'Free 30-day '
+                                                                  'trial, then ',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    color:
+                                                                        Color(
+                                                                      0xFF6D6D72,
+                                                                    ),
+                                                                    fontSize:
+                                                                        13,
+                                                                  ),
+                                                                ),
+                                                                Text(
+                                                                  r'$119.99',
+                                                                  style:
+                                                                      const TextStyle(
+                                                                    color:
+                                                                        Color(
+                                                                      0xFF1A1A1A,
+                                                                    ),
+                                                                    fontSize:
+                                                                        13,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w800,
+                                                                  ),
+                                                                ),
+                                                                const Text(
+                                                                  '/year',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    color:
+                                                                        Color(
+                                                                      0xFF6D6D72,
+                                                                    ),
+                                                                    fontSize:
+                                                                        13,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 12),
+                                                      // Radio glyph — filled when
+                                                      // selected.
+                                                      Container(
+                                                        width: 24,
+                                                        height: 24,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          shape:
+                                                              BoxShape.circle,
+                                                          border: Border.all(
+                                                            color: annualSelected
+                                                                ? const Color(
+                                                                    0xFF06B6A4,
+                                                                  )
+                                                                : const Color(
+                                                                    0xFFC4C4CC,
+                                                                  ),
+                                                            width: 2,
+                                                          ),
+                                                        ),
+                                                        child: annualSelected
+                                                            ? Center(
+                                                                child:
+                                                                    Container(
+                                                                  width: 12,
+                                                                  height: 12,
+                                                                  decoration:
+                                                                      const BoxDecoration(
+                                                                    color:
+                                                                        Color(
+                                                                      0xFF06B6A4,
+                                                                    ),
+                                                                    shape: BoxShape
+                                                                        .circle,
+                                                                  ),
+                                                                ),
+                                                              )
+                                                            : const SizedBox(),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                              const Divider(
+                                                height: 1,
+                                                color: Color(0xFFE4E4EA),
+                                              ),
+                                              // Monthly row.
+                                              GestureDetector(
+                                                onTap: selectMonthly,
+                                                child: Container(
+                                                  color:
+                                                      const Color(0x00000000),
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    vertical: 16,
+                                                  ),
+                                                  child: Row(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            const Text(
+                                                              'Monthly',
+                                                              style: TextStyle(
+                                                                color: Color(
+                                                                  0xFF1A1A1A,
+                                                                ),
+                                                                fontSize: 17,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w800,
+                                                              ),
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 6,
+                                                            ),
+                                                            Row(
+                                                              children: [
+                                                                const Text(
+                                                                  'Free 30-day '
+                                                                  'trial, then ',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    color:
+                                                                        Color(
+                                                                      0xFF6D6D72,
+                                                                    ),
+                                                                    fontSize:
+                                                                        13,
+                                                                  ),
+                                                                ),
+                                                                Text(
+                                                                  r'$19.99',
+                                                                  style:
+                                                                      const TextStyle(
+                                                                    color:
+                                                                        Color(
+                                                                      0xFF1A1A1A,
+                                                                    ),
+                                                                    fontSize:
+                                                                        13,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w800,
+                                                                  ),
+                                                                ),
+                                                                const Text(
+                                                                  '/month',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    color:
+                                                                        Color(
+                                                                      0xFF6D6D72,
+                                                                    ),
+                                                                    fontSize:
+                                                                        13,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 12),
+                                                      Container(
+                                                        width: 24,
+                                                        height: 24,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          shape:
+                                                              BoxShape.circle,
+                                                          border: Border.all(
+                                                            color: annualSelected
+                                                                ? const Color(
+                                                                    0xFFC4C4CC,
+                                                                  )
+                                                                : const Color(
+                                                                    0xFF06B6A4,
+                                                                  ),
+                                                            width: 2,
+                                                          ),
+                                                        ),
+                                                        child: annualSelected
+                                                            ? const SizedBox()
+                                                            : Center(
+                                                                child:
+                                                                    Container(
+                                                                  width: 12,
+                                                                  height: 12,
+                                                                  decoration:
+                                                                      const BoxDecoration(
+                                                                    color:
+                                                                        Color(
+                                                                      0xFF06B6A4,
+                                                                    ),
+                                                                    shape: BoxShape
+                                                                        .circle,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Text(
+                                              'Free 30-Day Trial',
+                                              style: TextStyle(
+                                                color: Color(0xFF1A1A1A),
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 3,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF06B6A4),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: const Text(
+                                                'Save 44%',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              r'$119.99',
+                                              style: const TextStyle(
+                                                color: Color(0xFF1A1A1A),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            const Text(
+                                              '/year after trial',
+                                              style: TextStyle(
+                                                color: Color(0xFF6D6D72),
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 16),
+                                        // See All Plans — outlined pill; expands
+                                        // the sheet in place.
+                                        GestureDetector(
+                                          onTap: showAllPlans,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 15,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFFFFFFF),
+                                              borderRadius:
+                                                  BorderRadius.circular(28),
+                                              border: Border.all(
+                                                color: const Color(0xFF06B6A4),
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                            child: const Text(
+                                              'See All Plans',
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                color: Color(0xFF06B6A4),
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                              const SizedBox(height: 12),
+                              // Start free trial CTA — reports the selected plan.
+                              // Pinned last so it stays at the sheet bottom as the
+                              // expanded card grows the sheet.
+                              GestureDetector(
+                                onTap: () => widget._restageArgument1?.call(
+                                    annualSelected ? 'annual' : 'monthly'),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF06B6A4),
+                                    borderRadius: BorderRadius.circular(28),
+                                  ),
+                                  child: const Text(
+                                    'Start free trial',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              const Text(
+                                "You won't be charged until your trial ends. "
+                                'Cancel any time up to 24 hours before.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Color(0xFF8A8A90),
+                                  fontSize: 12,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF06B6A4),
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                        child: const Text(
+                          'Start free trial',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ));
+    })();
+  }
+}

@@ -19,6 +19,7 @@ import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
 import 'package:restage_codegen/src/dot_shorthand_expansion.dart';
+import 'package:restage_codegen/src/design_state.dart';
 import 'package:restage_codegen/src/dsl_parse_diagnostic.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
@@ -315,6 +316,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
       rootBuildArguments: source.build.buildArguments,
     );
     var probe = translateWith(source, null);
+    final stateNotices = <Issue>[];
     // An island that needs a lowerable State's members moves the State into
     // the mount.
     if (source.build.liftable case final lifted?
@@ -323,8 +325,16 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             probe.blocked.any(
               (element) => isInstanceMemberOf(lifted.liftedState!, element),
             )) {
-      source = source.withBuild(lifted);
-      probe = translateWith(source, null);
+      final moved = liftState(
+        lifted,
+        (build) => translateWith(source.withBuild(build), null),
+      );
+      source = source.withBuild(moved.build);
+      probe = moved.translation;
+      if (moved.notice case final notice?) stateNotices.add(notice);
+    }
+    if (source.build.stateKeptInApp case final notice?) {
+      stateNotices.add(notice);
     }
     final usesFlowForm = probe.navigation != null || probe.suppressed;
     final emitStandalone = routeOwnership?.standalone ?? !usesFlowForm;
@@ -346,7 +356,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
         : probe;
     _addFatalTranslationIssues(
       issues,
-      standalone.issues,
+      [...stateNotices, ...standalone.issues],
       buildNoticeKeys: noticeKeys,
       sourceIsCanonical: source.isCanonical,
       sourceIsRetained: sourceIsRetained,

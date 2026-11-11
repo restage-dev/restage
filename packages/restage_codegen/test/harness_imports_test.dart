@@ -23,4 +23,29 @@ void main() {
     }
     expect(offenders, isEmpty);
   });
+  _resolversGoThroughSharedResolvers();
+}
+
+/// Resolvers are built through `shared_resolvers.dart`, which makes the SDK
+/// summary cache valid first; build_runner's own can race on a cold cache.
+void _resolversGoThroughSharedResolvers() {
+  test('test builds resolve through SummaryReadyResolvers', () {
+    final offenders = <String>[];
+    for (final entity in Directory('test').listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final path = p.normalize(entity.path);
+      if (path == p.join('test', 'shared_resolvers.dart') ||
+          path == p.join('test', 'harness_imports_test.dart')) {
+        continue;
+      }
+      final source = entity.readAsStringSync();
+      if (source.contains('ResolversImpl(') ||
+          source.contains('ResolversImpl.custom(') ||
+          (source.contains('TestingOverrides(') &&
+              !source.contains('SummaryReadyResolvers('))) {
+        offenders.add(path);
+      }
+    }
+    expect(offenders, isEmpty);
+  });
 }

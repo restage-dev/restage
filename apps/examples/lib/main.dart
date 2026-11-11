@@ -20,6 +20,7 @@ import 'paywalls/ascend_premium.dart';
 import 'paywalls/fluent_pro.dart';
 import 'paywalls/lumen_annual_upgrade.dart';
 import 'paywalls/lumen_holiday_promo.dart';
+import 'paywalls/lumen_plus_offer.dart';
 import 'paywalls/lumen_premium.dart';
 import 'paywalls/lumen_welcome_offer.dart';
 import 'paywalls/minimal_paywall.dart';
@@ -325,7 +326,11 @@ class _GalleryHome extends StatelessWidget {
                 subtitle: 'Dark segmented-tier surface. Tap a tier or plan and '
                     'the button reports it.',
                 leading: const Icon(Icons.graphic_eq_rounded),
-                destination: const PulsePremiumPaywall(),
+                destination: _demo((demo) => PulsePremiumPaywall(
+                    onClose: demo.close,
+                    onContinue: demo.tierTerm,
+                    onTerms: demo.terms,
+                    onPrivacy: demo.privacy)),
                 // Fixed near-black canvas regardless of app theme.
                 surfaceBrightness: Brightness.dark,
               ),
@@ -334,7 +339,8 @@ class _GalleryHome extends StatelessWidget {
                 subtitle: 'Trial-timeline surface. Tap "Start free trial" — a '
                     'modal sheet rises; "See All Plans" swaps the content.',
                 leading: const Icon(Icons.terrain_rounded),
-                destination: const AscendPremiumPaywall(),
+                destination: _demo((demo) => AscendPremiumPaywall(
+                    onClose: demo.close, onContinue: demo.plan)),
                 // Fixed white canvas regardless of app theme.
                 surfaceBrightness: Brightness.light,
               ),
@@ -353,7 +359,10 @@ class _GalleryHome extends StatelessWidget {
                 subtitle: 'Light savings-badge selector. Tap a plan: the radio '
                     'moves and the button reports it.',
                 leading: const Icon(Icons.verified_user_outlined),
-                destination: const SentinelProtectionPaywall(),
+                destination: _demo((demo) => SentinelProtectionPaywall(
+                    onClose: demo.close,
+                    onContinue: demo.plan,
+                    onSubscriptionInfo: demo.subscriptionInfo)),
                 // Fixed light canvas regardless of app theme.
                 surfaceBrightness: Brightness.light,
               ),
@@ -408,6 +417,13 @@ class _GalleryHome extends StatelessWidget {
                     onTerms: demo.terms,
                     onPrivacy: demo.privacy)),
               ),
+              _ExampleTile(
+                title: 'Lumen Plus Offer',
+                subtitle: 'Two plan cards, then a pushed checkout summary '
+                    'before the trial starts.',
+                leading: const Icon(Icons.nights_stay_outlined),
+                destination: const LumenPlusOfferPaywall(),
+              ),
               const Divider(height: 32),
               const _SectionHeader('Delivered RFW'),
               _ExampleTile(
@@ -415,7 +431,13 @@ class _GalleryHome extends StatelessWidget {
                 subtitle: 'Bundled .rfw with the tri-state tier + plan '
                     'selection. The tap state travels inside the surface.',
                 leading: const Icon(Icons.graphic_eq_outlined),
-                destination: const _RemotePaywallScreen(id: 'pulse_premium'),
+                destination: _demo((demo) => PulsePremiumPaywallSurface(
+                    onEvent: _logEvent,
+                    fallbackBuilder: _unavailable,
+                    onClose: demo.close,
+                    onContinue: demo.tierTerm,
+                    onTerms: demo.terms,
+                    onPrivacy: demo.privacy)),
                 // Same fixed near-black canvas as the authored Pulse Premium.
                 surfaceBrightness: Brightness.dark,
               ),
@@ -424,7 +446,11 @@ class _GalleryHome extends StatelessWidget {
                 subtitle: 'Bundled .rfw with the modal sheet + See-All-Plans '
                     'swap. The open, expand and select state travels in the surface.',
                 leading: const Icon(Icons.terrain_outlined),
-                destination: const _RemotePaywallScreen(id: 'ascend_premium'),
+                destination: _demo((demo) => AscendPremiumPaywallSurface(
+                    onEvent: _logEvent,
+                    fallbackBuilder: _unavailable,
+                    onClose: demo.close,
+                    onContinue: demo.plan)),
                 // Same fixed white canvas as the authored Ascend.
                 surfaceBrightness: Brightness.light,
               ),
@@ -435,7 +461,10 @@ class _GalleryHome extends StatelessWidget {
                     'Navigator.push turned into a flow: "View all plans" → pick '
                     'a tier → back. The selected tier is reported from the surface.',
                 leading: const Icon(Icons.auto_awesome),
-                destination: const _RemotePaywallScreen(id: 'fluent_pro'),
+                destination: Builder(
+                    builder: (context) => FluentProPaywallSurface(
+                        onEvent: _bundledEvents(context),
+                        fallbackBuilder: _unavailable)),
                 // Same fixed dark-gradient canvas as the authored Fluent Pro.
                 surfaceBrightness: Brightness.dark,
               ),
@@ -445,8 +474,12 @@ class _GalleryHome extends StatelessWidget {
                     'Bundled .rfw fixture with the savings-badge selector. The '
                     'selected plan travels inside the surface.',
                 leading: const Icon(Icons.verified_user),
-                destination:
-                    const _RemotePaywallScreen(id: 'sentinel_protection'),
+                destination: _demo((demo) => SentinelProtectionPaywallSurface(
+                    onEvent: _logEvent,
+                    fallbackBuilder: _unavailable,
+                    onClose: demo.close,
+                    onContinue: demo.plan,
+                    onSubscriptionInfo: demo.subscriptionInfo)),
                 // Same fixed light canvas as the authored Sentinel Protection.
                 surfaceBrightness: Brightness.light,
               ),
@@ -503,6 +536,16 @@ class _GalleryHome extends StatelessWidget {
                     onRestore: demo.restore,
                     onTerms: demo.terms,
                     onPrivacy: demo.privacy)),
+              ),
+              _ExampleTile(
+                title: 'Lumen Plus Offer — bundled',
+                subtitle: 'The two-screen offer as delivered RFW: the push to '
+                    'checkout travels inside it.',
+                leading: const Icon(Icons.nights_stay),
+                destination: Builder(
+                    builder: (context) => LumenPlusOfferPaywallSurface(
+                        onEvent: _bundledEvents(context),
+                        fallbackBuilder: _unavailable)),
               ),
               _ExampleTile(
                 title: 'Hello',
@@ -737,6 +780,21 @@ bool _returnsToGallery(RestageEvent event) =>
         (event.eventName == 'close' || event.eventName == 'skip')) ||
     (event is PaywallDismissed && event.reason == DismissReason.userClose);
 
+/// Handles a delivered paywall's events in the paywall shown in [context].
+ValueChanged<RestageEvent> _bundledEvents(BuildContext context) => (event) {
+      debugPrint('paywall event: ${event.toMap()}');
+      // The paywall's own close or skip returns to the gallery, so it needs
+      // no SnackBar.
+      if (_returnsToGallery(event)) {
+        Navigator.of(context).maybePop();
+        return;
+      }
+      // Give every other delivered-paywall tap a visible result so no
+      // affordance reads as broken in the demo. Load failures are surfaced
+      // by the unavailable policy, not as a SnackBar.
+      showDemoPaywallEventFeedback(context, event);
+    };
+
 /// Builds a paywall with the demo's answers to its callbacks.
 Widget _demo(Widget Function(PaywallDemoActions demo) build) =>
     Builder(builder: (context) => build(PaywallDemoActions(context)));
@@ -772,19 +830,7 @@ class _RemotePaywallScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return RestagePaywall(
       id: id,
-      onEvent: (event) {
-        debugPrint('paywall event: ${event.toMap()}');
-        // The paywall's own close or skip returns to the gallery, so it needs
-        // no SnackBar.
-        if (_returnsToGallery(event)) {
-          Navigator.of(context).maybePop();
-          return;
-        }
-        // Give every other delivered-paywall tap a visible result so no
-        // affordance reads as broken in the demo. Load failures are surfaced
-        // by the unavailable policy below, not as a SnackBar.
-        showDemoPaywallEventFeedback(context, event);
-      },
+      onEvent: _bundledEvents(context),
       // Model graceful failure: if the artifact can't be resolved or decoded, show
       // a plain message instead of a blank screen. A real app would offer a
       // retry or fall back to a hard-coded paywall here.

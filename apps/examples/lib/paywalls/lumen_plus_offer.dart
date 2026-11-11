@@ -3,6 +3,8 @@ import 'package:restage/restage.dart';
 
 import 'lumen_plus_checkout.dart';
 
+part 'restage.generated/lumen_plus_offer.restage.g.dart';
+
 /// A two-screen offer: the plans, then a checkout summary before the trial
 /// starts. The build turns the push to checkout into a flow step.
 @Paywall()

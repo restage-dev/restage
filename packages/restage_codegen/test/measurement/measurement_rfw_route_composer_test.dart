@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart'
+    show isMeasurementSharedSpot;
 import 'package:restage_codegen/src/measurement/measurement_rfw_route_composer.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -299,6 +301,104 @@ void main() {
         consumedReferences: first.generatedReferences,
       ),
       returnsNormally,
+    );
+  });
+
+  test('a shared spot is a body keyed by its own definition', () {
+    const root = 'package:app/a.dart#Mounted';
+    expect(
+      isMeasurementSharedSpot(
+        '$root|definition:package:app/a.dart#Go|'
+        'inlinedBody:package:app/a.dart#Go|widget:TextButton',
+      ),
+      isTrue,
+    );
+    expect(
+      isMeasurementSharedSpot(
+        '$root|child:Column:Column.children[0]|inline:package:app/a.dart#Go|'
+        'inlinedBody:package:app/a.dart#Go|widget:TextButton',
+      ),
+      isFalse,
+    );
+    expect(
+      isMeasurementSharedSpot(
+        '$root|definition:package:app/a.dart#Go|'
+        'inlinedBody:package:app/a.dart#Pick|widget:TextButton',
+      ),
+      isFalse,
+    );
+    expect(isMeasurementSharedSpot('$root|widget:TextButton'), isFalse);
+  });
+
+  test('an item its route does not declare is a compiler bug', () {
+    final routePlan = _routePlan(const ['reference.presentation.alpha']);
+    final blob = Uint8List.fromList(
+      fmt.encodeLibraryBlob(
+        _library(
+          fmt.ConstructorCall(
+            'Button',
+            <String, Object?>{
+              'onPressed': fmt.EventHandler('activate', <String, Object?>{
+                ..._markedEvent('reference.presentation.alpha').eventArguments,
+                kMeasurementPublicationItemArgumentKeyV1: 'a',
+              }),
+            },
+          ),
+        ),
+      ),
+    );
+    expect(
+      () => MeasurementRfwRouteComposer.composeBlob(
+        blob: blob,
+        routePlan: routePlan,
+      ),
+      throwsA(
+        isA<MeasurementRouteItemMismatch>().having(
+          (error) => error.issueFor('Plans'),
+          'issue',
+          startsWith(
+            'Restage compiler bug: measurement routes disagree for `Plans`',
+          ),
+        ),
+      ),
+    );
+  });
+
+  test('names the surface and the missing route when routes disagree', () {
+    final routePlan = _routePlan(const [
+      'reference.presentation.alpha',
+      'reference.presentation.beta',
+    ]);
+    final composed = MeasurementRfwRouteComposer.composeBlob(
+      blob: Uint8List.fromList(
+        fmt.encodeLibraryBlob(
+          _library(
+            fmt.ConstructorCall(
+              'Button',
+              <String, Object?>{
+                'onPressed': _markedEvent('reference.presentation.alpha'),
+              },
+            ),
+          ),
+        ),
+      ),
+      routePlan: routePlan,
+    );
+
+    expect(
+      () => MeasurementRfwRouteComposer.requireCompleteRouteClosure(
+        routePlan: routePlan,
+        consumedReferences: composed.generatedReferences,
+      ),
+      throwsA(
+        isA<MeasurementRouteClosureMismatch>().having(
+          (error) => error.issueFor('Plans'),
+          'issue',
+          'Restage compiler bug: measurement routes disagree for `Plans` '
+              '(missing route: reference.presentation.beta). '
+              'Please report this as a Restage bug.',
+        ),
+      ),
     );
   });
 

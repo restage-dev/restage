@@ -199,11 +199,13 @@ final class MeasurementSourceDiscoveryResult {
     required this.sourceProvenance,
     required List<MeasurementDiscoveredNode> nodes,
     required List<MeasurementDiscoveredEvent> events,
+    Set<String> sharedBodies = const {},
     Set<String> completionEventNames = const {},
   }) : disposition = MeasurementSourceDiscoveryDisposition.accepted,
        rejectionReason = null,
        nodes = List.unmodifiable(nodes),
        events = List.unmodifiable(events),
+       sharedBodies = Set.unmodifiable(sharedBodies),
        completionEventNames = Set.unmodifiable(completionEventNames);
 
   MeasurementSourceDiscoveryResult._rejected({required String reason})
@@ -212,6 +214,7 @@ final class MeasurementSourceDiscoveryResult {
       sourceProvenance = null,
       nodes = const [],
       events = const [],
+      sharedBodies = const {},
       completionEventNames = const {};
 
   /// Whether the complete static source closure was available.
@@ -228,6 +231,10 @@ final class MeasurementSourceDiscoveryResult {
 
   /// Event names that complete a paywall rather than dismiss it.
   final Set<String> completionEventNames;
+
+  /// The inlined widgets, by class identity, whose body every placement
+  /// shares, keyed by its definition.
+  final Set<String> sharedBodies;
 
   /// Fail-closed reason when static discovery could not be complete.
   final String? rejectionReason;
@@ -308,7 +315,19 @@ abstract final class MeasurementSourceDiscovery {
     MeasurementSourceDiscoveryInput input,
   ) {
     try {
-      return _MeasurementSourceDiscovery(input).discover();
+      // A first walk counts placements; a body placed more than once with a
+      // tap written in it is then keyed by its definition, never by a
+      // placement. A callback written at a call site stays that placement's.
+      final first = _MeasurementSourceDiscovery(input, shared: const {});
+      final result = first.discover();
+      final shared = {
+        for (final event in first._events)
+          for (final body in event.emissionOccurrence.inlinedBodies)
+            if ((first._bodyPlacements[body] ?? 0) > 1) body,
+      };
+      return shared.isEmpty
+          ? result
+          : _MeasurementSourceDiscovery(input, shared: shared).discover();
     } on Object catch (error) {
       return MeasurementSourceDiscoveryResult._rejected(
         reason: error is ArgumentError ? '${error.message}' : '$error',
@@ -395,7 +414,8 @@ const String _kCatalogSchemaOrigin = 'package:rfw_catalog_schema';
 const String _kFlutterOrigin = 'package:flutter/';
 
 final class _MeasurementSourceDiscovery {
-  _MeasurementSourceDiscovery(this.input);
+  _MeasurementSourceDiscovery(this.input, {required Set<String> shared})
+    : _sharedBodies = shared;
 
   final MeasurementSourceDiscoveryInput input;
   late final Set<String> _admittedHelperPackages = artifactHelperPackages(
@@ -405,9 +425,32 @@ final class _MeasurementSourceDiscovery {
   final List<MeasurementDiscoveredEvent> _events = [];
   final Set<String> _nodeKeys = {};
   final Set<String> _eventKeys = {};
-  final CollectionSemanticTraversalSession _collectionSession =
-      CollectionSemanticTraversalSession();
+  late final CollectionSemanticTraversalSession _collectionSession =
+      CollectionSemanticTraversalSession(admitsPlacedReuse: _routedPerSpot);
   late final _WidgetVisitContext _rootContext;
+
+  // Inlined widgets, by class identity, that every placement shares; empty on
+  // the first walk.
+  final Set<String> _sharedBodies;
+  // How often each inlined widget body is placed, by class identity.
+  final Map<String, int> _bodyPlacements = {};
+  // Shared bodies being visited.
+  int _inSharedBody = 0;
+  // The shared spots already measured.
+  final Set<MeasurementEventOccurrence> _sharedSpots = {};
+  // A callback written in an inlined widget's body, reached again from
+  // another placement of it, is routed by its spot in that body. Reaching it
+  // twice within one placement stays refused, as for any callback.
+  bool _routedPerSpot(Expression callback) {
+    final owner = callback.thisOrAncestorOfType<ClassDeclaration>();
+    final element = owner?.declaredFragment?.element;
+    if (element == null) return false;
+    final widget = element.supertype?.element.name == 'State'
+        ? element.supertype?.typeArguments.firstOrNull?.element
+        : element;
+    if (widget is! InterfaceElement) return false;
+    return (_bodyPlacements[_classIdentity(widget)] ?? 0) > 1;
+  }
 
   MeasurementSourceDiscoveryResult discover() {
     final provenance = _sourceProvenance();
@@ -451,6 +494,7 @@ final class _MeasurementSourceDiscovery {
       sourceProvenance: provenance,
       nodes: _nodes,
       events: _events,
+      sharedBodies: _sharedBodies,
       completionEventNames:
           input.authority == MeasurementSourceAuthority.paywall
           ? measurement_completion.paywallCompletionEvents(
@@ -1083,17 +1127,25 @@ final class _MeasurementSourceDiscovery {
       node: node,
       context: context,
     );
+    _bodyPlacements.update(customIdentity, (n) => n + 1, ifAbsent: () => 1);
+    final shared = _sharedBodies.contains(customIdentity);
     final inlineContext = context.enterInline(
       parent: node.occurrence,
       fieldBindings: bindings,
       inlinedDefinitions: blueprint.inlined,
+      shared: shared,
     );
-    _admitOrdinaryLeaf(
-      blueprint.buildExpression,
-      inlineContext,
-      convergentSources: bindings.values.map((binding) => binding.expression),
-    );
-    _visitWidgetExpression(blueprint.buildExpression, inlineContext);
+    if (shared) _inSharedBody++;
+    try {
+      _admitOrdinaryLeaf(
+        blueprint.buildExpression,
+        inlineContext,
+        convergentSources: bindings.values.map((binding) => binding.expression),
+      );
+      _visitWidgetExpression(blueprint.buildExpression, inlineContext);
+    } finally {
+      if (shared) _inSharedBody--;
+    }
   }
 
   void _visitOpaqueSlotChildren(
@@ -1143,8 +1195,9 @@ final class _MeasurementSourceDiscovery {
   }) {
     final occurrence = context.occurrenceScope.widget(widgetClass);
     if (!_nodeKeys.add(occurrence.structuralOccurrenceKey)) {
-      // Static loop iterations share one node.
-      if (context.occurrenceScope.repeatedStatically) {
+      // Static loop iterations, and placements of a shared body, share one
+      // node.
+      if (context.occurrenceScope.repeatedStatically || _inSharedBody > 0) {
         return _nodes.singleWhere(
           (node) =>
               node.structuralOccurrenceKey ==
@@ -1239,6 +1292,11 @@ final class _MeasurementSourceDiscovery {
     required Expression sourceExpression,
     required MeasurementEventOccurrence emissionOccurrence,
   }) {
+    // Every placement of a shared body measures one point at each spot.
+    if (emissionOccurrence.atSharedSpot &&
+        !_sharedSpots.add(emissionOccurrence)) {
+      return;
+    }
     final trigger = recogniseModalSheetTrigger(sourceExpression);
     switch (trigger) {
       case ModalSheetRecognised(:final sheet):
@@ -1261,6 +1319,15 @@ final class _MeasurementSourceDiscovery {
     );
     if (!_eventKeys.add(_eventKey(event))) {
       if (emissionOccurrence.repeatedStatically) return;
+      if (isMeasurementSharedSpot(node.structuralOccurrenceKey)) {
+        // Each placement's own callback lands on the one shared tap.
+        throw ArgumentError(
+          '`${node.occurrence.scope.pathSegments.first.split('#').last}` is '
+          'placed more than once, handles taps itself and also takes a '
+          "callback from each placement, so Restage can't measure its taps. "
+          'Try moving the passed callback into a separate widget',
+        );
+      }
       throw ArgumentError(
         'A static measurement callback slot is duplicated',
       );
@@ -1620,11 +1687,14 @@ final class _WidgetVisitContext {
     required MeasurementWidgetOccurrence parent,
     required Map<FieldElement, _MeasurementExpressionBinding> fieldBindings,
     required InlinedDefinitions inlinedDefinitions,
+    required bool shared,
   }) {
     final customIdentity = parent.widgetIdentity;
     return _WidgetVisitContext._(
       sourceProvenance: sourceProvenance,
-      occurrenceScope: parent.enterInlinedBody(),
+      occurrenceScope: shared
+          ? parent.enterSharedBody()
+          : parent.enterInlinedBody(),
       inlinedCustomWidgetIdentities: [
         ...inlinedCustomWidgetIdentities,
         customIdentity,

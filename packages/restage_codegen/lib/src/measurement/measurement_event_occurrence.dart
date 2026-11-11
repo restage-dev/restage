@@ -377,6 +377,17 @@ final class MeasurementWidgetOccurrence {
     parentStructuralOccurrenceKey: structuralOccurrenceKey,
   );
 
+  /// Enters the body of this custom widget, keyed by its definition rather
+  /// than by this placement, for a body placed more than once.
+  MeasurementOccurrenceScope enterSharedBody() => MeasurementOccurrenceScope._(
+    sourceRootIdentity: scope.sourceRootIdentity,
+    pathSegments: <String>[
+      'definition:$widgetIdentity',
+      'inlinedBody:$widgetIdentity',
+    ],
+    parentStructuralOccurrenceKey: structuralOccurrenceKey,
+  );
+
   /// Enters one structurally identified native inline value.
   MeasurementOccurrenceScope nestedValue(List<Object> path) {
     final nestedPath = path
@@ -503,6 +514,14 @@ final class MeasurementEventOccurrence {
         : identity;
   }
 
+  /// Every inlined widget body around this callback, by class identity.
+  Iterable<String> get inlinedBodies => measurementInlinedBodies(
+    _widgetPathSegments,
+  );
+
+  /// Whether this callback sits in a body every placement shares.
+  bool get atSharedSpot => isMeasurementSharedSpot(structuralOccurrenceKey);
+
   /// Scope of the modal sheet builder body this callback opens.
   MeasurementOccurrenceScope sheetBuilder() => _scope._copy(
     pathSegments: <String>[
@@ -564,6 +583,26 @@ String _stableElementName(Element element, String role) {
     );
   }
   return name;
+}
+
+/// Every inlined widget body named in [segments], by class identity.
+Iterable<String> measurementInlinedBodies(List<String> segments) => [
+  for (final segment in segments)
+    if (segment.startsWith('inlinedBody:'))
+      segment.substring('inlinedBody:'.length),
+];
+
+/// Whether [structuralOccurrenceKey] lies in an inlined body keyed by its
+/// definition, which every placement of the widget shares.
+bool isMeasurementSharedSpot(String structuralOccurrenceKey) {
+  final segments = structuralOccurrenceKey.split('|');
+  if (segments.length < 3) return false;
+  const definition = 'definition:';
+  const body = 'inlinedBody:';
+  final first = segments[1];
+  return first.startsWith(definition) &&
+      first.length > definition.length &&
+      segments[2] == '$body${first.substring(definition.length)}';
 }
 
 String _structuralOccurrenceKey(

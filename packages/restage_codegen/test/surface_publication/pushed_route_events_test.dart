@@ -22,26 +22,30 @@ class Plans extends StatelessWidget {
 }
 ''';
 
-Future<List<String>> _warnings(String offer) => resolveWorkspaceSources(
-  {
-    'apps_examples|lib/offer.dart': offer,
-    'apps_examples|lib/plans.dart': _plans,
-  },
-  (resolver) async {
-    final library = await resolver.libraryFor(
-      AssetId('apps_examples', 'lib/offer.dart'),
+Future<List<String>> _warnings(String offer, {bool recorded = false}) =>
+    resolveWorkspaceSources(
+      {
+        'apps_examples|lib/offer.dart': offer,
+        'apps_examples|lib/plans.dart': _plans,
+      },
+      (resolver) async {
+        final library = await resolver.libraryFor(
+          AssetId('apps_examples', 'lib/offer.dart'),
+        );
+        return await pushedRouteEventWarnings(
+          library,
+          path: 'lib/offer.dart',
+          astNodeFor: (fragment) =>
+              resolver.astNodeFor(fragment, resolve: true),
+          recorded: {
+            if (recorded) library.classes.singleWhere((c) => c.name == 'Offer'),
+          },
+        );
+      },
+      resolverFor: 'apps_examples|lib/offer.dart',
+      rootPackage: 'apps_examples',
+      includeFlutter: true,
     );
-    return await pushedRouteEventWarnings(
-      library,
-      path: 'lib/offer.dart',
-      astNodeFor: (fragment) => resolver.astNodeFor(fragment, resolve: true),
-      recorded: const {},
-    );
-  },
-  resolverFor: 'apps_examples|lib/offer.dart',
-  rootPackage: 'apps_examples',
-  includeFlutter: true,
-);
 
 String _offer(String annotation) =>
     '''
@@ -72,7 +76,7 @@ class _OfferState extends State<Offer> {
 
 void main() {
   test(
-    "a paywall's next screen keeps its push and says what is coming",
+    "a paywall's next screen keeps its push and names the generated mount",
     () async {
       final warnings = await _warnings(_offer('@Paywall()'));
       expect(warnings, hasLength(1));
@@ -81,12 +85,19 @@ void main() {
         'The route at lib/offer.dart:19:51 shows the paywall screen `Plans`, '
         'which fires `context.surfaceEvent(...)`. The delivered paywall '
         'carries its events, but when the app shows its own copy of the '
-        'paywall, events on that screen refuse until a coming Restage '
-        'compiler change carries them too. Keep the push as it is: wrapping '
-        'it would stop the delivered paywall from showing the screen.',
+        'paywall, events on that screen refuse. Try adding '
+        "`part 'restage.generated/offer.restage.g.dart';` to lib/offer.dart "
+        'and mounting `OfferSurface`, whose copy carries them. Keep the push '
+        'as it is: wrapping it would stop the delivered paywall from showing '
+        'the screen.',
       );
     },
   );
+
+  test('a recorded paywall is not warned about from its State', () async {
+    final warnings = await _warnings(_offer('@Paywall()'), recorded: true);
+    expect(warnings, isEmpty);
+  });
 
   test('any other route is told how to carry the surface', () async {
     final warnings = await _warnings(_offer(''));

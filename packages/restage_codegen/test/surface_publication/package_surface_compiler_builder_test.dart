@@ -7519,6 +7519,77 @@ final class Offer extends StatelessWidget {
       );
     });
 
+    test(
+      'records a push its design lowers, and keeps the design state',
+      () async {
+        final logs = <String>[];
+        late final String text;
+        final part = await _generatedPart(
+          """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/offer.restage.g.dart';
+
+@Paywall(id: 'plans')
+class Plans extends StatelessWidget {
+  const Plans({super.key});
+
+  static const pick = SurfaceEvent<void>('pick');
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+        onPressed: context.surfaceEvent(pick),
+        child: const Text('Pick'),
+      );
+}
+
+@Paywall()
+class Offer extends StatefulWidget {
+  const Offer({super.key});
+
+  @override
+  State<Offer> createState() => _OfferState();
+}
+
+class _OfferState extends State<Offer> {
+  bool annual = true;
+
+  void selectMonthly() => setState(() => annual = false);
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        TextButton(
+          onPressed: context.surfaceEvent(PaywallEvents.skip),
+          child: const Text('Not now'),
+        ),
+        TextButton(
+          onPressed: selectMonthly,
+          child: Text(annual ? 'Annual' : 'Monthly'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(builder: (_) => const Plans()),
+          ),
+          child: const Text('All plans'),
+        ),
+      ]);
+}
+""",
+          'offer',
+          logged: logs.addAll,
+          paywallText: (value) => text = value,
+        );
+        final flat = part.replaceAll(RegExp(r'\s+'), ' ');
+        expect(flat, contains('_restageRecording.route(const Plans())'));
+        expect(text, contains('set state.annual = false'));
+        expect(text, contains('event "restageNav0"'));
+        expect(text, isNot(contains('nativeEvent')));
+        expect(logs.where((log) => log.contains('The route at')), isEmpty);
+      },
+    );
+
     test('wraps a dialog it opens the same way', () async {
       final part = await _generatedPart(
         offer(
@@ -7639,6 +7710,98 @@ class Launcher extends StatelessWidget {
       expect(flat, contains('return (() => _restageDesign(Offer()))();'));
       expect(flat, isNot(contains('.route(')));
     });
+
+    test(
+      'compiles a push as before when the library has no generated part',
+      () async {
+        const offer = """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/offer.restage.g.dart';
+
+@Paywall(id: 'plans')
+class Plans extends StatelessWidget {
+  const Plans({super.key});
+
+  static const pick = SurfaceEvent<void>('pick');
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+        onPressed: context.surfaceEvent(pick),
+        child: const Text('Pick'),
+      );
+}
+
+@Paywall()
+class Offer extends StatefulWidget {
+  const Offer({super.key});
+
+  @override
+  State<Offer> createState() => _OfferState();
+}
+
+class _OfferState extends State<Offer> {
+  bool annual = true;
+
+  void selectMonthly() => setState(() => annual = false);
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        TextButton(
+          onPressed: context.surfaceEvent(PaywallEvents.skip),
+          child: const Text('Not now'),
+        ),
+        TextButton(
+          onPressed: selectMonthly,
+          child: Text(annual ? 'Annual' : 'Monthly'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(builder: (_) => const Plans()),
+          ),
+          child: const Text('All plans'),
+        ),
+      ]);
+}
+""";
+        late final String withPart;
+        await _generatedPart(
+          offer,
+          'offer',
+          paywallText: (value) => withPart = value,
+        );
+        late final String withoutPart;
+        late final List<String> warnings;
+        await _generatedPart(
+          offer.replaceFirst(
+            "part 'restage.generated/offer.restage.g.dart';",
+            '',
+          ),
+          'offer',
+          expectPart: false,
+          handoff: (bundle) => withoutPart = utf8.decode(
+            bundle.ownedOutputs['assets/paywalls/offer.rfwtxt']!,
+          ),
+          warned: (value) => warnings = value,
+        );
+        expect(withoutPart, withPart);
+        expect(withoutPart, contains('set state.annual = false'));
+        expect(withoutPart, contains('event "restageNav0"'));
+        expect(
+          warnings.where((warning) => warning.contains('The route at')),
+          [
+            allOf(
+              contains("events on that screen refuse"),
+              contains(
+                "Try adding `part 'restage.generated/offer.restage.g.dart';`",
+              ),
+            ),
+          ],
+        );
+      },
+    );
   });
 
   group('a flow step that needs the app', () {

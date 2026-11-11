@@ -303,6 +303,10 @@ enum IssueCode {
   /// ships with placeholder state.
   stateShapeUnsupported,
 
+  /// A custom widget's State can't be delivered yet, so the widget keeps its
+  /// state in the app and renders from the app's code.
+  nestedStateIsland,
+
   /// A published surface whose host requirements cannot be projected, so
   /// delivery has no fit to check it against.
   surfaceFitUnavailable,
@@ -495,6 +499,9 @@ enum IssueCode {
   /// Translator emitted DSL that didn't round-trip via parseLibraryFile.
   malformedTranslatorOutput,
 
+  /// The emitted design and its measurement plan disagree: a Restage bug.
+  measurementRoutesDisagree,
+
   // Raw DSL authoring
   /// Hand-authored `.rfwtxt` file could not be parsed by parseLibraryFile.
   malformedRawDsl,
@@ -547,6 +554,14 @@ enum IssueCode {
   /// can't mark at each, so its State resets when a new design is shown.
   islandSpotsIndistinct,
 
+  /// A mounted surface's `State` stays in the app, so a published design
+  /// can't change it.
+  stateKeptInApp,
+
+  /// A delivered stateful widget sits where its position can change, so its
+  /// state starts again when it moves.
+  stateRestartsWhenMoved,
+
   /// A widget library uses the namespace the compiler keeps for the
   /// package's app-rendered widgets.
   islandNamespaceTaken,
@@ -563,7 +578,9 @@ enum IssueCode {
   optOutUnkept;
 
   /// Whether this code reports a bug in Restage itself.
-  bool get isRestageBug => this == IssueCode.islandNameConflict;
+  bool get isRestageBug =>
+      this == IssueCode.islandNameConflict ||
+      this == IssueCode.measurementRoutesDisagree;
 
   /// Whether this code means the node runs app code the design can't
   /// express, so the app renders it as a kept wrapper or an app-rendered
@@ -583,6 +600,7 @@ enum IssueCode {
     IssueCode.customWidgetUnclassified ||
     IssueCode.customWidgetInliningDeferred ||
     IssueCode.customWidgetUnsupportedReducible ||
+    IssueCode.nestedStateIsland ||
     IssueCode.pageViewFormUnsupported ||
     IssueCode.shaderMaskFormUnsupported ||
     IssueCode.modalSheetFormUnsupported ||
@@ -609,7 +627,9 @@ enum IssueCode {
     IssueCode.navigationStandaloneArtifactSkipped ||
     IssueCode.customWidgetAppFactoryUsed ||
     IssueCode.interactionItemUnavailable ||
-    IssueCode.islandSpotsIndistinct => true,
+    IssueCode.islandSpotsIndistinct ||
+    IssueCode.stateKeptInApp ||
+    IssueCode.stateRestartsWhenMoved => true,
     _ => false,
   };
 
@@ -651,6 +671,7 @@ enum IssueCode {
     // a deferred-blob disposition, not a regression.
     IssueCode.customWidgetInliningDeferred ||
     IssueCode.customWidgetUnsupportedReducible ||
+    IssueCode.nestedStateIsland ||
     // The announced-rewrite build notice for an auto-substituted idiom —
     // a disclosed, semantically-equivalent rewrite, recorded on the audit
     // trail, never a failure.
@@ -660,7 +681,9 @@ enum IssueCode {
     IssueCode.customWidgetUnexported ||
     IssueCode.customWidgetNotSplit ||
     IssueCode.interactionItemUnavailable ||
-    IssueCode.islandSpotsIndistinct => true,
+    IssueCode.islandSpotsIndistinct ||
+    IssueCode.stateKeptInApp ||
+    IssueCode.stateRestartsWhenMoved => true,
     // Everything below is a real codegen error the author must resolve.
     IssueCode.islandNameConflict ||
     IssueCode.islandNamespaceTaken ||
@@ -736,6 +759,7 @@ enum IssueCode {
     IssueCode.unresolvedUnionBase ||
     IssueCode.inertThemeBindingSeed ||
     IssueCode.malformedTranslatorOutput ||
+    IssueCode.measurementRoutesDisagree ||
     IssueCode.malformedRawDsl ||
     IssueCode.malformedSourceInput ||
     IssueCode.invalidScreenSourceLocation ||
@@ -779,6 +803,7 @@ enum IssueCode {
     // genuine RFW dead-end bucket.
     IssueCode.customWidgetInliningDeferred ||
     IssueCode.customWidgetUnsupportedReducible ||
+    IssueCode.nestedStateIsland ||
     IssueCode.customWidgetUnclassified => true,
     _ => false,
   };
@@ -946,7 +971,9 @@ void logBuildNoticeOnce(
   if ((identity != null &&
           (identity.startsWith(kEventClosureNoticePrefix) ||
               identity.startsWith(kInlineEventNoticePrefix))) ||
-      issue.code == IssueCode.islandSpotsIndistinct) {
+      issue.code == IssueCode.islandSpotsIndistinct ||
+      issue.code == IssueCode.stateKeptInApp ||
+      issue.code == IssueCode.stateRestartsWhenMoved) {
     logger.warning(message);
     return;
   }

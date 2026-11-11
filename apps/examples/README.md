@@ -36,7 +36,7 @@ repaint when you flip light and dark. They are the gallery's first section.
 | **Bare surface** | `lib/onboarding/flows/bare_surface.dart` + `screens/starter_bare_surface.dart` | One delivered screen with no required event and no forced ending. |
 | **Custom widget** | `lib/widgets/minimal_custom_widget.dart` (+ `lib/onboarding/screens/starter_stats.dart`) | Your own `@RestageWidget` (`StatBadge`) inlined into a delivered surface, so the app registers nothing for it. |
 | **Host data** | `lib/surfaces/starter_host_data.dart` + `starter_host_data_demo.dart` | A `@Screen` whose rows come from your app. The build generates `StarterChecklistSurface`, which takes them as ordinary arguments; the `for` loop over them compiles, and a tap reaches your app as a typed event. |
-| **Minimal paywall** | `lib/paywalls/minimal_paywall.dart` | A two-plan picker whose `continue` event carries the selected plan. The selection logic compiles into the surface. |
+| **Minimal paywall** | `lib/paywalls/minimal_paywall.dart` | A two-plan picker whose Continue button calls `onContinue` with the selected plan. The selection logic compiles into the surface. |
 
 Folder names are only a source layout. The annotations decide what each file
 is, and the build records each surface's ID and artifacts.
@@ -77,8 +77,10 @@ The gallery has:
 ### Paywalls (`lib/paywalls/`)
 
 Each paywall is a `@Paywall` `StatefulWidget` with a real plan choice: tap a
-plan and its selection updates, and the main button reports the selected plan
-in a `continue` event. Prices are placeholder text.
+plan and its selection updates, and the main button reports the selected plan.
+Pulse, Ascend and Sentinel report it to the app's `onContinue` callback, as do
+the Lumen annual upgrade and holiday offers; the others send a `continue` event.
+Prices are placeholder text.
 
 | Source (`id`) | Style | Plan selection |
 |---|---|---|

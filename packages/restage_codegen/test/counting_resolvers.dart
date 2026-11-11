@@ -23,7 +23,8 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:build_runner/src/build/resolver/build_step_resolver.dart';
-import 'package:build_runner/src/internal.dart' as build_runner_internal;
+
+import 'shared_resolvers.dart';
 
 /// One analyzer entry point a build step reached for.
 ///
@@ -33,13 +34,7 @@ typedef ResolverUse = ({String api, AssetId? asset});
 
 /// Records resolver analyses in [uses] and [usesIn] for build tests.
 /// Extends `ResolversImpl` so the analyzer receives the build filesystem.
-final class CountingResolvers extends build_runner_internal.ResolversImpl {
-  /// Creates a counting wrapper around a fresh analysis driver.
-  CountingResolvers()
-    : super(
-        analysisDriverModel: build_runner_internal.AnalysisDriverModel(),
-      );
-
+final class CountingResolvers extends SummaryReadyResolvers {
   final List<ResolverUse> _uses = <ResolverUse>[];
 
   /// Every analyzer entry point reached for, in call order, across build steps.

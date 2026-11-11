@@ -37,6 +37,7 @@ final class SourceBuildBlueprint {
     Map<Element, HelperDef> helpers = const {},
     this.liftedState,
     this.liftable,
+    this.stateKeptInApp,
     this.contentFree = ContentFreeBuilders.none,
     List<Statement> statements = const [],
     List<ReturnStatement> returns = const [],
@@ -82,8 +83,16 @@ final class SourceBuildBlueprint {
   /// The root's `State` class when it moves into the generated mount whole.
   final ClassElement? liftedState;
 
-  /// This build with its lowerable `State` moved into the mount instead.
+  /// This build with its `State` also in the mount, for the mount's copy of
+  /// the build; the next one keeps none of it in the design.
   final SourceBuildBlueprint? liftable;
+
+  /// Why this build's `State` stays in the app, when it does.
+  final Issue? stateKeptInApp;
+
+  /// This build with its whole `State` in the mount and none in the design.
+  SourceBuildBlueprint? get wholeLift =>
+      liftedState != null && state == null ? this : liftable?.wholeLift;
 
   /// Which builders in this build run once per build of their widget.
   final ContentFreeBuilders contentFree;
@@ -286,16 +295,25 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
   );
   if (stateClass == null) return blueprint;
 
-  SourceBuildBlueprint lifted() => SourceBuildBlueprint(
+  SourceBuildBlueprint lifted({
+    List<CustomWidgetStateField>? state,
+    Map<String, RecognisedSetState> eventHandlers = const {},
+    SourceBuildBlueprint? liftable,
+    Issue? keptInApp,
+  }) => SourceBuildBlueprint(
     contentFree: contentFree,
     rootExpression: blueprint.rootExpression,
     buildContextParameter: blueprint.buildContextParameter,
+    state: state,
+    eventHandlers: eventHandlers,
     rootParams: rootParams,
     constructorParams: constructorParams,
     mountConstructorProblem: blueprint.mountConstructorProblem,
     localBindings: blueprint.localBindings,
     helpers: blueprint.helpers,
     liftedState: stateClass,
+    liftable: liftable,
+    stateKeptInApp: keptInApp,
     statements: statements,
     returns: returns,
   );
@@ -320,7 +338,48 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
   for (final entry in eventHandlers.entries) {
     final verdict = entry.value;
     if (verdict is SetStateUnrecognised) {
-      if (liftState) return lifted();
+      if (liftState) {
+        final kept =
+            "`${stateClass.name}` stays in your app's code, so a published "
+            "design can't change it";
+        // The advice follows what the method does: set state, compute a
+        // value, or call back into the app.
+        final declaration = switch (stateClass.getMethod(entry.key)) {
+          final method? => await astNodeFor(method.firstFragment),
+          null => null,
+        };
+        // An async callback returning `Future<void>` returns nothing either.
+        final returnsValue = switch (declaration) {
+          MethodDeclaration(returnType: TypeAnnotation(:final type?)) =>
+            !(type is VoidType ||
+                type is InterfaceType &&
+                    (type.isDartAsyncFuture || type.isDartAsyncFutureOr) &&
+                    type.typeArguments.single is VoidType),
+          _ => false,
+        };
+        final setsState =
+            declaration is! MethodDeclaration ||
+            await _setsState(declaration, stateClass, astNodeFor, {});
+        return lifted(
+          keptInApp: Issue(
+            code: IssueCode.stateKeptInApp,
+            message: setsState
+                ? "$kept: in '${entry.key}', ${verdict.reason}. Try writing "
+                      '${entry.key} as one `setState(() => field = value)` '
+                      'call.'
+                : returnsValue
+                ? "$kept: the build calls '${entry.key}', a method of the "
+                      'State that your app runs. Try computing that value in '
+                      'a build local from fields the design keeps.'
+                : "$kept: the build passes '${entry.key}', a method of the "
+                      'State that your app runs. Try writing the call inline '
+                      'as a closure, as in '
+                      '`() => widget.onContinue?.call(annualSelected)`, which '
+                      'the design can split.',
+            location: '$location.${entry.key}',
+          ),
+        );
+      }
       issues.add(
         Issue(
           code: IssueCode.stateShapeUnsupported,
@@ -345,7 +404,14 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     eventHandlers: eventHandlers,
     localBindings: blueprint.localBindings,
     helpers: blueprint.helpers,
-    liftable: liftState ? lifted() : null,
+    // The design keeps the State it lowers; the mount's copy owns the rest.
+    liftable: liftState
+        ? lifted(
+            state: state,
+            eventHandlers: eventHandlers,
+            liftable: lifted(),
+          )
+        : null,
   );
 }
 
@@ -818,7 +884,8 @@ Future<List<CustomWidgetStateField>?> _collectStateFields(
   }
   final primitiveFields = <FieldElement>[];
   for (final field in stateClass.fields) {
-    if (field.isStatic) continue;
+    // A getter computes from the State; it holds nothing to lower.
+    if (field.isStatic || !field.isOriginDeclaration) continue;
     if (!_isPrimitiveType(field.type)) {
       issues.add(
         Issue(
@@ -1415,4 +1482,63 @@ String _buildStatementRefusal(AstNode statement) {
       'translate this statement in a build method. Try using a `switch` or '
       '`?:` expression in the returned widget, or moving the code into a '
       'widget of its own.';
+}
+
+// Whether [method] calls `setState`, itself or through another method of
+// [state] it calls.
+Future<bool> _setsState(
+  MethodDeclaration method,
+  ClassElement state,
+  Future<AstNode?> Function(Fragment fragment) astNodeFor,
+  Set<String> seen,
+) async {
+  if (!seen.add(method.name.lexeme)) return false;
+  if (_callsSetState(method.body)) return true;
+  final calls = <String>{};
+  method.body.accept(_StateMethodCalls(calls));
+  for (final name in calls) {
+    final callee = state.getMethod(name);
+    final declaration = callee == null
+        ? null
+        : await astNodeFor(callee.firstFragment);
+    if (declaration is MethodDeclaration &&
+        await _setsState(declaration, state, astNodeFor, seen)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+final class _StateMethodCalls extends RecursiveAstVisitor<void> {
+  _StateMethodCalls(this.names);
+  final Set<String> names;
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    if (node.target == null || node.target is ThisExpression) {
+      names.add(node.methodName.name);
+    }
+    super.visitMethodInvocation(node);
+  }
+}
+
+// Whether [body] calls `setState` itself.
+bool _callsSetState(FunctionBody body) {
+  var calls = false;
+  body.accept(_SetStateCall(() => calls = true));
+  return calls;
+}
+
+final class _SetStateCall extends RecursiveAstVisitor<void> {
+  _SetStateCall(this.found);
+  final void Function() found;
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    if (node.methodName.name == 'setState' &&
+        (node.target == null || node.target is ThisExpression)) {
+      found();
+    }
+    super.visitMethodInvocation(node);
+  }
 }

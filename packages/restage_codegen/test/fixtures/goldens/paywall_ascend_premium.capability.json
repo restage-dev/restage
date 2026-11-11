@@ -1,7 +1,7 @@
 {
-  "blobSha256": "sha256:849de93cab6b2de3e60281477c6a54ce186b5e3ddc4ccd6aa578ea9222ec5e0e",
+  "blobSha256": "sha256:ed6f0c122bfd8e982471cca183b14d521d6266015e66236d00a62cd20f065ceb",
   "manifest": {
-    "builtInFloor": 17,
+    "builtInFloor": 24,
     "requiredLibraries": []
   }
 }

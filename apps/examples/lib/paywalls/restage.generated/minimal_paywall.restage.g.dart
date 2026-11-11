@@ -19,39 +19,37 @@ final _minimalPaywallPlacementDefinitionValue =
     'providedContext': <String, Object?>{
       'schemaVersion': 1,
       'inputs': <String, Object?>{
-        '_h0507fee626': <String, Object?>{
+        '_hce0a6b3f04': <String, Object?>{
           'kind': 'nativeBinding',
           'contract': <String, Object?>{
-            'type': 'flutter.Color',
-            'nullable': false
+            'type': '(dart:core#String)->void?',
+            'nullable': true
           },
-          'label':
-              'annualSelected ? Theme.of(context).colorScheme.outlineVariant : Theme.of(context).colorScheme.primary'
+          'label': 'widget.onContinue'
         },
-        '_h47c626b423': <String, Object?>{
-          'kind': 'nativeBinding',
-          'contract': <String, Object?>{'type': '()->void', 'nullable': false},
-          'label':
-              '() => widget.onContinue?.call(annualSelected ? \'annual\' : \'monthly\')'
-        },
-        '_h8ce94b61c2': <String, Object?>{
-          'kind': 'nativeBinding',
-          'contract': <String, Object?>{'type': '()->void', 'nullable': false},
-          'label': 'selectAnnual'
-        },
-        '_hac39969bdc': <String, Object?>{
-          'kind': 'nativeBinding',
-          'contract': <String, Object?>{'type': '()->void', 'nullable': false},
-          'label': 'selectMonthly'
-        },
-        '_he38a670278': <String, Object?>{
+        '_hcf6fc3204a': <String, Object?>{
           'kind': 'nativeBinding',
           'contract': <String, Object?>{
-            'type': 'flutter.Color',
-            'nullable': false
-          },
-          'label':
-              'annualSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant'
+            'type': 'installed.call',
+            'nullable': false,
+            'call': <String, Object?>{
+              'inputs': <Object?>[
+                <String, Object?>{
+                  'kind': 'native',
+                  'nativeType': '(dart:core#String)->void?',
+                  'nullable': true
+                },
+                <String, Object?>{'kind': 'String'}
+              ],
+              'captures': <String, Object?>{},
+              'result': <String, Object?>{
+                'kind': 'native',
+                'nativeType': '()->void'
+              },
+              'implementation':
+                  'cf6fc3204ae05a61a836dc1199a6b8bbbf03438e02235bdfc0051db5d3c3c5ff'
+            }
+          }
         }
       }
     },
@@ -86,6 +84,41 @@ final _minimalPaywallPlacementDefinitionValue =
 
 final minimalPaywallPlacementDefinition =
     () => _minimalPaywallPlacementDefinitionValue;
+
+final _restageMinimalPaywallSurface_hcf6fc3204aContract =
+    NativeBindingContract.fromJson(<String, Object?>{
+  "type": "installed.call",
+  "nullable": false,
+  "call": <String, Object?>{
+    "inputs": <Object?>[
+      <String, Object?>{
+        "kind": "native",
+        "nativeType": "(dart:core#String)->void?",
+        "nullable": true
+      },
+      <String, Object?>{"kind": "String"}
+    ],
+    "captures": <String, Object?>{},
+    "result": <String, Object?>{"kind": "native", "nativeType": "()->void"},
+    "implementation":
+        "cf6fc3204ae05a61a836dc1199a6b8bbbf03438e02235bdfc0051db5d3c3c5ff"
+  }
+});
+final NativeCallAdapter _restageMinimalPaywallSurface_hcf6fc3204aNative =
+    NativeCallAdapter(_restageMinimalPaywallSurface_hcf6fc3204aContract,
+        (_restageInputs, _restageCells) {
+  T _restageAs<T>(Object? value) => value as T;
+  final ValueChanged<String>? _restageInput0 =
+      _restageAs<ValueChanged<String>?>((_restageInputs[0] == null
+          ? null
+          : (_restageInputs[0] as ValueNative).value));
+  final String _restageInput1 = _restageAs<String>(_restageInputs[1]);
+  final void Function() _restageResult =
+      () => _restageInput0?.call(_restageInput1);
+  return NativeBinding<void Function()>(
+      contract: NativeBindingContract(type: "()->void", nullable: false),
+      value: _restageResult);
+});
 
 final class MinimalPaywallSurface extends StatefulWidget {
   /// Mounts this surface at its implicit placement by default.
@@ -174,31 +207,23 @@ final class _MinimalPaywallSurfaceState extends State<MinimalPaywallSurface> {
       ).addToInstalled();
       final restageContent = RestageNativeValues(
         bindings: _restageRecording.bindings(
-            (key) => switch (key.split('#').first) {
-                  '_h0507fee626' => NativeBindingContract(
-                      type: 'flutter.Color', nullable: false),
-                  '_h47c626b423' =>
-                    NativeBindingContract(type: '()->void', nullable: false),
-                  '_h8ce94b61c2' =>
-                    NativeBindingContract(type: '()->void', nullable: false),
-                  '_hac39969bdc' =>
-                    NativeBindingContract(type: '()->void', nullable: false),
-                  '_he38a670278' => NativeBindingContract(
-                      type: 'flutter.Color', nullable: false),
-                  _ => throw StateError(key)
-                },
-            {}),
+            (key) =>
+                switch (key.split('#').first) { _ => throw StateError(key) },
+            {
+              '_hce0a6b3f04': NativeBinding(
+                  contract: NativeBindingContract(
+                      type: '(dart:core#String)->void?', nullable: true),
+                  value: widget._restageArgument1),
+              '_hcf6fc3204a': NativeBinding(
+                  contract: _restageMinimalPaywallSurface_hcf6fc3204aContract,
+                  value: _restageMinimalPaywallSurface_hcf6fc3204aNative),
+            }),
         labels: const bool.fromEnvironment('dart.vm.product')
             ? const <String, String>{}
             : const <String, String>{
-                '_h0507fee626':
-                    'annualSelected ? Theme.of(context).colorScheme.outlineVariant : Theme.of(context).colorScheme.primary',
-                '_h47c626b423':
-                    '() => widget.onContinue?.call(annualSelected ? \'annual\' : \'monthly\')',
-                '_h8ce94b61c2': 'selectAnnual',
-                '_hac39969bdc': 'selectMonthly',
-                '_he38a670278':
-                    'annualSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant',
+                '_hce0a6b3f04': 'widget.onContinue',
+                '_hcf6fc3204a':
+                    '() => _restageInput0\n                    ?.call(_restageInput1)',
               },
         child: RestagePaywall(
           id: 'minimal_paywall',
@@ -209,34 +234,16 @@ final class _MinimalPaywallSurfaceState extends State<MinimalPaywallSurface> {
           ),
           context: <String, Object?>{
             ..._restageRecording.values,
-            '_h0507fee626': <String, Object?>{
+            '_hce0a6b3f04': <String, Object?>{
               "kind": "nativeBinding",
-              "key": '_h0507fee626',
-              "type": 'flutter.Color',
-              "nullable": false
+              "key": '_hce0a6b3f04',
+              "type": '(dart:core#String)->void?',
+              "nullable": true
             },
-            '_h47c626b423': <String, Object?>{
+            '_hcf6fc3204a': <String, Object?>{
               "kind": "nativeBinding",
-              "key": '_h47c626b423',
-              "type": '()->void',
-              "nullable": false
-            },
-            '_h8ce94b61c2': <String, Object?>{
-              "kind": "nativeBinding",
-              "key": '_h8ce94b61c2',
-              "type": '()->void',
-              "nullable": false
-            },
-            '_hac39969bdc': <String, Object?>{
-              "kind": "nativeBinding",
-              "key": '_hac39969bdc',
-              "type": '()->void',
-              "nullable": false
-            },
-            '_he38a670278': <String, Object?>{
-              "kind": "nativeBinding",
-              "key": '_he38a670278',
-              "type": 'flutter.Color',
+              "key": '_hcf6fc3204a',
+              "type": 'installed.call',
               "nullable": false
             },
           },
@@ -291,20 +298,15 @@ final class _MinimalPaywallSurfaceState extends State<MinimalPaywallSurface> {
                 const Spacer(),
                 // Annual plan row (default selected). The border tracks selection.
                 GestureDetector(
-                  onTap: _restageRecording.native('_h8ce94b61c2', selectAnnual,
-                      type: '()->void', nullable: false),
+                  onTap: selectAnnual,
                   child: Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: _restageRecording.native(
-                            '_he38a670278',
-                            annualSelected
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.outlineVariant,
-                            type: 'flutter.Color',
-                            nullable: false),
+                        color: annualSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.outlineVariant,
                         width: 2,
                       ),
                     ),
@@ -335,20 +337,15 @@ final class _MinimalPaywallSurfaceState extends State<MinimalPaywallSurface> {
                 const SizedBox(height: 12),
                 // Monthly plan row.
                 GestureDetector(
-                  onTap: _restageRecording.native('_hac39969bdc', selectMonthly,
-                      type: '()->void', nullable: false),
+                  onTap: selectMonthly,
                   child: Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: _restageRecording.native(
-                            '_h0507fee626',
-                            annualSelected
-                                ? Theme.of(context).colorScheme.outlineVariant
-                                : Theme.of(context).colorScheme.primary,
-                            type: 'flutter.Color',
-                            nullable: false),
+                        color: annualSelected
+                            ? Theme.of(context).colorScheme.outlineVariant
+                            : Theme.of(context).colorScheme.primary,
                         width: 2,
                       ),
                     ),
@@ -379,12 +376,8 @@ final class _MinimalPaywallSurfaceState extends State<MinimalPaywallSurface> {
                 const Spacer(),
                 // Continue CTA — reports the selected plan.
                 GestureDetector(
-                  onTap: _restageRecording.native(
-                      '_h47c626b423',
-                      () => widget._restageArgument1
-                          ?.call(annualSelected ? 'annual' : 'monthly'),
-                      type: '()->void',
-                      nullable: false),
+                  onTap: () => widget._restageArgument1
+                      ?.call(annualSelected ? 'annual' : 'monthly'),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     decoration: BoxDecoration(

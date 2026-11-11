@@ -19,37 +19,37 @@ import 'package:restage_example/onboarding/flows/section_header_showcase.dart'
     as s10;
 import 'package:restage_example/onboarding/flows/stride_first_run.dart' as s11;
 import 'package:restage_example/onboarding/flows/tally_onboarding.dart' as s12;
-import 'package:restage_example/paywalls/custom_badge.dart' as s13;
-import 'package:restage_example/paywalls/lumen_annual_upgrade.dart' as s14;
-import 'package:restage_example/paywalls/lumen_holiday_promo.dart' as s15;
-import 'package:restage_example/paywalls/minimal_paywall.dart' as s16;
-import 'package:restage_example/paywalls/pricing_showcase.dart' as s17;
-import 'package:restage_example/paywalls/pricing_table_showcase.dart' as s18;
-import 'package:restage_example/paywalls/pulse_paywall.dart' as s19;
-import 'package:restage_example/surfaces/categorized_screens.dart' as s20;
-import 'package:restage_example/surfaces/general_flow.dart' as s21;
-import 'package:restage_example/surfaces/lumen_cancel.dart' as s22;
-import 'package:restage_example/surfaces/lumen_cancel_flow.dart' as s23;
-import 'package:restage_example/surfaces/lumen_trial_ending.dart' as s24;
-import 'package:restage_example/surfaces/lumen_trial_ending_flow.dart' as s25;
-import 'package:restage_example/surfaces/message_offer_flow.dart' as s26;
-import 'package:restage_example/surfaces/starter_host_data.dart' as s27;
+import 'package:restage_example/paywalls/ascend_premium.dart' as s13;
+import 'package:restage_example/paywalls/custom_badge.dart' as s14;
+import 'package:restage_example/paywalls/fluent_pro.dart' as s15;
+import 'package:restage_example/paywalls/lumen_annual_upgrade.dart' as s16;
+import 'package:restage_example/paywalls/lumen_holiday_promo.dart' as s17;
+import 'package:restage_example/paywalls/lumen_plus_offer.dart' as s18;
+import 'package:restage_example/paywalls/minimal_paywall.dart' as s19;
+import 'package:restage_example/paywalls/pricing_showcase.dart' as s20;
+import 'package:restage_example/paywalls/pricing_table_showcase.dart' as s21;
+import 'package:restage_example/paywalls/pulse_paywall.dart' as s22;
+import 'package:restage_example/paywalls/pulse_premium.dart' as s23;
+import 'package:restage_example/paywalls/sentinel_protection.dart' as s24;
+import 'package:restage_example/surfaces/categorized_screens.dart' as s25;
+import 'package:restage_example/surfaces/general_flow.dart' as s26;
+import 'package:restage_example/surfaces/lumen_cancel.dart' as s27;
+import 'package:restage_example/surfaces/lumen_cancel_flow.dart' as s28;
+import 'package:restage_example/surfaces/lumen_trial_ending.dart' as s29;
+import 'package:restage_example/surfaces/lumen_trial_ending_flow.dart' as s30;
+import 'package:restage_example/surfaces/message_offer_flow.dart' as s31;
+import 'package:restage_example/surfaces/starter_host_data.dart' as s32;
 
 /// Every surface this package compiles, for
 /// `Restage.configure(surfaces: restageSurfaces)`.
 final List<restage.RestageSurfaceRef> restageSurfaces =
     List<restage.RestageSurfaceRef>.unmodifiable(
   <restage.RestageSurfaceRef>[
-    const restage.PaywallRef('ascend_premium'),
-    const restage.PaywallRef('fluent_pro'),
-    const restage.PaywallRef('lumen_plus_offer'),
     const restage.PaywallRef('lumen_premium'),
     const restage.PaywallRef('lumen_welcome_offer'),
     const restage.PaywallRef('modal_sheet_lowering'),
     const restage.PaywallRef('modal_sheet_lowering_cupertino'),
     const restage.PaywallRef('narrate_membership'),
-    const restage.PaywallRef('pulse_premium'),
-    const restage.PaywallRef('sentinel_protection'),
     const restage.PaywallRef('upgrade_offer'),
     s0.apexDropFlowPlacementDefinition(),
     s1.bareSurfaceFlowPlacementDefinition(),
@@ -64,24 +64,29 @@ final List<restage.RestageSurfaceRef> restageSurfaces =
     s10.sectionHeaderShowcaseFlowPlacementDefinition(),
     s11.strideFirstRunFlowPlacementDefinition(),
     s12.tallyOnboardingFlowPlacementDefinition(),
-    s13.customBadgePaywallPlacementDefinition(),
-    s14.lumenAnnualUpgradePaywallPlacementDefinition(),
-    s15.lumenHolidayPromoPaywallPlacementDefinition(),
-    s16.minimalPaywallPlacementDefinition(),
-    s17.pricingShowcasePlacementDefinition(),
-    s18.pricingTableShowcasePlacementDefinition(),
-    s19.pulsePaywallPlacementDefinition(),
-    s20.generalStatusPlacementDefinition(),
-    s20.messageNoticePlacementDefinition(),
-    s20.onboardingWelcomePlacementDefinition(),
-    s21.generalJourneyPlacementDefinition(),
-    s22.lumenCancelNoteScreenPlacementDefinition(),
-    s22.lumenCancelReasonScreenPlacementDefinition(),
-    s22.lumenCancelThanksScreenPlacementDefinition(),
-    s23.lumenCancelPlacementDefinition(),
-    s24.lumenTrialEndingScreenPlacementDefinition(),
-    s25.lumenTrialOfferPlacementDefinition(),
-    s26.messageOfferPlacementDefinition(),
-    s27.starterChecklistPlacementDefinition(),
+    s13.ascendPremiumPaywallPlacementDefinition(),
+    s14.customBadgePaywallPlacementDefinition(),
+    s15.fluentProPaywallPlacementDefinition(),
+    s16.lumenAnnualUpgradePaywallPlacementDefinition(),
+    s17.lumenHolidayPromoPaywallPlacementDefinition(),
+    s18.lumenPlusOfferPaywallPlacementDefinition(),
+    s19.minimalPaywallPlacementDefinition(),
+    s20.pricingShowcasePlacementDefinition(),
+    s21.pricingTableShowcasePlacementDefinition(),
+    s22.pulsePaywallPlacementDefinition(),
+    s23.pulsePremiumPaywallPlacementDefinition(),
+    s24.sentinelProtectionPaywallPlacementDefinition(),
+    s25.generalStatusPlacementDefinition(),
+    s25.messageNoticePlacementDefinition(),
+    s25.onboardingWelcomePlacementDefinition(),
+    s26.generalJourneyPlacementDefinition(),
+    s27.lumenCancelNoteScreenPlacementDefinition(),
+    s27.lumenCancelReasonScreenPlacementDefinition(),
+    s27.lumenCancelThanksScreenPlacementDefinition(),
+    s28.lumenCancelPlacementDefinition(),
+    s29.lumenTrialEndingScreenPlacementDefinition(),
+    s30.lumenTrialOfferPlacementDefinition(),
+    s31.messageOfferPlacementDefinition(),
+    s32.starterChecklistPlacementDefinition(),
   ],
 );

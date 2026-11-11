@@ -3,6 +3,8 @@ import 'package:restage/restage.dart';
 
 import 'fluent_pro_choose_plan.dart';
 
+part 'restage.generated/fluent_pro.restage.g.dart';
+
 /// A gradient-hero paywall with a free-trial headline and two plan cards, the
 /// "most popular" one selected by default.
 ///

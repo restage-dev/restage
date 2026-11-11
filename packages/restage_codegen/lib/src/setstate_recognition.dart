@@ -93,7 +93,10 @@ RecognisedSetState recogniseSetState(
       reason: 'the method body is not a single setState(...) call',
     );
   }
-  if (innerCall.methodName.name != 'setState' || innerCall.target != null) {
+  // `this.setState(...)` is the same call as `setState(...)`.
+  final target = innerCall.target;
+  if (innerCall.methodName.name != 'setState' ||
+      (target != null && target is! ThisExpression)) {
     return const SetStateUnrecognised(
       reason: 'the method body calls something other than setState(...)',
     );
