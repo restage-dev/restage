@@ -127,13 +127,41 @@ Map<String, Object?> _tree(String carrier) =>
     jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(carrier))))
         as Map<String, Object?>;
 
-/// The first request the SDK sends on a first launch on [platform].
+/// A generated setup whose build.yaml turns analytics off.
+final class _AnalyticsOffSetup
+    implements RestageWidgetRegistration, RestageBuildDelivery {
+  const _AnalyticsOffSetup();
+
+  @override
+  String get apiKey => 'rs_pk_test';
+
+  @override
+  String get baseUrl => 'https://example.com';
+
+  @override
+  String? get channel => null;
+
+  @override
+  bool get analyticsEnabled => false;
+
+  @override
+  void call({required bool includeMaterial, required bool includeCupertino}) {}
+}
+
+/// The first request the SDK sends on a first launch on [platform]: with
+/// [analytics] off it is configured so, by the app or, when [fromSetup], by
+/// the build's generated setup.
 Future<({List<List<int>> bodies, PlacementBatchRequestV1 request})>
     _sdkFirstRequest(
   WidgetTester tester,
-  TargetPlatform platform,
-) async {
+  TargetPlatform platform, {
+  bool analytics = true,
+  bool fromSetup = false,
+  bool measurement = true,
+}) async {
   SharedPreferences.setMockInitialValues({});
+  // Each case is a first launch the service has not seen.
+  forgetSentBuilds();
   PackageInfo.setMockInitialValues(
     appName: 'test',
     packageName: 'test',
@@ -181,36 +209,16 @@ Future<({List<List<int>> bodies, PlacementBatchRequestV1 request})>
   Restage.debugPlacementNow = () => DateTime.utc(2026, 10, 4, 12);
   Restage.declareSurfaces([definition]);
   Restage.configure(
-    apiKey: 'rs_pk_test',
-    baseUrl: 'https://example.com',
+    apiKey: fromSetup ? null : 'rs_pk_test',
+    baseUrl: fromSetup ? null : 'https://example.com',
+    registerWidgets: fromSetup ? const _AnalyticsOffSetup() : null,
+    analyticsEnabled: fromSetup ? null : analytics,
     measurementEnabled: false,
     deliveryReceiptsEnabled: false,
     surfaces: [definition],
   );
   debugSetOsVersion(34);
-  // As configure installs it with measurement on.
-  final store = SurfaceAssignmentCredentialStore(
-    namespace: 'vector',
-    actor: () async => 'device',
-    identityGeneration: () => 0,
-    onRetentionRollover: SurfaceCanonicalCarrierProvider.clearHeldAssignments,
-  );
-  SurfaceAssignmentKeyProvider.install(
-    key: store.resolve,
-    localKey: store.resolveLocal,
-    identityGeneration: () => store.generation,
-    registration: store.capture,
-    confirmedKey: () => store.currentHandle,
-    confirmRegistration: (attempt, start, handle, expiry, serverNow) =>
-        store.confirm(
-      attempt: attempt,
-      localRequestStartMicros: start,
-      credentialHandle: handle,
-      expiresAtMicros: expiry,
-      serverNowMicros: serverNow,
-    ),
-    refuseRegistration: store.refuse,
-  );
+  if (analytics && measurement) _installAssignment();
   final client = RestageRpcClient(
     baseUrl: 'https://example.com',
     apiKey: 'rs_pk_test',
@@ -253,9 +261,186 @@ Future<({List<List<int>> bodies, PlacementBatchRequestV1 request})>
   return (bodies: bodies, request: decoded!);
 }
 
+// As configure installs it with measurement on.
+void _installAssignment() {
+  final store = SurfaceAssignmentCredentialStore(
+    namespace: 'vector',
+    actor: () async => 'device',
+    identityGeneration: () => 0,
+    onRetentionRollover: SurfaceCanonicalCarrierProvider.clearHeldAssignments,
+  );
+  SurfaceAssignmentKeyProvider.install(
+    key: store.resolve,
+    localKey: store.resolveLocal,
+    identityGeneration: () => store.generation,
+    registration: store.capture,
+    confirmedKey: () => store.currentHandle,
+    confirmRegistration: (attempt, start, handle, expiry, serverNow) =>
+        store.confirm(
+      attempt: attempt,
+      localRequestStartMicros: start,
+      credentialHandle: handle,
+      expiresAtMicros: expiry,
+      serverNowMicros: serverNow,
+    ),
+    refuseRegistration: store.refuse,
+  );
+}
+
 void main() {
   for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
     final name = platform == TargetPlatform.android ? 'android' : 'ios';
+
+    for (final fromSetup in [false, true]) {
+      final how = fromSetup ? 'the build' : 'the app';
+      testWidgets(
+          'the $name analytics-off body, set by $how, matches the '
+          'template', (tester) async {
+        final sent = await _sdkFirstRequest(
+          tester,
+          platform,
+          analytics: false,
+          fromSetup: fromSetup,
+        );
+        final request = sent.request;
+        expect(request.startup, isTrue);
+        expect(request.meteringKey, isNotNull);
+        expect(request.analyticsAnonymousId, isNull);
+        expect(request.registration, isNull);
+        expect(request.assignmentKey, isNull);
+
+        final build = request.buildContract;
+        final template = jsonDecode(
+          startupTemplateJson(
+            Uri.parse('https://example.com/sdk/v1/placements/resolve'),
+            'rs_pk_test',
+            startupRequestFor(
+              platform: name,
+              mounts: build.mounts.toList(),
+              contractsByHash: build.contractsByHash,
+              capability: build.installedCapability,
+              buildOrdinal: 1,
+              builtIns: {
+                'appBuildOrdinal': 1,
+                'country': 'us',
+                'daysSinceInstall': 0,
+                'deviceClass': 'phone',
+                'language': 'en',
+                'osVersion': 1,
+                'platform': name,
+                'sdkApiLevel': kAssignmentSdkApiLevel,
+              },
+            ),
+            identityTokens: true,
+            analytics: !fromSetup,
+          )!,
+        ) as Map<String, Object?>;
+        expect(template['analytics'], !fromSetup);
+        final off = (template['analyticsOff']! as Map).cast<String, Object?>();
+        // The platform's analytics-off body, as it fills it.
+        final variant = {
+          ...template,
+          'body': off['body'],
+          'fullBody': off['fullBody']
+        };
+        for (final key in ['body', 'fullBody']) {
+          expect(off[key], isNot(contains('@@analyticsAnonymousId@@')));
+          expect(off[key], isNot(contains('@@registrationNonce@@')));
+        }
+        final builtIns = _tree(request.sdkBuiltInsCanonicalBase64!);
+        final libraries = _tree(request.sdkInstalledLibraries!);
+        final observed = {
+          for (final fact in (template['fills']! as List).cast<String>())
+            if (builtIns.containsKey(fact)) fact: builtIns[fact],
+          'appVersion': libraries['appVersion'],
+          'utcOffsetMinutes': request.localClock!.utcOffsetMinutes,
+        };
+        String filled(String key) => _fill(
+              variant,
+              key,
+              observed,
+              ordinal: _ordinal,
+              metering: request.meteringKey!,
+              anonymous: '',
+              nonce: '',
+              createdAtMicros: 0,
+            );
+        expect(
+          sent.bodies.map(utf8.decode),
+          [filled('body'), filled('fullBody')],
+        );
+      });
+    }
+
+    testWidgets('the $name measurement-off body matches the template', (
+      tester,
+    ) async {
+      final sent = await _sdkFirstRequest(tester, platform, measurement: false);
+      final request = sent.request;
+      expect(request.analyticsAnonymousId, isNotNull);
+      expect(request.registration, isNull);
+      expect(request.assignmentKey, isNull);
+      final build = request.buildContract;
+      final template = jsonDecode(
+        startupTemplateJson(
+          Uri.parse('https://example.com/sdk/v1/placements/resolve'),
+          'rs_pk_test',
+          startupRequestFor(
+            platform: name,
+            mounts: build.mounts.toList(),
+            contractsByHash: build.contractsByHash,
+            capability: build.installedCapability,
+            buildOrdinal: 1,
+            builtIns: {
+              'appBuildOrdinal': 1,
+              'country': 'us',
+              'daysSinceInstall': 0,
+              'deviceClass': 'phone',
+              'language': 'en',
+              'osVersion': 1,
+              'platform': name,
+              'sdkApiLevel': kAssignmentSdkApiLevel,
+            },
+          ),
+          identityTokens: true,
+          measurement: false,
+        )!,
+      ) as Map<String, Object?>;
+      expect(template['measurement'], isFalse);
+      final off = (template['measurementOff']! as Map).cast<String, Object?>();
+      // The platform's measurement-off body, as it fills it: no registration.
+      final variant = {
+        ...template,
+        'body': off['body'],
+        'fullBody': off['fullBody'],
+      };
+      for (final key in ['body', 'fullBody']) {
+        expect(off[key], contains('@@analyticsAnonymousId@@'));
+        expect(off[key], isNot(contains('@@registrationNonce@@')));
+      }
+      final builtIns = _tree(request.sdkBuiltInsCanonicalBase64!);
+      final libraries = _tree(request.sdkInstalledLibraries!);
+      final observed = {
+        for (final fact in (template['fills']! as List).cast<String>())
+          if (builtIns.containsKey(fact)) fact: builtIns[fact],
+        'appVersion': libraries['appVersion'],
+        'utcOffsetMinutes': request.localClock!.utcOffsetMinutes,
+      };
+      String filled(String key) => _fill(
+            variant,
+            key,
+            observed,
+            ordinal: _ordinal,
+            metering: request.meteringKey!,
+            anonymous: request.analyticsAnonymousId!,
+            nonce: '',
+            createdAtMicros: 0,
+          );
+      expect(
+        sent.bodies.map(utf8.decode),
+        [filled('body'), filled('fullBody')],
+      );
+    });
 
     testWidgets('the $name first-launch startup body matches the vector', (
       tester,

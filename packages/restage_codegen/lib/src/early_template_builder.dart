@@ -7,6 +7,8 @@ import 'package:build/build.dart';
 import 'package:glob/glob.dart';
 import 'package:restage_codegen/src/build_delivery.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
+import 'package:restage_codegen/src/measurement/measurement_configuration.dart';
+import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/surface_publication/surface_list_builder.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show PlacementKeyV1;
@@ -92,7 +94,8 @@ final class RestageEarlyTemplateBuilder implements Builder {
     // user_factories build reports when they are missing.
     final delivery = _buildDelivery(factories);
     if (delivery == null) return const {};
-    final (:apiKey, :baseUrl, :channel) = delivery;
+    final (:apiKey, :baseUrl, :channel, :analytics) = delivery;
+    final measurement = await _measurementEnabled(buildStep);
     // The generated registration says which catalog the app installs.
     final wholeCatalog = factories.contains('RestageWidgetLibraries.builtIn(');
     if (!wholeCatalog &&
@@ -127,9 +130,8 @@ final class RestageEarlyTemplateBuilder implements Builder {
           kBuilderContinuationWidgetName,
         ),
       );
-      builtInIconCodePoints().forEach((family, points) {
-        (vocabulary.iconCodePoints[family] ??= <int>{}).addAll(points);
-      });
+      // The whole catalog installs widgets only; icons come from the app's
+      // and the surfaces' vocabulary, as at runtime.
     }
 
     final capability = computeInstalledCapability(
@@ -186,6 +188,8 @@ final class RestageEarlyTemplateBuilder implements Builder {
         apiKey,
         request,
         identityTokens: true,
+        analytics: analytics,
+        measurement: measurement,
       );
       if (template != null) templates[path] = template;
     }
@@ -222,6 +226,18 @@ final class RestageEarlyTemplateBuilder implements Builder {
     );
   }
 
+  // The app's `measurementEnabled`; an unresolved one, which the surface
+  // compiler reports, registers nothing.
+  static Future<bool> _measurementEnabled(BuildStep buildStep) async {
+    final result = await resolveMeasurementConfiguration(
+      buildStep,
+      candidates: await selectRestageMeasurementConfigurationCandidates(
+        buildStep,
+      ),
+    );
+    return result.isValid && result.enabled;
+  }
+
   static bool _hasPlatformDirectory(String path) => Directory(
     path.startsWith('ios') ? 'ios/Runner' : 'android/app',
   ).existsSync();
@@ -244,23 +260,35 @@ final class RestageEarlyTemplateBuilder implements Builder {
 /// The key, service URL and channel the generated registration's constants
 /// spell.
 BuildDelivery? _buildDelivery(String factories) {
-  const names = {kBuildApiKeyName, kBuildBaseUrlName, kBuildChannelName};
-  final values = <String, String>{};
+  const names = {
+    kBuildApiKeyName,
+    kBuildBaseUrlName,
+    kBuildChannelName,
+    kBuildAnalyticsName,
+  };
+  final values = <String, Object>{};
   parseString(content: factories, throwIfDiagnostics: false).unit.accept(
     _Visitor(
       onVariable: (node) {
         final name = node.name.lexeme;
         if (!names.contains(name)) return;
-        if (_literal(node.initializer) case final String value) {
+        if (_literal(node.initializer) case final Object value) {
           values[name] = value;
         }
       },
     ),
   );
-  final apiKey = values[kBuildApiKeyName];
-  final baseUrl = values[kBuildBaseUrlName];
-  if (apiKey == null || baseUrl == null) return null;
-  return (apiKey: apiKey, baseUrl: baseUrl, channel: values[kBuildChannelName]);
+  if (values[kBuildApiKeyName] case final String apiKey) {
+    if (values[kBuildBaseUrlName] case final String baseUrl) {
+      return (
+        apiKey: apiKey,
+        baseUrl: baseUrl,
+        channel: values[kBuildChannelName] as String?,
+        analytics: values[kBuildAnalyticsName] != false,
+      );
+    }
+  }
+  return null;
 }
 
 /// A placement the app declares at startup, from its generated literals.

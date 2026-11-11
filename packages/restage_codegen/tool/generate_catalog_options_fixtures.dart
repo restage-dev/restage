@@ -41,6 +41,7 @@ Map<String, String> emitCatalogOptionsFixtures() {
             apiKey: 'rs_pk_sandbox_dev_build',
             baseUrl: 'https://build.example.com',
             channel: 'beta',
+            analytics: false,
           ),
         ),
     releaseRegistrationFixturePath: emitEmptyUserFactoriesDart(

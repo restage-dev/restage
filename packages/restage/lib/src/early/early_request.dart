@@ -3,13 +3,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show WidgetsBinding;
-import 'package:http/http.dart' as http;
 import 'package:restage_shared/restage_shared.dart';
 
 /// The startup request the platform sent at process start.
 final class EarlyRequest {
   static const _channel = MethodChannel('restage/early_request');
-  static var _attempts = 0;
 
   /// When the platform sent its request and when the answer completed, in
   /// microseconds since the epoch; set when a request was taken.
@@ -39,47 +37,6 @@ final class EarlyRequest {
       !_underTest &&
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
-
-  /// The platform's answer when it sent exactly [request] to [url]; once.
-  static Future<http.StreamedResponse?> take(
-    Uint8List request,
-    Uri url,
-    String apiKey, {
-    PlacementBuildContractV1? contract,
-  }) async {
-    if (_attempts >= 3 || !_supported) return null;
-    _attempts += 1;
-    try {
-      final result = await _channel.invokeMapMethod<Object?, Object?>('take', {
-        'request': request,
-        'url': url.toString(),
-        'authorization': 'Bearer $apiKey',
-        'timeoutMs': 20000,
-      });
-      if (result == null && kDebugMode) {
-        await _reportMismatch(request, contract);
-      }
-      if (result == null || result['status'] != 200) return null;
-      sentAtMicros = result['sentAtMicros'] as int?;
-      answeredAtMicros = result['answeredAtMicros'] as int?;
-      final body = result['body']! as Uint8List;
-      final headers = {
-        for (final entry
-            in ((result['headers'] as Map<Object?, Object?>?) ?? const {})
-                .entries)
-          '${entry.key}': '${entry.value}',
-      };
-      responseHeaders = Map.unmodifiable(headers);
-      return http.StreamedResponse(
-        Stream.value(body),
-        200,
-        contentLength: body.length,
-        headers: headers,
-      );
-    } on Object {
-      return null;
-    }
-  }
 
   /// The request the platform sent and its answer, whether or not it equals
   /// Dart's; waits for the platform's request to finish and marks its answer
@@ -124,102 +81,99 @@ final class EarlyRequest {
     }
   }
 
-  // In debug builds, a request the platform did not match says where they differ.
-  static Future<void> _reportMismatch(
-    Uint8List request,
-    PlacementBuildContractV1? contract,
+  /// Stands in for the request the platform sent, given the SDK's own, in
+  /// tests.
+  @visibleForTesting
+  static Uint8List? Function(PlacementBatchRequestV1 mine)? debugSent;
+
+  static var _consulted = false;
+
+  /// Forgets that the platform was consulted, as a new process would.
+  @internal
+  static void debugForget() {
+    _consulted = false;
+    _defaults = (analytics: true, measurement: true);
+  }
+
+  /// The request the platform sent at launch, decoded, for the SDK's own
+  /// startup request [mine] to judge; null when it sent none, the platform
+  /// was consulted already, or the request went to another endpoint.
+  static Future<PlacementBatchRequestV1?> sentRequest(
+    PlacementBatchRequestV1 mine,
+    Uri url,
+    String apiKey,
   ) async {
+    if (_consulted) return null;
+    _consulted = true;
+    final Uint8List? bytes;
+    if (debugSent case final stand?) {
+      bytes = stand(mine);
+    } else {
+      if (!_supported) return null;
+      try {
+        bytes = await _channel.invokeMethod<Uint8List>('sent');
+      } on Object {
+        return null;
+      }
+    }
+    if (bytes == null) return null;
     try {
-      final sent = await _channel.invokeMethod<Uint8List>('sent');
-      // debugCheckConfiguration already reported a missing template.
-      if (sent == null) return;
-      final mine = jsonDecode(utf8.decode(request)) as Map<String, Object?>;
-      final theirs = jsonDecode(utf8.decode(sent)) as Map<String, Object?>;
-      // Only the launch's startup batch has a template to compare with.
-      if (mine['mode'] != 'prefetch') return;
-      final differing = [
-        for (final key in {...mine.keys, ...theirs.keys})
-          if (jsonEncode(mine[key]) != jsonEncode(theirs[key])) key,
-      ];
-      if (differing.isEmpty) return;
-      for (final key in differing) {
-        final a = mine[key];
-        final b = theirs[key];
-        if (a is String && b is String && key.startsWith('sdk')) {
-          String decode(String v) =>
-              utf8.decode(base64Url.decode(base64Url.normalize(v)));
-          try {
-            debugPrint(
-                '[restage] $key\n  runtime: ${decode(a)}\n  built:   ${decode(b)}');
-          } on Object {
-            // Not a JSON carrier.
-          }
-        }
+      final template = await _builtTemplate();
+      final json = template == null
+          ? null
+          : jsonDecode(template) as Map<String, Object?>;
+      // The platform sends the template's endpoint; another is not this one.
+      if (json != null &&
+          (json['url'] != url.toString() ||
+              json['authorization'] != 'Bearer $apiKey')) {
+        return null;
       }
-      if (differing.contains('appBuildContractHash') && contract != null) {
-        debugPrint(await _contractDifference(contract));
-      }
-      final message =
-          'The startup request built into this app differs from the one the '
-          'SDK built at runtime in: ${differing.join(', ')}. Rebuild with '
-          '`dart run build_runner build`, and make sure the builder options '
-          '(channel) and the catalog selection match Restage.configure.';
-      debugPrint('[restage] $message');
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: StateError(message),
-        library: 'restage',
-      ));
-    } on Object catch (error) {
-      debugPrint('[restage] early request check failed: $error');
+      final built = _contract(json, mine.buildContract.buildOrdinal);
+      return PlacementBatchRequestV1.fromCanonicalBytes(
+        bytes,
+        verifiedBuildContract: (hash) => hash == mine.appBuildContractHash
+            ? mine.buildContract
+            : built != null && built.appBuildContractHash == hash
+                ? built
+                : null,
+      );
+    } on Object {
+      // A request the template cannot spell is for another build.
+      debugReportUnadopted(StartupAnswerMismatch.build);
+      return null;
     }
   }
 
-  // Which parts of the build contract differ from the one built into the app.
-  static Future<String> _contractDifference(
-    PlacementBuildContractV1 contract,
-  ) async {
-    final text = await _channel.invokeMethod<String>('template');
-    if (text == null) return '';
-    final full =
-        (jsonDecode(text) as Map<String, Object?>)['fullBody']! as String;
-    final built = (jsonDecode(
-      full.replaceAll(RegExp('@@[A-Za-z]+@@'), '0').replaceAll('"0"', '"0"'),
-    ) as Map<String, Object?>)['buildContract']! as Map<String, Object?>;
-    final runtime =
-        jsonDecode(jsonEncode(contract.toJson())) as Map<String, Object?>;
-    final lines = <String>['[restage] The build contract differs in:'];
-    for (final key in {...built.keys, ...runtime.keys}) {
-      if (jsonEncode(built[key]) == jsonEncode(runtime[key])) continue;
-      if (key == 'installedCapability') {
-        final b = built[key]! as Map<String, Object?>;
-        final r = runtime[key]! as Map<String, Object?>;
-        for (final part in {...b.keys, ...r.keys}) {
-          if (jsonEncode(b[part]) == jsonEncode(r[part])) continue;
-          if (part == 'vocabulary') {
-            final bn = ((b[part] as Map?)?['widgetNames'] as List?)
-                    ?.cast<String>()
-                    .toSet() ??
-                {};
-            final rn = ((r[part] as Map?)?['widgetNames'] as List?)
-                    ?.cast<String>()
-                    .toSet() ??
-                {};
-            lines.add('  installedCapability.vocabulary: only built in '
-                '${bn.difference(rn)}, only at runtime ${rn.difference(bn)}; icons '
-                'built ${jsonEncode((b[part] as Map?)?['iconCodePoints']).length} '
-                'runtime ${jsonEncode((r[part] as Map?)?['iconCodePoints']).length}');
-          } else {
-            lines.add(
-                '  installedCapability.$part: built ${jsonEncode(b[part])} runtime ${jsonEncode(r[part])}');
-          }
-        }
-      } else {
-        lines.add(
-            '  $key: built ${jsonEncode(built[key]).length} chars, runtime ${jsonEncode(runtime[key]).length} chars'
-            '${key == 'platform' || key == 'buildOrdinal' ? ' (${built[key]} vs ${runtime[key]})' : ''}');
+  // The build contract the template spells, with the device's build ordinal.
+  static PlacementBuildContractV1? _contract(
+    Map<String, Object?>? template,
+    int? ordinal,
+  ) {
+    if (template?['contract'] case final String text) {
+      try {
+        return PlacementBuildContractV1.fromCanonicalBytes(
+          utf8.encode(text.replaceAll('@@buildOrdinal@@', '$ordinal')),
+        );
+      } on Object {
+        return null;
       }
     }
-    return lines.join('\n');
+    return null;
+  }
+
+  /// In debug builds, says why the platform's answer was not used.
+  static void debugReportUnadopted(StartupAnswerMismatch reason) {
+    if (!kDebugMode) return;
+    final message = unadoptedStartupMessage(reason);
+    debugPrint('[restage] $message');
+    // A choice that changed this launch is followed from the next one.
+    if (reason == StartupAnswerMismatch.analytics ||
+        reason == StartupAnswerMismatch.assignment) {
+      return;
+    }
+    FlutterError.reportError(
+      FlutterErrorDetails(exception: StateError(message), library: 'restage'),
+    );
   }
 
   /// Stands in for the platform's built-in template in tests.
@@ -232,6 +186,37 @@ final class EarlyRequest {
     if (!_supported) return null;
     return _channel.invokeMethod<String>('template');
   }
+
+  // `configure` usually runs before `runApp` creates the binding a channel
+  // needs, so these calls wait for it, for up to [bindingWait].
+  static Future<bool> _bindingReady() async {
+    var waited = Duration.zero;
+    while (!_bindingExists()) {
+      if (waited >= bindingWait) return false;
+      await Future<void>.delayed(_bindingPoll);
+      waited += _bindingPoll;
+    }
+    return true;
+  }
+
+  static bool _bindingExists() {
+    if (debugBindingExists case final exists?) return exists();
+    try {
+      ServicesBinding.instance;
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Stands in for whether the binding exists yet, in tests.
+  @visibleForTesting
+  static bool Function()? debugBindingExists;
+
+  /// How long a platform call waits for the binding before it is dropped.
+  @visibleForTesting
+  static const bindingWait = Duration(seconds: 10);
+  static const _bindingPoll = Duration(milliseconds: 50);
 
   static bool get _canCheck =>
       kDebugMode && (debugTemplate != null || _supported);
@@ -249,6 +234,7 @@ final class EarlyRequest {
     required bool Function() declaresPlacements,
   }) async {
     if (!_canCheck) return;
+    if (debugTemplate == null && !await _bindingReady()) return;
     try {
       final text = await _builtTemplate();
       if (text == null) {
@@ -284,6 +270,7 @@ final class EarlyRequest {
     required bool registered,
   }) async {
     if (!_canCheck) return;
+    if (debugTemplate == null && !await _bindingReady()) return;
     try {
       if (await _builtTemplate() != null) {
         _reportConfiguration(
@@ -302,6 +289,92 @@ final class EarlyRequest {
     );
   }
 
+  /// Receives each saved choice instead of the platform, in tests.
+  @visibleForTesting
+  static void Function({
+    required bool hosted,
+    required bool? analytics,
+    required bool measurement,
+  })? choiceRecorder;
+
+  static ({bool hosted, bool? analytics, bool measurement})? _pendingChoice;
+  static Future<void>? _choiceWriter;
+
+  /// Keeps what the app configured for the platform's request at the next
+  /// launch: none when not [hosted], and no analytics id, registration or
+  /// assignment when [analytics] is false. A null [analytics] leaves it to
+  /// the build's default. Without [measurement], no registration or
+  /// assignment. The last call wins.
+  static Future<void> saveChoice({
+    required bool hosted,
+    bool? analytics,
+    bool measurement = true,
+  }) {
+    _pendingChoice =
+        (hosted: hosted, analytics: analytics, measurement: measurement);
+    return _choiceWriter ??= _writeChoices();
+  }
+
+  // One writer sends the latest choice until none is pending, so an earlier
+  // configure never lands after a later one.
+  static Future<void> _writeChoices() async {
+    try {
+      if (!await _bindingReady() || (choiceRecorder == null && !_supported)) {
+        _pendingChoice = null;
+        return;
+      }
+      for (var choice = _pendingChoice;
+          choice != null;
+          choice = _pendingChoice) {
+        _pendingChoice = null;
+        if (choiceRecorder case final record?) {
+          record(
+            hosted: choice.hosted,
+            analytics: choice.analytics,
+            measurement: choice.measurement,
+          );
+          continue;
+        }
+        try {
+          await _channel.invokeMethod<void>('saveChoice', {
+            'hosted': choice.hosted,
+            'analytics': choice.analytics,
+            'measurement': choice.measurement,
+          });
+        } on Object {
+          // The platform keeps the choice it saved last.
+        }
+      }
+    } finally {
+      _choiceWriter = null;
+    }
+  }
+
+  static var _defaults = (analytics: true, measurement: true);
+
+  /// The build's analytics default and the app's measurement setting, which a
+  /// kept template carries for a launch with no saved choice.
+  static void setStartupDefaults({
+    required bool analytics,
+    required bool measurement,
+  }) =>
+      _defaults = (analytics: analytics, measurement: measurement);
+
+  /// The template [remember] keeps for [request].
+  @visibleForTesting
+  static String? rememberedTemplate(
+    Uri url,
+    String apiKey,
+    PlacementBatchRequestV1 request,
+  ) =>
+      startupTemplateJson(
+        url,
+        apiKey,
+        request,
+        analytics: _defaults.analytics,
+        measurement: _defaults.measurement,
+      );
+
   /// Keeps the startup request for the platform to send at the next launch.
   static Future<void> remember(
     Uri url,
@@ -312,7 +385,7 @@ final class EarlyRequest {
     if (recorder case final record?) return record(url, apiKey, request);
     if (!_supported) return;
     try {
-      final template = startupTemplateJson(url, apiKey, request);
+      final template = rememberedTemplate(url, apiKey, request);
       if (template == null) return;
       await _channel.invokeMethod<void>('remember', {'template': template});
     } on Object {
@@ -509,3 +582,36 @@ String? earlyTemplateMismatchMessage({
       'same values in build.yaml, then run `dart run build_runner build` and '
       'rebuild the app.';
 }
+
+/// The debug report when the platform's first-launch answer was not used.
+@visibleForTesting
+String unadoptedStartupMessage(StartupAnswerMismatch reason) =>
+    switch (reason) {
+      StartupAnswerMismatch.build =>
+        "The first-launch request built into this app names other placements "
+            "than the app declares, so its answer wasn't used and the first "
+            "request waited for Dart to start. Try running "
+            "`dart run build_runner build`, then rebuilding the app.",
+      StartupAnswerMismatch.capability =>
+        "The first-launch request built into this app claims widgets, icons "
+            "or libraries the app doesn't install, so its answer wasn't used "
+            "and the first request waited for Dart to start. Try keeping "
+            "`includeMaterial` and `includeCupertino` at their defaults, or "
+            "setting `catalog: derived` under restage_codegen:user_factories.",
+      StartupAnswerMismatch.analytics =>
+        "The first-launch request was sent with the analytics choice of an "
+            "earlier launch, so its answer wasn't used. The next launch "
+            "follows this one's choice. Try `analytics: false` under "
+            "restage_codegen:user_factories for an app that starts with "
+            "analytics off.",
+      StartupAnswerMismatch.measurement =>
+        "The first-launch request registers this install, but "
+            "`measurementEnabled` is false, so its answer isn't used and the "
+            "first request waits for Dart to start. Try running "
+            "`dart run build_runner build` so the build reads "
+            "`measurementEnabled: false`, then rebuilding the app.",
+      StartupAnswerMismatch.assignment =>
+        "The first-launch request carried another experiment assignment than "
+            "this launch, so its answer wasn't used. The next launch's request "
+            "follows this one.",
+    };

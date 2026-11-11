@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+The first-launch request the Android and iOS plugins send before Dart starts
+follows what the app last configured. After a `Restage.configure` with no
+publishable key, such as `apiKey: ''`, the next launch sends none. After
+`analyticsEnabled: false`, it carries no install id, registration or experiment
+assignment; the metering token and delivery stay, so the user still counts as
+active. With `measurementEnabled: false`, from the first launch, it registers
+nothing and carries no assignment; the install id stays while analytics is on.
+A choice takes effect from the next launch; a launch where the app passes no
+`analyticsEnabled` follows the build's default. The registration is made only
+for a request that carries it.
+
+The SDK uses the platform's answer when the platform's request asks for what
+its own startup request asks for: the same endpoint, build, placements and
+identity, and no widget, icon or library the app doesn't install. Which
+artifacts ride inline and the device facts don't have to match. Otherwise Dart
+sends its own request and, in debug builds, says why.
+
+`analyticsEnabled` on `Restage.configure` and
+`Restage.configureWithInstalledCatalog` defaults to the generated setup's
+`analytics` option, then true, so an app can ship with analytics off from its
+first launch and turn it on after consent. The option reaches `configure`
+through `registerWidgets: kRestageWidgetRegistration`, or through
+`registerRestageWidgets()` called before it, with or without a key in
+`build.yaml`; in debug builds, a `registerRestageWidgets()` call after
+`configure` is reported. **Breaking:** `RestageBuildDelivery` implements the
+new `RestageBuildAnalytics`, which carries `analyticsEnabled`, and generated
+code calls the new `Restage.declareBuildAnalytics`; regenerate with
+`dart run build_runner build`.
+
 **Breaking:** an app built with `restage_codegen` sends its first placement
 request from the Android and iOS plugins, before Dart starts, from a template
 the build writes to `android/app/src/main/assets/restage_early.json` and
@@ -18,8 +47,8 @@ added to the Xcode project; `restage init` adds the entry.
 key, service URL and channel from the app's generated setup,
 `kRestageWidgetRegistration`, when you pass it as `registerWidgets:`, so your
 Dart code doesn't repeat them. A value you pass wins. `apiKey: ''` turns hosted
-delivery off in Dart, but the built-in first-launch request is still sent; leave
-`api_key` out of `build.yaml` for an offline app.
+delivery off, and from the next launch the built-in first-launch request is not
+sent.
 `configureWithInstalledCatalog` now takes `registerWidgets:` too.
 
 The service URL is used without trailing slashes, so `https://api.restage.dev/`
@@ -328,6 +357,14 @@ resolution.
 The published `data.device.countryCode` is now the device region as a
 two-letter code. A locale whose region is not a two-letter code, such as `419`,
 omits the key rather than publishing the raw subtag.
+
+Measurement reports a shown surface's view 3 seconds after its first paint,
+unless the surface has already closed or the app has gone to the background.
+The rest of the measurement for that surface is sent when it closes, when the
+app goes to the background, or when a purchase is reported from it. If the
+server refuses a report, or the SDK holds one back after an error, that
+surface's later reports are still sent, and a newer report for a surface
+replaces an older one still waiting to be sent.
 
 ## 2.0.0
 

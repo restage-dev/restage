@@ -22,7 +22,6 @@ public final class RestageEarlyRequest: NSObject {
   private static var result: Result?
   private static var sent: Data?
   private static var templateJson: String?
-  private static var target: String?
   private static var taken = false
   private static var sentAtMicros: Int64 = 0
   private static var doneSignalled = false
@@ -40,6 +39,27 @@ public final class RestageEarlyRequest: NSObject {
 
   private static func lastFile() -> URL { supportDirectory().appendingPathComponent("restage_early_last.json") }
 
+  // No file is no choice; a file that can't be read fails closed: no analytics.
+  private static func readChoice() -> (hosted: Bool?, analytics: Bool?, measurement: Bool?) {
+    guard FileManager.default.fileExists(atPath: choiceFile().path) else { return (nil, nil, nil) }
+    guard let data = try? Data(contentsOf: choiceFile()),
+      let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    else { return (nil, false, false) }
+    return (json["hosted"] as? Bool, json["analytics"] as? Bool, json["measurement"] as? Bool)
+  }
+
+  private static func choiceFile() -> URL { supportDirectory().appendingPathComponent("restage_early_choice.json") }
+
+  /// Keeps what the app configured, for the request at the next launch;
+  /// [analytics] is nil when the app left it to the build.
+  static func saveChoice(hosted: Bool, analytics: Bool?, measurement: Bool) {
+    var choice: [String: Any] = ["hosted": hosted, "measurement": measurement]
+    if let analytics { choice["analytics"] = analytics }
+    guard let data = try? JSONSerialization.data(withJSONObject: choice, options: .sortedKeys) else { return }
+    if (try? Data(contentsOf: choiceFile())) == data { return }
+    try? data.write(to: choiceFile(), options: .atomic)
+  }
+
   private static func run() {
     defer {
       signalConfigured()
@@ -47,29 +67,41 @@ public final class RestageEarlyRequest: NSObject {
       if !doneSignalled { doneSignalled = true; done.signal() }
       lock.unlock()
     }
-    guard (try? EarlyFacts.registration(supportDirectory())) != nil else { return }
     let persisted = try? Data(contentsOf: lastFile())
     let persistedJSON = persisted.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
-    if persistedJSON?["disabled"] as? Bool == true { return }
+    let disabled = persistedJSON?["disabled"] as? Bool == true
     // A kept template describes the build that wrote it.
-    let kept = persistedJSON?["builtFor"] as? String == EarlyFacts.buildStamp() ? persisted : nil
+    let kept = !disabled && persistedJSON?["builtFor"] as? String == EarlyFacts.buildStamp() ? persisted : nil
     let sources: [() -> Data?] = [{ kept }, bundledTemplate, flutterAssetTemplate]
     let data = sources.lazy.compactMap { $0() }.first { EarlyTemplate($0) != nil }
     guard let data, let template = EarlyTemplate(data) else { return }
+    // The text stays readable even when no request goes out.
     lock.lock()
     templateJson = String(data: data, encoding: .utf8)
     lock.unlock()
+    if disabled { return }
+    let choice = readChoice()
+    // An app last configured offline sends nothing.
+    if choice.hosted == false { return }
+    let analytics = choice.analytics ?? template.analyticsDefault
+    // Either the build or the last launch turning measurement off is enough.
+    let measurement = template.measurementDefault && choice.measurement != false
+    guard let text = template.text(full: false, analytics: analytics, measurement: measurement) else { return }
+    // The registration is made only for a request that carries it.
+    if text.contains(EarlyTemplate.nonceToken) {
+      guard (try? EarlyFacts.registration(supportDirectory())) != nil else { return }
+    }
     guard var facts = try? EarlyFacts.read() else { return }
     facts["mountedSince"] = EarlyFacts.mountedSince(supportDirectory(), authorization: template.authorization)
-    guard let body = template.body(facts: facts, full: false) else { return }
+    guard let body = template.body(text: text, facts: facts) else { return }
     lock.lock()
     sent = body
-    target = template.url + "\n" + template.authorization
     lock.unlock()
     signalConfigured()
     sentAtMicros = Int64(Date().timeIntervalSince1970 * 1_000_000)
     var (status, bytes, headers) = post(template, body)
-    if status == contractRequired, let full = template.body(facts: facts, full: true) {
+    if status == contractRequired, let fullText = template.text(full: true, analytics: analytics, measurement: measurement),
+      let full = template.body(text: fullText, facts: facts) {
       (status, bytes, headers) = post(template, full)
     }
     lock.lock()
@@ -117,42 +149,26 @@ public final class RestageEarlyRequest: NSObject {
     return out
   }
 
-  /// The buffered answer to exactly `request` sent to `url`; once.
-  static func take(request: Data, url: String, authorization: String, timeout: TimeInterval) -> Result? {
-    lock.lock()
-    if taken { lock.unlock(); return nil }
-    lock.unlock()
-    _ = configured.wait(timeout: .now() + timeout)
-    lock.lock()
-    guard let early = sent, request == early, target == url + "\n" + authorization else {
-      let early = sent
-      lock.unlock()
-      NSLog("RestageEarly mismatch sent=%@/%d dart=%@/%d differing=%@", digest(early), early?.count ?? 0, digest(request), request.count, differingKeys(early, request))
-      return nil
-    }
-    taken = true
-    lock.unlock()
-    _ = done.wait(timeout: .now() + timeout)
-    lock.lock()
-    defer { lock.unlock() }
-    return result
-  }
-
   /// The request the platform sent and its answer, whether or not it equals
   /// Dart's: waits for the request to finish, and marks the answer taken.
   static func inFlight(timeout: TimeInterval) -> (Data, Result?)? {
     lock.lock()
     if taken { lock.unlock(); return nil }
     lock.unlock()
-    _ = configured.wait(timeout: .now() + timeout)
+    awaitSignal(configured, timeout)
     lock.lock()
     guard let early = sent else { lock.unlock(); return nil }
     taken = true
     lock.unlock()
-    _ = done.wait(timeout: .now() + timeout)
+    awaitSignal(done, timeout)
     lock.lock()
     defer { lock.unlock() }
     return (early, result)
+  }
+
+  // Waits for a one-time signal and passes it on, so every later waiter sees it.
+  private static func awaitSignal(_ semaphore: DispatchSemaphore, _ timeout: TimeInterval) {
+    if semaphore.wait(timeout: .now() + timeout) == .success { semaphore.signal() }
   }
 
   /// The template text in use, for a debug comparison.
@@ -162,8 +178,9 @@ public final class RestageEarlyRequest: NSObject {
     return templateJson
   }
 
-  /// The request the platform sent, for a debug comparison.
-  static func sentBytes() -> Data? {
+  /// The request the platform sent, once it is configured; nil when it sent none.
+  static func sentBytes(timeout: TimeInterval) -> Data? {
+    awaitSignal(configured, timeout)
     lock.lock()
     defer { lock.unlock() }
     return sent
@@ -189,19 +206,6 @@ public final class RestageEarlyRequest: NSObject {
   }
 
   static func registration() throws -> (String, Int64) { try EarlyFacts.registration(supportDirectory()) }
-
-  // Names of the top-level members that differ, never their values.
-  private static func differingKeys(_ sent: Data?, _ request: Data) -> String {
-    guard let sent, let a = (try? JSONSerialization.jsonObject(with: sent)) as? [String: Any],
-      let b = (try? JSONSerialization.jsonObject(with: request)) as? [String: Any]
-    else { return "unreadable" }
-    return Set(a.keys).union(b.keys).sorted().filter { "\(a[$0] ?? "")" != "\(b[$0] ?? "")" }.joined(separator: ",")
-  }
-
-  private static func digest(_ data: Data?) -> String {
-    guard let data else { return "none" }
-    return SHA256.hash(data: data).prefix(6).map { String(format: "%02x", $0) }.joined()
-  }
 }
 
 /// The startup request as data: canonical body strings with value tokens, plus
@@ -211,6 +215,28 @@ struct EarlyTemplate {
   let authorization: String
   private let json: [String: Any]
   private let fills: Set<String>
+
+  static let nonceToken = "@@registrationNonce@@"
+
+  /// The build's analytics default; true for a template that names none.
+  var analyticsDefault: Bool { json["analytics"] as? Bool ?? true }
+
+  /// The app's measurement setting; true for a template that names none.
+  var measurementDefault: Bool { json["measurement"] as? Bool ?? true }
+
+  /// The body to send for the two switches; nil when this template has none.
+  func text(full: Bool, analytics: Bool, measurement: Bool) -> String? {
+    let source: [String: Any]?
+    if !analytics {
+      source = json["analyticsOff"] as? [String: Any]
+    } else if !measurement {
+      source = json["measurementOff"] as? [String: Any]
+    } else {
+      source = json
+    }
+    guard let text = source?[full ? "fullBody" : "body"] as? String, !text.isEmpty else { return nil }
+    return text
+  }
 
   init?(_ data: Data) {
     guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -222,8 +248,8 @@ struct EarlyTemplate {
     self.fills = Set((json["fills"] as? [String]) ?? [])
   }
 
-  func body(facts: [String: Any?], full: Bool) -> Data? {
-    guard var text = json[full ? "fullBody" : "body"] as? String, !text.isEmpty else { return nil }
+  func body(text body: String, facts: [String: Any?]) -> Data? {
+    var text = body
     if text.contains("@@buildContract@@") || text.contains("@@appBuildContractHash@@") {
       let ordinal = facts["appBuildOrdinal"].flatMap { $0 }.map { "\($0)" } ?? "null"
       let contract = ((json["contract"] as? String) ?? "").replacingOccurrences(of: "@@buildOrdinal@@", with: ordinal)
@@ -321,7 +347,7 @@ enum Canonical {
 enum EarlyFacts {
   static func read() throws -> [String: Any?] {
     let dir = RestageEarlyRequest.supportDirectory()
-    let registration = try registration(dir)
+    let registration = existingRegistration(dir)
     let parts = Locale.preferredLanguages.first.map { NSLocale.components(fromLocaleIdentifier: $0) } ?? [:]
     let bounds = UIScreen.main.bounds
     let shortest = min(bounds.width, bounds.height)
@@ -341,8 +367,8 @@ enum EarlyFacts {
       "firstLaunchMicros": firstLaunchMicros(dir),
       "meteringKey": identity(dir).0,
       "analyticsAnonymousId": identity(dir).1,
-      "registrationNonce": registration.0,
-      "registrationCreatedAtMicros": registration.1,
+      "registrationNonce": registration?.0,
+      "registrationCreatedAtMicros": registration?.1,
     ]
   }
 
@@ -436,6 +462,15 @@ enum EarlyFacts {
 
   enum RegistrationError: Error { case unavailable }
 
+  /// The install's registration identity if one was made, without making one.
+  static func existingRegistration(_ directory: URL) -> (String, Int64)? {
+    let file = directory.appendingPathComponent("restage_install_registration")
+    guard let text = try? String(contentsOf: file, encoding: .utf8) else { return nil }
+    let parts = text.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ":")
+    guard parts.count == 2, parts[0].count == 43, let created = Int64(parts[1]) else { return nil }
+    return (String(parts[0]), created)
+  }
+
   /// The install's registration identity: made once before the first request, kept in app storage.
   static func registration(
     _ directory: URL,
@@ -447,10 +482,7 @@ enum EarlyFacts {
     }
   ) throws -> (String, Int64) {
     let file = directory.appendingPathComponent("restage_install_registration")
-    if let text = try? String(contentsOf: file, encoding: .utf8) {
-      let parts = text.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ":")
-      if parts.count == 2, parts[0].count == 43, let created = Int64(parts[1]) { return (String(parts[0]), created) }
-    }
+    if let existing = existingRegistration(directory) { return existing }
     var bytes = [UInt8](repeating: 0, count: 32)
     guard entropy(&bytes) else { throw RegistrationError.unavailable }
     let nonce = Data(bytes).base64EncodedString()
@@ -474,17 +506,6 @@ public final class RestageEarlyPlugin: NSObject, FlutterPlugin {
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     let args = call.arguments as? [String: Any]
     switch call.method {
-    case "take":
-      guard let request = (args?["request"] as? FlutterStandardTypedData)?.data,
-        let url = args?["url"] as? String, let authorization = args?["authorization"] as? String
-      else { return result(nil) }
-      let timeout = ((args?["timeoutMs"] as? NSNumber)?.doubleValue ?? 4000) / 1000
-      Self.queue.async {
-        let early = RestageEarlyRequest.take(request: request, url: url, authorization: authorization, timeout: timeout)
-        DispatchQueue.main.async {
-          result(early.map { ["status": $0.status, "body": FlutterStandardTypedData(bytes: $0.body), "headers": $0.headers, "sentAtMicros": $0.sentAtMicros, "answeredAtMicros": $0.answeredAtMicros] as [String: Any] })
-        }
-      }
     case "inFlight":
       let timeout = ((args?["timeoutMs"] as? NSNumber)?.doubleValue ?? 20000) / 1000
       Self.queue.async {
@@ -507,6 +528,14 @@ public final class RestageEarlyPlugin: NSObject, FlutterPlugin {
       guard let template = args?["template"] as? String else { return result(nil) }
       Self.queue.async {
         RestageEarlyRequest.remember(template)
+        DispatchQueue.main.async { result(nil) }
+      }
+    case "saveChoice":
+      let hosted = args?["hosted"] as? Bool ?? true
+      let analytics = args?["analytics"] as? Bool
+      let measurement = args?["measurement"] as? Bool ?? true
+      Self.queue.async {
+        RestageEarlyRequest.saveChoice(hosted: hosted, analytics: analytics, measurement: measurement)
         DispatchQueue.main.async { result(nil) }
       }
     case "invalidateStartup":
@@ -559,7 +588,10 @@ public final class RestageEarlyPlugin: NSObject, FlutterPlugin {
     case "template":
       result(RestageEarlyRequest.templateText())
     case "sent":
-      result(RestageEarlyRequest.sentBytes().map { FlutterStandardTypedData(bytes: $0) })
+      Self.queue.async {
+        let sent = RestageEarlyRequest.sentBytes(timeout: 2)
+        DispatchQueue.main.async { result(sent.map { FlutterStandardTypedData(bytes: $0) }) }
+      }
     case "facts":
       do { result(try EarlyFacts.read().compactMapValues { $0 }) }
       catch { result(FlutterError(code: "registration_unavailable", message: "Registration could not be stored.", details: nil)) }

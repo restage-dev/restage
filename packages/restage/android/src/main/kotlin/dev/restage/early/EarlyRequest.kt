@@ -9,7 +9,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import java.security.MessageDigest
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -30,7 +29,6 @@ object EarlyRequest {
     @Volatile private var result: Result? = null
     @Volatile private var sent: ByteArray? = null
     @Volatile private var templateJson: String? = null
-    @Volatile private var target: String? = null
     @Volatile private var sentAtMicros = 0L
     private var taken = false
 
@@ -45,7 +43,11 @@ object EarlyRequest {
         val text = try {
             val file = lastFile(context)
             val last = if (file.exists()) file.readText() else null
-            if (last != null && JSONObject(last).optBoolean("disabled", false)) return null
+            if (last != null && JSONObject(last).optBoolean("disabled", false)) {
+                // Startup authority is cleared; the build's text stays readable.
+                templateJson = runCatching { context.assets.open(ASSET).bufferedReader().readText() }.getOrNull()
+                return null
+            }
             // A kept template describes the build that wrote it.
             if (last != null && JSONObject(last).optString("builtFor") == EarlyFacts.buildStamp(context)) {
                 Log.i(TAG, "template from the last launch")
@@ -65,18 +67,26 @@ object EarlyRequest {
 
     private fun run(context: Context) {
         try {
-            EarlyFacts.registration(context)
             val template = readTemplate(context) ?: return
+            val choice = readChoice(context)
+            // An app last configured offline sends nothing.
+            if (choice.hosted == false) return
+            val analytics = choice.analytics ?: template.analyticsDefault
+            // Either the build or the last launch turning measurement off is enough.
+            val measurement = template.measurementDefault && choice.measurement != false
+            val text = template.text(full = false, analytics = analytics, measurement = measurement) ?: return
+            // The registration is made only for a request that carries it.
+            if (text.contains(EarlyTemplate.NONCE)) EarlyFacts.registration(context)
             val facts = EarlyFacts.read(context) +
                 ("mountedSince" to EarlyFacts.mountedSince(context, template.authorization))
-            val body = template.body(facts, full = false) ?: return
+            val body = template.body(text, facts)
             sent = body
-            target = template.url + "\n" + template.authorization
             configured.countDown()
             sentAtMicros = System.currentTimeMillis() * 1000
             var (status, bytes, headers) = post(template, body)
             if (status == BUILD_CONTRACT_REQUIRED) {
-                val full = template.body(facts, full = true)
+                val full = template.text(full = true, analytics = analytics, measurement = measurement)
+                    ?.let { template.body(it, facts) }
                 if (full != null) {
                     Log.i(TAG, "contract required at ${since()} ms; resending in full")
                     val again = post(template, full)
@@ -124,22 +134,6 @@ object EarlyRequest {
         return Triple(status, bytes, headers)
     }
 
-    /** The buffered answer to exactly [request] sent to [url]; once. */
-    @Synchronized
-    fun take(request: ByteArray, url: String, authorization: String, timeoutMs: Long): Result? {
-        if (taken) return null
-        configured.await(timeoutMs, TimeUnit.MILLISECONDS)
-        val early = sent ?: return null
-        if (!request.contentEquals(early) || target != url + "\n" + authorization) {
-            Log.i(TAG, "mismatch sent=${digest(early)}/${early.size} dart=${digest(request)}/${request.size} differing=${differingKeys(early, request)}")
-            return null
-        }
-        taken = true
-        done.await(timeoutMs, TimeUnit.MILLISECONDS)
-        Log.i(TAG, "handed to Dart at ${since()} ms status=${result?.status}")
-        return result
-    }
-
     /**
      * The request the platform sent and its answer, whether or not it equals
      * Dart's: waits for the request to finish, and marks the answer taken.
@@ -161,8 +155,11 @@ object EarlyRequest {
         return templateJson
     }
 
-    /** The request the platform sent, for a debug comparison. */
-    fun sentBytes(): ByteArray? = sent
+    /** The request the platform sent, once it is configured; null when it sent none. */
+    fun sentBytes(timeoutMs: Long): ByteArray? {
+        configured.await(timeoutMs, TimeUnit.MILLISECONDS)
+        return sent
+    }
 
     /** Keeps Dart's startup template for the next launch. */
     fun remember(context: Context, template: String) {
@@ -186,22 +183,38 @@ object EarlyRequest {
         templateJson = null
     }
 
-    private fun lastFile(context: Context) = File(context.filesDir, LAST)
+    /** What the app last configured; [analytics] is null when it left it to the build. */
+    class Choice(val hosted: Boolean?, val analytics: Boolean?, val measurement: Boolean?)
 
-    // Names of the top-level members that differ, never their values.
-    private fun differingKeys(sent: ByteArray, request: ByteArray): String = try {
-        val a = JSONObject(String(sent, Charsets.UTF_8))
-        val b = JSONObject(String(request, Charsets.UTF_8))
-        (a.keys().asSequence() + b.keys().asSequence()).toSortedSet()
-            .filter { a.opt(it)?.toString() != b.opt(it)?.toString() }
-            .joinToString(",")
-    } catch (e: Exception) {
-        "unreadable"
+    /** Keeps what the app configured, for the request at the next launch. */
+    fun saveChoice(context: Context, hosted: Boolean, analytics: Boolean?, measurement: Boolean) {
+        val file = File(context.filesDir, CHOICE)
+        val temp = File(context.filesDir, "$CHOICE.tmp")
+        val json = JSONObject().put("hosted", hosted).put("measurement", measurement)
+        if (analytics != null) json.put("analytics", analytics)
+        val data = json.toString()
+        if (file.exists() && runCatching { file.readText() }.getOrNull() == data) return
+        FileOutputStream(temp).use { output ->
+            output.write(data.toByteArray(Charsets.UTF_8))
+            output.fd.sync()
+        }
+        check(temp.renameTo(file)) { "The choice could not be kept" }
     }
 
-    private fun digest(bytes: ByteArray) =
-        MessageDigest.getInstance("SHA-256").digest(bytes).take(6).joinToString("") { "%02x".format(it) }
+    // No file is no choice; a file that can't be read fails closed: no analytics.
+    private fun readChoice(context: Context): Choice {
+        val file = File(context.filesDir, CHOICE)
+        if (!file.exists()) return Choice(null, null, null)
+        return runCatching {
+            val json = JSONObject(file.readText())
+            fun flag(name: String) = if (json.has(name)) json.getBoolean(name) else null
+            Choice(flag("hosted"), flag("analytics"), flag("measurement"))
+        }.getOrElse { Choice(null, false, false) }
+    }
+
+    private fun lastFile(context: Context) = File(context.filesDir, LAST)
 
     private const val ASSET = "restage_early.json"
     private const val LAST = "restage_early_last.json"
+    private const val CHOICE = "restage_early_choice.json"
 }

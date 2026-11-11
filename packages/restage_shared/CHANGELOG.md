@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+`startupTemplateJson` takes `analytics`, the build's default, and every
+template carries `analyticsOff`: the request as the SDK sends it with analytics
+off. Add `PlacementBatchRequestV1.withoutAnalytics`.
+
 Add `canonicalServiceUrl`, the one form a service URL takes (no surrounding
 whitespace or trailing slashes), and `placementResolveUrl`, the placement-resolve
 endpoint built from it.

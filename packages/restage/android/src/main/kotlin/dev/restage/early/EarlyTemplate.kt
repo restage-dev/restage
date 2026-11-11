@@ -15,10 +15,23 @@ class EarlyTemplate(private val json: JSONObject) {
     private val fills: Set<String> =
         json.optJSONArray("fills")?.let { a -> (0 until a.length()).map { a.getString(it) }.toSet() } ?: emptySet()
 
-    fun body(facts: Map<String, Any?>, full: Boolean): ByteArray? {
-        val text = json.optString(if (full) "fullBody" else "body", "").ifEmpty { return null }
-        return fill(text, facts).toByteArray(Charsets.UTF_8)
+    /** The build's analytics default; true for a template that names none. */
+    val analyticsDefault: Boolean = json.optBoolean("analytics", true)
+
+    /** The app's measurement setting; true for a template that names none. */
+    val measurementDefault: Boolean = json.optBoolean("measurement", true)
+
+    /** The body to send for the two switches; null when this template has none. */
+    fun text(full: Boolean, analytics: Boolean, measurement: Boolean): String? {
+        val source = when {
+            !analytics -> json.optJSONObject("analyticsOff") ?: return null
+            !measurement -> json.optJSONObject("measurementOff") ?: return null
+            else -> json
+        }
+        return source.optString(if (full) "fullBody" else "body", "").ifEmpty { null }
     }
+
+    fun body(text: String, facts: Map<String, Any?>): ByteArray = fill(text, facts).toByteArray(Charsets.UTF_8)
 
     private fun fill(text: String, facts: Map<String, Any?>): String {
         var out = text
@@ -59,7 +72,7 @@ class EarlyTemplate(private val json: JSONObject) {
         private const val METERING = "@@meteringKey@@"
         private const val ANONYMOUS = "@@analyticsAnonymousId@@"
         private const val MOUNTED = "@@mountedSince@@"
-        private const val NONCE = "@@registrationNonce@@"
+        const val NONCE = "@@registrationNonce@@"
         private const val CREATED = "@@registrationCreatedAtMicros@@"
         private const val OFFSET = "@@utcOffsetMinutes@@"
         private const val BUILT_INS = "@@sdkBuiltIns@@"

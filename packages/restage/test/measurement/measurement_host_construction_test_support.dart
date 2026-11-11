@@ -420,6 +420,15 @@ final class DeterministicMeasurementDeliveryWorker
         ),
       );
     }
+    // Like the runtime, one request per session until its upload ends.
+    if (session._barrier) {
+      return const MeasurementWorkerOwnedDeliveryCheckpointResult(
+        outcome: MeasurementWorkerOwnedDeliveryCheckpointOutcome.saturated,
+        sequence: null,
+        isFinal: null,
+        workerOwnedByteCount: 0,
+      );
+    }
     checkpointCalls += 1;
     deliveries.add(MeasurementWorkerDeliveryKind.frame);
     if (isFinal) {
@@ -430,7 +439,12 @@ final class DeterministicMeasurementDeliveryWorker
       _sessions.remove(session.sessionId);
       _finalizedDiagnosticSessions[session.sessionId] = session;
     }
-    await deliveryBarrier;
+    session._barrier = true;
+    try {
+      await deliveryBarrier;
+    } finally {
+      session._barrier = false;
+    }
     return Future<MeasurementWorkerOwnedDeliveryCheckpointResult>.value(
       MeasurementWorkerOwnedDeliveryCheckpointResult(
         outcome: MeasurementWorkerOwnedDeliveryCheckpointOutcome.delivered,
@@ -448,6 +462,14 @@ final class DeterministicMeasurementDeliveryWorker
       return Future<MeasurementWorkerOwnedDeliveryDiscardResult>.value(
         const MeasurementWorkerOwnedDeliveryDiscardResult(
           outcome: MeasurementWorkerOwnedDeliveryDiscardOutcome.unavailable,
+          workerOwnedByteCount: 0,
+        ),
+      );
+    }
+    if (session._barrier) {
+      return Future<MeasurementWorkerOwnedDeliveryDiscardResult>.value(
+        const MeasurementWorkerOwnedDeliveryDiscardResult(
+          outcome: MeasurementWorkerOwnedDeliveryDiscardOutcome.saturated,
           workerOwnedByteCount: 0,
         ),
       );
@@ -499,6 +521,7 @@ final class _DeterministicDeliverySession
   String get sessionId => registration.sessionId;
   final Set<int> presentedRoutes = <int>{};
   var _active = true;
+  var _barrier = false;
   var _finalizedDiagnosticRetained = false;
   var _postFinalizeDiagnosticReported = false;
 

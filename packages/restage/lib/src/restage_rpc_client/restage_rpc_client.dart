@@ -705,28 +705,29 @@ class RestageRpcClient {
   /// Sends [request], naming an answered build by hash and resending the full
   /// contract once when the service does not hold it. A service that refuses
   /// the hash form as malformed gets the full contract from then on.
-  Future<http.StreamedResponse?> _adoptEarlyRegistration(
-      PlacementBatchRequestV1 request) async {
-    final tuple = request.registration;
-    if (tuple == null) return null;
-    final flight = await EarlyRequest.inFlight();
-    final response = flight?.response;
-    if (flight == null || response == null || response.status != 200) {
-      return null;
-    }
-    try {
-      final sent = jsonDecode(utf8.decode(flight.sent)) as Map<String, Object?>;
-      final mine = tuple.toJson();
-      if (sent['registrationNonce'] != mine['registrationNonce'] ||
-          sent['registrationCreatedAtMicros'] !=
-              mine['registrationCreatedAtMicros']) {
-        return null;
+  /// The platform's startup answer when the request it sent at launch fits
+  /// [request]: same endpoint, build and identity, and nothing claimed that
+  /// this app does not install. Otherwise null, and the next launch's
+  /// platform request is [request].
+  Future<({PlacementBatchRequestV1 sent, http.StreamedResponse response})?>
+      _adoptEarlyAnswer(Uri url, PlacementBatchRequestV1 request) async {
+    final sent = await EarlyRequest.sentRequest(request, url, _apiKey);
+    final mismatch =
+        sent == null ? null : startupAnswerMismatch(sent: sent, mine: request);
+    if (sent != null && mismatch == null) {
+      final flight = await EarlyRequest.inFlight();
+      final response = flight?.response;
+      if (response != null && response.status == 200) {
+        return (
+          sent: sent,
+          response: http.StreamedResponse(Stream.value(response.body), 200,
+              contentLength: response.body.length, headers: response.headers),
+        );
       }
-    } on Object {
-      return null;
     }
-    return http.StreamedResponse(Stream.value(response.body), 200,
-        contentLength: response.body.length, headers: response.headers);
+    if (mismatch != null) EarlyRequest.debugReportUnadopted(mismatch);
+    unawaited(EarlyRequest.remember(url, _apiKey, request));
+    return null;
   }
 
   /// Keeps [request] as the startup request the platform sends next launch.
@@ -736,7 +737,8 @@ class RestageRpcClient {
 
   Future<http.StreamedResponse> _sendPlacements(Uri url,
       PlacementBatchRequestV1 request, void Function() checkPublication,
-      {bool early = true, void Function()? onEarly}) async {
+      {bool early = true,
+      void Function(PlacementBatchRequestV1 answeredFor)? onEarly}) async {
     http.Request wire(PlacementBatchRequestV1 body) => http.Request('POST', url)
       ..headers.addAll({
         'Authorization': 'Bearer $_apiKey',
@@ -746,28 +748,17 @@ class RestageRpcClient {
     final hash = request.appBuildContractHash;
     final hashForm =
         !_hashFormRefused && _answeredBuildContracts.contains(hash);
-    if (early) {
-      final taken = await EarlyRequest.take(
-          (hashForm ? request.withBuildContract(carried: false) : request)
-              .canonicalBytes,
-          url,
-          _apiKey,
-          contract: request.buildContract);
+    // Only the launch's startup batch can be the platform's request.
+    if (early &&
+        request.startup &&
+        request.mode == PlacementBatchModeV1.prefetch) {
+      final adopted = await _adoptEarlyAnswer(url, request);
       checkPublication();
-      if (taken != null) {
-        _answeredBuildContracts.add(hash);
-        onEarly?.call();
-        return taken;
-      }
-      // A request the platform sent that was not Dart's still has an answer
-      // coming. When it registered the same tuple, its answer is this
-      // request's: the tuple is never sent twice.
-      unawaited(EarlyRequest.remember(url, _apiKey, request));
-      final inFlight = await _adoptEarlyRegistration(request);
-      if (inFlight != null) {
-        _answeredBuildContracts.add(hash);
-        onEarly?.call();
-        return inFlight;
+      if (adopted != null) {
+        // The service holds the build the platform's request named.
+        _answeredBuildContracts.add(adopted.sent.appBuildContractHash);
+        onEarly?.call(adopted.sent);
+        return adopted.response;
       }
     }
     if (hashForm) {
@@ -912,8 +903,9 @@ class RestageRpcClient {
         onNoAnswer,
     void Function()? onDecoded,
     Map<ArtifactIdentityV1, List<int>> Function()? savedArtifacts,
+    void Function(PlacementBatchRequestV1 answeredFor)? onAdopted,
   }) async {
-    var fromPlatform = false;
+    PlacementBatchRequestV1? fromPlatform;
     Future<PlacementBatchResponseV1?> fetch({required bool early}) =>
         _fetchPlacementsOnce(request,
             publicationGuard: publicationGuard,
@@ -925,14 +917,17 @@ class RestageRpcClient {
             onDecoded: onDecoded,
             savedArtifacts: savedArtifacts,
             early: early,
-            onEarly: () => fromPlatform = true);
+            onEarly: (sent) => fromPlatform = sent);
     final answer = await fetch(early: true);
-    if (fromPlatform &&
+    final adopted = fromPlatform;
+    if (adopted != null &&
         answer is PlacementBatchRefusedV1 &&
         (answer.reason == PlacementBatchRefusalReasonV1.decodeFailed ||
             answer.reason == PlacementBatchRefusalReasonV1.invalidAuthority)) {
       return fetch(early: false);
     }
+    // The answer is the platform request's, so it is judged as that one's.
+    if (adopted != null && answer != null) onAdopted?.call(adopted);
     return answer;
   }
 
@@ -949,8 +944,9 @@ class RestageRpcClient {
     void Function()? onDecoded,
     Map<ArtifactIdentityV1, List<int>> Function()? savedArtifacts,
     required bool early,
-    required void Function() onEarly,
+    required void Function(PlacementBatchRequestV1 sent) onEarly,
   }) async {
+    var answered = request;
     void checkPublication() {
       try {
         if (publicationGuard() &&
@@ -971,7 +967,10 @@ class RestageRpcClient {
     try {
       final response = await _sendPlacements(
           endpoint, request, checkPublication,
-          early: early, onEarly: onEarly);
+          early: early, onEarly: (sent) {
+        answered = sent;
+        onEarly(sent);
+      });
       if (response.statusCode != 200) {
         checkPublication();
         final status = response.statusCode;
@@ -983,7 +982,7 @@ class RestageRpcClient {
         String? errorCode;
         if (status >= 400 && status < 500 && status != 429) {
           refusal = await _readPlacementRefusal(
-              response, request, expectedTarget ?? _placementTarget,
+              response, answered, expectedTarget ?? _placementTarget,
               onErrorCode: (code) => errorCode = code);
         } else {
           await response.stream.listen(null).cancel();
@@ -1008,7 +1007,7 @@ class RestageRpcClient {
       }
       // The service answered, so it has the report this request carried.
       unawaited(
-          MountedSurfaceReport.instance.acknowledge(request.mountedSince));
+          MountedSurfaceReport.instance.acknowledge(answered.mountedSince));
       if ((response.contentLength ?? 0) > kMaximumPlacementResponseBytes) {
         await response.stream.listen(null).cancel();
         return PlacementBatchResponseV1.refused(
@@ -1041,7 +1040,7 @@ class RestageRpcClient {
     try {
       response = PlacementBatchResponseV1.fromCanonicalBytes(
         bytes,
-        request: request,
+        request: answered,
         expectedTarget: expectedTarget ?? _placementTarget,
       );
       onDecoded?.call();
@@ -1075,7 +1074,7 @@ class RestageRpcClient {
       final refuse = registrationLease?.refuseRegistration;
       if (attempt != null &&
           refuse != null &&
-          attempt.credentialHandle == request.assignmentKey) {
+          attempt.credentialHandle == answered.assignmentKey) {
         await refuse(attempt);
         throw const PlacementRegistrationRetired();
       }

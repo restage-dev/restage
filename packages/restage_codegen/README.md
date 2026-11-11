@@ -85,7 +85,10 @@ From one annotated source file:
   generated `kRestageWidgetRegistration` carries them, so
   `Restage.configure(registerWidgets: kRestageWidgetRegistration)` needs no
   `apiKey` or `baseUrl`. Without a key the build writes no template and says so
-  in one line; the app then runs offline. On iOS, list
+  in one line; the app then runs offline. `analytics: false` in the same
+  options starts the app with analytics off: the template's first launch sends
+  no install id, registration or assignment, until the app passes
+  `analyticsEnabled: true`. On iOS, list
   `ios/Runner/restage_early.json` under `flutter: assets:` in `pubspec.yaml`
   (`restage init` adds it); the build warns when it is missing.
 - **A publication manifest** (`.restage/build/metadata/restage.publication.json`):

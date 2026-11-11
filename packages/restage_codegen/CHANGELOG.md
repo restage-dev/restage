@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- For an app that installs the whole widget catalog, the startup request
+  template claims the built-in icons the app and its surfaces name, as the
+  runtime installs them. Rebuild to take it.
+
+- `analytics: false` under the `restage_codegen:user_factories` options makes
+  analytics off by default, with or without `api_key` and `base_url`: the
+  generated setup carries it, `registerRestageWidgets()` declares it to the
+  SDK, and the startup request template's first launch sends no install id,
+  registration or assignment. The app turns analytics on with
+  `analyticsEnabled: true`. Any other value fails the build.
+
+- The startup request template follows the app's `measurementEnabled`: with
+  `measurementEnabled: false`, its first launch carries no registration or
+  assignment.
+
 - **Breaking:** `api_key`, `base_url` and `channel` move from the
   `restage_early_template` options to the `restage_codegen:user_factories`
   options in `build.yaml`, and build.yaml is their only source:

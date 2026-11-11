@@ -65,7 +65,7 @@ void main() {
         'static void reset()',
         'static Stream<RestageEvent> get events',
         'static void fireEvent(RestageEvent event)',
-        'bool analyticsEnabled = true',
+        'bool? analyticsEnabled,',
       ]) {
         expect(
           runtimeSource.contains(retained),

@@ -30,17 +30,6 @@ class RestageEarlyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         val app = context ?: return result.success(null)
         when (call.method) {
-            "take" -> {
-                val request = call.argument<ByteArray>("request")
-                val url = call.argument<String>("url")
-                val authorization = call.argument<String>("authorization")
-                if (request == null || url == null || authorization == null) return result.success(null)
-                val timeout = (call.argument<Number>("timeoutMs") ?: 4000).toLong()
-                executor.execute {
-                    val early = EarlyRequest.take(request, url, authorization, timeout)
-                    main.post { result.success(early?.let { mapOf("status" to it.status, "body" to it.body, "headers" to it.headers, "sentAtMicros" to it.sentAtMicros, "answeredAtMicros" to it.answeredAtMicros) }) }
-                }
-            }
             "inFlight" -> {
                 val timeout = (call.argument<Number>("timeoutMs") ?: 20000).toLong()
                 executor.execute {
@@ -65,6 +54,15 @@ class RestageEarlyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 val template = call.argument<String>("template") ?: return result.success(null)
                 executor.execute {
                     runCatching { EarlyRequest.remember(app, template) }
+                    main.post { result.success(null) }
+                }
+            }
+            "saveChoice" -> {
+                val hosted = call.argument<Boolean>("hosted") ?: true
+                val analytics = call.argument<Boolean>("analytics")
+                val measurement = call.argument<Boolean>("measurement") ?: true
+                executor.execute {
+                    runCatching { EarlyRequest.saveChoice(app, hosted, analytics, measurement) }
                     main.post { result.success(null) }
                 }
             }
@@ -110,7 +108,10 @@ class RestageEarlyPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 )
             }
             "template" -> result.success(EarlyRequest.templateText())
-            "sent" -> result.success(EarlyRequest.sentBytes())
+            "sent" -> executor.execute {
+                val sent = EarlyRequest.sentBytes(2000)
+                main.post { result.success(sent) }
+            }
             "facts" -> runCatching { EarlyFacts.read(app) }.fold(
                 onSuccess = { result.success(it) },
                 onFailure = { result.error("registration_unavailable", "Registration unavailable.", null) },

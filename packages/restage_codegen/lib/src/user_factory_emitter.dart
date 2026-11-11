@@ -63,6 +63,7 @@ String? emitUserFactoriesDart(
   List<SplitRegistration> splitRegistrations = const [],
   bool declaresSurfaces = false,
   BuildDelivery? delivery,
+  bool analytics = true,
 }) {
   validateCustomPreviewReservations(widgets);
   final plannedUris = referencedAppWidgetLibraryUris(
@@ -178,7 +179,11 @@ String? emitUserFactoriesDart(
   }.forEach(buf.writeln);
   buf.writeln();
   _writeAppVocabulary(buf, appVocabulary);
-  _writeRegistrationConstant(buf, delivery);
+  _writeRegistrationConstant(
+    buf,
+    delivery,
+    analytics: delivery?.analytics ?? analytics,
+  );
   buf
     ..writeln('/// Registers every emittable @RestageWidget-annotated class')
     ..writeln("/// in this package with Restage. Call once at the app's")
@@ -186,7 +191,11 @@ String? emitUserFactoriesDart(
     ..writeln('/// after `Restage.debugReset`, so test setUps may call it')
     ..writeln('/// again between cases.');
   _writeCatalogConfigurationDoc(buf, installWholeCatalog);
-  _writeRegistrationStart(buf, delivery);
+  _writeRegistrationStart(
+    buf,
+    delivery,
+    analytics: delivery?.analytics ?? analytics,
+  );
   _writeWholeCatalogInstall(buf, installWholeCatalog);
   if (dependencyFactories != null) {
     buf.writeln(dependencyFactories.registrations);
@@ -195,6 +204,7 @@ String? emitUserFactoriesDart(
     '  kRestageAppVocabulary.addToInstalled(explicitSelection: true);',
   );
   if (declaresSurfaces) buf.writeln(_kDeclareSurfaces);
+  if (!(delivery?.analytics ?? analytics)) buf.writeln(_kDeclareAnalytics);
   for (final library in orderedLibraries) {
     final entries = byLibrary[library]!;
     writeWidgetLibraryRegistration(
@@ -241,6 +251,7 @@ String emitEmptyUserFactoriesDart({
   AppWidgetRegistrationSource? dependencyFactories,
   bool declaresSurfaces = false,
   BuildDelivery? delivery,
+  bool analytics = true,
 }) {
   final buf = StringBuffer();
   writeGeneratedHeader(buf);
@@ -253,10 +264,18 @@ String emitEmptyUserFactoriesDart({
   }.forEach(buf.writeln);
   buf.writeln();
   _writeAppVocabulary(buf, appVocabulary);
-  _writeRegistrationConstant(buf, delivery);
+  _writeRegistrationConstant(
+    buf,
+    delivery,
+    analytics: delivery?.analytics ?? analytics,
+  );
   buf.writeln('/// Registers the currently enabled RFW widgets.');
   _writeCatalogConfigurationDoc(buf, installWholeCatalog);
-  _writeRegistrationStart(buf, delivery);
+  _writeRegistrationStart(
+    buf,
+    delivery,
+    analytics: delivery?.analytics ?? analytics,
+  );
   _writeWholeCatalogInstall(buf, installWholeCatalog);
   if (dependencyFactories != null) {
     buf.writeln(dependencyFactories.registrations);
@@ -265,6 +284,7 @@ String emitEmptyUserFactoriesDart({
     '  kRestageAppVocabulary.addToInstalled(explicitSelection: true);',
   );
   if (declaresSurfaces) buf.writeln(_kDeclareSurfaces);
+  if (!(delivery?.analytics ?? analytics)) buf.writeln(_kDeclareAnalytics);
   buf
     ..writeln('  }')
     ..writeln('}');
@@ -298,8 +318,17 @@ void _writeCatalogConfigurationDoc(StringBuffer buf, bool installWholeCatalog) {
     );
 }
 
-void _writeRegistrationConstant(StringBuffer buf, BuildDelivery? delivery) {
+void _writeRegistrationConstant(
+  StringBuffer buf,
+  BuildDelivery? delivery, {
+  required bool analytics,
+}) {
   if (delivery == null) {
+    if (!analytics) {
+      buf
+        ..writeln('const bool $kBuildAnalyticsName = false;')
+        ..writeln();
+    }
     buf
       ..writeln(
         '/// Pass to Restage.configure(registerWidgets: ...) to register',
@@ -319,6 +348,7 @@ void _writeRegistrationConstant(StringBuffer buf, BuildDelivery? delivery) {
         'const String? $kBuildChannelName = '
         '${delivery.channel == null ? 'null' : dartStringLiteral(delivery.channel!)};',
       )
+      ..writeln('const bool $kBuildAnalyticsName = ${delivery.analytics};')
       ..writeln()
       ..writeln("/// The app's generated Restage setup. Pass it to")
       ..writeln(
@@ -334,7 +364,11 @@ void _writeRegistrationConstant(StringBuffer buf, BuildDelivery? delivery) {
     ..writeln();
 }
 
-void _writeRegistrationStart(StringBuffer buf, BuildDelivery? delivery) {
+void _writeRegistrationStart(
+  StringBuffer buf,
+  BuildDelivery? delivery, {
+  required bool analytics,
+}) {
   buf
     ..writeln('void registerRestageWidgets({')
     ..writeln('  bool includeMaterial = true,')
@@ -348,12 +382,20 @@ void _writeRegistrationStart(StringBuffer buf, BuildDelivery? delivery) {
     ..writeln()
     ..writeln('final class _RestageWidgetRegistration')
     ..writeln(
-      delivery == null
+      delivery != null
+          ? '    implements RestageWidgetRegistration, RestageBuildDelivery {'
+          : analytics
           ? '    implements RestageWidgetRegistration {'
-          : '    implements RestageWidgetRegistration, RestageBuildDelivery {',
+          : '    implements RestageWidgetRegistration, RestageBuildAnalytics {',
     )
     ..writeln('  const _RestageWidgetRegistration();')
     ..writeln();
+  if (delivery == null && !analytics) {
+    buf
+      ..writeln('  @override')
+      ..writeln('  bool get analyticsEnabled => $kBuildAnalyticsName;')
+      ..writeln();
+  }
   if (delivery != null) {
     buf
       ..writeln('  @override')
@@ -364,6 +406,9 @@ void _writeRegistrationStart(StringBuffer buf, BuildDelivery? delivery) {
       ..writeln()
       ..writeln('  @override')
       ..writeln('  String? get channel => $kBuildChannelName;')
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln('  bool get analyticsEnabled => $kBuildAnalyticsName;')
       ..writeln();
   }
   buf
@@ -503,3 +548,5 @@ const String _kSurfaceListImport = 'restage_surfaces.g.dart';
 /// Declares every placement the build can mount, so the first request
 /// describes the whole build.
 const String _kDeclareSurfaces = '  Restage.declareSurfaces(restageSurfaces);';
+const String _kDeclareAnalytics =
+    '  Restage.declareBuildAnalytics(enabled: $kBuildAnalyticsName);';
