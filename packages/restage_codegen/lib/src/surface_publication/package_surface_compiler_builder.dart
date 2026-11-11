@@ -355,6 +355,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
               hoisted: screen.hoisted,
               firedEvents: screen.firedEvents,
               islands: screen.islands,
+              placedCustomWidgetSites: screen.placedCustomWidgetSites,
               split: screen.split,
               buildArguments: screen.input.build.buildArguments,
             ),
@@ -508,6 +509,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
             screen: declaration,
             rootParams: legacySource.build.rootParams,
             constructorParams: legacySource.build.constructorParams,
+            placedCustomWidgetSites:
+                legacyCompilation.screens.single.placedCustomWidgetSites,
           ),
           blob: blob,
           capabilitySidecar: sidecarBytes,
@@ -1704,6 +1707,11 @@ _discoverMeasurementSources(
             ),
             null => (_) => false,
           },
+          placedByCatalogEntry: (node) => isAnySite(
+            node,
+            mounts[screen.declarationIdentity]?.placedCustomWidgetSites ??
+                const [],
+          ),
         ),
       );
     }
@@ -1772,6 +1780,10 @@ _discoverMeasurementSources(
             ),
             null => (_) => false,
           },
+          placedByCatalogEntry: (node) => isAnySite(
+            node,
+            mounts[identity]?.placedCustomWidgetSites ?? const [],
+          ),
         ),
       );
     }
@@ -2248,6 +2260,7 @@ Future<void> _appendResolvedScreens(
           hoisted: screen.hoisted,
           firedEvents: screen.firedEvents,
           islands: screen.islands,
+          placedCustomWidgetSites: screen.placedCustomWidgetSites,
           split: screen.split,
           buildArguments: screen.input.build.buildArguments,
         ),
@@ -2994,6 +3007,7 @@ Future<void> _compilePaywalls(
             hoisted: compiled.hoisted,
             firedEvents: compiled.firedEvents,
             islands: compiled.islands,
+            placedCustomWidgetSites: compiled.placedCustomWidgetSites,
             split: compiled.split,
             buildArguments: compiled.source.build.buildArguments,
           ),

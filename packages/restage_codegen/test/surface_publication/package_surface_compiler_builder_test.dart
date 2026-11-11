@@ -7399,6 +7399,38 @@ final class Offer extends StatelessWidget {
     );
   }
 
+  // App code the mount runs fires it, under a top-level constant.
+  test('app-rendered code firing a reserved top-level event refuses', () async {
+    var errors = <String>[];
+    await _generatedPart(
+      '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/offer.restage.g.dart';
+
+const buy = SurfaceEvent<void>('purchase');
+
+@Paywall()
+final class Offer extends StatelessWidget {
+  const Offer({super.key});
+
+  @override
+  Widget build(BuildContext context) => Listener(
+        onPointerDown: (_) => context.surfaceEvent(buy)(),
+        child: const Text('Buy'),
+      );
+}
+''',
+      'offer',
+      refused: (refused) => errors = refused,
+    );
+    expect(
+      errors.join('\n'),
+      contains("The event name 'purchase' is reserved"),
+    );
+  });
+
   test(
     'an event built where it fires warns with the declaration to add',
     () async {
@@ -7429,7 +7461,7 @@ final class Inline extends StatelessWidget {
       expect(
         warning,
         contains(
-          'Try declaring it as a static const field, for example '
+          'Try declaring it as a constant, for example '
           "`static const myEvent = SurfaceEvent<void>('help');`",
         ),
       );

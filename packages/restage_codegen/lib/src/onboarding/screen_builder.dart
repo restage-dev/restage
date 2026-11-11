@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/source/line_info.dart';
@@ -101,11 +102,13 @@ final class CompiledResolvedScreen {
     this.vocabulary = SurfaceVocabularyReferences.empty,
     Map<String, Object> localSeeds = const {},
     Iterable<HoistedValue> hoisted = const [],
-    Iterable<FieldElement> firedEvents = const [],
+    Iterable<PropertyInducingElement> firedEvents = const [],
     this.islands = const [],
+    Iterable<AstNode> placedCustomWidgetSites = const [],
     this.split,
     Iterable<SplitWidgetInput> splitWidgets = const [],
   }) : blob = Uint8List.fromList(blob),
+       placedCustomWidgetSites = List.unmodifiable(placedCustomWidgetSites),
        firedEvents = List.unmodifiable(firedEvents),
        splitWidgets = List.unmodifiable(splitWidgets),
        hoisted = List.unmodifiable(hoisted),
@@ -136,10 +139,13 @@ final class CompiledResolvedScreen {
   final List<HoistedValue> hoisted;
 
   /// The `SurfaceEvent` constants the screen's build fires.
-  final List<FieldElement> firedEvents;
+  final List<PropertyInducingElement> firedEvents;
 
   /// Widget expressions the screen's mount renders from the app.
   final List<Island> islands;
+
+  /// Custom widget constructions the screen places by catalog entry.
+  final List<AstNode> placedCustomWidgetSites;
 
   /// How the screen's mount takes over its shell and `State`.
   final MountSplit? split;
@@ -515,6 +521,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
             ).firedBy(translation.islands, translation.placedCustomWidgets),
           },
           islands: translation.islands,
+          placedCustomWidgetSites: translation.placedCustomWidgetSites,
           split: translation.split,
           splitWidgets: splits,
         ),

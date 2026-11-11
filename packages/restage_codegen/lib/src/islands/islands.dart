@@ -837,12 +837,8 @@ ClassElement? stateWidgetOf(ClassElement? state) {
 /// Whether [node] is code that renders from the app: inside an island but
 /// outside its slots, or inside a kept shell node but outside its child.
 bool rendersFromApp(AstNode node, List<Island> islands, MountSplit? split) {
-  Object? unit(AstNode n) => switch (n.root) {
-    final CompilationUnit unit => unit.declaredFragment?.source.uri ?? unit,
-    final root => root,
-  };
   bool within(AstNode outer) =>
-      unit(node) == unit(outer) &&
+      _unitOf(node) == _unitOf(outer) &&
       node.offset >= outer.offset &&
       node.end <= outer.end;
   if (split != null &&
@@ -854,6 +850,20 @@ bool rendersFromApp(AstNode node, List<Island> islands, MountSplit? split) {
         within(island.node) && !island.slots.any((slot) => within(slot.node)),
   );
 }
+
+/// Whether [node] is one of [sites], matched by source span: each compiler
+/// pass may resolve its own copy of a declaration.
+bool isAnySite(AstNode node, Iterable<AstNode> sites) => sites.any(
+  (site) =>
+      _unitOf(site) == _unitOf(node) &&
+      site.offset == node.offset &&
+      site.end == node.end,
+);
+
+Object? _unitOf(AstNode node) => switch (node.root) {
+  final CompilationUnit unit => unit.declaredFragment?.source.uri ?? unit,
+  final root => root,
+};
 
 /// A widget library named [namespace] that the compiler keeps for the
 /// package's app-rendered widgets.

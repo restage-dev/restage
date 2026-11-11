@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:build/build.dart';
@@ -72,11 +73,13 @@ final class CompiledPaywallArtifacts {
     Map<String, Object> standaloneLocalSeeds = const {},
     Map<String, Object> adapterLocalSeeds = const {},
     Iterable<HoistedValue> hoisted = const [],
-    Iterable<FieldElement> firedEvents = const [],
+    Iterable<PropertyInducingElement> firedEvents = const [],
     Iterable<Island> islands = const [],
+    Iterable<AstNode> placedCustomWidgetSites = const [],
     this.split,
     Iterable<SplitWidgetInput> splitWidgets = const [],
   }) : navigationPushedIds = List.unmodifiable(navigationPushedIds),
+       placedCustomWidgetSites = List.unmodifiable(placedCustomWidgetSites),
        firedEvents = List.unmodifiable(firedEvents),
        splitWidgets = List.unmodifiable(splitWidgets),
        hoisted = List.unmodifiable(hoisted),
@@ -139,10 +142,13 @@ final class CompiledPaywallArtifacts {
   final List<HoistedValue> hoisted;
 
   /// The `SurfaceEvent` constants the paywall's build fires.
-  final List<FieldElement> firedEvents;
+  final List<PropertyInducingElement> firedEvents;
 
   /// Islands of either form, ordered by ID.
   final List<Island> islands;
+
+  /// Custom widget constructions either form places by catalog entry.
+  final List<AstNode> placedCustomWidgetSites;
 
   /// How the mount takes over the paywall's shell and `State`.
   final MountSplit? split;
@@ -430,6 +436,10 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
           ),
         },
         islands: standalone.islands,
+        placedCustomWidgetSites: [
+          ...standalone.placedCustomWidgetSites,
+          ...adapter.placedCustomWidgetSites,
+        ],
         split: standalone.split ?? adapter.split,
         splitWidgets: splits,
         navigationPlan: standalone.navigation == null

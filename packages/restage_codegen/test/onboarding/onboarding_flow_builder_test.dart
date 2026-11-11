@@ -2231,7 +2231,7 @@ final class NotificationResult {
         expect(
           logs.map((log) => log.message).join('\n'),
           allOf(
-            contains('Expected a static OnboardingEvent field reference'),
+            contains('Expected a const SurfaceEvent'),
             contains('nextEvent'),
           ),
         );
@@ -2260,7 +2260,7 @@ final class NotificationResult {
         expect(
           logs.map((log) => log.message).join('\n'),
           allOf(
-            contains('Expected a static OnboardingEvent field reference'),
+            contains('Expected a const SurfaceEvent'),
             contains('welcomeScreenRef'),
           ),
         );
@@ -2289,12 +2289,57 @@ final class NotificationResult {
         expect(
           logs.map((log) => log.message).join('\n'),
           allOf(
-            contains('Expected a static OnboardingEvent field reference'),
+            contains('Expected a const SurfaceEvent'),
             contains('fake'),
           ),
         );
       },
     );
+
+    test('a top-level event constant is a transition event', () async {
+      Future<String> flowJson(Map<String, String> sources) async {
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: await _readerWriterWith(sources),
+          flattenOutput: true,
+        );
+        expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+        return result.readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'assets/onboarding/flows/first_run.flow.json',
+          ),
+        );
+      }
+
+      const screen = 'apps_examples|lib/onboarding/screens/welcome.dart';
+      final topLevel = _eventExpressionSources('next');
+      topLevel[screen] = topLevel[screen]!
+          .replaceFirst(
+            "  static const next = OnboardingEvent<void>('next');\n",
+            '',
+          )
+          .replaceFirst(
+            '@OnboardingSource',
+            "const next = OnboardingEvent<void>('next');\n\n@OnboardingSource",
+          );
+      expect(
+        topLevel[screen],
+        allOf(
+          contains("\nconst next = OnboardingEvent<void>('next');"),
+          isNot(contains('static const next')),
+        ),
+      );
+      expect(
+        await flowJson(topLevel),
+        await flowJson(_eventExpressionSources('WelcomeScreen.next')),
+      );
+    });
 
     test('unresolved screen event references fail closed', () async {
       final sources = _eventExpressionSources('WelcomeScreen.nxt');
@@ -2316,7 +2361,7 @@ final class NotificationResult {
       expect(
         logs.map((log) => log.message).join('\n'),
         allOf(
-          contains('Expected a static OnboardingEvent field reference'),
+          contains('Expected a const SurfaceEvent'),
           contains('WelcomeScreen.nxt'),
         ),
       );
