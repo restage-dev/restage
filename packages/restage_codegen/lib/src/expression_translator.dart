@@ -4,6 +4,7 @@ import 'package:restage_compiler_core/src/rfw_scalar_callback_contract.dart'
 import 'package:restage_codegen/src/scalar_callback_lowering.dart';
 import 'package:restage_codegen/src/grid_value_recipes.dart';
 import 'package:restage_codegen/src/builder_expression_lowering.dart';
+import 'package:restage_codegen/src/callback_body.dart';
 import 'package:restage_codegen/src/widget_builder_lowering.dart';
 import 'package:restage_codegen/src/widget_collection_lowering.dart';
 import 'dart:collection';
@@ -5935,6 +5936,7 @@ final class ExpressionTranslator {
   // the callback is a field of the widget.
   bool _splitsAction(Expression expression) {
     if (expression is! FunctionExpression ||
+        !runsWhenCalled(expression.body) ||
         expression.parameters?.parameters.isNotEmpty != false) {
       return false;
     }
@@ -16354,12 +16356,8 @@ final class ExpressionTranslator {
   ) {
     final handler = value.trimLeft();
     if (handler.startsWith('{nativeEvent: ')) {
-      // A callback that returns a value passes unmeasured; a tap returns
-      // nothing.
-      if (_resolveBoundIdentifier(_stripParens(expression)).staticType
-          case FunctionType(:final returnType) when returnType is! VoidType) {
-        return value;
-      }
+      // The plan admits the slot by its declared type; Flutter discards
+      // what the handler returns, such as an async method's Future.
       final tap = _measurementTapEvent(marker, occurrence, expression, issues);
       if (tap.isEmpty) return '';
       return '${value.substring(0, value.length - 1)}, measurement: $tap}';

@@ -125,6 +125,16 @@ void _expectDesignOwnsState(_Built built, {bool recorded = true}) {
   expect(built.mount, isNot(contains("_restageRecording.value(")));
 }
 
+const _buyButton = '''
+class BuyButton extends StatelessWidget {
+  const BuyButton({super.key, this.onPressed});
+  final VoidCallback? onPressed;
+  @override
+  Widget build(BuildContext context) =>
+      GestureDetector(onTap: onPressed, child: const Text('Buy'));
+}
+''';
+
 final _program = RegExp(
   r'onTap: \{nativeEvent: \{ version: 1, program: ".*?", '
   r'captures: \{c0: data\.context\._h[0-9a-f]{10}, c1: (.*?) \} \}, measurement',
@@ -1199,5 +1209,213 @@ void configureApp() {
         isNot(contains('build local')),
       ),
     );
+  });
+
+  // A handler's return type never decides measurement: Flutter discards it
+  // on a void slot.
+  const call = "widget.onContinue?.call(annualSelected ? 'annual' : 'monthly')";
+  const tap = 'measurement: event "__restage_measurement_tap_v1" {}';
+  const buy = ', child: Text(text: "Buy"))';
+  for (final (name, method, library, child, (before, after)) in [
+    (
+      'an async method on a VoidCallback slot',
+      'Future<void> _purchase() async { $call; }',
+      'widgets',
+      "GestureDetector(onTap: _purchase, child: const Text('Buy')),",
+      ('GestureDetector(onTap: ', buy),
+    ),
+    (
+      'an async arrow method on a VoidCallback slot',
+      'Future<void> _purchase() async => $call;',
+      'widgets',
+      "GestureDetector(onTap: _purchase, child: const Text('Buy')),",
+      ('GestureDetector(onTap: ', buy),
+    ),
+    (
+      'a value-returning method on a VoidCallback slot',
+      'bool _purchase() { $call; return true; }',
+      'widgets',
+      "GestureDetector(onTap: _purchase, child: const Text('Buy')),",
+      ('GestureDetector(onTap: ', buy),
+    ),
+    (
+      'an async method on a button',
+      'Future<void> _purchase() async { $call; }',
+      'material',
+      "TextButton(onPressed: _purchase, child: const Text('Buy')),",
+      ('TextButton(onPressed: ', buy),
+    ),
+    (
+      'an async method on a ValueChanged slot',
+      'Future<void> _purchase(bool annual) async '
+          '{ widget.onChoose?.call(annual); }',
+      'material',
+      'Switch(value: annualSelected, onChanged: _purchase),',
+      ('onChanged: ', ')'),
+    ),
+    (
+      'an awaiting async method on a VoidCallback slot',
+      'Future<void> _purchase() async '
+          '{ await Future<void>.value(); $call; }',
+      'widgets',
+      "GestureDetector(onTap: _purchase, child: const Text('Buy')),",
+      ('GestureDetector(onTap: ', buy),
+    ),
+    (
+      'an async method on a span recognizer',
+      'Future<void> _purchase() async { $call; }',
+      'widgets',
+      "Text.rich(TextSpan(text: 'Buy', "
+          'recognizer: TapGestureRecognizer()..onTap = _purchase)),',
+      ('recognizer: { kind: "tap", onTap: ', ' }'),
+    ),
+    (
+      'a sync* setState method, which never runs, on a VoidCallback slot',
+      'Iterable<void> _purchase() sync* '
+          '{ setState(() => annualSelected = false); }',
+      'widgets',
+      "GestureDetector(onTap: _purchase, child: const Text('Buy')),",
+      ('GestureDetector(onTap: ', buy),
+    ),
+    (
+      'an async method forwarded through an app widget',
+      'Future<void> _purchase() async { $call; }',
+      'widgets',
+      'BuyButton(onPressed: _purchase),',
+      ('BuyButton(onPressed: ', ')'),
+    ),
+  ]) {
+    test('$name is measured', () async {
+      final built = await _build(
+        _source(
+              'null',
+              extraMembers: method,
+              library: library,
+              extraChildren: child,
+            ).replaceFirst(
+              "import 'package:restage/restage.dart' as rs;",
+              "import 'package:flutter/gestures.dart';\n"
+                  "import 'package:restage/restage.dart' as rs;",
+            ) +
+            _buyButton,
+      );
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      final handler = RegExp(
+        '${RegExp.escape(before)}'
+        r'\{nativeEvent: data\.context\.(_h[0-9a-f]{10}), '
+        '${RegExp.escape(tap)}\\}${RegExp.escape(after)}',
+      ).firstMatch(built.rfwtxt);
+      expect(handler, isNotNull, reason: built.rfwtxt);
+      expect(built.mount, contains("'${handler!.group(1)}': '_purchase'"));
+    });
+  }
+
+  test('an async closure without await lowers like a sync one', () async {
+    final built = await _build(_source('() async { $call; }'));
+    _expectDesignOwnsState(built);
+    final action = _program.firstMatch(built.rfwtxt);
+    expect(action, isNotNull, reason: built.rfwtxt);
+    expect(
+      action!.group(1),
+      'switch state.annualSelected { true: "annual", false: "monthly" }',
+    );
+    expect(built.warnings, isEmpty);
+  });
+
+  test(
+    'an async setState handler without await keeps the design state',
+    () async {
+      const body = '{ setState(() => annualSelected = false); }';
+      final built = await _build(
+        _source('_pick', extraMembers: 'Future<void> _pick() async $body'),
+      );
+      final sync = await _build(
+        _source('_pick', extraMembers: 'void _pick() $body'),
+      );
+      _expectDesignOwnsState(built, recorded: false);
+      expect(built.rfwtxt, sync.rfwtxt);
+      expect(
+        built.rfwtxt,
+        contains(
+          'GestureDetector(onTap: [set state.annualSelected = false, '
+          'event "__restage_measurement_tap_v1" {}], '
+          'child: Text(text: "Continue"))',
+        ),
+      );
+    },
+  );
+
+  test(
+    'an awaiting closure runs in the app and is measured',
+    () async {
+      final built = await _build(
+        _source('() async { await Future<void>.value(); $call; }'),
+      );
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      expect(
+        built.rfwtxt,
+        matches(
+          RegExp(
+            r'GestureDetector\(onTap: \{nativeEvent: '
+            r'data\.context\._h[0-9a-f]{10}, '
+            '${RegExp.escape(tap)}\\}, child: Text\\(text: "Continue"\\)\\)',
+          ),
+        ),
+      );
+      expect(built.warnings.single, contains('runs in your app'));
+    },
+  );
+
+  // A generator body runs only when its result is iterated, so a tap never
+  // runs it; the app's own closure is bound, as Flutter would call it.
+  for (final keyword in ['sync*', 'async*']) {
+    for (final (what, body) in [
+      ('callback', call),
+      ('setState', 'setState(() => annualSelected = false)'),
+    ]) {
+      test('a $keyword $what closure stays in the app', () async {
+        final built = await _build(_source('() $keyword { $body; }'));
+        expect(built.errors, isEmpty);
+        expect(built.succeeded, isTrue);
+        expect(_program.hasMatch(built.rfwtxt), isFalse, reason: built.rfwtxt);
+        expect(built.rfwtxt, isNot(contains('native.call')));
+        expect(
+          built.rfwtxt,
+          matches(
+            RegExp(
+              r'GestureDetector\(onTap: \{nativeEvent: '
+              r'data\.context\._h[0-9a-f]{10}, '
+              '${RegExp.escape(tap)}\\}, child: Text\\(text: "Continue"\\)\\)',
+            ),
+          ),
+        );
+      });
+    }
+  }
+
+  test('a sync* value callback stays in the app', () async {
+    final built = await _build(
+      _source(
+        'null',
+        library: 'material',
+        extraChildren:
+            'Switch(value: annualSelected, '
+            'onChanged: (v) sync* { setState(() => annualSelected = v); }),',
+      ),
+    );
+    expect(built.errors, isEmpty);
+    expect(built.succeeded, isTrue);
+    expect(
+      built.rfwtxt,
+      matches(
+        RegExp(
+          r'onChanged: \{nativeEvent: data\.context\._h[0-9a-f]{10}, '
+          '${RegExp.escape(tap)}\\}',
+        ),
+      ),
+    );
+    expect(built.rfwtxt, isNot(contains('set state.annualSelected = v')));
   });
 }
