@@ -1,4 +1,4 @@
-// Smoke test for the vendored rfw `formats` sublibrary.
+// Smoke test for the rfw `formats` sublibrary copy.
 //
 // Confirms the dedicated rfw_formats barrel re-exports the parser and the
 // binary encoder/decoder, and that a tiny .rfwtxt source survives a parse →
@@ -8,7 +8,7 @@ import 'package:restage_shared/rfw_formats.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('vendored rfw formats — library round-trip', () {
+  group('rfw formats copy — library round-trip', () {
     test('parse → encode → decode → re-encode is byte-identical', () {
       // A small but non-trivial .rfwtxt source exercising imports, an
       // initialState (stateful widget), an args reference, and a switch.
@@ -53,7 +53,7 @@ widget Counter { count: 0 } = Container(
     });
   });
 
-  group('vendored rfw formats — data round-trip', () {
+  group('rfw formats copy — data round-trip', () {
     test('parseDataFile → encodeDataBlob → decodeDataBlob is deep-equal', () {
       final parsed = parseDataFile('{ greeting: "hello", count: 42 }');
       expect(

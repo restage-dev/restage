@@ -1,4 +1,6 @@
-// Top-level barrel for the vendored `package:rfw/formats.dart` sublibrary.
+// Top-level barrel for the pure-Dart rfw formats library: copies of a formats
+// library derived from rfw 2.0.0's `lib/src/dart/`, kept identical to their
+// source.
 //
 // Consumers (the backend / pure-Dart server-side compilation) import this
 // barrel directly:
@@ -12,9 +14,8 @@
 // — the two define identical `LibraryName`, `decodeLibraryBlob`,
 // `WidgetLibrary`, etc.
 //
-// See the upstream BSD-3 license at `src/rfw_formats/LICENSE-rfw`. The formats
-// sublibrary is vendored so it can be used from pure Dart (where rfw's Flutter
-// SDK dependency would otherwise block resolution).
+// See the upstream BSD-3 license at `src/rfw_formats/LICENSE-rfw`. The copies
+// let pure Dart use the formats library without the Flutter SDK dependency.
 
 export 'src/fonts/literal_icon_code_points.dart';
 export 'src/rfw_catalog_occurrence.dart';

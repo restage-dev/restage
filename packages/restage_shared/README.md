@@ -56,13 +56,13 @@ mounting and the CLI/MCP tools manage delivery plans.
 - **`CapabilityManifest`**: the minimum capabilities a delivered document
   needs, so an older app refuses it instead of rendering it wrong.
 
-## Vendored: `lib/src/rfw_formats/`
+## `lib/src/rfw_formats/`
 
-`lib/src/rfw_formats/` contains the pure-Dart `formats` library of
-[`package:rfw`](https://pub.dev/packages/rfw) version 1.1.3, copied unchanged
-apart from a note in each file's header comment. It lets pure-Dart programs
-parse `.rfwtxt` and read and write `.rfw` blobs. `rfw` itself can't be used
-there: its pubspec depends on the Flutter SDK, even though the formats code
+`lib/src/rfw_formats/` contains copies of a pure-Dart formats library derived
+from [`package:rfw`](https://pub.dev/packages/rfw) 2.0.0 (its `lib/src/dart/`),
+kept identical to their source. It lets pure-Dart programs parse `.rfwtxt` and
+read and write `.rfw` blobs. The Flutter package that holds the source can't be
+used there: its pubspec depends on the Flutter SDK, even though the formats code
 uses only `dart:convert`, `dart:typed_data`, and `package:meta`.
 
 Import it from `package:restage_shared/rfw_formats.dart`, which mirrors
@@ -71,6 +71,6 @@ clash with `package:rfw/rfw.dart` when you import both.
 
 ## License
 
-BSD-3-Clause. See [LICENSE](LICENSE). The vendored `lib/src/rfw_formats/`
-code is BSD-3-Clause by The Flutter Authors; see
+BSD-3-Clause. See [LICENSE](LICENSE). The `lib/src/rfw_formats/`
+code, derived from rfw, is BSD-3-Clause by The Flutter Authors; see
 [`lib/src/rfw_formats/LICENSE-rfw`](lib/src/rfw_formats/LICENSE-rfw).
