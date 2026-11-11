@@ -14,7 +14,7 @@ final class BadgeCardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
         children: [
-          BadgeCard(title: 'Pro', badge: 'Popular', onTap: surfaceEvent(open)),
+          BadgeCard(title: 'Pro', badge: 'Popular', onTap: context.surfaceEvent(open)),
         ],
       );
 }

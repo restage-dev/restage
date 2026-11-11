@@ -38,7 +38,7 @@ const minimalNoticeFlowRef = SurfaceFlowRef<
   decodeResult: _decodeMinimalNoticeFlowResult,
   compiled: CompiledFlow(
     documentJson:
-        '{"flow":"minimal_notice","initial":"starter_notice","minClient":17,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"starter_notice":{"contentHash":"sha256:83ca5a5020d103075fab1fe01be3ce80d0743174fff6092dde8d68d922478df1","minClient":17,"path":"starter_notice.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_notice":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"starter_notice"}},"version":1}',
+        '{"flow":"minimal_notice","initial":"starter_notice","minClient":17,"outbound":{"customEvents":{"dismiss":{"fields":{}}}},"schemaVersion":1,"screenArtifacts":{"starter_notice":{"contentHash":"sha256:c824c46c94cb9c6be0cb64c135448ebeb7611172af6570f5a50599fc2aa9927f","minClient":17,"path":"starter_notice.rfw","schemaVersion":1,"version":1}},"states":{"done":{"kind":"end","result":{}},"starter_notice":{"kind":"screen","on":{"act":{"target":"done","type":"goto"}},"screen":"starter_notice"}},"version":1}',
     screens: {
       'starter_notice': StarterNoticeScreen.new,
     },
@@ -46,7 +46,7 @@ const minimalNoticeFlowRef = SurfaceFlowRef<
   ),
   surfaceWidget: 'MinimalNoticeFlowSurface',
   measurementPublicationDraftDigest:
-      '4dcad975a54a39b792783de23419b441c9fd099f3bb852dc58e3406bc07fbc2b',
+      '2d8e2771203b9577157fc896811456ff7836ef0a3b67cb979c04171105adb142',
   vocabulary: _minimalNoticeFlowRefVocabulary,
 );
 

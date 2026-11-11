@@ -55,7 +55,7 @@ class StarterQuestionScreen extends StatelessWidget {
                     const SizedBox(height: 28),
                     // Option A — fires `guided`.
                     GestureDetector(
-                      onTap: surfaceEvent(guided),
+                      onTap: context.surfaceEvent(guided),
                       child: Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
@@ -90,7 +90,7 @@ class StarterQuestionScreen extends StatelessWidget {
                     const SizedBox(height: 14),
                     // Option B — fires `explore`.
                     GestureDetector(
-                      onTap: surfaceEvent(explore),
+                      onTap: context.surfaceEvent(explore),
                       child: Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(

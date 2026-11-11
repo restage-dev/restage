@@ -11,7 +11,7 @@ final class OnboardingWelcome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: surfaceEvent(continueFlow),
+        onPressed: context.surfaceEvent(continueFlow),
         child: const Text('Continue'),
       );
 }
@@ -24,7 +24,7 @@ final class MessageNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: surfaceEvent(openOffer),
+        onPressed: context.surfaceEvent(openOffer),
         child: const Text('Open offer'),
       );
 }
@@ -37,7 +37,7 @@ final class GeneralStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: surfaceEvent(finish),
+        onPressed: context.surfaceEvent(finish),
         child: const Text('Done'),
       );
 }

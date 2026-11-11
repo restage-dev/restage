@@ -2,20 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:restage/restage.dart';
 
+import '../../widgets/dismiss_button.dart';
+
 part 'restage.generated/starter_notice.restage.g.dart';
 
 /// A one-screen notice, such as an announcement or a what's-new message.
 ///
-/// [act] completes the flow, and your app acts in `onComplete`. [dismiss] is a
-/// custom event your app handles by closing the surface. It follows the app
-/// theme.
+/// [act] completes the flow, and your app acts in `onComplete`. The
+/// [DismissButton] fires a custom event your app handles by closing the
+/// surface. It follows the app theme.
 @Screen()
 class StarterNoticeScreen extends StatelessWidget {
   /// The primary action — completes the flow so the host can act.
   static const act = SurfaceEvent<void>('act');
-
-  /// Dismisses the surface (host-handled custom event).
-  static const dismiss = SurfaceEvent<void>('dismiss');
 
   /// Const constructor.
   const StarterNoticeScreen({super.key});
@@ -30,11 +29,7 @@ class StarterNoticeScreen extends StatelessWidget {
             : SystemUiOverlayStyle.dark,
         elevation: 0,
         actions: [
-          IconButton(
-            onPressed: surfaceEvent(dismiss),
-            tooltip: 'Dismiss',
-            icon: const Icon(Icons.close_rounded),
-          ),
+          const DismissButton(),
         ],
       ),
       body: SafeArea(
@@ -73,7 +68,7 @@ class StarterNoticeScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: surfaceEvent(act),
+                onPressed: context.surfaceEvent(act),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

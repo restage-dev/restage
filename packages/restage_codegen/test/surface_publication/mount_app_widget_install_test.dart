@@ -91,7 +91,7 @@ final class WelcomeStep extends StatelessWidget {
         children: [
           const StreakBadge(days: 3),
           FilledButton(
-            onPressed: surfaceEvent(next),
+            onPressed: context.surfaceEvent(next),
             child: const Text('Start'),
           ),
         ],
@@ -316,7 +316,7 @@ final class WelcomeStep extends StatelessWidget {
         children: [
           const StreakBadge(days: 3),
           FilledButton(
-            onPressed: surfaceEvent(next),
+            onPressed: context.surfaceEvent(next),
             child: const Text('Start'),
           ),
         ],

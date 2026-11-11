@@ -687,9 +687,11 @@ void _translatorGroups() {
         helpers: productionPaywallHelperRegistry(),
       );
       final r = await _result(eventTranslator, '''
+        import 'package:flutter/widgets.dart';
         import 'package:restage/restage.dart';
         class Colors { static const String event = 'restore'; }
-        Object x() => paywallEvent(Colors.event);
+        class Events { static const blocked = SurfaceEvent<void>(Colors.event); }
+        Object x(BuildContext context) => context.surfaceEvent(Events.blocked);
       ''');
       expect(
         r.issues.map((issue) => issue.code),

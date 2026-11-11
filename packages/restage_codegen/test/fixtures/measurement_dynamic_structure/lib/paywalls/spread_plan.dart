@@ -20,18 +20,24 @@ class _SpreadPlanState extends State<SpreadPlan> {
           if (annual) ...[
             const Text('Best value'),
             FilledButton(
-              onPressed: paywallEvent('annual'),
+              onPressed: context.surfaceEvent(_Events.annual),
               child: const Text('Annual'),
             ),
           ] else
             OutlinedButton(
-              onPressed: paywallEvent('monthly'),
+              onPressed: context.surfaceEvent(_Events.monthly),
               child: const Text('Monthly'),
             ),
           TextButton(
-            onPressed: paywallEvent('close'),
+            onPressed: context.surfaceEvent(_Events.close),
             child: const Text('Close'),
           ),
         ],
       );
+}
+
+abstract final class _Events {
+  static const annual = SurfaceEvent<void>('annual');
+  static const monthly = SurfaceEvent<void>('monthly');
+  static const close = SurfaceEvent<void>('close');
 }

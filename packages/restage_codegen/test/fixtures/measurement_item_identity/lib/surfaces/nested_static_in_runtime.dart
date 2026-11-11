@@ -25,7 +25,7 @@ final class NestedStaticInRuntime extends StatelessWidget {
               children: [
                 for (final plan in const ['monthly', 'yearly'])
                   TextButton(
-                    onPressed: surfaceEvent(pick, plan),
+                    onPressed: context.surfaceEvent(pick, plan),
                     child: Text(row.id),
                   ),
               ],

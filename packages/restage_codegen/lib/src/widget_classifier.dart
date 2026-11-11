@@ -414,15 +414,6 @@ final class WidgetClassifier {
   Map<String, CustomWidgetBlueprint> get blueprints =>
       Map.unmodifiable(_blueprints);
 
-  // Each classified widget's build method, where its source was read.
-  final Map<String, MethodDeclaration> _buildNodes = {};
-
-  bool _firesEvents(ClassDeclaration declaration) => reachesEvents(
-    declaration,
-    _results,
-    own: declaration.declaredFragment?.element,
-  );
-
   /// Classifies [widgetClass] (a resolved `@RestageWidget` class), recursing
   /// into every custom widget it composes. Memoized; a composition cycle
   /// resolves to [UnclassifiableWidget].
@@ -449,10 +440,6 @@ final class WidgetClassifier {
         result = await _classify(widgetClass, key);
       } finally {
         _inProgress.remove(key);
-      }
-      if (_buildNodes[key]?.thisOrAncestorOfType<ClassDeclaration>()
-          case final declaration?) {
-        result = result.withFiresEvents(_firesEvents(declaration));
       }
       _results[key] = result;
       return result;
@@ -500,7 +487,6 @@ final class WidgetClassifier {
         reason: "the widget's build() source was not available",
       );
     }
-    _buildNodes[key] = node;
     final extracted = extractInlinableBuildBody(node.body);
     if (extracted == null) {
       return UnclassifiableWidget(
@@ -1602,8 +1588,11 @@ class _Walk {
   /// same way the translator recognises one — so the classifier agrees with
   /// its own construct table.
   bool _isRegisteredHelper(MethodInvocation expr) {
-    if (expr.target != null) return false;
     final helpers = _classifier.helpers;
+    if (isContextSurfaceEvent(expr)) {
+      return helpers.findByNameOnly('surfaceEvent') != null;
+    }
+    if (expr.target != null) return false;
     final element = expr.methodName.element;
     if (element != null) {
       return helpers.find(
@@ -2280,94 +2269,19 @@ Future<ClassificationResult> classifyReferencedCustomWidgets({
   );
 }
 
-// The SDK helpers that fire an authored event from where they are called.
-const _eventHelperNames = {
-  'paywallEvent',
-  'surfaceEvent',
-  'onboardingEvent',
-  'surfaceEventWithContext',
-  'activeDispatcher',
-  'activeSurfaceEventDispatcher',
-};
-
-/// Whether [node] calls an SDK event helper; a call that does not resolve
-/// counts when its name matches.
-bool callsEventHelper(MethodInvocation node) {
-  if (!_eventHelperNames.contains(node.methodName.name)) return false;
+/// Whether [node] is `context.surfaceEvent(...)`, the SDK's event helper on
+/// a widget's build context; an unresolved call counts by its name.
+bool isContextSurfaceEvent(MethodInvocation node) {
+  if (node.methodName.name != 'surfaceEvent' || node.realTarget == null) {
+    return false;
+  }
   final element = node.methodName.element;
   return element == null ||
-      libraryUriMatchesOrigin(
-        element.library?.identifier ?? '',
-        'package:restage',
-      );
-}
-
-/// Whether code below [node] can fire an authored event: it calls an event
-/// helper (unless [helpers] is false), a function of its own package that
-/// builds a widget or callback, or an app widget [results] doesn't show to
-/// fire none. Members of [own] are read where they are.
-bool reachesEvents(
-  AstNode node,
-  Map<String, WidgetClassification> results, {
-  Element? own,
-  bool helpers = true,
-}) {
-  final package = _packageOfNode(node);
-  var fires = false;
-  node.accept(
-    _EventReach(
-      onCall: (call) {
-        if (callsEventHelper(call)) {
-          if (helpers) fires = true;
-          return;
-        }
-        final element = call.methodName.element;
-        final type = call.staticType;
-        if (package != null &&
-            element != null &&
-            !identical(element.enclosingElement, own) &&
-            _packageName(element.library?.identifier ?? '') == package &&
-            (type is FunctionType ||
-                type is DynamicType ||
-                type is InterfaceType &&
-                    [
-                      type,
-                      ...type.allSupertypes,
-                    ].any((t) => t.element.name == 'Widget'))) {
-          fires = true;
-        }
-      },
-      onWidget: (type) {
-        if (identical(type, own) || !isAppWidgetClass(type, package: package)) {
-          return;
-        }
-        if (results[customWidgetKey(type)]?.firesEvents ?? true) fires = true;
-      },
-    ),
-  );
-  return fires;
-}
-
-// Reports each call and widget construction below a node.
-final class _EventReach extends RecursiveAstVisitor<void> {
-  _EventReach({required this.onCall, required this.onWidget});
-
-  final void Function(MethodInvocation call) onCall;
-  final void Function(ClassElement type) onWidget;
-
-  @override
-  void visitMethodInvocation(MethodInvocation node) {
-    onCall(node);
-    super.visitMethodInvocation(node);
-  }
-
-  @override
-  void visitInstanceCreationExpression(InstanceCreationExpression node) {
-    if (node.constructorName.type.element case final ClassElement type) {
-      onWidget(type);
-    }
-    super.visitInstanceCreationExpression(node);
-  }
+      (element.enclosingElement is ExtensionElement &&
+          libraryUriMatchesOrigin(
+            element.library?.identifier ?? '',
+            'package:restage',
+          ));
 }
 
 final class _AppWidgetConstructions extends RecursiveAstVisitor<void> {

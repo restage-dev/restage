@@ -19,8 +19,15 @@ final class PremiumPaywall extends StatelessWidget {
         const AcmeChip(text: 'Hi'),
         const AcmeBanner(title: 'Sale'),
         const AcmeBanner(title: 'New', fill: Colors.red),
-        FilledButton(onPressed: paywallEvent('buy'), child: const Text('Buy')),
+        FilledButton(
+          onPressed: context.surfaceEvent(_Events.buy),
+          child: const Text('Buy'),
+        ),
       ],
     );
   }
+}
+
+abstract final class _Events {
+  static const buy = SurfaceEvent<void>('buy');
 }

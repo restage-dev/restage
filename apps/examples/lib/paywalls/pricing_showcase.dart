@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/widgets/pricing_card.dart';
 
+part 'restage.generated/pricing_showcase.restage.g.dart';
+
 /// A paywall whose rows are [PricingCard] widgets, each taking a [Plan] data
 /// class.
 ///
@@ -10,7 +12,13 @@ import 'package:restage_example/widgets/pricing_card.dart';
 @Paywall()
 class PricingShowcase extends StatelessWidget {
   /// Const constructor.
-  const PricingShowcase({super.key});
+  const PricingShowcase({super.key, this.onClose, this.onContinue});
+
+  /// Continues to the purchase.
+  final VoidCallback? onContinue;
+
+  /// Closes the paywall.
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +32,7 @@ class PricingShowcase extends StatelessWidget {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: paywallEvent('close'),
+                    onTap: onClose,
                     child: Icon(
                       Icons.close_rounded,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -60,7 +68,7 @@ class PricingShowcase extends StatelessWidget {
               ),
               const Spacer(),
               GestureDetector(
-                onTap: paywallEvent('continue'),
+                onTap: onContinue,
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(

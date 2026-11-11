@@ -15,13 +15,9 @@ final class RestagePaywallEventTargetScope extends InheritedWidget {
     required this.content,
     required this.isCurrent,
     required super.child,
-    this.flowStep = false,
   });
 
   final Object owner;
-
-  /// Whether the paywall is a step of a flow, which owns its events.
-  final bool flowStep;
   final Object content;
   final bool Function() isCurrent;
 
@@ -122,37 +118,6 @@ final class RestagePaywallEventDispatchRegistration {
 final class RestagePaywallEventDispatchAuthority {
   static final List<RestagePaywallEventDispatchRegistration> _registrations =
       <RestagePaywallEventDispatchRegistration>[];
-  static final List<RestagePaywallEventDispatchRegistration> _buildScopes =
-      <RestagePaywallEventDispatchRegistration>[];
-
-  /// Whether a paywall that is not a flow step is building now.
-  static bool get isBuildingStandalone => switch (_buildScopes) {
-        [..., final registration] => registration._target?.flowStep != true,
-        _ => false,
-      };
-
-  /// Whether any paywall dispatcher is mounted.
-  static bool get hasDispatcher => _registrations.isNotEmpty;
-
-  static RestagePaywallDispatchHandler? capture({
-    void Function(AuthoringRefusalKind refusal)? onRefused,
-  }) {
-    if (_buildScopes case [..., final registration]) {
-      return registration.capture(onRefused: onRefused) ??
-          _refusingHandler(onRefused, AuthoringRefusalKind.callbackRefused);
-    }
-    if (_registrations.length == 1) {
-      return _registrations.single.capture(onRefused: onRefused) ??
-          _refusingHandler(onRefused, AuthoringRefusalKind.callbackRefused);
-    }
-    return _registrations.isEmpty
-        ? null
-        : _refusingHandler(
-            onRefused,
-            AuthoringRefusalKind.ambiguousDispatcher,
-          );
-  }
-
   static final Expando<bool> _mounts = Expando();
 
   /// Whether a paywall has ever dispatched for [mount].
@@ -167,7 +132,6 @@ final class RestagePaywallEventDispatchAuthority {
     final current = [
       for (final registration in _registrations)
         if (identical(registration._mount, mount) &&
-            registration._target?.flowStep != true &&
             RestagePaywallEventDispatchRegistration._isTargetCurrent(
                 registration._target))
           registration,
@@ -191,25 +155,6 @@ final class RestagePaywallEventDispatchAuthority {
     return (_, __) => onRefused(refusal);
   }
 
-  static void runBuild(
-    RestagePaywallEventDispatchRegistration registration,
-    void Function() body,
-  ) {
-    if (!_contains(registration)) {
-      body();
-      return;
-    }
-    _buildScopes.add(registration);
-    try {
-      body();
-    } finally {
-      final index = _buildScopes.lastIndexWhere(
-        (candidate) => identical(candidate, registration),
-      );
-      if (index >= 0) _buildScopes.removeAt(index);
-    }
-  }
-
   static void _register(RestagePaywallEventDispatchRegistration registration) {
     _registrations.add(registration);
   }
@@ -218,9 +163,6 @@ final class RestagePaywallEventDispatchAuthority {
     RestagePaywallEventDispatchRegistration registration,
   ) {
     _registrations.removeWhere(
-      (candidate) => identical(candidate, registration),
-    );
-    _buildScopes.removeWhere(
       (candidate) => identical(candidate, registration),
     );
   }

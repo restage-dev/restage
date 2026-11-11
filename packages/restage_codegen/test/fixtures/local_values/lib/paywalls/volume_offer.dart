@@ -22,9 +22,13 @@ class _VolumeOfferState extends State<VolumeOffer> {
             onChanged: (on) => setState(() => reminders = on),
           ),
           TextButton(
-            onPressed: paywallEvent('continue', args: {'reminders': reminders}),
+            onPressed: context.surfaceEvent(_Events.continueEvent, {'reminders': reminders}),
             child: const Text('Continue'),
           ),
         ],
       );
+}
+
+abstract final class _Events {
+  static const continueEvent = SurfaceEvent<Map<String, Object?>>('continue');
 }

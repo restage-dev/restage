@@ -13,7 +13,7 @@ final class WelcomeStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: FilledButton(
-          onPressed: surfaceEvent(next),
+          onPressed: context.surfaceEvent(next),
           child: const Text('Get started'),
         ),
       );

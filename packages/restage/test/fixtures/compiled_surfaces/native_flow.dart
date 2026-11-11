@@ -15,7 +15,7 @@ final class NativeWelcome extends StatefulWidget {
 final class _NativeWelcomeState extends State<NativeWelcome> {
   @override
   Widget build(BuildContext context) => TextButton(
-        onPressed: surfaceEvent(NativeWelcome.next),
+        onPressed: context.surfaceEvent(NativeWelcome.next),
         child: const Text('Welcome original'),
       );
 }
@@ -27,7 +27,7 @@ final class NativePreferences extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TextButton(
-        onPressed: surfaceEvent(done),
+        onPressed: context.surfaceEvent(done),
         child: const Text('Preferences original'),
       );
 }
@@ -38,7 +38,7 @@ final class NativeOffer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TextButton(
-        onPressed: paywallEvent('skip'),
+        onPressed: context.surfaceEvent(PaywallEvents.skip),
         child: const Text('Offer original'),
       );
 }
@@ -79,7 +79,7 @@ final class NativeNamed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TextButton(
-        onPressed: surfaceEvent(done),
+        onPressed: context.surfaceEvent(done),
         child: Text(title),
       );
 }

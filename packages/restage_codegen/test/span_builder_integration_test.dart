@@ -17,7 +17,8 @@ void main() {
   test(
     'authored span collection fixture preserves native collection structure',
     () async {
-      final probe = await parseMethodExpressionFromSourceForTest(r'''
+      final probe = await parseMethodExpressionFromSourceForTest(
+        r'''
 import 'package:flutter/widgets.dart';
 import 'package:flutter/gestures.dart';
 import 'package:restage/restage.dart';
@@ -34,7 +35,7 @@ class P extends StatelessWidget {
     ...?(true ? [if (show) const TextSpan(text: 'selected')] : null),
     for (final label in labels) ...[
       TextSpan(text: label, style: const TextStyle(fontWeight: FontWeight.w600), recognizer: TapGestureRecognizer()
-        ..onTap = paywallEvent('pick', args: {'value': label})),
+        ..onTap = context.surfaceEvent(_Events.pick, {'value': label})),
       if (show) const TextSpan(text: '|'),
       const TextSpan(text: '(', children: [TextSpan(text: ')')]),
     ],
@@ -48,7 +49,14 @@ class P extends StatelessWidget {
     const TextSpan(text: 'end', children: []),
   ]));
 }
-''', className: 'P');
+
+abstract final class _Events {
+  static const pick = SurfaceEvent<Map<String, Object?>>('pick');
+}
+''',
+        className: 'P',
+        rootPackage: 'apps_examples',
+      );
       final catalog = decodeCatalog(
         File(
           '../restage_core/lib/src/widget_catalog/catalog.json',
@@ -97,7 +105,8 @@ class P extends StatelessWidget {
   );
 
   test('span collections preserve callback-local builder frames', () async {
-    final probe = await parseMethodExpressionFromSourceForTest(r'''
+    final probe = await parseMethodExpressionFromSourceForTest(
+      r'''
 import 'package:flutter/widgets.dart';
 import 'package:flutter/gestures.dart';
 import 'package:restage/restage.dart';
@@ -108,10 +117,17 @@ class P extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, c) =>
     Text.rich(TextSpan(children: [for (final label in labels)
       TextSpan(text: '[$label:${c.maxWidth}]', recognizer: TapGestureRecognizer()
-        ..onTap = paywallEvent('pick', args: {'label': label, 'width': c.maxWidth})),
+        ..onTap = context.surfaceEvent(_Events.pick, {'label': label, 'width': c.maxWidth})),
     ])));
 }
-''', className: 'P');
+
+abstract final class _Events {
+  static const pick = SurfaceEvent<Map<String, Object?>>('pick');
+}
+''',
+      className: 'P',
+      rootPackage: 'apps_examples',
+    );
     final parameter =
         probe.classes['P']!.unnamedConstructor!.formalParameters.single;
     final catalog = decodeCatalog(
@@ -171,7 +187,8 @@ class P extends StatelessWidget {
   });
 
   test('span collection controls preserve builder and helper bindings', () async {
-    final probe = await parseMethodExpressionFromSourceForTest(r'''
+    final probe = await parseMethodExpressionFromSourceForTest(
+      r'''
 import 'package:flutter/widgets.dart';
 List<InlineSpan> choose(bool flag, String label) =>
     flag && flag ? [TextSpan(text: label)] : [];
@@ -193,7 +210,10 @@ class P extends StatelessWidget {
       ...signs(flags),
     ])));
 }
-''', className: 'P');
+''',
+      className: 'P',
+      rootPackage: 'apps_examples',
+    );
     final catalog = decodeCatalog(
       File(
         '../restage_core/lib/src/widget_catalog/catalog.json',
@@ -242,7 +262,8 @@ class P extends StatelessWidget {
   test(
     'authored span events retain typed builder frames in installed fixture',
     () async {
-      final probe = await parseMethodExpressionFromSourceForTest(r'''
+      final probe = await parseMethodExpressionFromSourceForTest(
+        r'''
 import 'package:flutter/widgets.dart';
 import 'package:flutter/gestures.dart';
 import 'package:restage/restage.dart';
@@ -254,13 +275,21 @@ class P extends StatelessWidget {
     final captured = '$tag:${c.maxWidth}';
     if (tag == 'old') {
       return Text.rich(TextSpan(text: 'Tap', recognizer:
-        TapGestureRecognizer()..onTap = paywallEvent('pick.old', args: {'value': captured})));
+        TapGestureRecognizer()..onTap = context.surfaceEvent(_Events.pickOld, {'value': captured})));
     }
     return Text.rich(TextSpan(text: 'Tap', recognizer:
-      TapGestureRecognizer()..onTap = paywallEvent('pick.new', args: {'value': captured})));
+      TapGestureRecognizer()..onTap = context.surfaceEvent(_Events.pickNew, {'value': captured})));
   });
 }
-''', className: 'P');
+
+abstract final class _Events {
+  static const pickOld = SurfaceEvent<Map<String, Object?>>('pick.old');
+  static const pickNew = SurfaceEvent<Map<String, Object?>>('pick.new');
+}
+''',
+        className: 'P',
+        rootPackage: 'apps_examples',
+      );
       final parameter =
           probe.classes['P']!.unnamedConstructor!.formalParameters.single;
       final catalog = decodeCatalog(

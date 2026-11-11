@@ -370,7 +370,10 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
           if (typed == null) {
             if (document == null) {
               throw FormatException(
-                'Missing typed emitted event "${emitted.eventName}".',
+                'The surface fires "${emitted.eventName}", which its screen '
+                "doesn't declare. Try declaring the event on the screen, for "
+                "example `static const event = SurfaceEvent<void>('"
+                "${emitted.eventName}');`.",
               );
             }
             // A flow transition consumes the event; with no transition and no
@@ -440,7 +443,10 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
           final prior = events[typed.id];
           if (prior != null &&
               !sameCanonicalJson(prior.toJson(), typed.toJson())) {
-            throw FormatException('Conflicting closure event "${typed.id}".');
+            throw FormatException(
+              'The surface fires "${typed.id}" with two different payloads. '
+              'Try firing it with one payload type everywhere.',
+            );
           }
           events[typed.id] = typed;
         }

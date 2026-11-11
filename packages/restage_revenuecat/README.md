@@ -67,19 +67,25 @@ returned future propagates errors.
 
 ## Author the buttons
 
-A purchase button sends the identifier of the package it displays:
+The adapter acts on two events, so the paywall declares them and fires them
+with `context.surfaceEvent`. A purchase button sends the identifier of the
+package it displays:
 
 ```dart
+static const purchase =
+    SurfaceEvent<Map<String, Object?>>('revenuecat.purchase');
+static const restore = SurfaceEvent<void>('revenuecat.restore');
+
 FilledButton(
-  onPressed: paywallEvent(
-    'revenuecat.purchase',
-    args: {'packageIdentifier': package.identifier},
+  onPressed: context.surfaceEvent(
+    purchase,
+    {'packageIdentifier': package.identifier},
   ),
   child: Text(package.priceString),
 )
 
 TextButton(
-  onPressed: paywallEvent('revenuecat.restore'),
+  onPressed: context.surfaceEvent(restore),
   child: const Text('Restore purchases'),
 )
 ```

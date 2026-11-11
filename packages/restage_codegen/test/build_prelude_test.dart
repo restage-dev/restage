@@ -140,18 +140,23 @@ final String _shadowInlined = _stateful(
   body: "    return const Text('Annual plan');",
 );
 
+const _continueEvent = '''
+abstract final class _Events {
+  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+}''';
+
 final String _eventPrelude = _stateless('PreludeEvent', '''
     final term = 'annual';
     return GestureDetector(
-      onTap: paywallEvent('continue', args: {'term': term}),
+      onTap: context.surfaceEvent(_Events.continueFlow, {'term': term}),
       child: const Text('Go'),
-    );''');
+    );''', extraImports: _continueEvent);
 
 final String _eventInlined = _stateless('InlinedEvent', '''
     return GestureDetector(
-      onTap: paywallEvent('continue', args: {'term': 'annual'}),
+      onTap: context.surfaceEvent(_Events.continueFlow, {'term': 'annual'}),
       child: const Text('Go'),
-    );''');
+    );''', extraImports: _continueEvent);
 
 const String _toggleMembers = '''
   bool annual = false;

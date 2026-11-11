@@ -72,7 +72,7 @@ final class EntryOffer extends StatelessWidget {
             child: const Text('All plans'),
           ),
           GestureDetector(
-            onTap: paywallEvent('skip'),
+            onTap: context.surfaceEvent(PaywallEvents.skip),
             child: const Text('Not now'),
           ),
         ],

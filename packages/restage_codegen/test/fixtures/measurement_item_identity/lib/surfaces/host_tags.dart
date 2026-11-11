@@ -16,7 +16,7 @@ final class HostTags extends StatelessWidget {
         children: [
           for (final tag in tags)
             TextButton(
-              onPressed: surfaceEvent(pick, tag),
+              onPressed: context.surfaceEvent(pick, tag),
               child: Text(tag),
             ),
         ],

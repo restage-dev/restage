@@ -27,7 +27,7 @@ final class FilteredRows extends StatelessWidget {
           for (final row in rows)
             if (row.visible)
               GestureDetector(
-                onTap: surfaceEvent(pick, row.id),
+                onTap: context.surfaceEvent(pick, row.id),
                 child: Text(row.title),
               ),
           const Text('After'),

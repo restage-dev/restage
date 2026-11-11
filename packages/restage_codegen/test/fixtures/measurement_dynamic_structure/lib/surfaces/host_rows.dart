@@ -23,7 +23,7 @@ final class HostRows extends StatelessWidget {
         children: [
           for (final row in rows)
             InkWell(
-              onTap: surfaceEvent(pick, row.id),
+              onTap: context.surfaceEvent(pick, row.id),
               child: Text(row.title),
             ),
         ],

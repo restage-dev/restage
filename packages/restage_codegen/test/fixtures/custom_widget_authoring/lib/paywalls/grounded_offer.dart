@@ -19,14 +19,19 @@ class GroundedOffer extends StatelessWidget {
             const AppText('Go further', large: true),
             AppButton(
               label: 'Start trial',
-              onPressed: paywallEvent('start_trial'),
+              onPressed: context.surfaceEvent(_Events.startTrial),
             ),
             TextButton(
-              onPressed: paywallEvent('close'),
+              onPressed: context.surfaceEvent(_Events.close),
               child: const Text('Not now'),
             ),
             AppLegal(paragraphs: terms, widths: const [1.0, 2.5]),
           ],
         ),
       );
+}
+
+abstract final class _Events {
+  static const startTrial = SurfaceEvent<void>('start_trial');
+  static const close = SurfaceEvent<void>('close');
 }

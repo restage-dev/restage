@@ -25,8 +25,7 @@ void main() {
           "completesOn names the event 'subscribe', which no tap on "
           'this paywall fires.',
         ),
-        contains("paywallEvent('subscribe')"),
-        contains('surfaceEvent(<the declared event constant>)'),
+        contains('context.surfaceEvent(<the declared event constant>)'),
       ),
     );
   });

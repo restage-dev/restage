@@ -62,7 +62,7 @@ class ReelFrequencyScreen extends StatelessWidget {
               ),
               const SizedBox(height: 26),
               GestureDetector(
-                onTap: surfaceEvent(next),
+                onTap: context.surfaceEvent(next),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
@@ -94,7 +94,7 @@ class ReelFrequencyScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               GestureDetector(
-                onTap: surfaceEvent(next),
+                onTap: context.surfaceEvent(next),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
@@ -126,7 +126,7 @@ class ReelFrequencyScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               GestureDetector(
-                onTap: surfaceEvent(next),
+                onTap: context.surfaceEvent(next),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 18),

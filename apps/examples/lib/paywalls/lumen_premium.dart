@@ -45,7 +45,7 @@ class _LumenPremiumPaywallState extends State<LumenPremiumPaywall> {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: paywallEvent('close'),
+                    onTap: context.surfaceEvent(LumenPremiumPaywall.close),
                     child: const Icon(
                       Icons.close_rounded,
                       color: Color(0xFFA9A4BB),
@@ -352,9 +352,9 @@ class _LumenPremiumPaywallState extends State<LumenPremiumPaywall> {
               const SizedBox(height: 12),
               // Start free trial CTA — calm pill; reports the selected plan.
               GestureDetector(
-                onTap: paywallEvent(
-                  'continue',
-                  args: {
+                onTap: context.surfaceEvent(
+                  LumenPremiumPaywall.continueFlow,
+                  {
                     'plan': annualSelected ? 'annual' : 'monthly',
                   },
                 ),
@@ -380,7 +380,7 @@ class _LumenPremiumPaywallState extends State<LumenPremiumPaywall> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   GestureDetector(
-                    onTap: paywallEvent('terms'),
+                    onTap: context.surfaceEvent(LumenPremiumPaywall.terms),
                     child: const Text(
                       'Terms',
                       style: TextStyle(

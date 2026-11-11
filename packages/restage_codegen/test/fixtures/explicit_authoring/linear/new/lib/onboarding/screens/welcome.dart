@@ -12,7 +12,7 @@ final class WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FilledButton(
-      onPressed: surfaceEvent(next),
+      onPressed: context.surfaceEvent(next),
       child: const Text('Continue'),
     );
   }

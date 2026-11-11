@@ -2126,7 +2126,7 @@ final class GetStarted extends StatelessWidget {
     return Center(
       child: ElevatedButton(
         key: const ValueKey('get-started-action'),
-        onPressed: surfaceEvent(continueEvent, 'preview'),
+        onPressed: context.surfaceEvent(continueEvent, 'preview'),
         child: const Text('Get started'),
       ),
     );
@@ -4605,7 +4605,7 @@ final class Mounted extends StatelessWidget {
           'final _restageSurface = _restageSurfaces[this] ??= Mounted( '
               'title: _restageArgument1, );',
           r"_restageRecording.island( 'mounted_Tinted_0', restageOnce<(int,), Widget>( (_restageSurface._count + 1,), (_restageArgs) => _restageRecording.built( Tinted(tint: _restageArgs.$1, child: const Text('a')),",
-          "_restageRecording.island( 'mounted__row_0', _restageSurface._row('b'), events: true, )",
+          "_restageRecording.island('mounted__row_0', _restageSurface._row('b'))",
         ],
         <String>[],
       ),
@@ -6293,20 +6293,17 @@ final class Probed extends StatelessWidget {
             );
           case 'A15':
             copies(
-              'return (() { final a = logA(); return '
-              '_restageRecording.withEvents( Hears(',
+              'return (() { final a = logA(); return Hears(',
             );
             copies(
-              "_restageRecording.island( 'probed_twice_0', "
-              'twice(makeCard()), events: true, ), '
+              "_restageRecording.island('probed_twice_0', twice(makeCard())), "
               "Text(_restageRecording.value('<wireKey>', a)), "
               "Text(_restageRecording.value('<wireKey>', logC())),",
             );
           case 'A44':
             copies(
               "Text(_restageRecording.value('<wireKey>', logC())), "
-              "_restageRecording.island( 'probed_twice_0', "
-              'twice(makeCard()), events: true, ),',
+              "_restageRecording.island('probed_twice_0', twice(makeCard())),",
             );
           case 'G1':
             copies(
@@ -6393,8 +6390,8 @@ final class Probed extends StatelessWidget {
             );
           case 'H19':
             copies(
-              "_restageArgument4 == null ? _restageRecording.taken( '<wireKey>', "
-              "true, const SizedBox(), ) : _restageRecording.taken( '<wireKey>', "
+              "_restageArgument4 == null ? _restageRecording.taken('<wireKey>', "
+              "true, const SizedBox()) : _restageRecording.taken( '<wireKey>', "
               'false, ((Offer o) => Column(',
             );
           case 'H21':
@@ -7062,6 +7059,309 @@ final class Mounted extends StatelessWidget {
     }
   });
 
+  test(
+    'an event fired from another context runs as written',
+    () async {
+      final warnings = <String>[];
+      final flat = (await _generatedPart(
+        '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/receiver.restage.g.dart';
+
+@Screen(id: 'receiver', surface: Surface.general)
+final class Receiver extends StatelessWidget {
+  const Receiver({super.key, this.onHelp});
+
+  final VoidCallback? onHelp;
+
+  static const close = SurfaceEvent<void>('close');
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        TextButton(onPressed: onHelp, child: const Text('Help')),
+        TextButton(
+          onPressed: context.surfaceEvent(close),
+          child: const Text('Close'),
+        ),
+        LayoutBuilder(
+          builder: (inner, constraints) => TextButton(
+            onPressed: inner.surfaceEvent(close),
+            child: const Text('Inner'),
+          ),
+        ),
+      ]);
+}
+''',
+        'receiver',
+        warned: warnings.addAll,
+      )).replaceAll(RegExp(r'\s+'), '');
+      expect(flat, contains('_restageRecording.surfaceEvent(Receiver.close)'));
+      expect(flat, contains('inner.surfaceEvent(Receiver.close)'));
+      expect(
+        warnings.where((warning) => warning.contains('context other than')),
+        isEmpty,
+      );
+    },
+  );
+
+  for (final event in [
+    "const SurfaceEvent<void>('purchase')",
+    'Offer.buy',
+    'MediaQuery.of(context).size.width > 300 ? Offer.later : Offer.buy',
+  ]) {
+    test(
+      'a paywall that fires a reserved event refuses to build: $event',
+      () async {
+        var errors = <String>[];
+        await _generatedPart(
+          '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/offer.restage.g.dart';
+
+@Paywall()
+final class Offer extends StatelessWidget {
+  const Offer({super.key});
+
+  static const buy = SurfaceEvent<void>('purchase');
+  static const later = SurfaceEvent<void>('later');
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+        onPressed: context.surfaceEvent($event),
+        child: const Text('Buy'),
+      );
+}
+''',
+          'offer',
+          refused: (refused) => errors = refused,
+        );
+        final reported = errors
+            .expand((error) => RegExp(r'\[(\w+)\]').allMatches(error))
+            .map((match) => match[1])
+            .toSet();
+        expect(reported, {'unsupportedCommerceAuthoring'});
+        expect(
+          errors.join('\n'),
+          contains("The event name 'purchase' is reserved"),
+        );
+      },
+    );
+  }
+
+  test(
+    'an event built where it fires warns with the declaration to add',
+    () async {
+      final logs = <String>[];
+      await _generatedPart(
+        '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/inline.restage.g.dart';
+
+@Screen(id: 'inline', surface: Surface.general)
+final class Inline extends StatelessWidget {
+  const Inline({super.key});
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+        onPressed: context.surfaceEvent(const SurfaceEvent<void>('help')),
+        child: const Text('Help'),
+      );
+}
+''',
+        'inline',
+        logged: logs.addAll,
+      );
+      final warning = logs.singleWhere((log) => log.contains('where it fires'));
+      expect(warning, contains("so the surface's contract can't name it"));
+      expect(
+        warning,
+        contains(
+          'Try declaring it as a static const field, for example '
+          "`static const myEvent = SurfaceEvent<void>('help');`",
+        ),
+      );
+    },
+  );
+
+  group('a surface that pushes a route', () {
+    String offer(String body) =>
+        '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/offer.restage.g.dart';
+
+// A second screen, which the build lowers into the paywall's navigation.
+@Paywall(id: 'plans')
+class Plans extends StatelessWidget {
+  const Plans({super.key});
+
+  static const pick = SurfaceEvent<void>('pick');
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+        onPressed: context.surfaceEvent(pick),
+        child: const Text('Pick'),
+      );
+}
+
+@Paywall()
+final class Offer extends StatelessWidget {
+  const Offer({super.key});
+
+  @override
+  Widget build(BuildContext context) => $body;
+}
+''';
+
+    test('records its build and gives the route the surface', () async {
+      final part = await _generatedPart(
+        offer(
+          'TextButton(onPressed: () => Navigator.push(context, '
+          'MaterialPageRoute<void>(builder: (_) => const Plans())), '
+          "child: const Text('All plans'))",
+        ),
+        'offer',
+      );
+      final flat = part.replaceAll(RegExp(r'\s+'), ' ');
+      expect(flat, isNot(contains('_restageDesign(Offer())')));
+      expect(
+        flat,
+        contains(
+          'MaterialPageRoute<void>( builder: (_) => '
+          '_restageRecording.route(const Plans()), )',
+        ),
+      );
+    });
+
+    test('wraps a dialog it opens the same way', () async {
+      final part = await _generatedPart(
+        offer(
+          'TextButton(onPressed: () => showDialog<void>(context: context, '
+          'builder: (_) { return const Plans(); }), '
+          "child: const Text('All plans'))",
+        ),
+        'offer',
+      );
+      expect(
+        part.replaceAll(RegExp(r'\s+'), ' '),
+        contains('return _restageRecording.route(const Plans());'),
+      );
+    });
+
+    test('does not warn about a route its recorded copy carries', () async {
+      final logs = <String>[];
+      await _generatedPart(
+        offer(
+          'TextButton(onPressed: () => Navigator.push(context, '
+          'MaterialPageRoute<void>(builder: (_) => const Plans())), '
+          "child: const Text('All plans'))",
+        ).replaceFirst("@Paywall(id: 'plans')\n", ''),
+        'offer',
+        logged: logs.addAll,
+      );
+      // Recorded, so the generated copy carries the surface: no warning.
+      expect(logs.where((log) => log.contains('pushed route')), isEmpty);
+    });
+
+    test('warns about a route pushed outside a recorded copy', () async {
+      final logs = <String>[];
+      await _generatedPart(
+        '${offer("const Text('Plans')")}'
+            '''
+
+class Launcher extends StatelessWidget {
+  const Launcher({super.key});
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute<void>(builder: (_) => const Plans()),
+        ),
+        child: const Text('All plans'),
+      );
+}
+''',
+        'offer',
+        logged: logs.addAll,
+      );
+      expect(
+        logs.where((log) => log.contains('pushed route')).single,
+        'PackageSurfaceCompilerBuilder on \$package\$:\n'
+        'The route at lib/offer.dart:35:51 shows `Plans`, which '
+        'fires `context.surfaceEvent(...)`, but a pushed route is built '
+        'outside the surface that pushes it, so its events refuse. Try '
+        "wrapping the route's content in `InheritedTheme.capture(from: "
+        'context, to: Navigator.of(context).context).wrap(...)`, with the '
+        'context that pushes it.',
+      );
+    });
+
+    test('does not look inside a surface the route shows', () async {
+      final logs = <String>[];
+      await _generatedPart(
+        '${offer("const Text('Plans')")}'
+            '''
+
+class Launcher extends StatelessWidget {
+  const Launcher({super.key});
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => RestageEventDispatcher(
+              onEvent: (_, __) {},
+              child: const Plans(),
+            ),
+          ),
+        ),
+        child: const Text('All plans'),
+      );
+}
+''',
+        'offer',
+        logged: logs.addAll,
+      );
+      expect(logs.where((log) => log.contains('Plans')), isEmpty);
+    });
+
+    test('does not warn about a route that carries the surface', () async {
+      final logs = <String>[];
+      await _generatedPart(
+        offer(
+          'TextButton(onPressed: () => Navigator.push(context, '
+          'MaterialPageRoute<void>(builder: (_) => '
+          'InheritedTheme.capture(from: context, '
+          'to: Navigator.of(context).context).wrap(const Plans()))), '
+          "child: const Text('All plans'))",
+        ),
+        'offer',
+        logged: logs.addAll,
+      );
+      expect(logs.where((log) => log.contains('pushed route')), isEmpty);
+    });
+
+    test('a surface that does not navigate keeps a bare mount', () async {
+      final part = await _generatedPart(
+        offer("const Text('Plans')"),
+        'offer',
+      );
+      final flat = part.replaceAll(RegExp(r'\s+'), ' ');
+      // The fallback is the surface itself, not a copy of its build.
+      expect(flat, contains('return (() => _restageDesign(Offer()))();'));
+      expect(flat, isNot(contains('.route(')));
+    });
+  });
+
   group('a flow step that needs the app', () {
     String step(
       String fields,
@@ -7096,7 +7396,7 @@ final class Welcome extends StatelessWidget {
     $prelude
     return Column(children: [
         $body,
-        FilledButton(onPressed: surfaceEvent(next), child: const Text('Go')),
+        FilledButton(onPressed: context.surfaceEvent(next), child: const Text('Go')),
       ]);
   }
 }
@@ -7123,6 +7423,8 @@ const firstRun = FlowDefinition(
       )).replaceAll(RegExp(r'\s+'), '');
       expect(flat, contains(r'restageStepMount$welcome('));
       expect(flat, contains(r"stepMounts:{'welcome':restageStepMount$welcome"));
+      // The step's recorded events resolve from the step's own context.
+      expect(flat, contains('mount:context);'));
     });
 
     test('gets a mount the flow names', () async {
@@ -7696,7 +7998,7 @@ final class EntryPaywall extends StatelessWidget {
         child: const Text('Choose'),
       ),
       ElevatedButton(
-        onPressed: paywallEvent('skip'),
+        onPressed: context.surfaceEvent(PaywallEvents.skip),
         child: const Text('Skip'),
       ),
     ],

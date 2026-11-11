@@ -61,7 +61,7 @@ class Welcome extends StatelessWidget {
         children: [
           Text('Welcome', style: Theme.of(context).textTheme.headlineMedium),
           FilledButton(
-            onPressed: surfaceEvent(getStarted),
+            onPressed: context.surfaceEvent(getStarted),
             child: const Text('Get started'),
           ),
         ],

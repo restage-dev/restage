@@ -265,7 +265,7 @@ final class $_screenClass extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: ElevatedButton(
-          onPressed: onboardingEvent($_screenEvent),
+          onPressed: context.surfaceEvent($_screenEvent),
           child: const Text('$_screenClass'),
         ),
       );

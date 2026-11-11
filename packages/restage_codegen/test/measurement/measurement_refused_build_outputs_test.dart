@@ -183,7 +183,7 @@ Future<void> _discardLedgerSource({
 String _ledgerSource({bool reshaped = false}) {
   const button = '''
 FilledButton(
-  onPressed: surfaceEvent(activate),
+  onPressed: context.surfaceEvent(activate),
   child: const Text('Activate'),
 )
 ''';

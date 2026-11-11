@@ -16,16 +16,16 @@ final class StaticPlans extends StatelessWidget {
           for (final plan in const ['yearly', 'monthly'])
             TextButton(
               key: ValueKey(plan),
-              onPressed: surfaceEvent(pick, plan),
+              onPressed: context.surfaceEvent(pick, plan),
               child: Text(plan),
             ),
           for (final label in const ['First', 'Second'])
             OutlinedButton(
-              onPressed: surfaceEvent(choose),
+              onPressed: context.surfaceEvent(choose),
               child: Text(label),
             ),
           FilledButton(
-            onPressed: surfaceEvent(choose),
+            onPressed: context.surfaceEvent(choose),
             child: const Text('Alone'),
           ),
         ],

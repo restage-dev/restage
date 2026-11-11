@@ -14,7 +14,7 @@ class SplitOffer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: enabled ? surfaceEvent(startTrial) : surfaceEvent(later),
+        onPressed: enabled ? context.surfaceEvent(startTrial) : context.surfaceEvent(later),
         child: const Text('Start trial'),
       );
 }

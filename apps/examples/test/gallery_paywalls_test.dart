@@ -236,9 +236,8 @@ void main() {
   });
 
   group('gallery escape — a paywall close returns to the gallery', () {
-    // The Fluent Pro card has its own back affordance
-    // (`paywallEvent('close')`); tapping it should return to the gallery (no
-    // host back button needed).
+    // The Fluent Pro card has its own back affordance, which fires an event;
+    // tapping it should return to the gallery (no host back button needed).
     final backArrow = find.byWidgetPredicate(
       (widget) =>
           widget is Icon &&

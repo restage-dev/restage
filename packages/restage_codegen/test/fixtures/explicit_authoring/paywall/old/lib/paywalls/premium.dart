@@ -12,8 +12,12 @@ final class PremiumPaywall extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FilledButton(
-      onPressed: paywallEvent('complete'),
+      onPressed: context.surfaceEvent(_Events.complete),
       child: const Text('Upgrade'),
     );
   }
+}
+
+abstract final class _Events {
+  static const complete = SurfaceEvent<void>('complete');
 }

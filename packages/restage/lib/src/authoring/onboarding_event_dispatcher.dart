@@ -17,76 +17,41 @@ typedef SurfaceEventHandler = void Function(
 typedef OnboardingEventHandler = SurfaceEventHandler;
 
 final Object _dispatcherOwnerZoneKey = Object();
-final List<_RestageEventDispatcherState> _dispatchers =
-    <_RestageEventDispatcherState>[];
-
-/// Returns the sole authored flow-event dispatcher, if one can be proven.
-SurfaceEventHandler? activeSurfaceEventDispatcher() {
-  if (_dispatchers.isEmpty) {
-    recordAuthoringDispatcherRefusal(
-      AuthoringRefusalKind.missingDispatcher,
-    );
-    return null;
-  }
-  if (_dispatchers.length != 1) {
-    recordAuthoringDispatcherRefusal(
-      AuthoringRefusalKind.ambiguousDispatcher,
-    );
-    return null;
-  }
-  return _captureOrRefuse(_dispatchers.single);
-}
-
-/// Returns the dispatcher for [eventId]: the sole mounted one, or else the
-/// only mounted one whose surface declares that event.
-SurfaceEventHandler? surfaceEventDispatcherFor(String eventId) {
-  if (_dispatchers.length < 2) return activeSurfaceEventDispatcher();
-  _RestageEventDispatcherState? declaring;
-  for (final dispatcher in _dispatchers) {
-    if (!dispatcher._declares(eventId)) continue;
-    if (declaring != null) {
-      // Names only generated screen ids, never the authored event or value.
-      recordAuthoringDispatcherRefusal(
-        AuthoringRefusalKind.ambiguousDispatcher,
-        detail: 'more than one mounted surface declares the event: '
-            '${declaring._surfaceName}, ${dispatcher._surfaceName}',
-      );
-      return null;
-    }
-    declaring = dispatcher;
-  }
-  if (declaring == null) {
-    recordAuthoringDispatcherRefusal(AuthoringRefusalKind.ambiguousDispatcher);
-    return null;
-  }
-  return _captureOrRefuse(declaring);
-}
-
 SurfaceEventHandler? _captureOrRefuse(
   _RestageEventDispatcherState owner, {
   RestageFlowEventDispatchBinding? binding,
 }) {
   final dispatcher = owner._capture(binding: binding);
   if (dispatcher == null) {
-    recordAuthoringDispatcherRefusal(AuthoringRefusalKind.ambiguousDispatcher);
+    recordAuthoringDispatcherRefusal(AuthoringRefusalKind.staleCallback);
   }
   return dispatcher;
 }
 
+/// The dispatcher a callback fired from [context] reaches, found without
+/// depending on it: the nearest dispatcher, bound to the flow registration
+/// between it and [context], if any.
 SurfaceEventHandler? surfaceEventDispatcherOf(BuildContext context) {
   final scope = context
-      .dependOnInheritedWidgetOfExactType<_RestageEventDispatcherScope>();
+      .getElementForInheritedWidgetOfExactType<_RestageEventDispatcherScope>();
   if (scope == null) {
-    recordAuthoringDispatcherRefusal(
-      AuthoringRefusalKind.missingDispatcher,
-    );
+    recordAuthoringDispatcherRefusal(AuthoringRefusalKind.missingDispatcher);
     return null;
   }
+  final registration = context
+      .getElementForInheritedWidgetOfExactType<RestageFlowEventDispatchScope>();
   return _captureOrRefuse(
-    scope._owner,
-    binding: RestageFlowEventDispatchScope.maybeOf(context),
+    (scope.widget as _RestageEventDispatcherScope)._owner,
+    binding: registration != null && registration.depth > scope.depth
+        ? RestageFlowEventDispatchScope.bindingAt(context)
+        : null,
   );
 }
+
+/// The depth of the nearest dispatcher above [context], if any.
+int? surfaceEventDispatcherDepth(BuildContext context) => context
+    .getElementForInheritedWidgetOfExactType<_RestageEventDispatcherScope>()
+    ?.depth;
 
 Object? surfaceEventDispatcherOwnerOf(BuildContext context) => context
     .dependOnInheritedWidgetOfExactType<_RestageEventDispatcherScope>()
@@ -94,11 +59,6 @@ Object? surfaceEventDispatcherOwnerOf(BuildContext context) => context
 
 Object? get currentSurfaceEventDispatcherOwner =>
     Zone.current[_dispatcherOwnerZoneKey];
-
-/// Deprecated compatibility spelling for [activeSurfaceEventDispatcher].
-@Deprecated('Use activeSurfaceEventDispatcher instead.')
-OnboardingEventHandler? activeOnboardingEventDispatcher() =>
-    activeSurfaceEventDispatcher();
 
 /// Provides an authored flow-event dispatch handler to its subtree.
 ///
@@ -305,44 +265,7 @@ class _RestageFlowEventHandlerAssociationState
   Widget build(BuildContext context) => widget.child;
 }
 
-/// A dispatcher bound to one surface that names the events it declares, so
-/// context-free events resolve to it when several surfaces are mounted.
-final class DeclaredEventDispatcher extends RestageEventDispatcher {
-  const DeclaredEventDispatcher({
-    super.key,
-    required this.surfaceName,
-    required this.declares,
-    required super.onEvent,
-    required super.child,
-  });
-
-  final String surfaceName;
-  final bool Function(String eventId) declares;
-}
-
-/// Deprecated compatibility spelling for [RestageEventDispatcher].
-@Deprecated('Use RestageEventDispatcher instead.')
-typedef RestageOnboardingEventDispatcher = RestageEventDispatcher;
-
 class _RestageEventDispatcherState extends State<RestageEventDispatcher> {
-  @override
-  void initState() {
-    super.initState();
-    _dispatchers.add(this);
-  }
-
-  bool _declares(String eventId) {
-    final dispatcher = widget;
-    if (!mounted || dispatcher is! DeclaredEventDispatcher) return false;
-    try {
-      return dispatcher.declares(eventId);
-    } on Object {
-      return false;
-    }
-  }
-
-  String get _surfaceName => (widget as DeclaredEventDispatcher).surfaceName;
-
   SurfaceEventHandler? _capture({
     required RestageFlowEventDispatchBinding? binding,
   }) {
@@ -351,9 +274,7 @@ class _RestageEventDispatcherState extends State<RestageEventDispatcher> {
       owner: this,
       binding: binding,
       handler: handler,
-      dispatcherIsActive: () =>
-          mounted &&
-          _dispatchers.any((dispatcher) => identical(dispatcher, this)),
+      dispatcherIsActive: () => mounted,
       handlerIsCurrent: () => widget.onEvent == handler,
       invokeWithOwner: (body) {
         runZoned<void>(
@@ -365,12 +286,6 @@ class _RestageEventDispatcherState extends State<RestageEventDispatcher> {
   }
 
   @override
-  void dispose() {
-    _dispatchers.removeWhere((dispatcher) => identical(dispatcher, this));
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) => _RestageEventDispatcherScope(
         owner: this,
         handler: widget.onEvent,
@@ -378,7 +293,9 @@ class _RestageEventDispatcherState extends State<RestageEventDispatcher> {
       );
 }
 
-final class _RestageEventDispatcherScope extends InheritedWidget {
+// A theme, so a dialog, sheet or menu the surface opens keeps its owner.
+final class _RestageEventDispatcherScope extends InheritedTheme
+    with RestageEventScope {
   const _RestageEventDispatcherScope({
     required _RestageEventDispatcherState owner,
     required SurfaceEventHandler handler,
@@ -390,13 +307,15 @@ final class _RestageEventDispatcherScope extends InheritedWidget {
   final SurfaceEventHandler _handler;
 
   @override
+  Widget wrap(BuildContext context, Widget child) =>
+      _RestageEventDispatcherScope(
+        owner: _owner,
+        handler: _handler,
+        child: child,
+      );
+
+  @override
   bool updateShouldNotify(_RestageEventDispatcherScope oldWidget) =>
       !identical(_owner, oldWidget._owner) ||
       !identical(_handler, oldWidget._handler);
 }
-
-/// Deprecated spelling of [RestageEventDispatcher].
-///
-/// Removed at 3.0.
-@Deprecated('Use RestageEventDispatcher')
-typedef RestageSurfaceEventDispatcher = RestageEventDispatcher;

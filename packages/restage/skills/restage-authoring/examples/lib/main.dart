@@ -66,12 +66,7 @@ class HomePage extends StatelessWidget {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => ProUpgradePaywallSurface(
-                  onEvent: (event) {
-                    if (event is PaywallCustomEvent &&
-                        event.eventName == 'close') {
-                      Navigator.of(context).pop();
-                    }
-                  },
+                  onClose: () => Navigator.of(context).pop(),
                 ),
               ),
             ),

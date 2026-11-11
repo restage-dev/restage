@@ -13,13 +13,17 @@ class CompletingOffer extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         children: [
           FilledButton(
-            onPressed: paywallEvent('subscribe'),
+            onPressed: context.surfaceEvent(subscribe),
             child: const Text('Subscribe'),
           ),
           TextButton(
-            onPressed: paywallEvent('close'),
+            onPressed: context.surfaceEvent(_Events.close),
             child: const Text('Not now'),
           ),
         ],
       );
+}
+
+abstract final class _Events {
+  static const close = SurfaceEvent<void>('close');
 }

@@ -8,6 +8,9 @@ import 'package:restage/restage.dart';
 /// delivered surface. Prices are illustrative.
 @Paywall()
 class NarrateMembershipPaywall extends StatefulWidget {
+  static const close = SurfaceEvent<void>('close');
+  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+
   const NarrateMembershipPaywall({super.key});
 
   @override
@@ -44,7 +47,8 @@ class _NarrateMembershipPaywallState extends State<NarrateMembershipPaywall> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           GestureDetector(
-                            onTap: paywallEvent('close'),
+                            onTap: context
+                                .surfaceEvent(NarrateMembershipPaywall.close),
                             child: const Icon(
                               Icons.arrow_back_ios_new_rounded,
                               color: Color(0xFF5A6B82),
@@ -52,7 +56,8 @@ class _NarrateMembershipPaywallState extends State<NarrateMembershipPaywall> {
                             ),
                           ),
                           GestureDetector(
-                            onTap: paywallEvent('close'),
+                            onTap: context
+                                .surfaceEvent(NarrateMembershipPaywall.close),
                             child: const Icon(
                               Icons.close_rounded,
                               color: Color(0xFF16263C),
@@ -337,9 +342,9 @@ class _NarrateMembershipPaywallState extends State<NarrateMembershipPaywall> {
                                 ),
                                 const SizedBox(height: 4),
                                 GestureDetector(
-                                  onTap: paywallEvent(
-                                    'continue',
-                                    args: {'plan': 'standard'},
+                                  onTap: context.surfaceEvent(
+                                    NarrateMembershipPaywall.continueFlow,
+                                    {'plan': 'standard'},
                                   ),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
@@ -565,9 +570,9 @@ class _NarrateMembershipPaywallState extends State<NarrateMembershipPaywall> {
                                 ),
                                 const SizedBox(height: 4),
                                 GestureDetector(
-                                  onTap: paywallEvent(
-                                    'continue',
-                                    args: {'plan': 'premium'},
+                                  onTap: context.surfaceEvent(
+                                    NarrateMembershipPaywall.continueFlow,
+                                    {'plan': 'premium'},
                                   ),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(

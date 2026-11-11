@@ -4,6 +4,8 @@ import 'package:restage/restage.dart';
 import '../../widgets/pricing_card.dart' show Plan, PlanTier, Price;
 import '../../widgets/plan_board.dart';
 
+import '../../widgets/dismiss_button.dart';
+
 part 'restage.generated/plan_board_showcase.restage.g.dart';
 
 /// A general screen that shows map-backed plan properties.
@@ -15,9 +17,6 @@ part 'restage.generated/plan_board_showcase.restage.g.dart';
 class PlanBoardShowcaseScreen extends StatelessWidget {
   /// Continues from the showcased plans.
   static const act = SurfaceEvent<void>('act');
-
-  /// Dismisses the surface (host-handled custom event).
-  static const dismiss = SurfaceEvent<void>('dismiss');
 
   /// Const constructor.
   const PlanBoardShowcaseScreen({super.key});
@@ -34,13 +33,7 @@ class PlanBoardShowcaseScreen extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  IconButton(
-                    onPressed: surfaceEvent(dismiss),
-                    icon: Icon(
-                      Icons.close_rounded,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
+                  const DismissButton(),
                 ],
               ),
               const Spacer(),
@@ -94,7 +87,7 @@ class PlanBoardShowcaseScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: surfaceEvent(act),
+                onPressed: context.surfaceEvent(act),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

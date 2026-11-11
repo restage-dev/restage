@@ -283,9 +283,9 @@ class LumenPlusCheckoutScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 18),
                       GestureDetector(
-                        onTap: paywallEvent(
-                          'continue',
-                          args: {'plan': 'annual'},
+                        onTap: context.surfaceEvent(
+                          LumenPlusCheckoutScreen.continueFlow,
+                          {'plan': 'annual'},
                         ),
                         child: Container(
                           height: 58,
@@ -328,7 +328,8 @@ class LumenPlusCheckoutScreen extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           GestureDetector(
-                            onTap: paywallEvent('restore_purchases'),
+                            onTap: context.surfaceEvent(
+                                LumenPlusCheckoutScreen.restorePurchases),
                             child: const Text(
                               'Restore',
                               style: TextStyle(
@@ -339,7 +340,8 @@ class LumenPlusCheckoutScreen extends StatelessWidget {
                           ),
                           const SizedBox(width: 18),
                           GestureDetector(
-                            onTap: paywallEvent('terms'),
+                            onTap: context
+                                .surfaceEvent(LumenPlusCheckoutScreen.terms),
                             child: const Text(
                               'Terms',
                               style: TextStyle(
@@ -350,7 +352,8 @@ class LumenPlusCheckoutScreen extends StatelessWidget {
                           ),
                           const SizedBox(width: 18),
                           GestureDetector(
-                            onTap: paywallEvent('privacy'),
+                            onTap: context
+                                .surfaceEvent(LumenPlusCheckoutScreen.privacy),
                             child: const Text(
                               'Privacy',
                               style: TextStyle(

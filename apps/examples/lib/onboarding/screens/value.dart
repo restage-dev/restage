@@ -91,7 +91,7 @@ class ValueScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: surfaceEvent(next),
+                      onPressed: context.surfaceEvent(next),
                       child: const Text(
                         'Continue',
                         style: TextStyle(

@@ -95,7 +95,7 @@ class StrideWelcomeScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: surfaceEvent(start),
+                      onPressed: context.surfaceEvent(start),
                       child: const Text(
                         'Get started',
                         style: TextStyle(

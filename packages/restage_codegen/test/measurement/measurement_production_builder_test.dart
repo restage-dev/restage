@@ -103,23 +103,23 @@ final class MeasuredScreen extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         children: [
           FilledButton(
-            onPressed: surfaceEvent(activate),
+            onPressed: context.surfaceEvent(activate),
             child: const Text('Ordinary'),
           ),
-          InlineAction(onPressed: surfaceEvent(activate)),
-          OpaqueAction(onPressed: surfaceEvent(activate)),
+          InlineAction(onPressed: context.surfaceEvent(activate)),
+          OpaqueAction(onPressed: context.surfaceEvent(activate)),
           FilledButton(
             key: const ValueKey<String>('repeated-a'),
-            onPressed: surfaceEvent(activate),
+            onPressed: context.surfaceEvent(activate),
             child: const Text('Repeated A'),
           ),
           FilledButton(
-            onPressed: surfaceEvent(activate),
+            onPressed: context.surfaceEvent(activate),
             child: const Text('Repeated B'),
           ),
           GestureDetector(
-            onTap: surfaceEvent(activate),
-            onDoubleTap: surfaceEvent(inspect),
+            onTap: context.surfaceEvent(activate),
+            onDoubleTap: context.surfaceEvent(inspect),
             child: const Text('Multi-slot'),
           ),
         ],
@@ -142,7 +142,7 @@ final class MeasuredScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final action = FilledButton(
-      onPressed: surfaceEvent(activate),
+      onPressed: context.surfaceEvent(activate),
       child: const Text('Go'),
     );
     return Column(children: [action]);
@@ -167,7 +167,7 @@ final class MeasuredScreen extends StatelessWidget {
     final children = <Widget>[
       const Text('First'),
       FilledButton(
-        onPressed: surfaceEvent(activate),
+        onPressed: context.surfaceEvent(activate),
         child: const Text('Activate'),
       ),
       const Text('Last'),
@@ -220,7 +220,7 @@ final class MeasuredScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      InlineActions(onPressed: surfaceEvent(activate));
+      InlineActions(onPressed: context.surfaceEvent(activate));
 }
 ''';
 
@@ -241,7 +241,7 @@ final class MeasuredScreen extends StatelessWidget {
         children: <Widget>[
           const Text('First'),
           FilledButton(
-            onPressed: surfaceEvent(activate),
+            onPressed: context.surfaceEvent(activate),
             child: const Text('Activate'),
           ),
           const Text('Last'),
@@ -320,30 +320,30 @@ final class MeasuredScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final callback = surfaceEvent(aliased);
+    final callback = context.surfaceEvent(aliased);
     final oneLocal = FilledButton(
-      onPressed: surfaceEvent(local),
+      onPressed: context.surfaceEvent(local),
       child: const Text('One local'),
     );
     final firstTwiceLocal = FilledButton(
-      onPressed: surfaceEvent(localTwice),
+      onPressed: context.surfaceEvent(localTwice),
       child: const Text('First twice local'),
     );
     final secondTwiceLocal = FilledButton(
-      onPressed: surfaceEvent(localTwice),
+      onPressed: context.surfaceEvent(localTwice),
       child: const Text('Second twice local'),
     );
     final children = <Widget>[
       FilledButton(
-        onPressed: surfaceEvent(direct),
+        onPressed: context.surfaceEvent(direct),
         child: const Text('Direct'),
       ),
       FilledButton(
-        onPressed: surfaceEvent(repeated),
+        onPressed: context.surfaceEvent(repeated),
         child: const Text('Repeated A'),
       ),
       FilledButton(
-        onPressed: surfaceEvent(repeated),
+        onPressed: context.surfaceEvent(repeated),
         child: const Text('Repeated B'),
       ),
       oneLocal,
@@ -351,16 +351,16 @@ final class MeasuredScreen extends StatelessWidget {
       secondTwiceLocal,
       FilledButton(onPressed: callback, child: const Text('Alias A')),
       FilledButton(
-        onPressed: surfaceEvent(aliased),
+        onPressed: context.surfaceEvent(aliased),
         child: const Text('Alias B'),
       ),
       GestureDetector(
-        onTap: surfaceEvent(aliased),
-        onDoubleTap: surfaceEvent(aliased),
+        onTap: context.surfaceEvent(aliased),
+        onDoubleTap: context.surfaceEvent(aliased),
         child: const Text('Two slots'),
       ),
-      InlineAction(onPressed: surfaceEvent(aliased)),
-      OpaqueAction(onPressed: surfaceEvent(aliased)),
+      InlineAction(onPressed: context.surfaceEvent(aliased)),
+      OpaqueAction(onPressed: context.surfaceEvent(aliased)),
     ];
     return Column(children: children);
   }
@@ -1229,9 +1229,13 @@ final class PremiumPaywall extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: paywallEvent('complete'),
+        onPressed: context.surfaceEvent(_Events.complete),
         child: const Text('Upgrade'),
       );
+}
+
+abstract final class _Events {
+  static const complete = SurfaceEvent<void>('complete');
 }
 ''';
       const intro = '''
@@ -1450,7 +1454,7 @@ final class MeasuredChildEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: surfaceEvent(finish),
+        onPressed: context.surfaceEvent(finish),
         child: const Text('Finish child'),
       );
 }
@@ -1505,12 +1509,12 @@ class _ParentEntryState extends State<ParentEntry> {
   Widget build(BuildContext context) => Column(
         children: [
           FilledButton(
-            onPressed: surfaceEvent(ParentEntry.advance),
+            onPressed: context.surfaceEvent(ParentEntry.advance),
             child: const Text('Continue'),
           ),
           annual && trial
               ? OutlinedButton(
-                  onPressed: surfaceEvent(ParentEntry.advance),
+                  onPressed: context.surfaceEvent(ParentEntry.advance),
                   child: const Text('Start trial'),
                 )
               : const Text('Details'),
@@ -1706,7 +1710,7 @@ final class WelcomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: onboardingEvent(finish),
+        onPressed: context.surfaceEvent(finish),
         child: const Text('Finish'),
       );
 }
@@ -1908,7 +1912,7 @@ final class AnswerScreen extends StatelessWidget {
   const AnswerScreen({super.key});
   static const answer = SurfaceEvent<String>('answer');
   @override
-  Widget build(BuildContext context) => FilledButton(onPressed: surfaceEvent(answer, 'cost'), child: const Text('Cost'));
+  Widget build(BuildContext context) => FilledButton(onPressed: context.surfaceEvent(answer, 'cost'), child: const Text('Cost'));
 }
 ''';
       const flow = '''
@@ -1974,7 +1978,7 @@ final class AnswerScreen extends StatelessWidget {
   const AnswerScreen({super.key});
   static const answer = SurfaceEvent<String>('answer');
   @override
-  Widget build(BuildContext context) => FilledButton(onPressed: surfaceEvent(answer, 'cost'), child: const Text('Cost'));
+  Widget build(BuildContext context) => FilledButton(onPressed: context.surfaceEvent(answer, 'cost'), child: const Text('Cost'));
 }
 ''';
     const definitionFlow = '''
@@ -2067,7 +2071,11 @@ final class WelcomeOfferPaywall extends StatelessWidget {
   const WelcomeOfferPaywall({super.key});
   static const complete = SurfaceEvent<void>('complete');
   @override
-  Widget build(BuildContext context) => FilledButton(onPressed: paywallEvent('complete'), child: const Text('Start'));
+  Widget build(BuildContext context) => FilledButton(onPressed: context.surfaceEvent(_Events.complete), child: const Text('Start'));
+}
+
+abstract final class _Events {
+  static const complete = SurfaceEvent<void>('complete');
 }
 ''';
     const goalScreen = '''
@@ -2079,7 +2087,7 @@ final class GoalScreen extends StatelessWidget {
   const GoalScreen({super.key});
   static const choose = SurfaceEvent<String>('choose');
   @override
-  Widget build(BuildContext context) => FilledButton(onPressed: surfaceEvent(choose, 'sleep'), child: const Text('Sleep'));
+  Widget build(BuildContext context) => FilledButton(onPressed: context.surfaceEvent(choose, 'sleep'), child: const Text('Sleep'));
 }
 ''';
     const flow = '''
@@ -2813,7 +2821,7 @@ Map<String, Object?> _activeLedgerIdentityProjection(
 String _ledgerSource({bool wrapped = false, bool repeated = false}) {
   final button = '''
 FilledButton(
-  onPressed: surfaceEvent(activate),
+  onPressed: context.surfaceEvent(activate),
   child: const Text('Activate'),
 )
 ''';
@@ -2975,7 +2983,7 @@ final class Welcome extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         children: [
           (ElevatedButton(
-            onPressed: surfaceEvent(activate),
+            onPressed: context.surfaceEvent(activate),
             child: const Text('Continue'),
           )),
           ${mixed ? "if (true) const Text('Sentinel')," : ''}
@@ -3026,20 +3034,20 @@ final class Welcome extends StatelessWidget {
 
   static const activate = SurfaceEvent<void>('activate');
 
-  Widget action() => ElevatedButton(
-        onPressed: surfaceEvent(activate),
+  Widget action(BuildContext context) => ElevatedButton(
+        onPressed: context.surfaceEvent(activate),
         child: const Text('Helper'),
       );
 
   @override
   Widget build(BuildContext context) => Column(
         children: [
-          ${includeHelper ? 'action(),' : ''}
-          InlineAction(onPressed: surfaceEvent(activate)),
+          ${includeHelper ? 'action(context),' : ''}
+          InlineAction(onPressed: context.surfaceEvent(activate)),
           ${mixed ? '''
 if (true)
             ElevatedButton(
-              onPressed: surfaceEvent(activate),
+              onPressed: context.surfaceEvent(activate),
               child: const Text('Selected'),
             ),''' : ''}
         ],

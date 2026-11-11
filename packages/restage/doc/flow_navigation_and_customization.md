@@ -36,7 +36,7 @@ final class GoalScreen extends StatelessWidget {
       ),
       body: Center(
         child: FilledButton(
-          onPressed: surfaceEvent(next),
+          onPressed: context.surfaceEvent(next),
           child: const Text('Continue'),
         ),
       ),
@@ -274,7 +274,7 @@ final class SerenePaywall extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: paywallEvent('continue'),
+        onPressed: context.surfaceEvent(continueFlow),
         child: const Text('Continue'),
       );
 }

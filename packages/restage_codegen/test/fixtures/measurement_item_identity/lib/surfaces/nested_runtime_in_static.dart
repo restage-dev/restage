@@ -26,7 +26,7 @@ final class NestedRuntimeInStatic extends StatelessWidget {
                 Text(tier),
                 for (final row in rows)
                   InkWell(
-                    onTap: surfaceEvent(pick, row.id),
+                    onTap: context.surfaceEvent(pick, row.id),
                     child: Text(row.id),
                   ),
               ],

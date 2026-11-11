@@ -37,11 +37,11 @@ final class WeeklyRecap extends StatelessWidget {
           for (final highlight in kHighlights) Text(highlight),
           const SizedBox(height: 24),
           FilledButton(
-            onPressed: surfaceEvent(openStats, 'weekly'),
+            onPressed: context.surfaceEvent(openStats, 'weekly'),
             child: const Text('See your stats'),
           ),
           TextButton(
-            onPressed: surfaceEvent(dismiss),
+            onPressed: context.surfaceEvent(dismiss),
             child: const Text('Not now'),
           ),
         ],

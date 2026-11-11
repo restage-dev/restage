@@ -1,0 +1,19 @@
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+const shut = SurfaceEvent<void>('shut');
+
+VoidCallback closer() => surfaceEvent(shut);
+
+Widget orphan(BuildContext context) =>
+    TextButton(onPressed: paywallEvent('orphan'), child: const Text('x'));
+
+class Plans extends StatelessWidget {
+  const Plans({super.key, required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) =>
+      TextButton(onPressed: paywallEvent(name), child: const Text('Go'));
+}

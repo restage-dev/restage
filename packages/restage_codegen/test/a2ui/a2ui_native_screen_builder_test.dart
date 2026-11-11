@@ -176,7 +176,7 @@ class OpaqueScreen extends StatelessWidget {
         children: <Widget>[
           Text(title),
           ElevatedButton(
-            onPressed: surfaceEvent(continued, 'preview'),
+            onPressed: context.surfaceEvent(continued, 'preview'),
             child: const Text('Continue'),
           ),
         ],

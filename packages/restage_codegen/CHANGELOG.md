@@ -20,6 +20,17 @@
   never misses the asset. A keyed build with an `ios/Runner` directory warns
   when the entry is missing. A target whose `sources:` leave out `pubspec.yaml`
   has it read from the package root for this check.
+- **Breaking:** The compiler no longer recognizes `paywallEvent`. A paywall fires typed events with `context.surfaceEvent(...)`, which compile to the same payload event, and reserved commerce names are refused on the event's id.
+
+- **Breaking:** Screens, flows and paywalls fire authored events with `context.surfaceEvent(...)`, which compiles to the same event as before. The top-level `surfaceEvent` and `onboardingEvent` helpers are no longer recognized. Generated mounts pass their context to the screen or paywall they create, so the events their builds record reach that surface.
+
+- Add `dart run restage_codegen:migrate_events [paths]`, which rewrites the removed `surfaceEvent`, `onboardingEvent`, `surfaceEventWithContext` and `paywallEvent` calls to `context.surfaceEvent(...)`, declares each `paywallEvent` name as a `SurfaceEvent` on its class, and prints the calls it can't rewrite with the fix. A second run changes nothing.
+
+- A screen's or paywall's contract includes each `SurfaceEvent` constant its build fires, including one declared in a shared class and fired from a widget the build inlines, so a surface no longer redeclares shared events. An event fired under the same id and payload as a declared one is that event. Two events with one id and different payloads, or two with different ids under one name, refuse the build and name the fix. A widget the build never reads still needs the surface to declare its events.
+
+- A paywall that fires a reserved commerce name refuses the build whether the event is a declared constant or constructed in place, and whether the delivered design or the generated mount fires it.
+
+- A generated mount warns when its build fires `surfaceEvent` on a context other than the build method's own, and runs that call as written.
 
 - **Breaking:** generated flow and screen mounts take optional
   `fallbackBuilder` and `errorBuilder` in place of `unavailable:`; generated

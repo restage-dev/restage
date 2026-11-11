@@ -67,8 +67,7 @@ void main() {
 
     final app = await run(const PulsePaywall());
     final failures = <PaywallLoadFailed>[];
-    final delivered = await run(RestagePaywall(
-      id: 'pulse_paywall',
+    final delivered = await run(PulsePaywallSurface(
       resolver: _StaticResolver(bytes),
       onEvent: (e) {
         if (e is PaywallLoadFailed) failures.add(e);

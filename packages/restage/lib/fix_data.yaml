@@ -68,3 +68,19 @@ transforms:
       - kind: 'renameParameter'
         oldName: 'fallback'
         newName: 'fallbackBuilder'
+  - title: "Rename to 'RestageEventDispatcher'"
+    date: 2026-11-08
+    element:
+      uris: ['package:restage/restage.dart']
+      typedef: 'RestageOnboardingEventDispatcher'
+    changes:
+      - kind: 'rename'
+        newName: 'RestageEventDispatcher'
+  - title: "Rename to 'RestageEventDispatcher'"
+    date: 2026-11-08
+    element:
+      uris: ['package:restage/restage.dart']
+      typedef: 'RestageSurfaceEventDispatcher'
+    changes:
+      - kind: 'rename'
+        newName: 'RestageEventDispatcher'

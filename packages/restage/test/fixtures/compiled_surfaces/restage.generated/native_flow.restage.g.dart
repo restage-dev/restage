@@ -806,13 +806,14 @@ final class NativeNoticeSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ignore: unused_local_variable
-    final _restageRecording = RestageRecording();
+    final _restageRecording = RestageRecording(owner: context);
     Widget _restageDesign(Widget _restageBuilt) {
       return RestageScreen<Never>(
         screen: nativeNoticeRef,
         placementBinding: RestageScreen.generatedPlacementBinding(
           definition: nativeNoticePlacementDefinition,
           name: _restagePlacementName,
+          eventOwner: context,
         ),
         context: <String, Object?>{
           ..._restageRecording.values,
@@ -911,7 +912,7 @@ final class NativeOfferSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ignore: unused_local_variable
-    final _restageRecording = RestageRecording();
+    final _restageRecording = RestageRecording(owner: context);
     Widget _restageDesign(Widget _restageBuilt) {
       const SurfaceVocabulary(
         widgets: RestageWidgetLibraries.fromVocabulary(
@@ -924,6 +925,7 @@ final class NativeOfferSurface extends StatelessWidget {
         placementBinding: RestagePaywall.generatedPlacementBinding(
           definition: nativeOfferPlacementDefinition,
           name: _restagePlacementName,
+          eventOwner: context,
         ),
         fallbackBuilder: fallbackBuilder ?? ((_) => _restageBuilt),
         errorBuilder: errorBuilder,

@@ -1,0 +1,18 @@
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+class Picker extends StatefulWidget {
+  const Picker({super.key});
+
+  static const pick = SurfaceEvent<bool>('pick');
+
+  @override
+  State<Picker> createState() => _PickerState();
+}
+
+class _PickerState extends State<Picker> {
+  Widget _toggle() => Switch(value: false, onChanged: context.surfaceEvent(Picker.pick));
+
+  @override
+  Widget build(BuildContext context) => _toggle();
+}

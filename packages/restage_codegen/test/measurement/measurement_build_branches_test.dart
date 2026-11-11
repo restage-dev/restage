@@ -27,11 +27,11 @@ final class Paths extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (step == null) {
-      return TextButton(onPressed: surfaceEvent(next), child: const Text('none'));
+      return TextButton(onPressed: context.surfaceEvent(next), child: const Text('none'));
     }
     return switch (flag) {
-      true => TextButton(onPressed: surfaceEvent(next), child: const Text('on')),
-      false => TextButton(onPressed: surfaceEvent(next), child: const Text('off')),
+      true => TextButton(onPressed: context.surfaceEvent(next), child: const Text('on')),
+      false => TextButton(onPressed: context.surfaceEvent(next), child: const Text('off')),
     };
   }
 }
@@ -57,7 +57,7 @@ final class Spread extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(children: [
-        TextButton(onPressed: surfaceEvent(next), child: const Text('go')),
+        TextButton(onPressed: context.surfaceEvent(next), child: const Text('go')),
         Column(children: [
           const Text('h'),
           ...rows([

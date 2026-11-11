@@ -25,9 +25,13 @@ class _TogglePlansState extends State<TogglePlans> {
               child: Text(label),
             ),
           TextButton(
-            onPressed: paywallEvent('close'),
+            onPressed: context.surfaceEvent(_Events.close),
             child: const Text('Close'),
           ),
         ],
       );
+}
+
+abstract final class _Events {
+  static const close = SurfaceEvent<void>('close');
 }

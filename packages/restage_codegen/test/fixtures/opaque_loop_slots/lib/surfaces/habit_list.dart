@@ -166,7 +166,7 @@ final class HabitList extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   ReorderableColumn(
-                    onReorder: surfaceEvent(reorderRows),
+                    onReorder: context.surfaceEvent(reorderRows),
                     children: [
                       for (final habit in habits)
                         HabitRow(
@@ -183,37 +183,37 @@ final class HabitList extends StatelessWidget {
                           days: [
                             DayTile(
                               color: const Color(0xFF37B6FF),
-                              onTap: surfaceEvent(toggleDay, habit.id),
+                              onTap: context.surfaceEvent(toggleDay, habit.id),
                             ),
                             DayTile(
                               color: const Color(0xFF37B6FF),
-                              onTap: surfaceEvent(toggleDay, habit.id),
+                              onTap: context.surfaceEvent(toggleDay, habit.id),
                             ),
                             DayTile(
                               color: Theme.of(context)
                                   .colorScheme
                                   .surfaceContainerHighest,
-                              onTap: surfaceEvent(toggleDay, habit.id),
+                              onTap: context.surfaceEvent(toggleDay, habit.id),
                             ),
                             DayTile(
                               color: const Color(0xFF37B6FF),
-                              onTap: surfaceEvent(toggleDay, habit.id),
+                              onTap: context.surfaceEvent(toggleDay, habit.id),
                             ),
                             DayTile(
                               color: const Color(0xFF37B6FF),
-                              onTap: surfaceEvent(toggleDay, habit.id),
+                              onTap: context.surfaceEvent(toggleDay, habit.id),
                             ),
                             DayTile(
                               color: Theme.of(context)
                                   .colorScheme
                                   .surfaceContainerHighest,
-                              onTap: surfaceEvent(toggleDay, habit.id),
+                              onTap: context.surfaceEvent(toggleDay, habit.id),
                             ),
                             DayTile(
                               color: Theme.of(context)
                                   .colorScheme
                                   .surfaceContainerHighest,
-                              onTap: surfaceEvent(toggleDay, habit.id),
+                              onTap: context.surfaceEvent(toggleDay, habit.id),
                             ),
                           ],
                         ),

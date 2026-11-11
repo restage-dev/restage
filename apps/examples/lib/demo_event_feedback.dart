@@ -31,6 +31,12 @@ String? demoPaywallEventLabel(RestageEvent event) {
 void showDemoPaywallEventFeedback(BuildContext context, RestageEvent event) {
   final label = demoPaywallEventLabel(event);
   if (label == null) return;
+  showDemoFeedback(context, label);
+}
+
+/// Shows [label] as a floating `SnackBar`, the demo's stand-in for real
+/// behavior.
+void showDemoFeedback(BuildContext context, String label) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(
@@ -40,4 +46,40 @@ void showDemoPaywallEventFeedback(BuildContext context, RestageEvent event) {
         behavior: SnackBarBehavior.floating,
       ),
     );
+}
+
+/// The demo's answers to a paywall's own callbacks: closing returns to the
+/// gallery, and every other action shows what an app would do.
+final class PaywallDemoActions {
+  /// Actions for the paywall shown in [context].
+  const PaywallDemoActions(this.context);
+
+  /// The paywall's context.
+  final BuildContext context;
+
+  /// Returns to the gallery.
+  void close() => Navigator.of(context).maybePop();
+
+  /// Continues with [plan].
+  void plan(String plan) => showDemoFeedback(context, 'Continue: $plan');
+
+  /// Continues with [tier] billed per [term].
+  void tierTerm(String tier, String term) =>
+      showDemoFeedback(context, 'Continue: $tier, $term');
+
+  /// Continues to the purchase.
+  void proceed() => showDemoFeedback(context, 'Continue');
+
+  /// Opens the terms of service.
+  void terms() => showDemoFeedback(context, 'Would open the Terms of Service');
+
+  /// Opens the privacy policy.
+  void privacy() => showDemoFeedback(context, 'Would open the Privacy Policy');
+
+  /// Opens the subscription details.
+  void subscriptionInfo() =>
+      showDemoFeedback(context, 'Would open the subscription details');
+
+  /// Restores earlier purchases.
+  void restore() => showDemoFeedback(context, 'Restore purchases');
 }

@@ -58,8 +58,7 @@ void main() {
 
     final app = await run(const PricingShowcase());
     final failures = <PaywallLoadFailed>[];
-    final delivered = await run(RestagePaywall(
-      id: 'pricing_showcase',
+    final delivered = await run(PricingShowcaseSurface(
       resolver: _StaticResolver(bytes),
       onEvent: (e) {
         if (e is PaywallLoadFailed) failures.add(e);

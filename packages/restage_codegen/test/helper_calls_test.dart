@@ -8,10 +8,10 @@ void main() {
   group('HelperRegistry', () {
     final registry = productionPaywallHelperRegistry();
 
-    test('recognizes paywallEvent', () {
-      final h = registry.find('paywallEvent', 'package:restage');
+    test('recognizes surfaceEvent', () {
+      final h = registry.find('surfaceEvent', 'package:restage');
       expect(h, isNotNull);
-      expect(h!.name, 'paywallEvent');
+      expect(h!.name, 'surfaceEvent');
       expect(h.returnCategory, HelperReturnCategory.voidCallback);
     });
 
@@ -27,7 +27,7 @@ void main() {
     });
 
     test('returns null for wrong library origin', () {
-      final h = registry.find('paywallEvent', 'package:other_package');
+      final h = registry.find('surfaceEvent', 'package:other_package');
       expect(h, isNull);
     });
 
@@ -36,16 +36,16 @@ void main() {
       // which may be a sub-path like `package:restage/src/.../foo.dart`.
       // The match should still succeed because the prefix matches.
       final h = registry.find(
-        'paywallEvent',
-        'package:restage/src/authoring/paywall_event.dart',
+        'surfaceEvent',
+        'package:restage/src/authoring/onboarding_event.dart',
       );
       expect(h, isNotNull);
     });
 
     test('library origin rejects package-name lookalikes', () {
       final h = registry.find(
-        'paywallEvent',
-        'package:restage_flutter_sdk_fake/src/paywall_event.dart',
+        'surfaceEvent',
+        'package:restage_flutter_sdk_fake/src/onboarding_event.dart',
       );
       expect(h, isNull);
     });
@@ -59,36 +59,16 @@ void main() {
     });
   });
 
-  group('paywallHelpers translations', () {
-    test('paywallEvent("name") → event "name" {}', () {
-      final h = paywallHelpers.firstWhere((d) => d.name == 'paywallEvent');
-      final out = h.translate(
-        const HelperCallArgs(
-          positional: ['"continue"'],
-          named: {},
-        ),
+  group('surfaceEvent translations', () {
+    test('an event with no value → event "name" {}', () {
+      final out = surfaceEventHelper.translate(
+        const HelperCallArgs(positional: ['"continue"'], named: {}),
       );
       expect(out, 'event "continue" {}');
     });
 
-    test('paywallEvent with args', () {
-      final h = paywallHelpers.firstWhere((d) => d.name == 'paywallEvent');
-      final out = h.translate(
-        const HelperCallArgs(
-          positional: ['"foo"'],
-          named: {'args': '{ k: 1 }'},
-        ),
-      );
-      expect(out, 'event "foo" { k: 1 }');
-    });
-  });
-
-  group('onboardingHelpers translations', () {
-    test('onboardingEvent with payload', () {
-      final h = onboardingHelpers.firstWhere(
-        (d) => d.name == 'onboardingEvent',
-      );
-      final out = h.translate(
+    test('an event with a payload carries it', () {
+      final out = surfaceEventHelper.translate(
         const HelperCallArgs(
           positional: [
             '"analyticsTap"',

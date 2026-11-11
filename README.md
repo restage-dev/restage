@@ -45,7 +45,7 @@ final class WelcomeScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text('Welcome', style: Theme.of(context).textTheme.headlineMedium),
-          FilledButton(onPressed: surfaceEvent(next), child: const Text('Get started')),
+          FilledButton(onPressed: context.surfaceEvent(next), child: const Text('Get started')),
         ],
       );
 }

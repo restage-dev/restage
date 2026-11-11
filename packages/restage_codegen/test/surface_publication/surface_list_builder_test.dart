@@ -392,7 +392,7 @@ final class EntryPaywall extends StatelessWidget {
         child: const Text('Choose'),
       ),
       ElevatedButton(
-        onPressed: paywallEvent('skip'),
+        onPressed: context.surfaceEvent(PaywallEvents.skip),
         child: const Text('Skip'),
       ),
     ],

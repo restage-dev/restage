@@ -2354,16 +2354,17 @@ final class Offer extends StatelessWidget {
   const Offer({super.key});
 
   static const subscribe = SurfaceEvent<Map<String, Object?>>('subscribe');
+  static const close = SurfaceEvent<void>('close');
 
   @override
   Widget build(BuildContext context) => Column(
         children: [
           ElevatedButton(
-            onPressed: paywallEvent('subscribe'),
+            onPressed: context.surfaceEvent(Offer.subscribe),
             child: const Text('Subscribe'),
           ),
           ElevatedButton(
-            onPressed: paywallEvent('close'),
+            onPressed: context.surfaceEvent(Offer.close),
             child: const Text('Not now'),
           ),
         ],

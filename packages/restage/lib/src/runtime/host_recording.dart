@@ -7,9 +7,7 @@ import 'package:restage_core/restage_core.dart'
 import 'package:rfw/rfw.dart' show DataSource;
 
 import '../authoring/authoring_refusal_diagnostic.dart';
-import '../authoring/event_dispatcher.dart';
 import '../authoring/onboarding_event.dart' as authoring;
-import '../authoring/paywall_event.dart' as authoring_paywall;
 import '../authoring/paywall_event_dispatch.dart';
 import '../flow/flow_descriptors.dart' show SurfaceEvent;
 import 'host_value.dart';
@@ -20,12 +18,16 @@ import 'island_scope.dart';
 final class RestageRecording {
   /// Records for a mount; [owner] keys each island the build places, so it
   /// keeps its element when the design replaces the build's own widget.
-  RestageRecording({this.owner}) {
+  /// A step mount passes its [mount] context, which its events fire from;
+  /// any other mount's events reach the surface that hosts [owner].
+  RestageRecording({this.owner, BuildContext? mount}) : _mount = mount {
     if (owner case final owner?) RestageIslandScope.forgetUnmounted(owner);
   }
 
   /// The mount the islands belong to.
   final Object? owner;
+
+  final BuildContext? _mount;
 
   /// The values recorded outside any loop, and each loop's items.
   final Map<String, Object?> values = {};
@@ -39,8 +41,6 @@ final class RestageRecording {
 
   /// Records the app widget [widget] the design places as the island [name],
   /// or how to build it around the design's own content, and returns it.
-  /// An island whose own code fires events passes [events], so it builds
-  /// inside its surface's event registration.
   ///
   /// Placed inside a value reads place, through the [spots] those reads mark
   /// with [spot] (outermost first), it is keyed only at the spot they name.
@@ -54,7 +54,6 @@ final class RestageRecording {
     String? items,
     Widget Function(BuildContext context, DataSource source)? build,
     List<int>? spots,
-    bool events = false,
     Widget Function(W widget)? place,
   }) {
     final path = items == null ? const <int>[] : _cursors[items]!.path;
@@ -69,12 +68,7 @@ final class RestageRecording {
     final at = '$name#${path.join('.')}';
     _islands[at] = build ?? _builds[widget] ?? widget;
     _appKeys[at] = widget.key;
-    if (events) _eventIslands.add(at);
-    final placed = events
-        ? Builder(
-            builder: (context) =>
-                RestagePaywallEventDispatcher.island(context, widget))
-        : widget;
+    final placed = widget;
     if (owner == null) return placed;
     final keyed = RestageIslandScope.keyed(owner, name, placed,
         items: path, appKey: widget.key);
@@ -99,59 +93,44 @@ final class RestageRecording {
 
   final Map<String, Key?> _appKeys = {};
 
-  final Set<String> _eventIslands = {};
-
-  /// Returns [widget], an app widget whose own code fires events, built
-  /// inside its surface's event registration.
-  Widget withEvents(Widget widget) => Builder(
-        builder: (context) =>
-            RestagePaywallEventDispatcher.island(context, widget),
+  /// [child], the content of a route the build pushes, carrying the event
+  /// scopes of the surface this recording's mount shows.
+  Widget route(Widget child) => authoring.recordedRoute(
+        owner: owner,
+        from: _mount,
+        child: child,
       );
 
-  /// A callback firing the paywall event [name], as `paywallEvent` does,
-  /// through the dispatcher of the surface this recording's mount shows.
-  void Function([Object?]) event(
-    String name, {
-    Map<String, Object?> args = const <String, Object?>{},
-  }) =>
-      ([Object? value = _noValue]) => _dispatch(
-            AuthoringHelperKind.paywallEvent,
-            name,
-            identical(value, _noValue)
-                ? args
-                : <String, Object?>{...args, 'value': value},
-            otherwise: () => identical(value, _noValue)
-                ? authoring_paywall.paywallEvent(name, args: args)()
-                : authoring_paywall.paywallEvent(name, args: args)(value),
-          );
-
-  /// A callback firing [event], as `surfaceEvent` does, through the
-  /// dispatcher of the surface this recording's mount shows.
+  /// A callback firing [event], as `context.surfaceEvent` does, on the
+  /// surface this recording's mount shows.
   void Function([Object?]) surfaceEvent<T, V extends T>(
     SurfaceEvent<T> event, [
     V? value,
   ]) =>
-      ([Object? widgetValue = _noValue]) {
-        final dispatched =
-            identical(widgetValue, _noValue) ? value : widgetValue;
+      ([Object? widgetValue = authoring.noWidgetValue]) {
+        final dispatched = authoring.withWidgetValue(value, widgetValue);
         _dispatch(
-          AuthoringHelperKind.surfaceEvent,
           event.id,
           switch (dispatched) {
             null => const <String, Object?>{},
             final Map<String, Object?> args => args,
             _ => <String, Object?>{'value': dispatched},
           },
-          otherwise: () => identical(widgetValue, _noValue)
-              ? authoring.surfaceEvent(event, value)()
-              : authoring.surfaceEvent(event, value)(widgetValue),
+          // Resolved as it fires: a step from its own context, any other
+          // mount through the surface it hosts.
+          otherwise: () => switch (_mount) {
+            final mount? => authoring.fireSurfaceEventAt(
+                mount, event.id, dispatched,
+                recorded: true),
+            null =>
+              authoring.fireRecordedSurfaceEvent(owner, event.id, dispatched),
+          },
         );
       };
 
   // A mount a paywall renders dispatches through that paywall; any other
   // mount fires the helper as its build would have.
   void _dispatch(
-    AuthoringHelperKind helper,
     String name,
     Map<String, Object?> args, {
     required VoidCallback otherwise,
@@ -162,7 +141,7 @@ final class RestageRecording {
       return otherwise();
     }
     void onRefused(AuthoringRefusalKind refusal) =>
-        reportAuthoringRefusal(helper: helper, refusal: refusal);
+        reportAuthoringRefusal(refusal: refusal, recorded: true);
     final dispatcher = RestagePaywallEventDispatchAuthority.captureFor(owner,
         onRefused: onRefused);
     if (dispatcher != null) return dispatcher(name, args);
@@ -199,11 +178,8 @@ final class RestageRecording {
   Widget _placed(
       String name, List<int> path, BuildContext context, Widget island) {
     final at = '$name#${path.join('.')}';
-    final placed = _eventIslands.contains(at)
-        ? RestagePaywallEventDispatcher.island(context, island)
-        : island;
-    if (_appKeys[at] case final key?) RestageIslandScope.appKeys[placed] = key;
-    return placed;
+    if (_appKeys[at] case final key?) RestageIslandScope.appKeys[island] = key;
+    return island;
   }
 
   /// Records [value] under [key] in the map of [items]' current item, or at
@@ -328,9 +304,6 @@ final class RestageRecording {
     _appKeys
       ..clear()
       ..addAll(snapshot.appKeys);
-    _eventIslands
-      ..clear()
-      ..addAll(snapshot.eventIslands);
     _cursors.clear();
     _positions.clear();
   }
@@ -341,7 +314,6 @@ final class RestageRecording {
         scalers: {...scalers},
         islands: {..._islands},
         appKeys: {..._appKeys},
-        eventIslands: {..._eventIslands},
       );
 
   static Map<String, Object?> _copy(Map<String, Object?> map) => {
@@ -381,15 +353,12 @@ final class RestageRecording {
   }
 }
 
-const Object _noValue = Object();
-
 typedef _Snapshot = ({
   Map<String, Object?> values,
   Map<String, Object?> natives,
   Map<String, TextScaler?> scalers,
   Map<String, Object> islands,
   Map<String, Key?> appKeys,
-  Set<String> eventIslands,
 });
 
 final class _Cursor {

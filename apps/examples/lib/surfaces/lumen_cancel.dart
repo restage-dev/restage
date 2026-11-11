@@ -112,7 +112,7 @@ class LumenCancelReasonScreen extends StatelessWidget {
                             ),
                           ),
                           GestureDetector(
-                            onTap: surfaceEvent(skip),
+                            onTap: context.surfaceEvent(skip),
                             child: Container(
                               width: 36,
                               height: 36,
@@ -166,7 +166,8 @@ class LumenCancelReasonScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 28),
                               GestureDetector(
-                                onTap: surfaceEvent(reason, 'too_expensive'),
+                                onTap: context.surfaceEvent(
+                                    reason, 'too_expensive'),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 18,
@@ -211,7 +212,8 @@ class LumenCancelReasonScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 10),
                               GestureDetector(
-                                onTap: surfaceEvent(reason, 'not_used_enough'),
+                                onTap: context.surfaceEvent(
+                                    reason, 'not_used_enough'),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 18,
@@ -256,7 +258,8 @@ class LumenCancelReasonScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 10),
                               GestureDetector(
-                                onTap: surfaceEvent(reason, 'found_better'),
+                                onTap: context.surfaceEvent(
+                                    reason, 'found_better'),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 18,
@@ -301,8 +304,8 @@ class LumenCancelReasonScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 10),
                               GestureDetector(
-                                onTap:
-                                    surfaceEvent(reason, 'content_not_for_me'),
+                                onTap: context.surfaceEvent(
+                                    reason, 'content_not_for_me'),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 18,
@@ -347,7 +350,8 @@ class LumenCancelReasonScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 10),
                               GestureDetector(
-                                onTap: surfaceEvent(reason, 'something_else'),
+                                onTap: context.surfaceEvent(
+                                    reason, 'something_else'),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 18,
@@ -396,7 +400,7 @@ class LumenCancelReasonScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 24),
                       GestureDetector(
-                        onTap: surfaceEvent(skip),
+                        onTap: context.surfaceEvent(skip),
                         child: const Center(
                           child: Text(
                             'Skip',
@@ -591,7 +595,8 @@ class _LumenCancelNoteScreenState extends State<LumenCancelNoteScreen> {
                       ),
                       const SizedBox(height: 24),
                       GestureDetector(
-                        onTap: surfaceEvent(LumenCancelNoteScreen.send, note),
+                        onTap: context.surfaceEvent(
+                            LumenCancelNoteScreen.send, note),
                         child: Container(
                           height: 58,
                           decoration: BoxDecoration(
@@ -633,7 +638,7 @@ class _LumenCancelNoteScreenState extends State<LumenCancelNoteScreen> {
                       ),
                       const SizedBox(height: 16),
                       GestureDetector(
-                        onTap: surfaceEvent(LumenCancelNoteScreen.skip),
+                        onTap: context.surfaceEvent(LumenCancelNoteScreen.skip),
                         child: const Center(
                           child: Text(
                             'Skip',
@@ -822,7 +827,7 @@ class LumenCancelThanksScreen extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 26),
                                     GestureDetector(
-                                      onTap: surfaceEvent(finish),
+                                      onTap: context.surfaceEvent(finish),
                                       child: Container(
                                         height: 58,
                                         decoration: BoxDecoration(

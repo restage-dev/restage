@@ -33,7 +33,7 @@ class ApexDropScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   IconButton(
-                    onPressed: surfaceEvent(dismiss),
+                    onPressed: context.surfaceEvent(dismiss),
                     icon: const Icon(
                       Icons.close_rounded,
                       color: Color(0xFF8C8C8C),
@@ -99,7 +99,7 @@ class ApexDropScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                onPressed: surfaceEvent(act),
+                onPressed: context.surfaceEvent(act),
                 child: const Text(
                   'Shop the drop',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),

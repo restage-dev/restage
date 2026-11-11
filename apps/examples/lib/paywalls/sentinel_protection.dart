@@ -9,6 +9,10 @@ import 'package:restage/restage.dart';
 /// the delivered surface. Prices are illustrative.
 @Paywall()
 class SentinelProtectionPaywall extends StatefulWidget {
+  static const close = SurfaceEvent<void>('close');
+  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+  static const subscriptionInfo = SurfaceEvent<void>('subscription_info');
+
   const SentinelProtectionPaywall({super.key});
 
   @override
@@ -39,7 +43,8 @@ class _SentinelProtectionPaywallState extends State<SentinelProtectionPaywall> {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: paywallEvent('close'),
+                    onTap:
+                        context.surfaceEvent(SentinelProtectionPaywall.close),
                     child: const Icon(
                       Icons.chevron_left_rounded,
                       color: Color(0xFF0EA5A4),
@@ -332,9 +337,9 @@ class _SentinelProtectionPaywallState extends State<SentinelProtectionPaywall> {
               const SizedBox(height: 12),
               // Start subscription CTA — teal pill.
               GestureDetector(
-                onTap: paywallEvent(
-                  'continue',
-                  args: {'plan': yearSelected ? 'annual' : 'monthly'},
+                onTap: context.surfaceEvent(
+                  SentinelProtectionPaywall.continueFlow,
+                  {'plan': yearSelected ? 'annual' : 'monthly'},
                 ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -356,7 +361,8 @@ class _SentinelProtectionPaywallState extends State<SentinelProtectionPaywall> {
               const SizedBox(height: 12),
               Center(
                 child: GestureDetector(
-                  onTap: paywallEvent('subscription_info'),
+                  onTap: context
+                      .surfaceEvent(SentinelProtectionPaywall.subscriptionInfo),
                   child: const Text(
                     'Subscription and privacy info',
                     style: TextStyle(

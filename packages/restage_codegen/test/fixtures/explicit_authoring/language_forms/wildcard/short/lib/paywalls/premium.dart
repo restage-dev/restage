@@ -18,8 +18,15 @@ final class PremiumPaywall extends StatelessWidget {
       children: [
         Text(title),
         const AcmeNote(text: 'Cancel anytime'),
-        Switch(value: true, onChanged: (_) => paywallEvent('toggle')),
+        Switch(
+          value: true,
+          onChanged: (_) => context.surfaceEvent(_Events.toggle),
+        ),
       ],
     );
   }
+}
+
+abstract final class _Events {
+  static const toggle = SurfaceEvent<void>('toggle');
 }

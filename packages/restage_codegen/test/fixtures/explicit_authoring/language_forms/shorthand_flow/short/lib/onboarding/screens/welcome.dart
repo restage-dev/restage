@@ -25,7 +25,7 @@ final class WelcomeScreen extends StatelessWidget {
         Padding(
           padding: const .only(top: 12),
           child: FilledButton(
-            onPressed: onboardingEvent(next),
+            onPressed: context.surfaceEvent(next),
             child: Text('Continue', textAlign: .center),
           ),
         ),

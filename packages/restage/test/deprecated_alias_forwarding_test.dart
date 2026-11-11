@@ -19,8 +19,6 @@ void main() {
     expect(RestageSurfaceFlow<Object>, RestageFlowGraph<Object>);
     // ignore: deprecated_member_use_from_same_package
     expect(RestageSurfaceScreenResolver, RestageScreenResolver);
-    // ignore: deprecated_member_use_from_same_package
-    expect(RestageSurfaceEventDispatcher, RestageEventDispatcher);
   });
 
   test('the authored flow base class was not renamed', () {

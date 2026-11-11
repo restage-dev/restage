@@ -17,6 +17,7 @@ void main() {
       final catalog = catalogWith([
         entry(
           name: 'Probe',
+          flutterType: 'package:apps_examples/_expr_probe.dart#Probe',
           properties: const [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -33,8 +34,27 @@ void main() {
           ],
         ),
       ]);
-      final expression = await parseExpressionForTest(
-        r"Probe($source: 'authored', on$Retry: paywallEvent('retry'))",
+      final expression = await parseExpressionFromSourceForTest(
+        r'''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+class Probe extends StatelessWidget {
+  const Probe({this.$source, this.on$Retry, super.key});
+  final String? $source;
+  final VoidCallback? on$Retry;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+abstract final class _Events {
+  static const retry = SurfaceEvent<void>('retry');
+}
+
+Object x(BuildContext context) =>
+    Probe($source: 'authored', on$Retry: context.surfaceEvent(_Events.retry));
+''',
+        rootPackage: 'apps_examples',
       );
       final result = ExpressionTranslator(
         catalog: catalog,

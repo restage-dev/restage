@@ -17,12 +17,13 @@ void main() {
     'route identities do not depend on unpublished local build count',
     () async {
       const button =
-          'FilledButton(onPressed: surfaceEvent(activate), '
+          'FilledButton(onPressed: context.surfaceEvent(activate), '
           "child: Text('Go'))";
       const oneEvent = 'Column(children: [$button])';
       const twoEvents =
           'Column(children: [$button, '
-          "TextButton(onPressed: surfaceEvent(activate), child: Text('Skip'))])";
+          'TextButton(onPressed: context.surfaceEvent(activate), '
+          "child: Text('Skip'))])";
       Future<RestageMeasurementCompilerOutputV1> build(
         String body, [
         RestageMeasurementCompilerOutputV1? prior,

@@ -136,7 +136,7 @@ class _LumenPlusOfferPaywallState extends State<LumenPlusOfferPaywall> {
                             ],
                           ),
                           GestureDetector(
-                            onTap: paywallEvent('skip'),
+                            onTap: context.surfaceEvent(PaywallEvents.skip),
                             child: Container(
                               width: 36,
                               height: 36,
@@ -471,7 +471,8 @@ class _LumenPlusOfferPaywallState extends State<LumenPlusOfferPaywall> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           GestureDetector(
-                            onTap: paywallEvent('restore_purchases'),
+                            onTap: context.surfaceEvent(
+                                LumenPlusOfferPaywall.restorePurchases),
                             child: const Text(
                               'Restore',
                               style: TextStyle(
@@ -482,7 +483,8 @@ class _LumenPlusOfferPaywallState extends State<LumenPlusOfferPaywall> {
                           ),
                           const SizedBox(width: 18),
                           GestureDetector(
-                            onTap: paywallEvent('terms'),
+                            onTap: context
+                                .surfaceEvent(LumenPlusOfferPaywall.terms),
                             child: const Text(
                               'Terms',
                               style: TextStyle(
@@ -493,7 +495,8 @@ class _LumenPlusOfferPaywallState extends State<LumenPlusOfferPaywall> {
                           ),
                           const SizedBox(width: 18),
                           GestureDetector(
-                            onTap: paywallEvent('privacy'),
+                            onTap: context
+                                .surfaceEvent(LumenPlusOfferPaywall.privacy),
                             child: const Text(
                               'Privacy',
                               style: TextStyle(

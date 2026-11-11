@@ -53,10 +53,10 @@ class _MoodCheckState extends State<MoodCheck> {
         SwitchListTile(
           title: const Text('Remind me next week'),
           value: false,
-          onChanged: surfaceEvent(MoodCheck.remindMe),
+          onChanged: context.surfaceEvent(MoodCheck.remindMe),
         ),
         FilledButton(
-          onPressed: surfaceEvent(
+          onPressed: context.surfaceEvent(
             MoodCheck.submit,
             {'mood': good ? 'good' : 'bad', 'note': note},
           ),

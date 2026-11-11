@@ -97,7 +97,7 @@ class StrideRemindersScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: surfaceEvent(enable),
+                      onPressed: context.surfaceEvent(enable),
                       child: const Text(
                         'Turn on reminders',
                         style: TextStyle(
@@ -111,7 +111,7 @@ class StrideRemindersScreen extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               TextButton(
-                onPressed: surfaceEvent(skip),
+                onPressed: context.surfaceEvent(skip),
                 child: const Text(
                   'Maybe later',
                   style: TextStyle(

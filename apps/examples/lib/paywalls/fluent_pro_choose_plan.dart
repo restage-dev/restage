@@ -9,6 +9,8 @@ import 'package:restage/restage.dart';
 /// selected tier. It uses fixed brand colors. Prices are illustrative.
 @Paywall()
 class FluentProChoosePlanScreen extends StatefulWidget {
+  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+
   const FluentProChoosePlanScreen({super.key});
 
   @override
@@ -552,9 +554,9 @@ class _FluentProChoosePlanScreenState extends State<FluentProChoosePlanScreen> {
                 ),
                 const SizedBox(height: 10),
                 GestureDetector(
-                  onTap: paywallEvent(
-                    'continue',
-                    args: {
+                  onTap: context.surfaceEvent(
+                    FluentProChoosePlanScreen.continueFlow,
+                    {
                       'plan': selectedPlan == 0
                           ? 'family'
                           : selectedPlan == 1

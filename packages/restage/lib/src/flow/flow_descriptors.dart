@@ -984,7 +984,7 @@ base class ScreenEventWriteBuilder<T> {
   /// Use this for a single event carrying a runtime/dynamic scalar — a rating,
   /// a slider value, an entered number. The event must be a scalar
   /// `SurfaceEvent<T>` (`T` is `String`, `bool`, or `int`) fired with a value
-  /// (`surfaceEvent(event, value)`); the SDK carries that value under
+  /// (`context.surfaceEvent(event, value)`); the SDK carries that value under
   /// a reserved field, so capture reads it without the screen and flow having
   /// to agree on a payload key — [key] names only the flow-state slot written.
   /// If the event fires without a value the flow fails closed (it does not

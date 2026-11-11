@@ -146,7 +146,8 @@ class _LumenWelcomeOfferPaywallState extends State<LumenWelcomeOfferPaywall> {
                             ],
                           ),
                           GestureDetector(
-                            onTap: paywallEvent('close'),
+                            onTap: context
+                                .surfaceEvent(LumenWelcomeOfferPaywall.close),
                             child: Container(
                               width: 36,
                               height: 36,
@@ -434,9 +435,9 @@ class _LumenWelcomeOfferPaywallState extends State<LumenWelcomeOfferPaywall> {
                       ),
                       const SizedBox(height: 18),
                       GestureDetector(
-                        onTap: paywallEvent(
-                          'continue',
-                          args: {'plan': annualSelected ? 'annual' : 'monthly'},
+                        onTap: context.surfaceEvent(
+                          LumenWelcomeOfferPaywall.continueFlow,
+                          {'plan': annualSelected ? 'annual' : 'monthly'},
                         ),
                         child: Container(
                           height: 58,
@@ -479,7 +480,8 @@ class _LumenWelcomeOfferPaywallState extends State<LumenWelcomeOfferPaywall> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           GestureDetector(
-                            onTap: paywallEvent('restore_purchases'),
+                            onTap: context.surfaceEvent(
+                                LumenWelcomeOfferPaywall.restorePurchases),
                             child: const Text(
                               'Restore',
                               style: TextStyle(
@@ -490,7 +492,8 @@ class _LumenWelcomeOfferPaywallState extends State<LumenWelcomeOfferPaywall> {
                           ),
                           const SizedBox(width: 18),
                           GestureDetector(
-                            onTap: paywallEvent('terms'),
+                            onTap: context
+                                .surfaceEvent(LumenWelcomeOfferPaywall.terms),
                             child: const Text(
                               'Terms',
                               style: TextStyle(
@@ -501,7 +504,8 @@ class _LumenWelcomeOfferPaywallState extends State<LumenWelcomeOfferPaywall> {
                           ),
                           const SizedBox(width: 18),
                           GestureDetector(
-                            onTap: paywallEvent('privacy'),
+                            onTap: context
+                                .surfaceEvent(LumenWelcomeOfferPaywall.privacy),
                             child: const Text(
                               'Privacy',
                               style: TextStyle(

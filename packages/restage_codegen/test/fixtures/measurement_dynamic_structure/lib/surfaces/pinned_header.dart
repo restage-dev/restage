@@ -14,7 +14,7 @@ final class PinnedHeaderScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
         children: [
-          PinnedHeader(pinned: true, onTap: surfaceEvent(open)),
+          PinnedHeader(pinned: true, onTap: context.surfaceEvent(open)),
         ],
       );
 }

@@ -1767,6 +1767,11 @@ ToggleButtons(
       final expr = await parseExpressionFromSourceForTest(
         '''
         import 'package:flutter/material.dart';
+        import 'package:restage/restage.dart';
+
+        abstract final class _Events {
+          static const tierChanged = SurfaceEvent<void>('tierChanged');
+        }
 
         final Set<String> sel = const {'a'};
         void someHostCall(Set<String> s) {}
@@ -1811,7 +1816,8 @@ SegmentedButton<String>(
     ButtonSegment<String>(value: 'a', label: Text('A')),
   ],
   selected: const {'a'},
-  onSelectionChanged: (Set<String> s) => paywallEvent('tierChanged'),
+  onSelectionChanged: (Set<String> s) =>
+      context.surfaceEvent(_Events.tierChanged),
 )
 ''');
       expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
@@ -6388,16 +6394,6 @@ Object paywallEvent(String name, {Map<String, Object?>? args}) => Object();''';
       },
     );
 
-    test('paywallEvent("restore") is rejected', () async {
-      final expr = await parseExpressionForTest('paywallEvent("restore")');
-      final r = tHelpers.translate(expr);
-      expect(
-        r.issues.map((issue) => issue.code),
-        [IssueCode.unsupportedCommerceAuthoring],
-      );
-      expect(r.dsl, isEmpty);
-    });
-
     test('hostText(key: "basic") → data.context.basic', () async {
       const source = '''
         String hostText({String? key}) => "";
@@ -6450,7 +6446,7 @@ abstract final class Probe {
   static const next = OnboardingEvent<void>('next');
 }
 
-Object x() => onboardingEvent(Probe.next);
+Object x(BuildContext context) => context.surfaceEvent(Probe.next);
 ''',
           rootPackage: 'apps_examples',
         );
@@ -6475,7 +6471,7 @@ abstract final class Probe {
   static const next = SurfaceEvent<void>('next');
 }
 
-Object x() => surfaceEvent(Probe.next);
+Object x(BuildContext context) => context.surfaceEvent(Probe.next);
 ''',
           rootPackage: 'apps_examples',
         );
@@ -6521,11 +6517,16 @@ Object x() => surfaceEvent(Probe.next);
       final expression = await parseExpressionFromSourceForTest(
         '''
 import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
 
 Object x(bool value) => Switch(
   value: false,
-  onChanged: () => paywallEvent("changed", args: {"v": value}),
+  onChanged: () => context.surfaceEvent(_Events.changed, {"v": value}),
 );
+
+abstract final class _Events {
+  static const changed = SurfaceEvent<Map<String, Object?>>('changed');
+}
 ''',
         rootPackage: 'apps_examples',
       );
@@ -6553,13 +6554,19 @@ Object x(bool value) => Switch(
         final expression = await parseExpressionFromSourceForTest(
           '''
 import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
 
 Object x(int step) => Switch(
   value: false,
   onChanged: step == 0
-      ? ((value) => paywallEvent("a"))
-      : ((value) => paywallEvent("b")),
+      ? ((value) => context.surfaceEvent(_Events.a))
+      : ((value) => context.surfaceEvent(_Events.b)),
 );
+
+abstract final class _Events {
+  static const a = SurfaceEvent<void>('a');
+  static const b = SurfaceEvent<void>('b');
+}
 ''',
           rootPackage: 'apps_examples',
         );
@@ -6595,11 +6602,16 @@ Object x(int step) => Switch(
         final expression = await parseExpressionFromSourceForTest(
           '''
 import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
 
-Object x() => Switch(
+Object x(BuildContext context) => Switch(
   value: false,
-  onChanged: (value) => paywallEvent("toggled"),
+  onChanged: (value) => context.surfaceEvent(_Events.toggled),
 );
+
+abstract final class _Events {
+  static const toggled = SurfaceEvent<void>('toggled');
+}
 ''',
           rootPackage: 'apps_examples',
         );
@@ -6613,13 +6625,18 @@ Object x() => Switch(
       final expression = await parseExpressionFromSourceForTest(
         '''
 import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
 
-Object x() => Switch(
+Object x(BuildContext context) => Switch(
   value: false,
   onChanged: true
-      ? ((value) => paywallEvent(value))
-      : ((value) => paywallEvent("ok")),
+      ? ((value) => context.surfaceEvent(_Events.ok, value))
+      : ((value) => context.surfaceEvent(_Events.ok)),
 );
+
+abstract final class _Events {
+  static const ok = SurfaceEvent<bool>('ok');
+}
 ''',
         rootPackage: 'apps_examples',
       );
@@ -6637,18 +6654,24 @@ Object x() => Switch(
       final expression = await parseExpressionFromSourceForTest(
         '''
 import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
 
 bool unsupportedCondition() {
   print('condition side effect');
   return true;
 }
 
-Object x() => Switch(
+Object x(BuildContext context) => Switch(
   value: false,
   onChanged: unsupportedCondition()
-      ? ((value) => paywallEvent("yes"))
-      : ((value) => paywallEvent("no")),
+      ? ((value) => context.surfaceEvent(_Events.yes))
+      : ((value) => context.surfaceEvent(_Events.no)),
 );
+
+abstract final class _Events {
+  static const yes = SurfaceEvent<void>('yes');
+  static const no = SurfaceEvent<void>('no');
+}
 ''',
         rootPackage: 'apps_examples',
       );
@@ -6672,15 +6695,20 @@ Object x() => Switch(
       final expression = await parseExpressionFromSourceForTest(
         '''
 import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
 
 int step = 0;
 
-Object x() => Switch(
+Object x(BuildContext context) => Switch(
   value: false,
   onChanged: step == 0
-      ? ((value) => paywallEvent(value))
-      : ((value) => paywallEvent("ok")),
+      ? ((value) => context.surfaceEvent(_Events.ok, value))
+      : ((value) => context.surfaceEvent(_Events.ok)),
 );
+
+abstract final class _Events {
+  static const ok = SurfaceEvent<bool>('ok');
+}
 ''',
         rootPackage: 'apps_examples',
       );
@@ -6712,13 +6740,18 @@ Object x() => Switch(
         final expression = await parseExpressionFromSourceForTest(
           '''
 import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
 
-Object x() => Switch(
+Object x(BuildContext context) => Switch(
   value: false,
   onChanged: (value) {
-    paywallEvent("toggled");
+    context.surfaceEvent(_Events.toggled);
   },
 );
+
+abstract final class _Events {
+  static const toggled = SurfaceEvent<void>('toggled');
+}
 ''',
           rootPackage: 'apps_examples',
         );
@@ -6789,9 +6822,9 @@ abstract final class Probe {
   static const next = SurfaceEvent<void>('next');
 }
 
-Object x() => Switch(
+Object x(BuildContext context) => Switch(
   value: false,
-  onChanged: (value) => surfaceEvent(Probe.next),
+  onChanged: (value) => context.surfaceEvent(Probe.next),
 );
 ''',
         rootPackage: 'apps_examples',
@@ -6850,6 +6883,7 @@ import 'package:restage/restage.dart';
 
 abstract final class Probe {
   static const reorderRows = SurfaceEvent<List<int>>('reorderRows');
+  static const go = SurfaceEvent<Object?>('go');
 }
 
 class CompactList extends StatelessWidget {
@@ -6907,9 +6941,10 @@ Object x(BuildContext context) => $body;
       'a ValueChanged callback on a catalog widget lowers to its event',
       () async {
         final r = await lower(
-          'CompactList(onReorder: (moved) => surfaceEvent(Probe.reorderRows))',
+          'CompactList(onReorder: '
+          '(moved) => context.surfaceEvent(Probe.reorderRows))',
         );
-        expectClosureNotice(r, 'surfaceEvent');
+        expectClosureNotice(r, 'context.surfaceEvent');
         expect(r.dsl, 'CompactList(onReorder: event "reorderRows" {})');
       },
     );
@@ -6918,13 +6953,14 @@ Object x(BuildContext context) => $body;
       'a zero-parameter closure lowers exactly like the bare event call',
       () async {
         final closured = await lower(
-          "GestureDetector(onTap: () => paywallEvent('go'), "
+          'GestureDetector(onTap: () => context.surfaceEvent(Probe.go), '
           "child: const Text('a'))",
         );
         final bare = await lower(
-          "GestureDetector(onTap: paywallEvent('go'), child: const Text('a'))",
+          'GestureDetector(onTap: context.surfaceEvent(Probe.go), '
+          "child: const Text('a'))",
         );
-        expectClosureNotice(closured, 'paywallEvent');
+        expectClosureNotice(closured, 'context.surfaceEvent');
         expect(bare.issues, isEmpty);
         // The closure carries nothing of its own: the DSL is unchanged.
         expect(closured.dsl, bare.dsl);
@@ -6937,9 +6973,9 @@ Object x(BuildContext context) => $body;
       () async {
         final r = await lower(
           'Switch(value: true, '
-          'onChanged: (v) => surfaceEvent(Probe.reorderRows))',
+          'onChanged: (v) => context.surfaceEvent(Probe.reorderRows))',
         );
-        expectClosureNotice(r, 'surfaceEvent');
+        expectClosureNotice(r, 'context.surfaceEvent');
         expect(r.dsl, 'Switch(value: true, onChanged: event "reorderRows" {})');
       },
     );
@@ -6948,11 +6984,12 @@ Object x(BuildContext context) => $body;
       'a value callback given the event directly lowers like the closure',
       () async {
         final direct = await lower(
-          'Switch(value: true, onChanged: surfaceEvent(Probe.reorderRows))',
+          'Switch(value: true, '
+          'onChanged: context.surfaceEvent(Probe.reorderRows))',
         );
         final closured = await lower(
           'Switch(value: true, '
-          'onChanged: (_) => surfaceEvent(Probe.reorderRows))',
+          'onChanged: (_) => context.surfaceEvent(Probe.reorderRows))',
         );
         expect(direct.issues, isEmpty);
         expect(direct.dsl, closured.dsl);
@@ -6960,17 +6997,18 @@ Object x(BuildContext context) => $body;
           direct.dsl,
           'Switch(value: true, onChanged: event "reorderRows" {})',
         );
-        expectClosureNotice(closured, 'surfaceEvent');
+        expectClosureNotice(closured, 'context.surfaceEvent');
       },
     );
 
     test('a direct value event keeps its authored value', () async {
       final direct = await lower(
-        'CompactList(onReorder: surfaceEvent(Probe.reorderRows, [1, 0]))',
+        'CompactList(onReorder: '
+        'context.surfaceEvent(Probe.reorderRows, [1, 0]))',
       );
       final closured = await lower(
         'CompactList(onReorder: '
-        '(_) => surfaceEvent(Probe.reorderRows, [1, 0]))',
+        '(_) => context.surfaceEvent(Probe.reorderRows, [1, 0]))',
       );
       expect(direct.issues, isEmpty);
       expect(direct.dsl, isNotEmpty);
@@ -6979,7 +7017,8 @@ Object x(BuildContext context) => $body;
 
     test('a String-keyed map value is the event arguments', () async {
       final r = await lower(
-        "GestureDetector(onTap: surfaceEvent(Probe.reorderRows, {'a': 1}), "
+        'GestureDetector(onTap: '
+        "context.surfaceEvent(Probe.reorderRows, {'a': 1}), "
         "child: const Text('a'))",
       );
       expect(r.issues, isEmpty);
@@ -6997,7 +7036,8 @@ Object x(BuildContext context) => $body;
     ]) {
       test('a map value without String keys is refused: $value', () async {
         final r = await lower(
-          'GestureDetector(onTap: surfaceEvent(Probe.reorderRows, $value), '
+          'GestureDetector(onTap: '
+          'context.surfaceEvent(Probe.reorderRows, $value), '
           "child: const Text('a'))",
         );
         expect(r.dsl, isEmpty);
@@ -7011,8 +7051,9 @@ Object x(BuildContext context) => $body;
 
     test('a failed translation reports no closure notice', () async {
       final r = await lower(
-        "GestureDetector(onTap: () => paywallEvent('go'), "
-        'child: GestureDetector(onTap: (v) => paywallEvent(v), '
+        'GestureDetector(onTap: () => context.surfaceEvent(Probe.go), '
+        'child: GestureDetector('
+        'onTap: (v) => context.surfaceEvent(Probe.go, v), '
         "child: const Text('a')))",
       );
       expect(r.dsl, isEmpty);
@@ -7104,7 +7145,7 @@ GestureDetector(
 
     test('a block-bodied closure is unchanged', () async {
       final r = await lower(
-        "GestureDetector(onTap: (v) { paywallEvent('go'); }, "
+        'GestureDetector(onTap: (v) { context.surfaceEvent(Probe.go); }, '
         "child: const Text('a'))",
       );
       expectClosureUnchanged(r);
@@ -7121,7 +7162,7 @@ GestureDetector(
     test('a closure at a non-event slot is left alone', () async {
       // The unwrap is gated on the slot type; a string slot never sees it.
       final r = await lower(
-        "CompactList(label: (v) => paywallEvent('go'))",
+        'CompactList(label: (v) => context.surfaceEvent(Probe.go))',
       );
       expectClosureUnchanged(r);
     });
@@ -7131,7 +7172,7 @@ GestureDetector(
       () async {
         // The parameter is the host's and has no wire representation.
         final r = await lower(
-          'GestureDetector(onTap: (v) => paywallEvent(v), '
+          'GestureDetector(onTap: (v) => context.surfaceEvent(Probe.go, v), '
           "child: const Text('a'))",
         );
         expect(r.dsl, isEmpty);
@@ -7142,7 +7183,8 @@ GestureDetector(
         expect(
           r.issues.single.message,
           'The callback value reaches the event automatically. Pass '
-          '`paywallEvent(...)` directly to the callback, without a closure.',
+          '`context.surfaceEvent(...)` directly to the callback, without a '
+          'closure.',
         );
       },
     );
@@ -7151,7 +7193,8 @@ GestureDetector(
       'a parameter read inside the event arguments is refused too',
       () async {
         final r = await lower(
-          "GestureDetector(onTap: (v) => paywallEvent('go', args: {'k': v}), "
+          'GestureDetector('
+          "onTap: (v) => context.surfaceEvent(Probe.go, {'k': v}), "
           "child: const Text('a'))",
         );
         expect(r.dsl, isEmpty);
@@ -7161,26 +7204,26 @@ GestureDetector(
         );
         expect(
           r.issues.single.message,
-          contains('Pass `paywallEvent(...)` directly'),
+          contains('Pass `context.surfaceEvent(...)` directly'),
         );
       },
     );
 
     test('a wildcard parameter lowers', () async {
       final r = await lower(
-        "GestureDetector(onTap: (_) => paywallEvent('go'), "
+        'GestureDetector(onTap: (_) => context.surfaceEvent(Probe.go), '
         "child: const Text('a'))",
       );
-      expectClosureNotice(r, 'paywallEvent');
+      expectClosureNotice(r, 'context.surfaceEvent');
       expect(r.dsl, goEvent);
     });
 
     test('a named but unread parameter lowers', () async {
       final r = await lower(
-        "GestureDetector(onTap: (v) => paywallEvent('go'), "
+        'GestureDetector(onTap: (v) => context.surfaceEvent(Probe.go), '
         "child: const Text('a'))",
       );
-      expectClosureNotice(r, 'paywallEvent');
+      expectClosureNotice(r, 'context.surfaceEvent');
       expect(r.dsl, goEvent);
     });
 
@@ -7188,10 +7231,10 @@ GestureDetector(
       // `Future<void> Function(T)` is assignable to `void Function(T)`, so this
       // compiles; the modifier carries nothing on the wire.
       final r = await lower(
-        "GestureDetector(onTap: (v) async => paywallEvent('go'), "
+        'GestureDetector(onTap: (v) async => context.surfaceEvent(Probe.go), '
         "child: const Text('a'))",
       );
-      expectClosureNotice(r, 'paywallEvent');
+      expectClosureNotice(r, 'context.surfaceEvent');
       expect(r.dsl, goEvent);
     });
 

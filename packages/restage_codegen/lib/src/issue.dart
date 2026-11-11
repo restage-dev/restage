@@ -930,6 +930,9 @@ final class Issue {
 /// The build-notice identity prefix for an event helper wrapped in a closure.
 const String kEventClosureNoticePrefix = 'event-closure\u0000';
 
+/// The build-notice identity prefix for an event constructed where it fires.
+const String kInlineEventNoticePrefix = 'event-inline\u0000';
+
 /// Logs [issue] once for its stable build-notice identity.
 void logBuildNoticeOnce(
   Logger logger,
@@ -939,8 +942,10 @@ void logBuildNoticeOnce(
   if (!seenKeys.add(issue.buildNoticeKey)) return;
   final message = issue.toLogString();
   // A notice that State resets is a warning the developer sees.
-  if ((issue.buildNoticeIdentity?.startsWith(kEventClosureNoticePrefix) ??
-          false) ||
+  final identity = issue.buildNoticeIdentity;
+  if ((identity != null &&
+          (identity.startsWith(kEventClosureNoticePrefix) ||
+              identity.startsWith(kInlineEventNoticePrefix))) ||
       issue.code == IssueCode.islandSpotsIndistinct) {
     logger.warning(message);
     return;

@@ -238,7 +238,7 @@ final class GetStartedScreenSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ignore: unused_local_variable
-    final _restageRecording = RestageRecording();
+    final _restageRecording = RestageRecording(owner: context);
     Widget _restageDesign(Widget _restageBuilt) {
       return RestageNativeValues(
         bindings: _restageRecording.bindings(
@@ -261,6 +261,7 @@ final class GetStartedScreenSurface extends StatelessWidget {
           placementBinding: RestageScreen.generatedPlacementBinding(
             definition: getStartedScreenPlacementDefinition,
             name: _restagePlacementName,
+            eventOwner: context,
           ),
           context: <String, Object?>{
             ..._restageRecording.values,

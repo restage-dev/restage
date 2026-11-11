@@ -1,0 +1,25 @@
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@Paywall()
+class Offer extends StatelessWidget {
+  const Offer({super.key, this.close});
+
+  final VoidCallback? close;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          TextButton(onPressed: paywallEvent('close'), child: const Text('x')),
+          FilledButton(
+            onPressed: paywallEvent('continue', args: {'plan': 'annual'}),
+            child: const Text('Continue'),
+          ),
+          TextButton(
+            onPressed: paywallEvent('restore_purchases'),
+            child: const Text('Restore'),
+          ),
+          TextButton(onPressed: paywallEvent('close'), child: const Text('y')),
+        ],
+      );
+}

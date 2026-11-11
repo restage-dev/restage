@@ -1,17 +1,13 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
-import 'package:restage/src/authoring/onboarding_event_dispatcher.dart'
-    show DeclaredEventDispatcher;
-import 'package:restage/src/authoring/paywall_event_dispatch.dart'
-    show RestagePaywallEventTargetScope;
 
 const _subscribe = SurfaceEvent<String>('subscribe');
 const _plan = SurfaceEvent<Map<String, Object?>>('plan');
 const _close = SurfaceEvent<void>('close');
 
 void main() {
-  testWidgets('surfaceEvent in a paywall fires a paywall event',
+  testWidgets('context.surfaceEvent in a paywall fires a paywall event',
       (tester) async {
     final received = <(String, Map<String, Object?>)>[];
     final callbacks = <void Function([Object?])>[];
@@ -19,11 +15,12 @@ void main() {
       RestagePaywallEventDispatcher(
         onEvent: (name, args) => received.add((name, args)),
         child: Builder(
-          builder: (_) {
+          builder: (context) {
             callbacks
-              ..add(surfaceEvent(_subscribe, 'yearly'))
-              ..add(surfaceEvent(_plan, const <String, Object?>{'id': 'a'}))
-              ..add(surfaceEvent(_close));
+              ..add(context.surfaceEvent(_subscribe, 'yearly'))
+              ..add(context
+                  .surfaceEvent(_plan, const <String, Object?>{'id': 'a'}))
+              ..add(context.surfaceEvent(_close));
             return const SizedBox();
           },
         ),
@@ -56,14 +53,12 @@ void main() {
         textDirection: TextDirection.ltr,
         child: Column(
           children: [
-            DeclaredEventDispatcher(
-              surfaceName: 'onboarding',
-              // The flow beneath declares the paywall's event id too.
-              declares: (id) => id == 'next' || id == 'subscribe',
+            RestageEventDispatcher(
               onEvent: (name, _) => flow.add(name),
               child: Builder(
-                builder: (_) {
-                  flowNext = surfaceEvent(const SurfaceEvent<void>('next'));
+                builder: (context) {
+                  flowNext =
+                      context.surfaceEvent(const SurfaceEvent<void>('next'));
                   return const SizedBox();
                 },
               ),
@@ -71,8 +66,8 @@ void main() {
             RestagePaywallEventDispatcher(
               onEvent: (name, _) => paywall.add(name),
               child: Builder(
-                builder: (_) {
-                  subscribe = surfaceEvent(_subscribe, 'yearly');
+                builder: (context) {
+                  subscribe = context.surfaceEvent(_subscribe, 'yearly');
                   return const SizedBox();
                 },
               ),
@@ -87,39 +82,5 @@ void main() {
 
     expect(paywall, ['subscribe']);
     expect(flow, ['next']);
-  });
-
-  testWidgets('a paywall that is a flow step leaves its events to the flow',
-      (tester) async {
-    final paywall = <String>[];
-    final flow = <String>[];
-    void Function([Object?])? subscribe;
-    await tester.pumpWidget(
-      DeclaredEventDispatcher(
-        surfaceName: 'onboarding',
-        declares: (id) => id == 'subscribe',
-        onEvent: (name, _) => flow.add(name),
-        child: RestagePaywallEventTargetScope(
-          owner: Object(),
-          content: Object(),
-          isCurrent: () => true,
-          flowStep: true,
-          child: RestagePaywallEventDispatcher(
-            onEvent: (name, _) => paywall.add(name),
-            child: Builder(
-              builder: (_) {
-                subscribe = surfaceEvent(_subscribe, 'yearly');
-                return const SizedBox();
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-
-    subscribe!();
-
-    expect(flow, ['subscribe']);
-    expect(paywall, isEmpty);
   });
 }

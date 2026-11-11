@@ -29,7 +29,7 @@ final class HelperDefinition {
          'HelperDefinition.libraryOrigin must not be empty',
        );
 
-  /// The function identifier as it appears in source (e.g. `paywallEvent`).
+  /// The function identifier as it appears in source (e.g. `surfaceEvent`).
   final String name;
 
   /// Required Dart import URI prefix the call must originate from

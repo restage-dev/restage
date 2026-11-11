@@ -20,7 +20,7 @@ final class GoalScreen extends StatelessWidget {
   static const choose = SurfaceEvent<String>('choose');
   @override
   Widget build(BuildContext context) =>
-      FilledButton(onPressed: surfaceEvent(choose, 'focus'), child: const Text('Focus'));
+      FilledButton(onPressed: context.surfaceEvent(choose, 'focus'), child: const Text('Focus'));
 }
 ''';
 

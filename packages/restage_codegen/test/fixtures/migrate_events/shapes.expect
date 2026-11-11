@@ -1,0 +1,75 @@
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@Paywall()
+class Offer extends StatefulWidget {
+  static const continueEvent = SurfaceEvent<Map<String, Object?>>('continue');
+
+  const Offer({super.key});
+
+  @override
+  State<Offer> createState() => _OfferState();
+}
+
+class _OfferState extends State<Offer> {
+  var annual = true;
+
+  static Widget badge() =>
+      TextButton(onPressed: paywallEvent('badge'), child: const Text('b'));
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          TextButton(
+            onPressed: context.surfaceEvent(Offer.continueEvent, {'plan': annual}),
+            child: const Text('Continue'),
+          ),
+          Builder(
+            builder: (_) =>
+                TextButton(onPressed: surfaceEvent(Plans.pick), child: badge()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (route) => TextButton(
+                  onPressed: route.surfaceEvent(Plans.pick),
+                  child: const Text('Pick'),
+                ),
+              ),
+            ),
+            child: const Text('Plans'),
+          ),
+        ],
+      );
+}
+
+@Paywall(id: 'plans')
+class Plans extends StatelessWidget {
+  const Plans({super.key});
+
+  static const pick = SurfaceEvent<void>('pick');
+
+  @override
+  Widget build(BuildContext context) => const Text('Plans');
+}
+
+class Quiet extends StatelessWidget {
+  static const hush = SurfaceEvent<void>('hush');
+
+  const Quiet({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      TextButton(onPressed: context.surfaceEvent(Quiet.hush), child: const Text('q'));
+}
+
+abstract class Bare extends StatefulWidget {
+  static const bare = SurfaceEvent<void>('bare');
+}
+
+class _BareState extends State<Bare> {
+  @override
+  Widget build(BuildContext context) =>
+      TextButton(onPressed: context.surfaceEvent(Bare.bare), child: const Text('b'));
+}

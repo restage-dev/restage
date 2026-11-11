@@ -51,6 +51,7 @@ import 'package:restage_codegen/src/surface_publication/package_surface_compiler
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:restage_codegen/src/surface_publication/generated_widget_required.dart';
+import 'package:restage_codegen/src/surface_publication/pushed_route_events.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_codegen/src/surface_publication/surface_capture_plan.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
@@ -117,6 +118,42 @@ Future<AppWidgetMountFactories> _appWidgetMountFactories(
     return AppWidgetMountFactories.none;
   }
   return await loadAppWidgetFactories(buildStep);
+}
+
+// The surfaces whose generated mount records its build, per build step.
+final _recordedMounts = Expando<Set<ClassElement>>();
+
+Set<ClassElement> _recordedMountsOf(BuildStep buildStep) =>
+    _recordedMounts[buildStep] ??= {};
+
+// Warns, once each, about a route in [assets] whose content fires surface
+// events from outside the surface that pushes it.
+Future<void> _warnPushedRouteEvents(
+  BuildStep buildStep,
+  Iterable<AssetId> assets,
+) async {
+  final seen = <String>{};
+  for (final assetId in assets) {
+    final LibraryElement library;
+    try {
+      library = await buildStep.resolver.libraryFor(
+        assetId,
+        allowSyntaxErrors: true,
+      );
+    } on NonLibraryAssetException {
+      continue;
+    }
+    final warnings = await pushedRouteEventWarnings(
+      library,
+      path: assetId.path,
+      astNodeFor: (fragment) =>
+          resolvedNodeInLongForm(buildStep.resolver, fragment),
+      recorded: _recordedMountsOf(buildStep),
+    );
+    for (final warning in warnings) {
+      if (seen.add(warning)) log.warning(warning);
+    }
+  }
 }
 
 final class _AppFactoryNoticeCensus {
@@ -271,6 +308,9 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       );
       issues.addAll(compilation.issues);
       for (final screen in compilation.screens) {
+        if (screen.split?.recorded != null) {
+          _recordedMountsOf(buildStep).add(screen.input.declaration);
+        }
         provisionalAnalyticsIdControlCaptures.addAll(
           screen.analyticsIdDeclarations.map(
             (declaration) => AnalyticsIdControlCapture(
@@ -313,6 +353,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
               mountConstructorProblem:
                   screen.input.build.mountConstructorProblem,
               hoisted: screen.hoisted,
+              firedEvents: screen.firedEvents,
               islands: screen.islands,
               split: screen.split,
               buildArguments: screen.input.build.buildArguments,
@@ -357,6 +398,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
             mountConstructorProblem: screen.input.build.mountConstructorProblem,
             plan: plan,
             hoisted: screen.hoisted,
+            firedEvents: screen.firedEvents,
             islands: screen.islands,
             split: screen.split,
             buildArguments: screen.input.build.buildArguments,
@@ -749,6 +791,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   }
   if (!measurementEnabled) {
     appFactoryNotices.emit(buildNoticeKeys);
+    await _warnPushedRouteEvents(buildStep, assets);
     return _validCompilation(
       provisionalBundle,
       RestageMeasurementCompilerOutputV1.empty(),
@@ -1141,6 +1184,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       measurementCompilerOutput: priorMeasurementOutput,
     );
   }
+  await _warnPushedRouteEvents(buildStep, assets);
   return _validCompilation(
     bundle,
     measurementCompilerOutput,
@@ -2158,6 +2202,9 @@ Future<void> _appendResolvedScreens(
   );
   issues.addAll(compilation.issues);
   for (final screen in compilation.screens) {
+    if (screen.split?.recorded != null) {
+      _recordedMountsOf(buildStep).add(screen.input.declaration);
+    }
     final source =
         sourcesByDeclarationIdentity[screen.input.declarationIdentity];
     if (source == null) {
@@ -2199,6 +2246,7 @@ Future<void> _appendResolvedScreens(
           constructorParams: screen.input.build.constructorParams,
           mountConstructorProblem: screen.input.build.mountConstructorProblem,
           hoisted: screen.hoisted,
+          firedEvents: screen.firedEvents,
           islands: screen.islands,
           split: screen.split,
           buildArguments: screen.input.build.buildArguments,
@@ -2233,6 +2281,7 @@ Future<void> _appendResolvedScreens(
           mountConstructorProblem: screen.input.build.mountConstructorProblem,
           plan: placement,
           hoisted: screen.hoisted,
+          firedEvents: screen.firedEvents,
           islands: screen.islands,
           split: screen.split,
           buildArguments: screen.input.build.buildArguments,
@@ -2853,6 +2902,9 @@ Future<void> _compilePaywalls(
   for (final entry in compiledById.entries) {
     final id = entry.key;
     final compiled = entry.value.artifacts;
+    if (compiled.split?.recorded != null) {
+      _recordedMountsOf(buildStep).add(entry.value.declaration);
+    }
     final files = <String, List<int>>{...adapterFiles};
     final standaloneBlob = compiled.standaloneBlob;
     final standaloneSidecar = compiled.standaloneCapabilitySidecar;
@@ -2940,6 +2992,7 @@ Future<void> _compilePaywalls(
             rootParams: compiled.source.build.rootParams,
             constructorParams: compiled.source.build.constructorParams,
             hoisted: compiled.hoisted,
+            firedEvents: compiled.firedEvents,
             islands: compiled.islands,
             split: compiled.split,
             buildArguments: compiled.source.build.buildArguments,
@@ -2955,6 +3008,7 @@ Future<void> _compilePaywalls(
                   mountConstructorProblem:
                       compiled.source.build.mountConstructorProblem,
                   hoisted: compiled.hoisted,
+                  firedEvents: compiled.firedEvents,
                   islands: compiled.islands,
                   split: compiled.split,
                   buildArguments: compiled.source.build.buildArguments,

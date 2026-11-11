@@ -12,6 +12,10 @@ final class PaywallPackage {
 
 @Paywall()
 class RevenueCatPaywall extends StatelessWidget {
+  static const purchase =
+      SurfaceEvent<Map<String, Object?>>('revenuecat.purchase');
+  static const restore = SurfaceEvent<void>('revenuecat.restore');
+
   const RevenueCatPaywall({required this.packages, super.key});
 
   final List<PaywallPackage> packages;
@@ -27,12 +31,12 @@ class RevenueCatPaywall extends StatelessWidget {
             const SizedBox(height: 16),
             for (final package in packages)
               FilledButton(
-                onPressed: paywallEvent('revenuecat.purchase',
-                    args: {'packageIdentifier': package.identifier}),
+                onPressed: context.surfaceEvent(RevenueCatPaywall.purchase,
+                    {'packageIdentifier': package.identifier}),
                 child: Text(package.priceString),
               ),
             TextButton(
-              onPressed: paywallEvent('revenuecat.restore'),
+              onPressed: context.surfaceEvent(RevenueCatPaywall.restore),
               child: const Text('Restore purchases'),
             ),
           ],

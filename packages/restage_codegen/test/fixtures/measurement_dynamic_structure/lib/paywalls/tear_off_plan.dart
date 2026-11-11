@@ -24,9 +24,13 @@ class _TearOffPlanState extends State<TearOffPlan> {
             child: const Text('Annual'),
           ),
           TextButton(
-            onPressed: paywallEvent('close'),
+            onPressed: context.surfaceEvent(_Events.close),
             child: const Text('Close'),
           ),
         ],
       );
+}
+
+abstract final class _Events {
+  static const close = SurfaceEvent<void>('close');
 }

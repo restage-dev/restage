@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+part 'restage.generated/lumen_annual_upgrade.restage.g.dart';
+
 /// The meditation app's annual upgrade: a sunrise hero band with a sun disc,
 /// three reasons to switch, and one yearly price card.
 ///
@@ -8,19 +10,20 @@ import 'package:restage/restage.dart';
 /// renders the dusk and daylight designs.
 @Paywall()
 class LumenAnnualUpgradePaywall extends StatelessWidget {
-  /// Continues with the yearly plan.
-  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+  const LumenAnnualUpgradePaywall(
+      {super.key, this.onContinue, this.onClose, this.onTerms, this.onPrivacy});
 
-  /// Dismisses the offer and keeps the monthly plan.
-  static const close = SurfaceEvent<void>('close');
+  /// Continues with the selected plan.
+  final ValueChanged<String>? onContinue;
 
-  /// Opens the subscription terms.
-  static const terms = SurfaceEvent<void>('terms');
+  /// Closes the paywall.
+  final VoidCallback? onClose;
+
+  /// Opens the terms of service.
+  final VoidCallback? onTerms;
 
   /// Opens the privacy policy.
-  static const privacy = SurfaceEvent<void>('privacy');
-
-  const LumenAnnualUpgradePaywall({super.key});
+  final VoidCallback? onPrivacy;
 
   @override
   Widget build(BuildContext context) {
@@ -403,10 +406,7 @@ class LumenAnnualUpgradePaywall extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         GestureDetector(
-                          onTap: paywallEvent(
-                            'continue',
-                            args: {'plan': 'yearly'},
-                          ),
+                          onTap: () => onContinue?.call('yearly'),
                           child: Container(
                             height: 58,
                             decoration: BoxDecoration(
@@ -446,7 +446,7 @@ class LumenAnnualUpgradePaywall extends StatelessWidget {
                           children: [
                             Flexible(
                               child: GestureDetector(
-                                onTap: paywallEvent('close'),
+                                onTap: onClose,
                                 child: Text(
                                   'Keep monthly',
                                   style: TextStyle(
@@ -461,7 +461,7 @@ class LumenAnnualUpgradePaywall extends StatelessWidget {
                             const SizedBox(width: 18),
                             Flexible(
                               child: GestureDetector(
-                                onTap: paywallEvent('terms'),
+                                onTap: onTerms,
                                 child: Text(
                                   'Terms',
                                   style: TextStyle(
@@ -476,7 +476,7 @@ class LumenAnnualUpgradePaywall extends StatelessWidget {
                             const SizedBox(width: 18),
                             Flexible(
                               child: GestureDetector(
-                                onTap: paywallEvent('privacy'),
+                                onTap: onPrivacy,
                                 child: Text(
                                   'Privacy',
                                   style: TextStyle(

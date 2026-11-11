@@ -11,9 +11,12 @@ const kFeatures = [
 
 @Paywall(id: 'pro_upgrade', completesOn: [ProUpgradePaywall.startTrial])
 class ProUpgradePaywall extends StatelessWidget {
-  const ProUpgradePaywall({super.key});
+  const ProUpgradePaywall({super.key, this.onClose});
 
-  /// Starting the trial completes the paywall; Not now dismisses it.
+  /// Dismisses the paywall.
+  final VoidCallback? onClose;
+
+  /// Starting the trial completes the paywall.
   static const startTrial = SurfaceEvent<void>('start_trial');
 
   Widget _feature(String text) =>
@@ -35,11 +38,11 @@ class ProUpgradePaywall extends StatelessWidget {
             title,
             for (final feature in kFeatures) _feature(feature),
             FilledButton(
-              onPressed: paywallEvent('start_trial'),
+              onPressed: context.surfaceEvent(ProUpgradePaywall.startTrial),
               child: const Text('Start free trial'),
             ),
             TextButton(
-              onPressed: paywallEvent('close'),
+              onPressed: onClose,
               child: const Text('Not now'),
             ),
           ],

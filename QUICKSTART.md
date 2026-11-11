@@ -59,7 +59,10 @@ part 'restage.generated/pro_upgrade.restage.g.dart';
 
 @Paywall(id: 'pro_upgrade')
 class ProUpgradePaywall extends StatelessWidget {
-  const ProUpgradePaywall({super.key});
+  const ProUpgradePaywall({super.key, this.onStartTrial, this.onRestore});
+
+  final VoidCallback? onStartTrial;
+  final VoidCallback? onRestore;
 
   @override
   Widget build(BuildContext context) {
@@ -78,11 +81,11 @@ class ProUpgradePaywall extends StatelessWidget {
               const Text('Everything, unlocked.'),
               const SizedBox(height: 24),
               FilledButton(
-                onPressed: paywallEvent('continue', args: {'plan': 'annual'}),
+                onPressed: onStartTrial,
                 child: const Text('Start free trial'),
               ),
               TextButton(
-                onPressed: paywallEvent('restore_purchases'),
+                onPressed: onRestore,
                 child: const Text('Restore purchases'),
               ),
             ],
@@ -94,16 +97,18 @@ class ProUpgradePaywall extends StatelessWidget {
 }
 ```
 
-Both buttons use `paywallEvent`. It takes an event name and optional
-arguments, and the build compiles them into the artifact. When the user taps,
-your app receives a `PaywallCustomEvent` with that name and those arguments in
-`onEvent` (step 4), and runs the purchase from there through the store library
-it already uses.
+Both buttons call ordinary Flutter callbacks. The generated mount takes the
+same callbacks (step 4) and passes your app's closures to the delivered
+surface, so a tap runs your purchase code through the store library your app
+already uses, wherever the paywall's layout came from.
 
-The build stops with an error if a surface uses the event names `purchase` or
-`restore`, one of the SDK's own `restage.purchase…` or `restage.restore…` names,
-or the measurement name `__restage_measurement_tap_v1`. Use your own event names,
-as this guide does.
+When a Restage host should act on a tap, such as a flow moving to its next
+step, the surface fires a typed event instead: declare it as
+`static const next = SurfaceEvent<void>('next');` and pass
+`context.surfaceEvent(next)` as the callback. The build stops with an error
+if an event uses the names `purchase` or `restore`, one of the SDK's own
+`restage.purchase…` or `restage.restore…` names, or the measurement name
+`__restage_measurement_tap_v1`.
 
 The compiler supports widget composition, helpers and theme reads. Widgets that
 need app code can render alongside the delivered layout. Use `@RenderInApp` to
@@ -161,12 +166,12 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       home: Scaffold(
         body: ProUpgradePaywallSurface(
+          onStartTrial: () => debugPrint('start the trial'),
+          onRestore: () => debugPrint('restore purchases'),
           onEvent: (event) {
             switch (event) {
               case PaywallViewed():
                 debugPrint('paywall viewed');
-              case PaywallCustomEvent(:final eventName, :final args):
-                debugPrint('$eventName ${args['plan'] ?? ''}');
               case PaywallLoadFailed(:final message):
                 debugPrint('paywall load failed: $message');
               case _:
@@ -181,13 +186,12 @@ class MyApp extends StatelessWidget {
 ```
 
 `ProUpgradePaywallSurface` renders your original Flutter widget until hosted
-content is available. `onEvent` is where your app reacts to what happens
-in the surface: a view, a dismissal, or an event you fired with
-`paywallEvent`. The `continue` event arrives with `args['plan']`, so your
-purchase code goes in that case. Keep the `PaywallLoadFailed` case during
+content is available. Your purchase and restore code goes in the callbacks.
+`onEvent` reports what happens to the surface itself: a view, a dismissal, or
+a typed event the surface fired. Keep the `PaywallLoadFailed` case during
 development to report delivery failures. If delivered content can't render,
-the generated mount shows the original `ProUpgradePaywall` with the same event
-handler.
+the generated mount shows the original `ProUpgradePaywall` with the same
+callbacks.
 
 Build and run it:
 

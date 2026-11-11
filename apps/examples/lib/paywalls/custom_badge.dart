@@ -3,6 +3,8 @@ import 'package:restage/restage.dart';
 
 import '../widgets/streak_badge.dart';
 
+part 'restage.generated/custom_badge.restage.g.dart';
+
 /// A minimal paywall that uses the app's [StreakBadge].
 ///
 /// `StreakBadge` can't be inlined, so the delivered surface refers to it by name
@@ -10,7 +12,10 @@ import '../widgets/streak_badge.dart';
 @Paywall()
 class CustomBadgePaywall extends StatefulWidget {
   /// Const constructor.
-  const CustomBadgePaywall({super.key});
+  const CustomBadgePaywall({super.key, this.onContinue});
+
+  /// Continues to the purchase.
+  final VoidCallback? onContinue;
 
   @override
   State<CustomBadgePaywall> createState() => _CustomBadgePaywallState();
@@ -42,7 +47,7 @@ class _CustomBadgePaywallState extends State<CustomBadgePaywall> {
               const Center(child: StreakBadge(label: 'Saved', count: 3)),
               const Spacer(),
               GestureDetector(
-                onTap: paywallEvent('continue'),
+                onTap: widget.onContinue,
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(

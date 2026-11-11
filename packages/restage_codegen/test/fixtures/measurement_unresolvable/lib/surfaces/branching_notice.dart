@@ -22,12 +22,12 @@ class _BranchingNoticeState extends State<BranchingNotice> {
         children: [
           highlighted && expanded
               ? TextButton(
-                  onPressed: surfaceEvent(BranchingNotice.dismiss),
+                  onPressed: context.surfaceEvent(BranchingNotice.dismiss),
                   child: const Text('Highlighted'),
                 )
               : const Text('Ordinary'),
           FilledButton(
-            onPressed: surfaceEvent(BranchingNotice.dismiss),
+            onPressed: context.surfaceEvent(BranchingNotice.dismiss),
             child: const Text('Dismiss'),
           ),
         ],

@@ -101,8 +101,11 @@ void main() {
         .widget<TextButton>(
             find.widgetWithText(TextButton, 'Preferences original'))
         .onPressed!;
-    final refused = throwsA(isA<AssertionError>().having((e) => e.message,
-        'message', contains('callback dispatch is not admitted')));
+    // The popped step's widget is gone, so its callback refuses.
+    final refused = throwsA(isA<AssertionError>().having(
+        (e) => e.message,
+        'message',
+        contains('the widget that built the callback is no longer mounted')));
 
     controller.back();
     await tester.pumpAndSettle();

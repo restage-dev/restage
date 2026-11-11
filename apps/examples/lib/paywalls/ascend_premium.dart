@@ -10,6 +10,9 @@ import 'package:restage/restage.dart';
 /// uses fixed brand colors. Prices are illustrative.
 @Paywall()
 class AscendPremiumPaywall extends StatefulWidget {
+  static const close = SurfaceEvent<void>('close');
+  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+
   const AscendPremiumPaywall({super.key});
 
   @override
@@ -67,7 +70,8 @@ class _AscendPremiumPaywallState extends State<AscendPremiumPaywall> {
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               GestureDetector(
-                                onTap: paywallEvent('close'),
+                                onTap: context
+                                    .surfaceEvent(AscendPremiumPaywall.close),
                                 child: Container(
                                   width: 36,
                                   height: 36,
@@ -769,9 +773,9 @@ class _AscendPremiumPaywallState extends State<AscendPremiumPaywall> {
                             // Pinned last so it stays at the sheet bottom as the
                             // expanded card grows the sheet.
                             GestureDetector(
-                              onTap: paywallEvent(
-                                'continue',
-                                args: {
+                              onTap: context.surfaceEvent(
+                                AscendPremiumPaywall.continueFlow,
+                                {
                                   'term': annualSelected ? 'annual' : 'monthly',
                                 },
                               ),

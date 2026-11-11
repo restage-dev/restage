@@ -1325,6 +1325,11 @@ class AcmeCard extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox();
 }
 
+abstract final class _Events {
+  static const x = SurfaceEvent<bool>('x');
+  static const ok = SurfaceEvent<bool>('ok');
+}
+
 Object x(BuildContext context) => AcmeCard(tap: $argument);
 ''',
         rootPackage: 'apps_examples',
@@ -1335,7 +1340,7 @@ Object x(BuildContext context) => AcmeCard(tap: $argument);
     Future<({TranslationResult result, CustomWidgetParam param})>
     lowerTypedDestination({
       required String destinationType,
-      String argument = "(v) => paywallEvent('x')",
+      String argument = '(v) => context.surfaceEvent(_Events.x)',
     }) async {
       final catalog = probeCatalogWith([
         entry(
@@ -1388,7 +1393,11 @@ class AcmeCard extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox();
 }
 
-Object x() => AcmeCard(tap: $argument);
+abstract final class _Events {
+  static const x = SurfaceEvent<bool>('x');
+}
+
+Object x(BuildContext context) => AcmeCard(tap: $argument);
 ''',
         rootPackage: 'apps_examples',
       );
@@ -1404,7 +1413,7 @@ Object x() => AcmeCard(tap: $argument);
     test(
       'a value-callback closure lowers to its event at the call site',
       () async {
-        final r = await lowerCall("(v) => paywallEvent('x')");
+        final r = await lowerCall('(v) => context.surfaceEvent(_Events.x)');
         expect(
           r.issues.map((issue) => issue.code),
           [IssueCode.idiomAutoSubstituted],
@@ -1433,7 +1442,7 @@ Object x() => AcmeCard(tap: $argument);
     test('an async closure still binds to a declared void callback', () async {
       final lowered = await lowerTypedDestination(
         destinationType: 'ValueChanged<bool>?',
-        argument: "(v) async => paywallEvent('x')",
+        argument: '(v) async => context.surfaceEvent(_Events.x)',
       );
 
       expect(lowered.param.isVoidCallback, isTrue);
@@ -1470,8 +1479,8 @@ Object x() => AcmeCard(tap: $argument);
 
     test('a diagnosed conditional arm refuses the inlined call', () async {
       final r = await lowerCall(
-        'true ? ((v) => paywallEvent(v)) : '
-        "((v) => paywallEvent('ok'))",
+        'true ? ((v) => context.surfaceEvent(_Events.x, v)) : '
+        '((v) => context.surfaceEvent(_Events.ok))',
       );
 
       expect(
@@ -1495,14 +1504,14 @@ Object x() => AcmeCard(tap: $argument);
     });
 
     test('a closure reading its own parameter gets the same refusal', () async {
-      final r = await lowerCall('(v) => paywallEvent(v)');
+      final r = await lowerCall('(v) => context.surfaceEvent(_Events.x, v)');
       expect(
         r.issues.map((i) => i.code),
         [IssueCode.invalidEventConfiguration],
       );
       expect(
         r.issues.map((i) => i.message).join('\n'),
-        contains('Pass `paywallEvent(...)` directly'),
+        contains('Pass `context.surfaceEvent(...)` directly'),
       );
       expect(r.dsl, isNot(contains('tap:')));
     });

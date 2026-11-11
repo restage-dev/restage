@@ -9,7 +9,7 @@ final class UpgradeOffer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: paywallEvent('continue'),
+        onPressed: context.surfaceEvent(UpgradeOffer.continueFlow),
         child: const Text('Upgrade'),
       );
 }

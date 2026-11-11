@@ -17,7 +17,7 @@ final class _ContextBoundCallbackProbe extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    onBuilt(surfaceEventWithContext(context, WelcomeScreen.close));
+    onBuilt(context.surfaceEvent(WelcomeScreen.close));
     return const SizedBox();
   }
 }
@@ -38,19 +38,19 @@ void main() {
     expect(event, isA<OnboardingEvent<void>>());
   });
 
-  testWidgets('onboardingEvent dispatches through the active dispatcher',
+  testWidgets('an onboarding event dispatches through its dispatcher',
       (tester) async {
     String? receivedEventId;
     Object? receivedValue;
     VoidCallback? captured;
 
-    await tester.pumpWidget(RestageOnboardingEventDispatcher(
+    await tester.pumpWidget(RestageEventDispatcher(
       onEvent: (eventId, value) {
         receivedEventId = eventId;
         receivedValue = value;
       },
-      child: Builder(builder: (_) {
-        captured = onboardingEvent(WelcomeScreen.next);
+      child: Builder(builder: (context) {
+        captured = context.surfaceEvent(WelcomeScreen.next);
         return const SizedBox();
       }),
     ));
@@ -61,18 +61,18 @@ void main() {
     expect(receivedValue, isNull);
   });
 
-  testWidgets('onboardingEvent dispatches a typed payload', (tester) async {
+  testWidgets('an onboarding event dispatches a typed payload', (tester) async {
     String? receivedEventId;
     Object? receivedValue;
     VoidCallback? captured;
 
-    await tester.pumpWidget(RestageOnboardingEventDispatcher(
+    await tester.pumpWidget(RestageEventDispatcher(
       onEvent: (eventId, value) {
         receivedEventId = eventId;
         receivedValue = value;
       },
-      child: Builder(builder: (_) {
-        captured = onboardingEvent(WelcomeScreen.age, 42);
+      child: Builder(builder: (context) {
+        captured = context.surfaceEvent(WelcomeScreen.age, 42);
         return const SizedBox();
       }),
     ));
@@ -83,19 +83,19 @@ void main() {
     expect(receivedValue, 42);
   });
 
-  testWidgets('surfaceEvent dispatches through the active dispatcher',
+  testWidgets('context.surfaceEvent dispatches through its dispatcher',
       (tester) async {
     String? receivedEventId;
     Object? receivedValue;
     VoidCallback? captured;
 
-    await tester.pumpWidget(RestageOnboardingEventDispatcher(
+    await tester.pumpWidget(RestageEventDispatcher(
       onEvent: (eventId, value) {
         receivedEventId = eventId;
         receivedValue = value;
       },
-      child: Builder(builder: (_) {
-        captured = surfaceEvent(WelcomeScreen.close);
+      child: Builder(builder: (context) {
+        captured = context.surfaceEvent(WelcomeScreen.close);
         return const SizedBox();
       }),
     ));
@@ -122,16 +122,14 @@ void main() {
               onEvent: (_, __) => routed.add('outer'),
               child: Builder(
                 builder: (outerContext) {
-                  outer = surfaceEventWithContext(
-                    outerContext,
+                  outer = outerContext.surfaceEvent(
                     WelcomeScreen.close,
                   );
                   return RestageEventDispatcher(
                     onEvent: (_, __) => routed.add('inner'),
                     child: Builder(
                       builder: (innerContext) {
-                        inner = surfaceEventWithContext(
-                          innerContext,
+                        inner = innerContext.surfaceEvent(
                           WelcomeScreen.close,
                         );
                         return const SizedBox();
@@ -145,8 +143,7 @@ void main() {
               onEvent: (_, __) => routed.add('sibling'),
               child: Builder(
                 builder: (context) {
-                  sibling = surfaceEventWithContext(
-                    context,
+                  sibling = context.surfaceEvent(
                     WelcomeScreen.close,
                   );
                   return const SizedBox();
@@ -165,7 +162,8 @@ void main() {
     expect(routed, <String>['outer', 'inner', 'sibling']);
   });
 
-  testWidgets('context-bound callbacks refresh with a replacement handler',
+  testWidgets(
+      'context-bound callbacks reach a replacement handler without a rebuild',
       (tester) async {
     final routed = <String>[];
     late StateSetter updateHost;
@@ -198,11 +196,11 @@ void main() {
     currentCallback();
 
     expect(routed, <String>['first', 'second']);
-    expect(descendantBuilds, 2);
+    // The lookup does not depend on the dispatcher, so nothing rebuilds.
+    expect(descendantBuilds, 1);
   });
 
-  testWidgets(
-      'context-free surface events refuse when no single mounted surface declares them',
+  testWidgets('context surface events go to the dispatcher that built them',
       (tester) async {
     late StateSetter rebuildFirst;
     VoidCallback? captured;
@@ -220,7 +218,7 @@ void main() {
                 builder: (context, setState) {
                   rebuildFirst = setState;
                   if (shouldCapture) {
-                    captured = surfaceEvent(WelcomeScreen.close);
+                    captured = context.surfaceEvent(WelcomeScreen.close);
                   }
                   return const SizedBox();
                 },
@@ -240,30 +238,20 @@ void main() {
     await tester.pump();
 
     expect(captured, isNotNull);
-    Object? failure;
-    try {
-      captured!();
-    } on Object catch (error) {
-      failure = error;
-    }
-    expect(routed, isEmpty);
-    expect(failure, isA<AssertionError>());
-    expect(
-      (failure! as AssertionError).message,
-      '[restage] surfaceEvent refused authored event dispatch: dispatcher '
-      'ownership is ambiguous.',
-    );
+    captured!();
+    expect(routed, <String>['first']);
   });
 
-  test('onboardingEvent rejects the wrong payload type statically', () async {
+  test('surfaceEvent rejects the wrong payload type statically', () async {
     final result = await staticAnalysisErrors(
       fileName: 'wrong_onboarding_event_payload.dart',
       source: '''
+import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-void main() {
+void probe(BuildContext context) {
   const age = OnboardingEvent<int>('age');
-  onboardingEvent(age, 'forty-two');
+  context.surfaceEvent(age, 'forty-two');
 }
 ''',
     );
@@ -277,29 +265,32 @@ void main() {
     expect(result.single.message, contains("'int'"));
   }, timeout: staticAnalysisTimeout);
 
-  testWidgets(
-      'onboardingEvent invoked with no dispatcher mounted asserts/reports',
+  testWidgets('context.surfaceEvent with no dispatcher mounted asserts/reports',
       (tester) async {
-    final callback = onboardingEvent(WelcomeScreen.next);
+    late VoidCallback callback;
+    await tester.pumpWidget(Builder(builder: (context) {
+      callback = context.surfaceEvent(WelcomeScreen.next);
+      return const SizedBox();
+    }));
 
     expect(callback, isA<VoidCallback>());
     expect(callback, throwsAssertionError);
   });
 
-  testWidgets('onboardingEvent refuses after its dispatcher is disposed',
+  testWidgets('context.surfaceEvent refuses after its dispatcher is disposed',
       (tester) async {
     String? routedTo;
     VoidCallback? captured;
 
-    await tester.pumpWidget(RestageOnboardingEventDispatcher(
+    await tester.pumpWidget(RestageEventDispatcher(
       onEvent: (eventId, value) => routedTo = 'A',
-      child: Builder(builder: (_) {
-        captured = onboardingEvent(WelcomeScreen.next);
+      child: Builder(builder: (context) {
+        captured = context.surfaceEvent(WelcomeScreen.next);
         return const SizedBox();
       }),
     ));
 
-    await tester.pumpWidget(RestageOnboardingEventDispatcher(
+    await tester.pumpWidget(RestageEventDispatcher(
       onEvent: (eventId, value) => routedTo = 'B',
       child: const SizedBox(),
     ));

@@ -12,9 +12,11 @@ import 'fluent_pro_choose_plan.dart';
 ///
 /// "View all plans" is a real `Navigator.push` to [FluentProChoosePlanScreen].
 /// The build turns it into a two-screen flow, and the back button fires
-/// `paywallEvent('skip')` to end it.
+/// `context.surfaceEvent(PaywallEvents.skip)` to end it.
 @Paywall()
 class FluentProPaywall extends StatefulWidget {
+  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+
   const FluentProPaywall({super.key});
 
   @override
@@ -66,7 +68,7 @@ class _FluentProPaywallState extends State<FluentProPaywall> {
                             // generated flow. The Navigator.push conversion
                             // needs it.
                             GestureDetector(
-                              onTap: paywallEvent('skip'),
+                              onTap: context.surfaceEvent(PaywallEvents.skip),
                               child: const Icon(
                                 Icons.arrow_back_rounded,
                                 color: Colors.white,
@@ -404,9 +406,9 @@ class _FluentProPaywallState extends State<FluentProPaywall> {
                 const SizedBox(height: 10),
                 // White "START MY FREE WEEK" pill — reports the selected plan.
                 GestureDetector(
-                  onTap: paywallEvent(
-                    'continue',
-                    args: {
+                  onTap: context.surfaceEvent(
+                    FluentProPaywall.continueFlow,
+                    {
                       'plan': personalSelected ? 'personal' : 'family',
                     },
                   ),

@@ -7,8 +7,8 @@ part 'restage.generated/starter_welcome.restage.g.dart';
 /// Starter onboarding — the welcome screen.
 ///
 /// A `@Screen` is one screen of a flow, authored in ordinary Flutter.
-/// Each thing the user can do is a [SurfaceEvent]; `surfaceEvent(...)`
-/// wires it to a tap. The flow decides where `next` goes — here, to the
+/// Each thing the user can do is a [SurfaceEvent];
+/// `context.surfaceEvent(...)` wires it to a tap. The flow decides where `next` goes — here, to the
 /// question screen.
 @Screen()
 class StarterWelcomeScreen extends StatelessWidget {
@@ -56,7 +56,7 @@ class StarterWelcomeScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: surfaceEvent(next),
+                onPressed: context.surfaceEvent(next),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

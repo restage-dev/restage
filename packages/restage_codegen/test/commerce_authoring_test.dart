@@ -56,10 +56,28 @@ void main() {
       }
     });
 
+    Future<TranslationResult> fired(String events, String body) async =>
+        translator.translate(
+          await parseExpressionFromSourceForTest(
+            '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+abstract final class Probe {
+$events
+}
+
+Object x(BuildContext context, bool enabled) => $body;
+''',
+            rootPackage: 'apps_examples',
+          ),
+        );
+
     test('rejects reserved SDK event names', () async {
       for (final name in kReservedCommerceEventNames) {
-        final result = translator.translate(
-          await parseExpressionForTest("paywallEvent('$name')"),
+        final result = await fired(
+          "  static const blocked = SurfaceEvent<void>('$name');",
+          'context.surfaceEvent(Probe.blocked)',
         );
 
         expect(result.dsl, isEmpty, reason: name);
@@ -72,11 +90,14 @@ void main() {
       }
     });
 
-    test('rejects reserved names in conditional event arguments', () async {
-      final result = translator.translate(
-        await parseExpressionForTest(
-          "paywallEvent(enabled ? 'continue' : 'restage.purchase.pending')",
-        ),
+    test('rejects a reserved name in either conditional arm', () async {
+      final result = await fired(
+        "  static const ok = SurfaceEvent<void>('continue');\n"
+            '  static const blocked = '
+            "SurfaceEvent<void>('restage.purchase.pending');",
+        'Theme.of(context).brightness == Brightness.dark '
+            '? context.surfaceEvent(Probe.ok) '
+            ': context.surfaceEvent(Probe.blocked)',
       );
 
       expect(
@@ -86,23 +107,31 @@ void main() {
       expect(result.dsl, isNot(contains('restage.purchase.pending')));
     });
 
-    test('rejects a prefixed SDK event helper', () async {
-      final result = translator.translate(
-        await parseExpressionFromSourceForTest(
-          '''
+    test(
+      'rejects a reserved event declared through a prefixed import',
+      () async {
+        final result = translator.translate(
+          await parseExpressionFromSourceForTest(
+            '''
+import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart' as sdk;
 
-Object x() => sdk.paywallEvent('restage.purchase');
-''',
-          rootPackage: 'apps_examples',
-        ),
-      );
+abstract final class Probe {
+  static const blocked = sdk.SurfaceEvent<void>('restage.purchase');
+}
 
-      expect(
-        result.issues.map((issue) => issue.code.name),
-        ['unsupportedCommerceAuthoring'],
-      );
-    });
+Object x(BuildContext context) => context.surfaceEvent(Probe.blocked);
+''',
+            rootPackage: 'apps_examples',
+          ),
+        );
+
+        expect(
+          result.issues.map((issue) => issue.code.name),
+          ['unsupportedCommerceAuthoring'],
+        );
+      },
+    );
 
     test('rejects a reserved named event descriptor', () async {
       final eventTranslator = ExpressionTranslator(
@@ -112,13 +141,14 @@ Object x() => sdk.paywallEvent('restage.purchase');
       final result = eventTranslator.translate(
         await parseExpressionFromSourceForTest(
           '''
+import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
 abstract final class Probe {
   static const blocked = SurfaceEvent<void>('restage.purchase');
 }
 
-Object x() => surfaceEvent(Probe.blocked);
+Object x(BuildContext context) => context.surfaceEvent(Probe.blocked);
 ''',
           rootPackage: 'apps_examples',
         ),

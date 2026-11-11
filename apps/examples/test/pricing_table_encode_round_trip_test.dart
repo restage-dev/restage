@@ -6,6 +6,7 @@ import 'package:restage/restage.dart';
 import 'package:restage_example/user_factories.g.dart';
 import 'package:restage_example/widgets/pricing_card.dart';
 import 'package:restage_example/widgets/pricing_table.dart';
+import 'package:restage_example/paywalls/pricing_table_showcase.dart';
 
 import '_support/bundled_artifacts.dart';
 
@@ -49,8 +50,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: ThemeData(useMaterial3: true),
-          home: RestagePaywall(
-            id: 'pricing_table_showcase',
+          home: PricingTableShowcaseSurface(
             resolver: _StaticResolver(bytes),
           ),
         ),

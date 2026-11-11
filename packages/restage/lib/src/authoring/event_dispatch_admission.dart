@@ -31,7 +31,48 @@ final class RestageFlowEventDispatchBinding {
   final Object registration;
 }
 
-final class RestageFlowEventDispatchScope extends InheritedWidget {
+// A theme, so a dialog or menu the step opens keeps its binding.
+/// Marks the scopes an authored event resolves through, which a route a
+/// generated mount pushes carries.
+mixin RestageEventScope on InheritedTheme {}
+
+/// The surface content a dispatcher's events come from, which stays current
+/// while that surface shows it. A dialog or route that carries it refuses
+/// once the surface shows something else.
+final class RestageEventEpoch extends InheritedTheme with RestageEventScope {
+  /// Marks [child] as current while [isCurrent] holds.
+  const RestageEventEpoch({
+    super.key,
+    required this.isCurrent,
+    required super.child,
+  });
+
+  /// Whether the surface still shows the content below this scope.
+  final bool Function() isCurrent;
+
+  @override
+  Widget wrap(BuildContext context, Widget child) =>
+      RestageEventEpoch(isCurrent: isCurrent, child: child);
+
+  @override
+  bool updateShouldNotify(RestageEventEpoch oldWidget) => false;
+}
+
+/// Whether the content [context] is built in is still current for the
+/// dispatcher at element depth [above].
+bool isEventEpochCurrent(BuildContext context, {required int above}) {
+  final element =
+      context.getElementForInheritedWidgetOfExactType<RestageEventEpoch>();
+  if (element == null || element.depth <= above) return true;
+  try {
+    return (element.widget as RestageEventEpoch).isCurrent();
+  } on Object {
+    return false;
+  }
+}
+
+final class RestageFlowEventDispatchScope extends InheritedTheme
+    with RestageEventScope {
   const RestageFlowEventDispatchScope({
     super.key,
     required Object controller,
@@ -43,17 +84,24 @@ final class RestageFlowEventDispatchScope extends InheritedWidget {
   final Object _controller;
   final Object _registration;
 
-  static RestageFlowEventDispatchBinding? maybeOf(
-    BuildContext context,
-  ) {
-    final scope = context
-        .dependOnInheritedWidgetOfExactType<RestageFlowEventDispatchScope>();
+  /// The binding above [context], found without depending on it.
+  static RestageFlowEventDispatchBinding? bindingAt(BuildContext context) {
+    final scope =
+        context.getInheritedWidgetOfExactType<RestageFlowEventDispatchScope>();
     if (scope == null) return null;
     return RestageFlowEventDispatchBinding(
       controller: scope._controller,
       registration: scope._registration,
     );
   }
+
+  @override
+  Widget wrap(BuildContext context, Widget child) =>
+      RestageFlowEventDispatchScope(
+        controller: _controller,
+        registration: _registration,
+        child: child,
+      );
 
   @override
   bool updateShouldNotify(RestageFlowEventDispatchScope oldWidget) =>

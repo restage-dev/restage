@@ -187,7 +187,7 @@ final class $className extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: ElevatedButton(
-          onPressed: onboardingEvent($eventName),
+          onPressed: context.surfaceEvent($eventName),
           child: const Text('$className'),
         ),
       );

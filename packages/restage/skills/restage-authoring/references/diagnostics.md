@@ -78,7 +78,7 @@ static const back = SurfaceEvent<void>('back');
 
 @override
 Widget build(BuildContext context) =>
-    TextButton(onPressed: surfaceEvent(back), child: const Text('Back'));
+    TextButton(onPressed: context.surfaceEvent(back), child: const Text('Back'));
 ```
 
 The app handles it at the mount:
@@ -167,11 +167,11 @@ method stops the build. Keep controllers and subscriptions in app code.
 ## completesOn names an event no tap fires
 
 ```text
-[annotationEvaluationFailed] lib/src/measurement/restage.measurement.compiler.json: Could not construct Measurement route plan for paywall/stray_complete: Invalid argument(s): completesOn names the event 'buy', which no tap on this paywall fires. A tap names it with paywallEvent('buy') or surfaceEvent(<the declared event constant>).
+[annotationEvaluationFailed] lib/src/measurement/restage.measurement.compiler.json: Could not construct Measurement route plan for paywall/stray_complete: Invalid argument(s): completesOn names the event 'buy', which no tap on this paywall fires. A tap fires it with context.surfaceEvent(<the declared event constant>).
 ```
 
-Fire the event from the tap that completes the paywall with `paywallEvent('buy')` or
-`surfaceEvent(Paywall.buy)`, or remove it from `completesOn`. Taps on your own widgets'
+Fire the event from the tap that completes the paywall with
+`context.surfaceEvent(Paywall.buy)`, or remove it from `completesOn`. Taps on your own widgets'
 callbacks count, including inside a wrapper widget's child.
 
 ## A widget the build can't match to an earlier one
@@ -190,11 +190,11 @@ form.
 ## invalidEventConfiguration
 
 ```text
-[invalidEventConfiguration] lib/surveys/opt_in.dart:11:72: The callback value reaches the event automatically. Pass `surfaceEvent(...)` directly to the callback, without a closure.
+[invalidEventConfiguration] lib/surveys/opt_in.dart:11:72: The callback value reaches the event automatically. Pass `context.surfaceEvent(...)` directly to the callback, without a closure.
 ```
 
-Write `onChanged: surfaceEvent(pick)`. The widget's value becomes the event's value.
-A closure around `surfaceEvent(...)` builds with a warning, but the event never fires
+Write `onChanged: context.surfaceEvent(pick)`. The widget's value becomes the event's value.
+A closure around `context.surfaceEvent(...)` builds with a warning, but the event never fires
 when your own widget shows, so remove it.
 
 A map passed as the event value becomes the event's arguments, so its keys must be

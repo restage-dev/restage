@@ -12,6 +12,7 @@ import 'package:build/build.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_codegen/src/surface_publication/app_widget_events.dart';
 import 'package:restage_codegen/src/analytics_id_lowering.dart';
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
@@ -71,10 +72,12 @@ final class CompiledPaywallArtifacts {
     Map<String, Object> standaloneLocalSeeds = const {},
     Map<String, Object> adapterLocalSeeds = const {},
     Iterable<HoistedValue> hoisted = const [],
+    Iterable<FieldElement> firedEvents = const [],
     Iterable<Island> islands = const [],
     this.split,
     Iterable<SplitWidgetInput> splitWidgets = const [],
   }) : navigationPushedIds = List.unmodifiable(navigationPushedIds),
+       firedEvents = List.unmodifiable(firedEvents),
        splitWidgets = List.unmodifiable(splitWidgets),
        hoisted = List.unmodifiable(hoisted),
        islands = List.unmodifiable(islands),
@@ -134,6 +137,9 @@ final class CompiledPaywallArtifacts {
 
   /// Values the paywall's mount computes for either form, ordered by key.
   final List<HoistedValue> hoisted;
+
+  /// The `SurfaceEvent` constants the paywall's build fires.
+  final List<FieldElement> firedEvents;
 
   /// Islands of either form, ordered by ID.
   final List<Island> islands;
@@ -256,6 +262,12 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
     ),
   );
   final splitDefinitions = splitWidgetDefinitionsOf(splits);
+  final islandEvents = AppWidgetEvents(
+    package: buildStep.inputId.package,
+    noticeKeys: noticeKeys,
+    astNodeFor: (fragment) =>
+        resolvedNodeInLongForm(buildStep.resolver, fragment),
+  );
   Catalog formCatalog(Iterable<Island> islands) =>
       withSplits(catalog, islands, splits);
   ExpressionTranslator translatorFor(
@@ -405,6 +417,18 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
           for (final value in [...standalone.hoisted, ...adapter.hoisted])
             value.key: value,
         }.values.toList()..sort((left, right) => left.key.compareTo(right.key)),
+        // An app widget it shows as an island fires from its own build.
+        firedEvents: {
+          ...standalone.firedEvents,
+          ...adapter.firedEvents,
+          ...await islandEvents.firedBy(
+            [...standalone.islands, ...adapter.islands],
+            {
+              ...standalone.placedCustomWidgets,
+              ...adapter.placedCustomWidgets,
+            },
+          ),
+        },
         islands: standalone.islands,
         split: standalone.split ?? adapter.split,
         splitWidgets: splits,

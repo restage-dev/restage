@@ -338,7 +338,7 @@ class EntryPaywall extends StatelessWidget {
         child: const Text('Choose'),
       ),
       ElevatedButton(
-        onPressed: paywallEvent('skip'),
+        onPressed: context.surfaceEvent(PaywallEvents.skip),
         child: const Text('Skip'),
       ),
     ],
@@ -381,7 +381,7 @@ class EntryPaywall extends StatelessWidget {
         child: const Text('Choose'),
       ),
       ElevatedButton(
-        onPressed: paywallEvent('skip'),
+        onPressed: context.surfaceEvent(PaywallEvents.skip),
         child: const Text('Skip'),
       ),
     ],
@@ -409,7 +409,7 @@ class ChoosePlanPaywall extends StatelessWidget {
         child: const Text('Confirm'),
       ),
       ElevatedButton(
-        onPressed: paywallEvent('skip'),
+        onPressed: context.surfaceEvent(PaywallEvents.skip),
         child: const Text('Skip'),
       ),
     ],
@@ -452,7 +452,7 @@ class EntryPaywall extends StatelessWidget {
         child: const Text('Choose'),
       ),
       ElevatedButton(
-        onPressed: paywallEvent('skip'),
+        onPressed: context.surfaceEvent(PaywallEvents.skip),
         child: const Text('Skip'),
       ),
     ],

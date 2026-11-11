@@ -18,6 +18,7 @@ import '../delivery/surface_delivery_paint_boundary.dart';
 import '../delivery/surface_race.dart';
 import '../delivery/surface_delivery_receipt.dart';
 import '../delivery/surface_load_cycle.dart';
+import '../authoring/onboarding_event.dart' show RecordedEventHost;
 import '../authoring/event_dispatch_admission.dart';
 import '../analytics/root_analytics_context.dart';
 import '../authoring/event_dispatcher.dart';
@@ -25,6 +26,7 @@ import '../authoring/paywall_event_dispatch.dart';
 import '../events/event_enums.dart';
 import '../events/restage_event.dart';
 import '../flow/flow_controller.dart';
+import '../flow/flow_runtime_support.dart' show normalizeEventArgs;
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_experiment_mount.dart' show FlowMountRevalidationBoundary;
 import '../flow/flow_resolver.dart';
@@ -158,8 +160,10 @@ class RestagePaywall extends StatefulWidget implements RestagePlacementMount {
   static PlacementMountBinding generatedPlacementBinding({
     required GeneratedPlacementDefinition Function() definition,
     String? name,
+    Object? eventOwner,
   }) =>
-      PlacementMountBinding(definition: definition, name: name);
+      PlacementMountBinding(
+          definition: definition, name: name, eventOwner: eventOwner);
 
   /// Stable paywall identifier (e.g. `'pro_upgrade'`).
   final String id;
@@ -311,6 +315,26 @@ class _RestagePaywallState extends State<RestagePaywall> {
   Object? _fallbackAttributionIdentity;
   PaywallEventHandler? _fallbackEventHandler;
   bool Function() _fallbackIsCurrent = _notCurrent;
+
+  // App events of each hosted flow, handled as its screens' events are: the
+  // paywall takes its own, the flow the rest. One handler per flow, so the
+  // dispatcher keeps it across rebuilds.
+  final Expando<PaywallEventHandler> _flowAppEventHandlers = Expando();
+
+  PaywallEventHandler _flowAppEventHandlerFor(
+    RestageFlowController<void> controller,
+  ) =>
+      _flowAppEventHandlers[controller] ??= (name, args) {
+        final normalized = normalizeEventArgs(
+          sanitizeAndRecordHostFlowEvent(controller, args),
+        );
+        if (_interceptFlowScreenEvent(name, normalized)) return;
+        controller.handleEvent(name, normalized);
+      };
+
+  // The paywall events come from; it changes when another paywall takes this
+  // element.
+  Object _eventIdentity = Object();
   static bool _notCurrent() => false;
 
   /// The generated mount whose own build dispatches its events explicitly;
@@ -658,6 +682,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
   void didUpdateWidget(RestagePaywall oldWidget) {
     super.didUpdateWidget(oldWidget);
     _refreshContext();
+    // Another paywall taking this element: what the old one showed in a
+    // dialog no longer reaches it. A new handler for the same paywall does.
+    if (oldWidget.id != widget.id) {
+      _eventIdentity = Object();
+    }
     if (!(oldWidget.placementBinding
             ?.sameDeclarationAs(widget.placementBinding) ??
         widget.placementBinding == null)) {
@@ -3266,8 +3295,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
       };
     }
     _fallbackIsCurrent = isCurrent;
-    final original =
+    final identity = _eventIdentity;
+    final owner = widget.placementBinding?.eventOwner;
+    final Widget original =
         Builder(builder: (context) => widget.fallbackBuilder!(context));
+    final hosted = owner == null
+        ? original
+        : RecordedEventHost(owner: owner, child: original);
     final mount = _eventMount;
     final load = _fallbackLoad ?? _surfaceLoad;
     return RestageContextSnapshotScope(
@@ -3278,35 +3312,37 @@ class _RestagePaywallState extends State<RestagePaywall> {
         isCurrent: isCurrent,
         child: RestagePaywallEventDispatcher(
           onEvent: _fallbackEventHandler!,
-          scoped: mount == null,
           mount: mount,
-          child: RuntimeErrorBoundary(
-            debugLabel: widget.id,
-            onFirstPaintSuccess: () {
-              if (!isCurrent()) return;
-              _placementDiscovery.markPainted();
-              _fallbackAnalyticsPresentation?.activate();
-              if (_viewedFired) return;
-              _viewedFired = true;
-              _fireEvent(PaywallViewed(paywallId: widget.id));
-            },
-            // A policy widget that throws shows nothing and fails the load,
-            // as on every host; the error reaches FlutterError.onError once.
-            onError: (exception, stack) {
-              if (!isCurrent()) return;
-              final event = load.fail(SurfaceLoadFailureReason.renderError,
-                  detail: RestageErrorCodes.renderError);
-              if (event != null) _fireEvent(event);
-            },
-            errorReplacement: (_, __, ___) => const SizedBox.shrink(),
-            // Content that failed to render still reports its failure.
-            child: _isRenderFailure(error)
-                ? _failSurfaceLoadOnPaint(error, original, load: load)
-                : SurfaceLoadPaint(
-                    load: load,
-                    onPainted: () => _completeSurfaceLoadWithOriginal(load),
-                    child: original,
-                  ),
+          child: RestageEventEpoch(
+            isCurrent: () => identical(identity, _eventIdentity) && isCurrent(),
+            child: RuntimeErrorBoundary(
+              debugLabel: widget.id,
+              onFirstPaintSuccess: () {
+                if (!isCurrent()) return;
+                _placementDiscovery.markPainted();
+                _fallbackAnalyticsPresentation?.activate();
+                if (_viewedFired) return;
+                _viewedFired = true;
+                _fireEvent(PaywallViewed(paywallId: widget.id));
+              },
+              // A policy widget that throws shows nothing and fails the load,
+              // as on every host; the error reaches FlutterError.onError once.
+              onError: (exception, stack) {
+                if (!isCurrent()) return;
+                final event = load.fail(SurfaceLoadFailureReason.renderError,
+                    detail: RestageErrorCodes.renderError);
+                if (event != null) _fireEvent(event);
+              },
+              errorReplacement: (_, __, ___) => const SizedBox.shrink(),
+              // Content that failed to render still reports its failure.
+              child: _isRenderFailure(error)
+                  ? _failSurfaceLoadOnPaint(error, hosted, load: load)
+                  : SurfaceLoadPaint(
+                      load: load,
+                      onPainted: () => _completeSurfaceLoadWithOriginal(load),
+                      child: hosted,
+                    ),
+            ),
           ),
         ),
       ),
@@ -3365,6 +3401,22 @@ class _RestagePaywallState extends State<RestagePaywall> {
         child: child,
       );
     }
+    // App code the hosted flow shows, a dialog it opens included, fires on
+    // this paywall. A staged flow hosts the mount too, so the host survives
+    // its promotion; its epoch keeps it from taking events until then.
+    final identity = _eventIdentity;
+    child = RestagePaywallEventDispatcher(
+      onEvent: _flowAppEventHandlerFor(controller),
+      // Only the shown layer renders the mount's recorded events.
+      mount: staged ? null : _eventMount,
+      child: RestageEventEpoch(
+        isCurrent: () =>
+            mounted &&
+            identical(identity, _eventIdentity) &&
+            identical(_flowController, controller),
+        child: _hostRecordedEvents(widget.placementBinding?.eventOwner, child),
+      ),
+    );
     // A staged version builds its islands only once it is shown.
     return KeyedSubtree(
       key: ObjectKey(controller),
@@ -3379,6 +3431,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   Widget _buildBlobLayer(_BlobStage stage, {required bool staged}) {
+    final identity = _eventIdentity;
     final candidatePending = !stage.transaction.isCommitted;
     // A staged version builds its islands only once it is shown.
     return KeyedSubtree(
@@ -3399,7 +3452,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
                 isCurrent: () => _isBlobEventStageCurrent(stage),
                 child: RestagePaywallEventDispatcher(
                   onEvent: stage.eventHandler,
-                  scoped: _eventMount == null,
                   mount: _eventMount,
                   child: RuntimeErrorBoundary(
                     debugLabel: widget.id,
@@ -3434,14 +3486,29 @@ class _RestagePaywallState extends State<RestagePaywall> {
                               stage.sections.iconFonts,
                               // The same widget each build, so a rebuild above
                               // stops here; data and scopes reach what reads them.
-                              child: stage.remoteWidget ??= RemoteWidget(
-                                runtime: stage.runtime,
-                                data: stage.data,
-                                widget: placementWidgetNameFor(
-                                    stage.payload.variant,
-                                    const FullyQualifiedWidgetName(
-                                        _paywallLibrary, _paywallRootWidget)),
-                                onEvent: stage.eventHandler,
+                              // App code the design shows fires on this stage,
+                              // a dialog it opens included.
+                              child: RestageEventEpoch(
+                                isCurrent: () =>
+                                    identical(identity, _eventIdentity) &&
+                                    _isBlobEventStageCurrent(stage),
+                                // Only the shown layer hosts the mount; a
+                                // staged one is inert.
+                                child: _hostRecordedEvents(
+                                  staged
+                                      ? null
+                                      : widget.placementBinding?.eventOwner,
+                                  stage.remoteWidget ??= RemoteWidget(
+                                    runtime: stage.runtime,
+                                    data: stage.data,
+                                    widget: placementWidgetNameFor(
+                                        stage.payload.variant,
+                                        const FullyQualifiedWidgetName(
+                                            _paywallLibrary,
+                                            _paywallRootWidget)),
+                                    onEvent: stage.eventHandler,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -3457,6 +3524,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
       ),
     );
   }
+
+  // The surface that receives events a generated mount recorded above it.
+  static Widget _hostRecordedEvents(Object? owner, Widget child) =>
+      owner == null ? child : RecordedEventHost(owner: owner, child: child);
 
   // Completes [stage]'s load when [child], its delivered content, paints.
   Widget _completeOnPaint(_BlobStage stage, Widget child) {

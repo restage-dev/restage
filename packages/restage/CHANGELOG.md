@@ -49,6 +49,9 @@ A generated surface can render parts of its widget tree from the app's own code.
 
 `SurfaceVocabulary.stepMounts` maps a flow step to a `RestageStepMount`. A `RestageStepMount` renders the step's published content with the values the app computes for it. It reads the step's inputs from the step widget the app builds. `RestageStepValues` carries those values to the content. A flow becomes unavailable when a step has a `RestageStepMount` and no bound screen builder.
 
+- **Breaking:** Remove `paywallEvent`. A paywall makes things happen with plain callbacks, such as `onPressed: onClose`, which its generated mount takes and hands to the delivered design. For an event a Restage host acts on, declare `static const startTrial = SurfaceEvent<void>('start_trial');` and fire it with `context.surfaceEvent(startTrial)`; an `args:` map becomes the event's `SurfaceEvent<Map<String, Object?>>` value. The host still receives a `PaywallCustomEvent` named by the event's id. `dart run restage_codegen:migrate_events` rewrites each call and declares its event; it leaves deciding which events should be plain callbacks to you. `activeDispatcher`, `RestagePaywallEventDispatcher.scoped`, `RestagePaywallEventDispatcher.island`, `RestageRecording.event`, `RestageRecording.withEvents` and the `events:` parameter of `RestageRecording.island` are removed, and the paywall dispatcher no longer adds a render object.
+- **Breaking:** Authored events fire from a widget's own context: `context.surfaceEvent(event, [value])` replaces the top-level `surfaceEvent`, `surfaceEventWithContext` and the deprecated `onboardingEvent`. The callback finds its surface when it runs, without depending on it, so copies of a surface each receive their own events. `activeSurfaceEventDispatcher` and `activeOnboardingEventDispatcher` are removed. `RestageOnboardingEventDispatcher` and `RestageSurfaceEventDispatcher` are removed too, and `dart fix --apply` renames them to `RestageEventDispatcher`. `dart fix` can't add the context; `dart run restage_codegen:migrate_events` does: `surfaceEvent(event)` becomes `context.surfaceEvent(event)` with the context of the widget that builds the button, and `surfaceEventWithContext(context, event)` becomes `context.surfaceEvent(event)`. It prints each call it can't rewrite with the fix. A callback whose widget is no longer mounted, or that isn't built inside a surface, refuses and names the fix.
+- Add `PlacementMountBinding.eventOwner`, the generated mount whose recorded events a surface receives, and `RestageRecording(mount:)`, the context a flow step's generated mount fires its events from. Generated code sets both.
 - Add `SurfaceFlowRef.surfaceWidget`, the name of the widget generated for a flow. Error messages use it to name the widget to switch to.
 - Add `PaywallRef.surfaceWidget`, the name of the widget generated for a paywall. Error messages use it to name the widget to switch to.
 - Add `SurfaceScreenRef.surfaceWidget`, the name of the widget generated for a screen. Messages use it to name that widget.
@@ -196,10 +199,11 @@ surface draws on, so apps with generated mounts need no startup registration cal
 
 When a mount shows the widget you wrote, because nothing is published or delivery
 failed, its events reach `onEvent` as the same typed classes as on the hosted path.
-`surfaceEvent`, `paywallEvent` and `onboardingEvent` now return a callback that
-works as both a tap and a value callback: pass them directly, as in
-`onChanged: surfaceEvent(pick)`, and the widget's value becomes the event's value.
-A closure around them never fires in your own widget.
+`context.surfaceEvent` returns a callback that works as both a tap and a value
+callback: pass it directly, as in `onChanged: context.surfaceEvent(pick)`, and the
+widget's value becomes the event's value. An event that already carries a map
+gets the widget's value added under `value`, on the delivered design and in your
+own widget alike. A closure around it never fires in your own widget.
 
 Hosted requests no longer wait without limit. Optional inputs such as the metering
 key share a short deadline, measurement setup has its own, and every request stops

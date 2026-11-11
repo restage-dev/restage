@@ -252,8 +252,12 @@ final class PlanBadge extends StatelessWidget {
       Padding(padding: Spacing.badge(), child: Text(label));
 }
 
-Widget buyButton(String label) =>
-    FilledButton(onPressed: paywallEvent('buy'), child: Text(label));
+Widget buyButton(BuildContext context, String label) =>
+    FilledButton(onPressed: context.surfaceEvent(ShopEvents.buy), child: Text(label));
+
+abstract final class ShopEvents {
+  static const buy = SurfaceEvent<void>('buy');
+}
 ''';
     const spacing = '''
 import 'package:flutter/widgets.dart';
@@ -286,7 +290,9 @@ $body
     final PlanBadge shorthand = .pro();
     return Padding(
       padding: Spacing.page(),
-      child: Column(children: [PlanBadge.pro(), shorthand, buyButton('Buy')]),
+      child: Column(
+        children: [PlanBadge.pro(), shorthand, buyButton(context, 'Buy')],
+      ),
     );''');
     final inlined = paywall('''
     return Padding(
@@ -295,7 +301,10 @@ $body
         children: [
           const PlanBadge(label: 'Pro'),
           const PlanBadge(label: 'Pro'),
-          FilledButton(onPressed: paywallEvent('buy'), child: Text('Buy')),
+          FilledButton(
+            onPressed: context.surfaceEvent(ShopEvents.buy),
+            child: Text('Buy'),
+          ),
         ],
       ),
     );''');

@@ -19,6 +19,13 @@ import 'package:restage/restage.dart';
 
 part 'restage.generated/$file.restage.g.dart';
 
+abstract final class _Events {
+  static const a = SurfaceEvent<void>('a');
+  static const b = SurfaceEvent<void>('b');
+  static const go = SurfaceEvent<void>('go');
+  static const yearly = SurfaceEvent<void>('yearly');
+}
+
 @Paywall()
 class $name extends StatelessWidget {
   const $name({
@@ -74,16 +81,17 @@ void main() {
       result = await _build({
         'event_then_null':
             'FilledButton(onPressed: busy ? null : '
-            "paywallEvent('go'), child: const Text('Go'))",
+            "context.surfaceEvent(_Events.go), child: const Text('Go'))",
         'event_else_null':
             'GestureDetector(onTap: busy ? '
-            "paywallEvent('yearly') : null, child: const Text('x'))",
+            'context.surfaceEvent(_Events.yearly) : null, '
+            "child: const Text('x'))",
         'border_null':
             'Container(decoration: BoxDecoration(border: busy ? '
             'null : Border.all(color: Colors.black)))',
         'keyed_null':
             "GestureDetector(onTap: plan == 'a' ? null : "
-            "paywallEvent('go'), child: const Text('x'))",
+            "context.surfaceEvent(_Events.go), child: const Text('x'))",
         'interpolated_arm':
             r"Text(busy ? 'Starting...' : 'Start ${days}-day trial')",
         'helper_collection_if': "_card('Yearly', busy ? days : '')",
@@ -254,7 +262,8 @@ void main() {
     final result = await _build({
       'nested_handlers':
           "Column(children: [const Text('x'), FilledButton("
-          "onPressed: busy ? paywallEvent('a') : paywallEvent('b'), "
+          'onPressed: busy ? context.surfaceEvent(_Events.a) : '
+          'context.surfaceEvent(_Events.b), '
           "child: const Text('Go'))])",
     });
     expect(
@@ -271,8 +280,8 @@ void main() {
   test('a measured callback with a handler in each arm is refused', () async {
     final result = await _build({
       'two_handlers':
-          "FilledButton(onPressed: busy ? paywallEvent('a') : "
-          "paywallEvent('b'), child: const Text('Go'))",
+          'FilledButton(onPressed: busy ? context.surfaceEvent(_Events.a) : '
+          "context.surfaceEvent(_Events.b), child: const Text('Go'))",
     });
     expect(
       result.errors.join('\n'),

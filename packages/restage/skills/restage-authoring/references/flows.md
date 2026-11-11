@@ -35,11 +35,11 @@ final class GoalStep extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           FilledButton(
-            onPressed: surfaceEvent(pick, 'focus'),
+            onPressed: context.surfaceEvent(pick, 'focus'),
             child: const Text('Focus better'),
           ),
           FilledButton(
-            onPressed: surfaceEvent(pick, 'sleep'),
+            onPressed: context.surfaceEvent(pick, 'sleep'),
             child: const Text('Sleep better'),
           ),
         ],
@@ -198,7 +198,7 @@ An enclosing Restage surface's render context takes precedence over this flow's
 A host action is app code the flow can call, such as a permission request. In
 `lib/flows/permission_flow.dart`, import two `@Screen()` steps: `PermissionScreen`
 declares a void `enable` event and `ReadyScreen` declares a void `finish` event.
-Their buttons pass `surfaceEvent(...)` directly as callbacks.
+Their buttons pass `context.surfaceEvent(...)` directly as callbacks.
 
 <!-- skill-check: file lib/flows/permission_flow.dart -->
 ```dart
