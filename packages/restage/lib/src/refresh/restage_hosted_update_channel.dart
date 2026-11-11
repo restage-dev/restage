@@ -9,7 +9,9 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../restage_rpc_client/restage_rpc_client.dart';
+import 'delivery_announcement.dart';
 import 'surface_update_channel.dart';
+import 'watch_socket.dart';
 
 /// The live refresh channel hosted by Restage Cloud.
 ///
@@ -23,27 +25,31 @@ import 'surface_update_channel.dart';
 /// liveRefreshEdgeUrl: ...)` and the SDK installs it as the default update
 /// channel. To drive live refresh from your own infrastructure instead,
 /// implement [SurfaceUpdateChannel] and pass it as `updateChannel`.
-final class RestageHostedUpdateChannel implements DeliveryUpdateChannel {
+final class RestageHostedUpdateChannel
+    implements AnnouncingDeliveryUpdateChannel {
   /// Creates a hosted update channel.
   RestageHostedUpdateChannel({
     required RestageRpcClient rpcClient,
     Uri? edgeUrl,
     @visibleForTesting Duration reconnectBaseDelay = const Duration(seconds: 1),
+    @visibleForTesting Duration pingInterval = const Duration(seconds: 30),
     @visibleForTesting Random? random,
   })  : _rpcClient = rpcClient,
         _edgeUrl = edgeUrl,
         _reconnectBaseDelay = reconnectBaseDelay,
+        _pingInterval = pingInterval,
         _random = random ?? Random();
 
   final RestageRpcClient _rpcClient;
   final Uri? _edgeUrl;
   final Duration _reconnectBaseDelay;
+  final Duration _pingInterval;
   final Random _random;
 
   @override
   Stream<SurfaceUpdate> watch(SurfaceRef surface) =>
       _HostedWatch<SurfaceUpdate>(
-        update: SurfaceUpdate(surface),
+        update: (_) => SurfaceUpdate(surface),
         fetchStamp: () async {
           final stamp = await _rpcClient.fetchSurfaceStamp(
               surfaceType: surface.surfaceType, surfaceSlug: surface.slug);
@@ -59,6 +65,7 @@ final class RestageHostedUpdateChannel implements DeliveryUpdateChannel {
         },
         edgeUrl: _edgeUrl,
         reconnectBaseDelay: _reconnectBaseDelay,
+        pingInterval: _pingInterval,
         random: _random,
       ).stream;
 
@@ -67,11 +74,21 @@ final class RestageHostedUpdateChannel implements DeliveryUpdateChannel {
     DeliveryPolicyScopeV1 scope, {
     PlacementDeliveryWatchV1? watch,
     Future<PlacementRefreshProbeV1> Function()? reconnectProbe,
+  }) =>
+      watchAnnounced(scope, watch: watch, reconnectProbe: reconnectProbe)
+          .map((announcement) => announcement.scope);
+
+  @override
+  Stream<DeliveryAnnouncement> watchAnnounced(
+    DeliveryPolicyScopeV1 scope, {
+    PlacementDeliveryWatchV1? watch,
+    Future<PlacementRefreshProbeV1> Function()? reconnectProbe,
   }) {
     var firstStamp = true;
     var hasAuthority = watch != null;
-    return _HostedWatch<DeliveryPolicyScopeV1>(
-      update: scope,
+    return _HostedWatch<DeliveryAnnouncement>(
+      update: (frame) => DeliveryAnnouncement(scope,
+          generation: frame?.generation, want: frame?.want),
       initialIdentity: watch?.decisionIdentityDigest,
       fetchStamp: () async {
         if (firstStamp) {
@@ -96,6 +113,7 @@ final class RestageHostedUpdateChannel implements DeliveryUpdateChannel {
       },
       edgeUrl: _edgeUrl,
       reconnectBaseDelay: _reconnectBaseDelay,
+      pingInterval: _pingInterval,
       random: _random,
     ).stream;
   }
@@ -131,6 +149,7 @@ final class _HostedWatch<T> {
     required this.fetchStamp,
     required this.edgeUrl,
     required this.reconnectBaseDelay,
+    required this.pingInterval,
     required this.random,
     Object? initialIdentity,
   }) : _lastSeenIdentity = initialIdentity {
@@ -140,10 +159,14 @@ final class _HostedWatch<T> {
     );
   }
 
-  final T update;
+  // Builds an emission; a stamp-driven one has no frame.
+  final T Function(_Frame? frame) update;
   final Future<_WatchStamp> Function() fetchStamp;
   final Uri? edgeUrl;
   final Duration reconnectBaseDelay;
+  // A socket the network dropped without a close is found by its unanswered
+  // ping, and the loop reconnects.
+  final Duration pingInterval;
   final Random random;
 
   late final StreamController<T> controller;
@@ -200,7 +223,7 @@ final class _HostedWatch<T> {
         final stamp = await fetchStamp();
         if (_stopped) return;
         if (stamp.retry) {
-          if (stamp.requiresResolution) controller.add(update);
+          if (stamp.requiresResolution) controller.add(update(null));
           retryAfter = stamp.retryAfter;
           reconnectAttempt++;
           continue;
@@ -213,7 +236,7 @@ final class _HostedWatch<T> {
         _lastSeenIdentity = stamp.identity;
         if (stamp.requiresResolution ||
             (previousIdentity != null && stamp.identity != previousIdentity)) {
-          controller.add(update);
+          controller.add(update(null));
         }
 
         final origin = edgeUrl ?? _advertisedEdge(stamp.edgeOrigin);
@@ -221,7 +244,8 @@ final class _HostedWatch<T> {
           warnNoLiveEdge();
           return;
         }
-        final socket = WebSocketChannel.connect(_webSocketUri(origin, token));
+        final socket =
+            connectWatchSocket(_webSocketUri(origin, token), pingInterval);
         _socket = socket;
         final socketDone = _listenToSocket(socket);
         await socket.ready;
@@ -276,7 +300,12 @@ final class _HostedWatch<T> {
     try {
       final message = jsonDecode(frame);
       if (message is Map && message['type'] == 'surface_update') {
-        controller.add(update);
+        final generation = message['generation'];
+        final want = message['want'];
+        controller.add(update(_Frame(
+          generation: generation is int && generation > 0 ? generation : null,
+          want: want is String && want.isNotEmpty ? want : null,
+        )));
       }
     } catch (_) {
       // Ignore malformed or unrelated frames.
@@ -322,6 +351,13 @@ final class _HostedWatch<T> {
       } catch (_) {}
     }
   }
+}
+
+final class _Frame {
+  const _Frame({this.generation, this.want});
+
+  final int? generation;
+  final String? want;
 }
 
 final class _WatchStamp {

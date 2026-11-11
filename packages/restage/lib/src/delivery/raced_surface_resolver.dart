@@ -30,6 +30,7 @@ import 'surface_artifact_store.dart';
 abstract interface class RacedSurfaceResolver<T> {
   /// Local candidates only: disk last-good (re-gated), then bundled. Null
   /// when there is none. Never touches the network.
+  /// A candidate is labelled holdLastGood or bundled.
   Future<T?> bestLocal(SurfaceStoreKey key);
 
   /// Network fetch plus every gate. On accept, persists to the store before

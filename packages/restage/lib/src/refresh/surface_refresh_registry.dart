@@ -7,6 +7,7 @@ import 'package:restage_shared/restage_shared.dart';
 import '../restage_rpc_client/restage_rpc_client.dart'
     show SurfaceStamp, SurfaceStampRateLimited;
 import '../runtime/restage.dart';
+import 'delivery_announcement.dart';
 import 'surface_refresh_trigger.dart';
 import 'surface_update_channel.dart';
 
@@ -89,6 +90,72 @@ final class SurfaceRefreshHandle {
   PlacementDeliveryWatchV1? _acceptedWatch;
   int _generation = 0;
   bool _refreshing = false;
+
+  // The publication announcements this surface is resolving, has resolved,
+  // and will resolve next, as the update channel sent them.
+  DeliveryAnnouncement? _announcedInFlight;
+  // What this surface's met resolves read: each named record's digest, and
+  // the publications they answered.
+  final _resolvedDigests = <String, String>{};
+  final _resolvedGenerations = <int>[];
+  // Frames that arrived during a resolve, merged.
+  DeliveryAnnouncement? _announcedNext;
+  // A frame no answer was taken for, merged into the next one that runs.
+  DeliveryAnnouncement? _announcedPending;
+
+  // A frame is news unless a met resolve already read every record it names
+  // at its digest, or, naming none, answered its publication.
+  bool _hasResolved(DeliveryAnnouncement announcement) {
+    final named = announcement.want;
+    if (named == null) {
+      return _resolvedGenerations.contains(announcement.generation);
+    }
+    if (named == '*') return false;
+    return _pairs(named).every((pair) => _resolvedDigests[pair.$1] == pair.$2);
+  }
+
+  // Records each named record at the digest the answer read it at.
+  void _resolved(DeliveryAnnouncement announcement, String? served) {
+    if (announcement.generation case final generation?) {
+      _resolvedGenerations.add(generation);
+      if (_resolvedGenerations.length > 16) _resolvedGenerations.removeAt(0);
+    }
+    final named = announcement.want;
+    if (named == null || named == '*') return;
+    final read = {
+      for (final (key, digest) in _pairs(served ?? '')) key: digest
+    };
+    for (final (key, digest) in _pairs(named)) {
+      _resolvedDigests.remove(key);
+      if (served == '*') continue;
+      _resolvedDigests[key] = read[key] ?? digest;
+    }
+    while (_resolvedDigests.length > 64) {
+      _resolvedDigests.remove(_resolvedDigests.keys.first);
+    }
+  }
+
+  // An answer recorded as read that the surface then dropped: its frame is
+  // news again, and rides with the next one.
+  void _forget(DeliveryAnnouncement announcement) {
+    _resolvedGenerations.remove(announcement.generation);
+    final named = announcement.want;
+    if (named != null && named != '*') {
+      for (final (key, _) in _pairs(named)) {
+        _resolvedDigests.remove(key);
+      }
+    }
+    _announcedPending = mergeAnnouncements(_announcedPending, announcement);
+  }
+
+  static Iterable<(String, String)> _pairs(String want) sync* {
+    for (final pair in want.split(',')) {
+      final split = pair.lastIndexOf('=');
+      if (split > 0) {
+        yield (pair.substring(0, split), pair.substring(split + 1));
+      }
+    }
+  }
 }
 
 /// Process-wide registry of mounted, refresh-capable surfaces. Producers
@@ -141,7 +208,27 @@ final class SurfaceRefreshRegistry {
     final next = _ChannelSubscriptions(handle._generation);
     _channelSubs[handle] = next;
     final placement = handle._acceptedPlacement;
-    if (placement != null && channel is DeliveryUpdateChannel) {
+    if (placement != null && channel is AnnouncingDeliveryUpdateChannel) {
+      final probe = handle.probePlacement;
+      for (final scope in placement.dependencies) {
+        try {
+          next.subscriptions.add(channel
+              .watchAnnounced(scope,
+                  watch: handle._acceptedWatch,
+                  reconnectProbe: probe == null ? null : () => probe(placement))
+              .listen(
+            (announcement) {
+              if (announcement.scope == scope) {
+                unawaited(_onAnnouncement(handle, next, announcement));
+              }
+            },
+            onError: (Object _) {},
+          ));
+        } catch (_) {
+          // A failed scope leaves explicit reload and resume available.
+        }
+      }
+    } else if (placement != null && channel is DeliveryUpdateChannel) {
       final probe = handle.probePlacement;
       for (final scope in placement.dependencies) {
         try {
@@ -208,6 +295,59 @@ final class SurfaceRefreshRegistry {
     }
   }
 
+  // A frame resolves unless a met resolve already read what it names. Frames
+  // arriving during a resolve are merged and run after it; one whose resolve
+  // took no answer rides with the next frame.
+  Future<void> _onAnnouncement(
+      SurfaceRefreshHandle handle,
+      _ChannelSubscriptions subscription,
+      DeliveryAnnouncement announcement) async {
+    if (announcement.generation == null) {
+      return _onUpdate(handle, subscription);
+    }
+    if (!_isCurrentSubscription(handle, subscription) ||
+        handle._hasResolved(announcement)) {
+      return;
+    }
+    if (handle._refreshing || handle._announcedInFlight != null) {
+      handle._announcedNext =
+          mergeAnnouncements(handle._announcedNext, announcement);
+      return;
+    }
+    final run = mergeAnnouncements(handle._announcedPending, announcement);
+    handle
+      .._announcedPending = null
+      .._announcedInFlight = run;
+    final want = AnnouncedWant(run.want);
+    try {
+      await withAnnouncedWant(want, () => _onUpdate(handle, subscription));
+    } finally {
+      if (want.met) {
+        handle._resolved(run, want.served);
+        want.onDropped = () => handle._forget(run);
+      } else {
+        handle._announcedPending = run;
+      }
+      handle._announcedInFlight = null;
+      _runAnnouncedNext(handle);
+    }
+  }
+
+  // An announcement held behind another producer's refresh runs after it.
+  void _runAnnouncedNext(SurfaceRefreshHandle handle) {
+    final next = handle._announcedNext;
+    final subscription = _channelSubs[handle];
+    if (next == null ||
+        handle._refreshing ||
+        handle._announcedInFlight != null) {
+      return;
+    }
+    handle._announcedNext = null;
+    if (subscription != null && !handle._hasResolved(next)) {
+      unawaited(_onAnnouncement(handle, subscription, next));
+    }
+  }
+
   /// Replaces watches only after the host has accepted a new decision.
   @internal
   void acceptedPlacementChanged(SurfaceRefreshHandle handle) {
@@ -237,8 +377,10 @@ final class SurfaceRefreshRegistry {
 
   /// Explicit reload: every mounted handle (optionally slug-filtered),
   /// independent of trigger sets, still gated by canSwap.
-  Future<void> reload({String? slug}) =>
-      _sweep(_handles.where((h) => slug == null || h.surface.slug == slug));
+  Future<void> reload({String? slug}) => _sweep(_handles.where((h) =>
+      slug == null ||
+      h.surface.slug == slug ||
+      h.renderedSurface?.call().slug == slug));
 
   /// Pauses every update-channel subscription when the app backgrounds.
   /// The handles stay registered; [onAppResumed] reopens them.
@@ -248,6 +390,9 @@ final class SurfaceRefreshRegistry {
     _localAlarm = null;
     for (final handle in _handles) {
       handle._generation++;
+      handle
+        .._announcedNext = null
+        .._announcedPending = null;
     }
     for (final sub in _channelSubs.values) {
       sub.cancel();
@@ -302,6 +447,7 @@ final class SurfaceRefreshRegistry {
           // A transient staging failure may be retried at the next safe check.
         } finally {
           handle._refreshing = false;
+          _runAnnouncedNext(handle);
         }
       }
     } finally {
@@ -389,6 +535,7 @@ final class SurfaceRefreshRegistry {
       // current render and stays silent.
     } finally {
       handle._refreshing = false;
+      _runAnnouncedNext(handle);
     }
   }
 

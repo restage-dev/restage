@@ -2,7 +2,7 @@
 library;
 
 export 'asset_surface_screen_resolver.dart';
-export 'restage_surface_screen.dart';
+export 'restage_surface_screen.dart' hide debugLiveScreenStages;
 export 'restage_surface_screen_resolver.dart';
 export 'surface_screen_bundle_provider.dart';
 export 'surface_screen_runtime_provenance.dart'

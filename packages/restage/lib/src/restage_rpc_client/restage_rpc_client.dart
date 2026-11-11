@@ -735,14 +735,22 @@ class RestageRpcClient {
   void rememberStartupRequest(PlacementBatchRequestV1 request) => unawaited(
       EarlyRequest.remember(placementResolveUrl(_baseUrl), _apiKey, request));
 
+  static const _wantRecordsHeader = 'restage-want-records';
+  static const _wantMetHeader = 'restage-want-met';
+  static const _wantServedHeader = 'restage-want-served';
+  static const _wantNotMet = 'want_not_met';
+
   Future<http.StreamedResponse> _sendPlacements(Uri url,
       PlacementBatchRequestV1 request, void Function() checkPublication,
       {bool early = true,
+      String? wantRecords,
       void Function(PlacementBatchRequestV1 answeredFor)? onEarly}) async {
     http.Request wire(PlacementBatchRequestV1 body) => http.Request('POST', url)
       ..headers.addAll({
         'Authorization': 'Bearer $_apiKey',
         'Content-Type': 'application/json',
+        // The records a live-refresh push named, read past the edge's copies.
+        if (wantRecords != null) _wantRecordsHeader: wantRecords,
       })
       ..bodyBytes = body.canonicalBytes;
     final hash = request.appBuildContractHash;
@@ -750,6 +758,7 @@ class RestageRpcClient {
         !_hashFormRefused && _answeredBuildContracts.contains(hash);
     // Only the launch's startup batch can be the platform's request.
     if (early &&
+        wantRecords == null &&
         request.startup &&
         request.mode == PlacementBatchModeV1.prefetch) {
       final adopted = await _adoptEarlyAnswer(url, request);
@@ -904,6 +913,8 @@ class RestageRpcClient {
     void Function()? onDecoded,
     Map<ArtifactIdentityV1, List<int>> Function()? savedArtifacts,
     void Function(PlacementBatchRequestV1 answeredFor)? onAdopted,
+    String? wantRecords,
+    void Function(String? served)? onWantMet,
   }) async {
     PlacementBatchRequestV1? fromPlatform;
     Future<PlacementBatchResponseV1?> fetch({required bool early}) =>
@@ -917,6 +928,8 @@ class RestageRpcClient {
             onDecoded: onDecoded,
             savedArtifacts: savedArtifacts,
             early: early,
+            wantRecords: wantRecords,
+            onWantMet: onWantMet,
             onEarly: (sent) => fromPlatform = sent);
     final answer = await fetch(early: true);
     final adopted = fromPlatform;
@@ -945,6 +958,8 @@ class RestageRpcClient {
     Map<ArtifactIdentityV1, List<int>> Function()? savedArtifacts,
     required bool early,
     required void Function(PlacementBatchRequestV1 sent) onEarly,
+    String? wantRecords,
+    void Function(String? served)? onWantMet,
   }) async {
     var answered = request;
     void checkPublication() {
@@ -967,7 +982,7 @@ class RestageRpcClient {
     try {
       final response = await _sendPlacements(
           endpoint, request, checkPublication,
-          early: early, onEarly: (sent) {
+          wantRecords: wantRecords, early: early, onEarly: (sent) {
         answered = sent;
         onEarly(sent);
       });
@@ -1008,6 +1023,19 @@ class RestageRpcClient {
       // The service answered, so it has the report this request carried.
       unawaited(
           MountedSurfaceReport.instance.acknowledge(answered.mountedSince));
+      // An answer that may predate the push it was asked for is no answer.
+      if (wantRecords != null && response.headers[_wantMetHeader] != '1') {
+        await response.stream.listen(null).cancel();
+        checkPublication();
+        onNoAnswer?.call(
+            SurfaceDeliveryReceiptReason.serverError,
+            PlacementNoAnswerStatus(200,
+                endpoint: endpoint, error: _wantNotMet));
+        return null;
+      }
+      if (wantRecords != null) {
+        onWantMet?.call(response.headers[_wantServedHeader]);
+      }
       if ((response.contentLength ?? 0) > kMaximumPlacementResponseBytes) {
         await response.stream.listen(null).cancel();
         return PlacementBatchResponseV1.refused(

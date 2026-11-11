@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/refresh/delivery_announcement.dart';
 import 'package:restage/src/refresh/surface_refresh_registry.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -97,6 +98,34 @@ final class _RecordingDeliveryChannel implements DeliveryUpdateChannel {
     await controller.close();
     await surfaceChannel.controller.close();
   }
+}
+
+final class _AnnouncingChannel implements AnnouncingDeliveryUpdateChannel {
+  final controller =
+      StreamController<DeliveryAnnouncement>.broadcast(sync: true);
+
+  @override
+  Stream<SurfaceUpdate> watch(SurfaceRef surface) => const Stream.empty();
+
+  @override
+  Stream<DeliveryPolicyScopeV1> watchDelivery(
+    DeliveryPolicyScopeV1 scope, {
+    PlacementDeliveryWatchV1? watch,
+    Future<PlacementRefreshProbeV1> Function()? reconnectProbe,
+  }) =>
+      watchAnnounced(scope).map((announcement) => announcement.scope);
+
+  @override
+  Stream<DeliveryAnnouncement> watchAnnounced(
+    DeliveryPolicyScopeV1 scope, {
+    PlacementDeliveryWatchV1? watch,
+    Future<PlacementRefreshProbeV1> Function()? reconnectProbe,
+  }) =>
+      controller.stream.where((announcement) => announcement.scope == scope);
+
+  void announce(DeliveryPolicyScopeV1 scope, int? generation, {String? want}) =>
+      controller
+          .add(DeliveryAnnouncement(scope, generation: generation, want: want));
 }
 
 DeliveryPolicyScopeV1 _surfaceScope(
@@ -552,6 +581,357 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(accepted.actualPublication, first.actualPublication);
     expect(channel.activeScopes, first.dependencyClosure);
+  });
+
+  group('announced publication passes', () {
+    late _AnnouncingChannel channel;
+    late PublicPlacementDeliveryV1 accepted;
+    late Completer<void> gate;
+    late int refreshes;
+    late SurfaceRefreshHandle handle;
+    // Whether the next resolve's answer is taken, whether the surface can
+    // swap, and the records each resolve asked for.
+    late bool answered;
+    late bool swappable;
+    late List<String?> asked;
+    // What the answer read in place of what was named.
+    String? served;
+    // Whether the surface drops the answer it took, and the last want.
+    late bool dropped;
+    AnnouncedWant? lastWant;
+
+    setUp(() {
+      channel = _AnnouncingChannel();
+      Restage.configure(apiKey: 'rs_pk_test', updateChannel: channel);
+      accepted = _delivery();
+      gate = Completer<void>();
+      refreshes = 0;
+      answered = true;
+      swappable = true;
+      asked = [];
+      served = null;
+      dropped = false;
+      lastWant = null;
+      handle = SurfaceRefreshHandle(
+        surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+        triggers: {SurfaceRefreshTrigger.updateChannel},
+        canSwap: () => swappable,
+        placementState: () => _state(accepted),
+        refresh: () async {
+          refreshes++;
+          final want = currentAnnouncedWant;
+          asked.add(want?.records);
+          final taken = answered;
+          await gate.future;
+          if (want != null) {
+            want
+              ..met = taken
+              ..served = taken ? served : null;
+            if (dropped) want.drop();
+          }
+          lastWant = want;
+        },
+      );
+      SurfaceRefreshRegistry.instance.register(handle);
+    });
+
+    tearDown(() => channel.controller.close());
+
+    Future<void> settle() => Future<void>.delayed(Duration.zero);
+
+    test('every frame of one pass resolves once', () async {
+      for (final scope in accepted.dependencyClosure) {
+        channel.announce(scope, 5);
+      }
+      await settle();
+      expect(refreshes, 1);
+      gate.complete();
+      await settle();
+      channel.announce(accepted.dependencyClosure.first, 5);
+      await settle();
+      expect(refreshes, 1);
+    });
+
+    test('newer passes during a resolve run once after it', () async {
+      final scope = accepted.dependencyClosure.first;
+      channel.announce(scope, 5);
+      await settle();
+      channel
+        ..announce(scope, 6)
+        ..announce(scope, 7);
+      await settle();
+      expect(refreshes, 1);
+      final first = gate;
+      gate = Completer<void>()..complete();
+      first.complete();
+      await settle();
+      await settle();
+      expect(refreshes, 2);
+      channel.announce(scope, 7);
+      await settle();
+      expect(refreshes, 2);
+    });
+
+    test('a pass announced behind a reload runs after it', () async {
+      final reload = SurfaceRefreshRegistry.instance.reload();
+      await settle();
+      expect(refreshes, 1);
+      channel.announce(accepted.dependencyClosure.first, 9);
+      await settle();
+      expect(refreshes, 1);
+      final first = gate;
+      gate = Completer<void>()..complete();
+      first.complete();
+      await reload;
+      await settle();
+      expect(refreshes, 2);
+    });
+
+    test('an answer the surface took but did not show is not read', () async {
+      gate.complete();
+      dropped = true;
+      final scope = accepted.dependencyClosure.first;
+      final shown = 'd/1/general/a=${'1' * 64}';
+      channel.announce(scope, 5, want: shown);
+      await settle();
+      expect(refreshes, 1);
+      dropped = false;
+      channel.announce(scope, 5, want: shown);
+      await settle();
+      expect(refreshes, 2);
+      expect(asked.last, shown);
+    });
+
+    test(
+        'an answer dropped after it was recorded as read makes its frame '
+        'news again', () async {
+      gate.complete();
+      final scope = accepted.dependencyClosure.first;
+      final shown = 'd/1/general/a=${'1' * 64}';
+      channel.announce(scope, 5, want: shown);
+      await settle();
+      await settle();
+      channel.announce(scope, 5, want: shown);
+      await settle();
+      expect(refreshes, 1, reason: 'the first answer covers it');
+      lastWant!.drop();
+      channel.announce(scope, 5, want: shown);
+      await settle();
+      expect(refreshes, 2);
+      expect(asked.last, shown);
+    });
+
+    test(
+        'a frame whose resolve took no answer rides with the next frame, '
+        'which names another record', () async {
+      gate.complete();
+      final scope = accepted.dependencyClosure.first;
+      final shown = 'd/1/general/a=${'1' * 64}';
+      final routed = 'p/1/${'3' * 64}=${'4' * 64}';
+      answered = false;
+      channel.announce(scope, 5, want: shown);
+      await settle();
+      answered = true;
+      channel.announce(scope, 6, want: routed);
+      await settle();
+      expect(refreshes, 2);
+      expect(asked.last!.split(','), unorderedEquals([shown, routed]));
+    });
+
+    test("the next resolve asks for the records a pass's push named", () async {
+      gate.complete();
+      channel.announce(accepted.dependencyClosure.first, 5,
+          want: 'd/1/general/a=${'1' * 64}');
+      await settle();
+      expect(asked, ['d/1/general/a=${'1' * 64}']);
+    });
+
+    test(
+        'a later frame of one publication resolves again only for a record '
+        'the first did not name', () async {
+      gate.complete();
+      final scope = accepted.dependencyClosure.first;
+      final surface = 's/1/general/a=${'1' * 64}';
+      final shown = 'd/1/general/a=${'2' * 64}';
+      final routed = 'p/1/${'3' * 64}=${'4' * 64}';
+      channel.announce(scope, 5, want: '$shown,$surface');
+      await settle();
+      channel
+        ..announce(scope, 5, want: shown)
+        ..announce(scope, 5);
+      await settle();
+      expect(refreshes, 1);
+      channel.announce(scope, 5, want: '$shown,$routed');
+      await settle();
+      expect(refreshes, 2);
+      channel.announce(scope, 5, want: '*');
+      await settle();
+      expect(refreshes, 3);
+    });
+
+    test(
+        'a frame naming only what a resolve already read, as it now stands, '
+        'resolves nothing', () async {
+      gate.complete();
+      final scope = accepted.dependencyClosure.first;
+      String shown(String digest) => 'd/1/general/a=${digest * 64}';
+      channel.announce(scope, 5, want: shown('1'));
+      await settle();
+      expect(refreshes, 1);
+      // Another pass over the same change, under its own generation.
+      channel
+        ..announce(scope, 6, want: shown('1'))
+        ..announce(scope, 5);
+      await settle();
+      expect(refreshes, 1);
+      channel.announce(scope, 7);
+      await settle();
+      expect(refreshes, 2, reason: 'a publication no resolve answered');
+      channel.announce(scope, 8, want: shown('2'));
+      await settle();
+      expect(refreshes, 3);
+      // Back to the first content: the record no longer holds it.
+      channel.announce(scope, 9, want: shown('1'));
+      await settle();
+      expect(refreshes, 4);
+    });
+
+    test(
+        'a rollback to content a resolve was named but did not show resolves '
+        'again', () async {
+      gate.complete();
+      final scope = accepted.dependencyClosure.first;
+      String shown(String digest) => 'd/1/general/a=${digest * 64}';
+      // The first publish's resolve reads the second publish's record.
+      served = shown('2');
+      channel.announce(scope, 5, want: shown('1'));
+      await settle();
+      expect(refreshes, 1);
+      // The second publish's frame is lost; a later pass names what was shown.
+      served = null;
+      channel.announce(scope, 6, want: shown('2'));
+      await settle();
+      expect(refreshes, 1);
+      // The rollback names the first publish's record again.
+      channel.announce(scope, 7, want: shown('1'));
+      await settle();
+      expect(refreshes, 2);
+      expect(asked.last, shown('1'));
+    });
+
+    test('an answer that does not say what it read covers no record', () async {
+      gate.complete();
+      final scope = accepted.dependencyClosure.first;
+      final shown = 'd/1/general/a=${'1' * 64}';
+      served = '*';
+      channel.announce(scope, 5, want: shown);
+      await settle();
+      channel.announce(scope, 6, want: shown);
+      await settle();
+      expect(refreshes, 2);
+    });
+
+    test('an unmet resolve leaves the publication to its next frame', () async {
+      gate.complete();
+      final scope = accepted.dependencyClosure.first;
+      final want = 'd/1/general/a=${'2' * 64}';
+      answered = false;
+      channel.announce(scope, 5, want: want);
+      await settle();
+      answered = true;
+      channel.announce(scope, 5, want: want);
+      await settle();
+      channel.announce(scope, 5, want: want);
+      await settle();
+      expect(refreshes, 2);
+    });
+
+    test('a frame the surface could not swap for is not resolved', () async {
+      gate.complete();
+      final scope = accepted.dependencyClosure.first;
+      final want = 'd/1/general/a=${'2' * 64}';
+      swappable = false;
+      channel.announce(scope, 5, want: want);
+      await settle();
+      expect(refreshes, 0);
+      swappable = true;
+      channel.announce(scope, 5, want: want);
+      await settle();
+      expect(refreshes, 1);
+      expect(asked, [want]);
+    });
+
+    test(
+        'a frame of the publication arriving during a resolve that takes no '
+        'answer resolves after it', () async {
+      final scope = accepted.dependencyClosure.first;
+      final want = 'd/1/general/a=${'2' * 64}';
+      answered = false;
+      channel.announce(scope, 5, want: want);
+      await settle();
+      channel.announce(scope, 5, want: want);
+      answered = true;
+      gate.complete();
+      await settle();
+      await settle();
+      expect(refreshes, 2);
+    });
+
+    test(
+        'frames held behind a resolve run once, with every record they named '
+        'and the newest generation', () async {
+      final scope = accepted.dependencyClosure.first;
+      final shown = 'd/1/general/a=${'1' * 64}';
+      final routed = 'p/1/${'2' * 64}=${'3' * 64}';
+      final next = 'd/1/general/a=${'4' * 64}';
+      channel.announce(scope, 5, want: shown);
+      await settle();
+      channel
+        ..announce(scope, 6, want: '$shown,$routed')
+        ..announce(scope, 7, want: next);
+      gate.complete();
+      await settle();
+      await settle();
+      expect(refreshes, 2);
+      expect(asked.last, '$routed,$next');
+      // The newest held frame is answered by that one resolve.
+      channel.announce(scope, 7, want: next);
+      await settle();
+      expect(refreshes, 2);
+    });
+
+    test('surfaces each take their own answer', () async {
+      gate.complete();
+      final scope = accepted.dependencyClosure.first;
+      final want = 'd/1/general/a=${'2' * 64}';
+      var otherRefreshes = 0;
+      final other = SurfaceRefreshHandle(
+        surface: const SurfaceRef(surfaceType: 'general', slug: 'original'),
+        triggers: {SurfaceRefreshTrigger.updateChannel},
+        canSwap: () => true,
+        placementState: () => _state(accepted),
+        refresh: () async {
+          otherRefreshes++;
+          // This surface's request is never answered.
+        },
+      );
+      SurfaceRefreshRegistry.instance.register(other);
+      addTearDown(() => SurfaceRefreshRegistry.instance.unregister(other));
+      channel.announce(scope, 5, want: want);
+      await settle();
+      channel.announce(scope, 5, want: want);
+      await settle();
+      expect((refreshes, otherRefreshes), (1, 2));
+    });
+
+    test('a signal without a generation resolves as before', () async {
+      gate.complete();
+      channel.announce(accepted.dependencyClosure.first, null);
+      await settle();
+      channel.announce(accepted.dependencyClosure.first, null);
+      await settle();
+      expect(refreshes, 2);
+    });
   });
 
   test('push invalidates cache before a locked presentation gate', () async {

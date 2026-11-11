@@ -107,24 +107,27 @@ host shows its compiled original, or nothing on a host without one. The
 `errorBuilder` shows instead of restarting the user when a load fails after they
 made progress: entered a second screen, dragged, scrolled or typed in the
 surface, or an event or host action reached the app. It also shows for any
-failure on a host with no fallback and no original, rather than nothing. A rebind starts a new load
-with no progress. A flow whose delivered content fails restarts in its compiled
-original. Delivered content that fails to render reports `SurfaceLoadFailed`
-with `render_error` before the original shows, on every host; a paywall then
-fires `PaywallViewed` for the original. A paywall that fails after the user
-interacted with its loading state shows its error builder. A screen whose
-fetched version fails its checks now falls back to the last good copy and then
-the bundled copy, as other hosts do. A hosted flow tries its bundled copy before
-its compiled original. A live refresh never replaces a surface the user made
-progress in during this load, on every host. A flow given a `fallbackBuilder`
-shows it once the first-launch wait passes with nothing ready, as screens and
-paywalls do, instead of waiting for fresh content; this is not reported as a
-failure. A `fallbackBuilder` or `errorBuilder` that throws, or whose widget
-throws while building, shows nothing, fails the load with `render_error`, and
-reports to `FlutterError.onError`, on every host. It reports once per load
-unless a staged refresh moves it and builds it again. A flow that restarted in its
-compiled original and then shows a newer version restarts in the original again
-if that version fails too.
+failure on a host with no fallback and no original, rather than nothing. A
+rebind starts a new load with no progress. A flow whose delivered content fails
+restarts in its compiled original. Delivered content that fails to render
+reports `SurfaceLoadFailed` with `render_error` before the original shows, on
+every host; a paywall then fires `PaywallViewed` for the original. A paywall
+that fails after the user interacted with its loading state shows its error
+builder. A screen whose fetched version fails its checks now falls back to the
+last good copy and then the bundled copy, as other hosts do. A hosted flow tries
+its bundled copy before its compiled original. A live refresh never replaces a
+surface the user made progress in during this load, on every host. A live
+refresh of a screen that returns the content already shown keeps that screen,
+with its state and events, and a screen keeps what it shows when the content
+meant to replace it fails to show, unless what it shows is no longer valid. A
+flow given a `fallbackBuilder` shows it once the first-launch wait passes with
+nothing ready, as screens and paywalls do, instead of waiting for fresh content;
+this is not reported as a failure. A `fallbackBuilder` or `errorBuilder` that
+throws, or whose widget throws while building, shows nothing, fails the load
+with `render_error`, and reports to `FlutterError.onError`, on every host. It
+reports once per load unless a staged refresh moves it and builds it again. A
+flow that restarted in its compiled original and then shows a newer version
+restarts in the original again if that version fails too.
 
 A paywall now handles a new placement the way a first mount does. It drops the
 earlier placement's content at once, waits for the new placement's content or
@@ -365,6 +368,14 @@ app goes to the background, or when a purchase is reported from it. If the
 server refuses a report, or the SDK holds one back after an error, that
 surface's later reports are still sent, and a newer report for a surface
 replaces an older one still waiting to be sent.
+
+With the hosted update channel, a surface on screen fetches the content a
+publish announces, and the new content comes with that answer. The update
+signals one publish sends on a surface's several channels cause one fetch.
+When the service can't confirm the answer includes that content, the surface
+keeps what it shows until the next update.
+On Android, iOS and desktop, the channel pings its connection every 30
+seconds and replaces a connection that stops answering.
 
 ## 2.0.0
 

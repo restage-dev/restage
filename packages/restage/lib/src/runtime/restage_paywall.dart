@@ -47,6 +47,7 @@ import '../resolver/surface_delivery_observations.dart'
         requestingViewShortestLogicalSide,
         withSurfaceDeliveryObservations;
 import '../measurement/measurement_rfw_presentation.dart';
+import '../refresh/delivery_announcement.dart';
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/surface_update_channel.dart';
@@ -1389,6 +1390,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         // async resolve makes the surface unsafe; abort the swap (defer =
         // drop — the next remount is fresh-first anyway).
         if (!_canSwap()) {
+          currentAnnouncedWant?.drop();
           payload.abandonHostedLastGood();
           return;
         }
@@ -1492,6 +1494,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     Stopwatch stopwatch,
     int epoch,
   ) {
+    final announced = currentAnnouncedWant;
     final freshVersion = payload.paywallPublishedVersion;
     final renderedVersion = _resolvedPaywallPublishedVersion;
     final accepted = _renderedPlacementAdmission();
@@ -1507,6 +1510,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     // Re-check the gate after the async resolve (an interaction could have
     // landed during it); defer = drop if the surface went dirty.
     if (!_canSwap()) {
+      announced?.drop();
       payload.abandonHostedLastGood();
       return;
     }
@@ -1594,6 +1598,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       if (pending.currentScreenEntryId != null && !_pendingFlowIsStaged) {
         if (!transaction.isPending && !transaction.isCommitted) return;
         if (!_canSwap()) {
+          announced?.drop();
           _scheduleDiscardPendingFlow(pending);
           return;
         }
