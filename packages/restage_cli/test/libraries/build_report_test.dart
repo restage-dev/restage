@@ -215,4 +215,224 @@ void main() {
       ],
     );
   });
+
+  group('islands of one widget', () {
+    const style = (
+      name: 'style',
+      reason: 'notLiteral',
+      message:
+          "`style` stays in the app's code: it reads `c.ink`, which the "
+          'app computes. Try writing a literal if designs should change it.',
+    );
+    const tone = (
+      name: 'tone',
+      reason: 'catalogType',
+      message:
+          "`tone` stays in the app's code: a design sets a `Tone` only "
+          'on a catalog widget. Try adding `VFeatureRow` to your widget '
+          'catalog if designs should change it.',
+    );
+    BuildReportPart island(
+      String location, {
+      String widget = 'VFeatureRow',
+      String? reason = 'It lays out in a builder.',
+      String? code = 'unknownWidget',
+      String interface = 'slot icon\nproperty title: string',
+      List<({String name, String reason, String message})> compiled = const [
+        style,
+      ],
+    }) => BuildReportPart(
+      kind: 'island',
+      mount: 'PaywallSurface',
+      name: 'app.islands:Paywall_${widget}_$location',
+      widget: widget,
+      location: location,
+      reason: reason,
+      reasonCode: code,
+      interface: interface,
+      compiled: compiled,
+    );
+
+    test(
+      'feature rows: alike sites share a block, the odd one gets its own',
+      () {
+        final report = BuildReport([
+          island('lib/paywall.dart:162:9'),
+          island('lib/paywall.dart:169:9'),
+          island('lib/paywall.dart:176:9'),
+          island(
+            'lib/paywall.dart:184:9',
+            interface:
+                'slot icon\nproperty title: string\n'
+                'property chipLabel: string',
+            compiled: const [style, tone],
+          ),
+        ]);
+        expect(report.lines, [
+          '`PaywallSurface`: designs can change 0 of its 4 widgets (0%).',
+          '  `VFeatureRow` at 4 sites renders from the app. It lays out in a '
+              'builder.',
+          '    At lib/paywall.dart:162:9, lib/paywall.dart:169:9, '
+              'lib/paywall.dart:176:9:',
+          '      Designs can change `title` and the content of `icon`.',
+          '      ${style.message}',
+          '    At lib/paywall.dart:184:9:',
+          '      Designs can change `title`, `chipLabel` and the content of '
+              '`icon`.',
+          '      ${style.message}',
+          '      ${tone.message}',
+        ]);
+      },
+    );
+
+    test('sites alike in every way list their locations once', () {
+      expect(
+        BuildReport([
+          island('lib/a.dart:1:1'),
+          island('lib/a.dart:2:1'),
+        ]).lines.skip(1),
+        [
+          '  `VFeatureRow` at 2 sites (lib/a.dart:1:1, lib/a.dart:2:1) '
+              'renders from the app. It lays out in a builder.',
+          '    Designs can change `title` and the content of `icon`.',
+          '    ${style.message}',
+        ],
+      );
+    });
+
+    test('a reason naming its own location still groups', () {
+      final report = BuildReport([
+        island(
+          'lib/a.dart:1:1',
+          code: 'unrecognizedMethodCall',
+          reason: "Restage can't translate `_pick()` (lib/a.dart:1:9).",
+        ),
+        island(
+          'lib/a.dart:2:1',
+          code: 'unrecognizedMethodCall',
+          reason: "Restage can't translate `_pick()` (lib/a.dart:2:9).",
+        ),
+      ]);
+      expect(
+        report.lines[1],
+        '  `VFeatureRow` at 2 sites (lib/a.dart:1:1, lib/a.dart:2:1) renders '
+        "from the app. Restage can't translate `_pick()`.",
+      );
+      final mount = (report.toJson()['mounts']! as List).single as Map;
+      expect(
+        [
+          for (final group in mount['islands']! as List)
+            (group as Map)['reason'],
+        ],
+        ["Restage can't translate `_pick()`."],
+      );
+    });
+
+    test('a reason naming a location in another package still groups', () {
+      final report = BuildReport([
+        for (final line in [12, 30])
+          island(
+            'package:ui/src/row.dart:$line:3',
+            code: 'unrecognizedMethodCall',
+            reason:
+                "Restage can't translate `x()` (package:ui/src/row.dart:"
+                '$line:9). Try computing it in the build.',
+          ),
+      ]);
+      expect(
+        report.lines[1],
+        '  `VFeatureRow` at 2 sites (package:ui/src/row.dart:12:3, '
+        'package:ui/src/row.dart:30:3) renders from the app. Restage '
+        "can't translate `x()`. Try computing it in the build.",
+      );
+    });
+
+    // Each row: the second site differs in one half of the group key only.
+    for (final (name, code, reason) in [
+      (
+        'the reason code',
+        'customWidgetUnclassified',
+        'It lays out in a builder.',
+      ),
+      ('the reason text', 'unknownWidget', 'It reads its State.'),
+    ]) {
+      test('sites that differ in $name alone are two groups', () {
+        final report = BuildReport([
+          island('lib/a.dart:1:1'),
+          island('lib/a.dart:2:1', code: code, reason: reason),
+        ]);
+        final mount = (report.toJson()['mounts']! as List).single as Map;
+        expect(mount['islands'] as List, hasLength(2));
+        expect(
+          report.lines.where((line) => line.contains('renders from the app')),
+          hasLength(2),
+        );
+      });
+    }
+
+    test('different reasons are different groups, in text and JSON', () {
+      final report = BuildReport([
+        island('lib/a.dart:1:1'),
+        island(
+          'lib/a.dart:2:1',
+          code: 'customWidgetUnclassified',
+          reason: 'It reads its State.',
+        ),
+      ]);
+      expect(report.lines, [
+        '`PaywallSurface`: designs can change 0 of its 2 widgets (0%).',
+        '  `VFeatureRow` (lib/a.dart:1:1) renders from the app. It lays out '
+            'in a builder.',
+        '    Designs can change `title` and the content of `icon`.',
+        '    ${style.message}',
+        '  `VFeatureRow` (lib/a.dart:2:1) renders from the app. It reads its '
+            'State.',
+        '    Designs can change `title` and the content of `icon`.',
+        '    ${style.message}',
+      ]);
+      final mount = (report.toJson()['mounts']! as List).single as Map;
+      expect(mount['islands'], [
+        {
+          'widget': 'VFeatureRow',
+          'reasonCode': 'unknownWidget',
+          'reason': 'It lays out in a builder.',
+          'sites': [
+            {
+              'name': 'app.islands:Paywall_VFeatureRow_lib/a.dart:1:1',
+              'location': 'lib/a.dart:1:1',
+              'properties': ['title'],
+              'slots': ['icon'],
+              'compiled': [
+                {
+                  'name': 'style',
+                  'reason': 'notLiteral',
+                  'message': style.message,
+                },
+              ],
+            },
+          ],
+        },
+        {
+          'widget': 'VFeatureRow',
+          'reasonCode': 'customWidgetUnclassified',
+          'reason': 'It reads its State.',
+          'sites': [
+            {
+              'name': 'app.islands:Paywall_VFeatureRow_lib/a.dart:2:1',
+              'location': 'lib/a.dart:2:1',
+              'properties': ['title'],
+              'slots': ['icon'],
+              'compiled': [
+                {
+                  'name': 'style',
+                  'reason': 'notLiteral',
+                  'message': style.message,
+                },
+              ],
+            },
+          ],
+        },
+      ]);
+    });
+  });
 }

@@ -1693,6 +1693,7 @@ final class ExpressionTranslator {
     final slots = <IslandSlot>[];
     final properties = <IslandProperty>[];
     final holes = <AstNode, String>{};
+    final compiled = <IslandCompiledArgument>[];
     final kept = <Issue>[];
     final arguments = node is InstanceCreationExpression && shared == null
         ? node.argumentList.arguments
@@ -1710,14 +1711,68 @@ final class ExpressionTranslator {
         measurementWidgetList: null,
       );
     }
-    for (final argument in arguments.whereType<NamedArgument>()) {
-      final name = argument.name.lexeme;
+    // A helper call or a local the mount computes once keeps its arguments.
+    final frozen = switch (node) {
+      InstanceCreationExpression(:final argumentList) when shared != null => (
+        argumentList.arguments,
+        IslandCompiledReason.sharedLocal,
+        shared.name,
+      ),
+      MethodInvocation(:final argumentList) => (
+        argumentList.arguments,
+        IslandCompiledReason.helperCall,
+        null,
+      ),
+      _ => null,
+    };
+    if (frozen case (final frozen, final reason, final detail)) {
+      for (final argument in frozen) {
+        final name = _islandArgumentLabel(argument);
+        if (name == 'key') continue;
+        compiled.add(IslandCompiledArgument(name, reason, detail: detail));
+      }
+    }
+    for (final argument in arguments) {
       final value = argument.argumentExpression;
+      final parameter = argument.correspondingParameter;
+      // A positional argument takes its parameter's public name.
+      final name = switch (argument) {
+        NamedArgument(:final name) => name.lexeme,
+        _ => islandArgumentName(parameter),
+      };
+      if (name == null) {
+        compiled.add(
+          IslandCompiledArgument(
+            _islandArgumentLabel(argument),
+            parameter?.name == '_'
+                ? IslandCompiledReason.wildcard
+                : IslandCompiledReason.unresolved,
+          ),
+        );
+        continue;
+      }
+      void keep(IslandCompiledReason reason, {String? detail}) {
+        if (name == 'key') return;
+        compiled.add(IslandCompiledArgument(name, reason, detail: detail));
+      }
+
+      // The first refusal of a nested translation, which says why.
+      String? refusal(List<Issue> scratch) => scratch
+          .where((issue) => !issue.code.isBuildNotice)
+          .firstOrNull
+          ?.message;
+
       // An app builder whose body lowers stays in the island; its body is
       // delivered as a slot.
       if (_stripParens(value) case final FunctionExpression callback) {
         final builder = AppValueSlot.of(callback);
-        if (builder == null) continue;
+        if (builder == null) {
+          keep(
+            islandTypeReason(callback.staticType) ??
+                IslandCompiledReason.callback,
+          );
+          continue;
+        }
         final undo = _checkpoint();
         final misses = _hoist!.closureMisses.length;
         final scratch = <Issue>[];
@@ -1739,6 +1794,10 @@ final class ExpressionTranslator {
             _hoist!.closureMisses.length != misses) {
           _keptClosures.remove(callback);
           undo();
+          keep(
+            IslandCompiledReason.builderBody,
+            detail: refusal(scratch),
+          );
           continue;
         }
         kept.addAll(scratch);
@@ -1754,12 +1813,11 @@ final class ExpressionTranslator {
         );
         continue;
       }
-      final type = argument.correspondingParameter?.type ?? value.staticType;
+      final type = parameter?.type ?? value.staticType;
       final list = _isWidgetListType(type);
       final slot = list || classifyHoistType(type) is HoistIsWidget;
-      final propertyShape = slot || !_isLiteralArgument(value)
-          ? null
-          : islandPropertyShape(type);
+      final literal = _isLiteralArgument(value);
+      final propertyShape = slot || !literal ? null : islandPropertyShape(type);
       final propertyType = propertyShape?.propertyType;
       final fallback = switch (propertyType == null
           ? null
@@ -1767,7 +1825,19 @@ final class ExpressionTranslator {
         final HoistEvaluable evaluable => evaluable,
         _ => null,
       };
-      if (!slot && fallback == null) continue;
+      if (!slot && fallback == null) {
+        // Whether a design can carry the type comes before how it's written.
+        final source = readableSource(value.toSource());
+        switch (islandTypeReason(type)) {
+          case final reason?:
+            keep(reason, detail: type == null ? null : islandTypeName(type));
+          case null when !literal:
+            keep(IslandCompiledReason.notLiteral, detail: source);
+          case null:
+            keep(IslandCompiledReason.notEvaluable, detail: source);
+        }
+        continue;
+      }
       final undo = _checkpoint();
       final scratch = <Issue>[];
       final dsl = _translateSlotValue(
@@ -1780,6 +1850,14 @@ final class ExpressionTranslator {
       );
       if (dsl.isEmpty || scratch.any((issue) => !issue.code.isBuildNotice)) {
         undo();
+        keep(
+          propertyType == null
+              ? IslandCompiledReason.slotContent
+              : IslandCompiledReason.notEvaluable,
+          detail: propertyType == null
+              ? refusal(scratch)
+              : readableSource(value.toSource()),
+        );
         continue;
       }
       kept.addAll(scratch);
@@ -1792,6 +1870,7 @@ final class ExpressionTranslator {
         properties.add(
           IslandProperty(
             name,
+            argument: argument,
             shape: propertyShape!,
             dsl: dsl,
             fallback: fallback!.template,
@@ -1838,6 +1917,7 @@ final class ExpressionTranslator {
       reason: failure.where((issue) => !issue.code.isBuildNotice).firstOrNull,
       slots: slots,
       properties: properties,
+      compiled: compiled,
       template: analysis.template,
       library: session.namespace,
       node: node,
@@ -2451,6 +2531,22 @@ final class ExpressionTranslator {
     node.accept(visitor);
     return visitor.found;
   }
+
+  // An argument as the build report names it: its name, its parameter's, or
+  // its place among the positional arguments.
+  static String _islandArgumentLabel(Argument argument) => switch (argument) {
+    NamedArgument(:final name) => name.lexeme,
+    _ =>
+      islandArgumentName(argument.correspondingParameter) ??
+          switch (argument.parent) {
+            final ArgumentList list =>
+              'argument ${[
+                    for (final other in list.arguments)
+                      if (other is! NamedArgument) other,
+                  ].indexOf(argument) + 1}',
+            _ => 'an argument',
+          },
+  };
 
   /// [node]'s template without its mount: an argument that needs the mount
   /// is left out when optional and does nothing when it is a void callback.
