@@ -1,3 +1,9 @@
+import 'dart:async';
+import 'dart:collection';
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:meta/meta.dart';
 import 'package:restage_compiler_core/src/builder_scope_values.dart';
 import 'package:restage_compiler_core/src/rfw_catalog_occurrence_resolution.dart';
 import 'package:restage_compiler_core/src/rfw_program_envelope.dart';
@@ -339,11 +345,7 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
         );
         for (final raw in body.events) {
           final site = sites[raw];
-          final emitted = _withoutLoopReferences(
-            raw,
-            site?.loops ?? const [],
-            frames: site?.frames ?? const {},
-          );
+          final emitted = sites.bound(raw);
           if (kScreenEventNamesOutsideContract.contains(emitted.eventName)) {
             continue;
           }
@@ -408,6 +410,7 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
               contract.context,
               local,
               widgetValue: _callbackValueShape(property?.callbackSignature),
+              types: sites.types,
             );
             if (gaps.isNotEmpty) {
               throw FormatException('Undeclared ${gaps.first}.');
@@ -434,6 +437,7 @@ extension SurfaceFitProjection on SurfacePublicationArtifactClosure {
                   ),
                   contract.context,
                   local,
+                  sites.types,
                 );
               }
             }
@@ -928,11 +932,591 @@ typedef _EventSite = ({
   List<Object> loops,
   _BuilderFrames frames,
   String? call,
-  String? argument
+  String? argument,
+  String declaration,
 });
 
+/// One call of a local widget declaration: what it passes, the loops and
+/// frames around it, and the declaration it sits in.
+typedef _DeclarationUse = ({
+  rfw.DynamicMap arguments,
+  List<Object> loops,
+  _BuilderFrames frames,
+  String declaration,
+});
+
+/// Where each event of a library sits, and where each of its local widget
+/// declarations is used.
+final class _EventSites {
+  _EventSites(this._sites, this._uses);
+
+  final Map<rfw.EventHandler, _EventSite> _sites;
+  final Map<String, List<_DeclarationUse>> _uses;
+  final _Types types = _Types();
+  late final Map<String, Set<String>> _calls = _callGraph(_uses);
+  late final Set<String> _cyclic = _declarationsInCycles(_calls);
+  late final Map<String, Map<String, Object?>> _arguments = _resolveArguments();
+
+  _EventSite? operator [](rfw.EventHandler event) => _sites[event];
+
+  /// [raw] with each value replaced by its type, read in the scope that wrote
+  /// it: its own loops and builder frames, and each declaration argument as
+  /// the types every call of the declaration can pass.
+  rfw.EventHandler bound(rfw.EventHandler raw) {
+    final site = _sites[raw];
+    final scope = _FitScope(
+      site?.loops ?? const [],
+      site?.frames ?? const {},
+      site == null ? null : _argumentsOf(site.declaration),
+    );
+    return rfw.EventHandler(
+      raw.eventName,
+      types.of(raw.eventArguments, scope)! as rfw.DynamicMap,
+    );
+  }
+
+  // A declaration that places itself, directly or through others, never
+  // finishes rendering, so its arguments are unbound.
+  Map<String, Object?> _argumentsOf(String declaration) =>
+      _cyclic.contains(declaration)
+          ? const _UnboundArguments()
+          : _arguments[declaration] ?? const {};
+
+  // Each argument of each declaration as the union of the types its calls
+  // pass, each read in its call's own scope; an argument a call omits is
+  // missing. Callers resolve before the declarations they place, so no
+  // declaration waits on one still being resolved.
+  Map<String, Map<String, Object?>> _resolveArguments() {
+    final resolved = <String, Map<String, Object?>>{};
+    final waiting = <String, int>{};
+    for (final MapEntry(key: callee, value: uses) in _uses.entries) {
+      if (_cyclic.contains(callee)) continue;
+      waiting[callee] = {
+        for (final use in uses)
+          if (!_cyclic.contains(use.declaration)) use.declaration,
+      }.length;
+    }
+    final ready = [
+      for (final caller in _calls.keys)
+        if (!_cyclic.contains(caller) && (waiting[caller] ?? 0) == 0) caller,
+    ];
+    while (ready.isNotEmpty) {
+      types.step();
+      final declaration = ready.removeLast();
+      final uses = _uses[declaration] ?? const <_DeclarationUse>[];
+      final scopes = [
+        for (final use in uses)
+          _FitScope(
+            use.loops,
+            use.frames,
+            _cyclic.contains(use.declaration)
+                ? const _UnboundArguments()
+                : resolved[use.declaration] ?? const {},
+          ),
+      ];
+      final names = {for (final use in uses) ...use.arguments.keys};
+      resolved[declaration] = {
+        for (final name in names)
+          name: types.union([
+            for (final (index, use) in uses.indexed)
+              if (use.arguments.containsKey(name))
+                types.of(use.arguments[name], scopes[index])
+              else
+                rfw.missing,
+          ]),
+      };
+      for (final callee in _calls[declaration] ?? const <String>{}) {
+        if (_cyclic.contains(callee)) continue;
+        final left = waiting[callee]! - 1;
+        waiting[callee] = left;
+        if (left == 0) ready.add(callee);
+      }
+    }
+    return resolved;
+  }
+}
+
+// Each declaration's callees: the local declarations it places.
+Map<String, Set<String>> _callGraph(Map<String, List<_DeclarationUse>> uses) {
+  final calls = <String, Set<String>>{};
+  for (final MapEntry(key: callee, value: callers) in uses.entries) {
+    calls[callee] ??= {};
+    for (final use in callers) {
+      (calls[use.declaration] ??= {}).add(callee);
+    }
+  }
+  return calls;
+}
+
+// The declarations that place themselves, directly or through others: each
+// one in a strongly connected component of [calls] that has a cycle. Walked
+// with an explicit stack, so a long chain can't overflow the call stack.
+Set<String> _declarationsInCycles(Map<String, Set<String>> calls) {
+  final index = <String, int>{};
+  final low = <String, int>{};
+  final stack = <String>[];
+  final onStack = <String>{};
+  final cyclic = <String>{};
+  final work = <(String, Iterator<String>)>[];
+  void open(String node) {
+    index[node] = low[node] = index.length;
+    stack.add(node);
+    onStack.add(node);
+    work.add((node, (calls[node] ?? const <String>{}).iterator));
+  }
+
+  for (final root in calls.keys) {
+    if (index.containsKey(root)) continue;
+    open(root);
+    while (work.isNotEmpty) {
+      final (node, edges) = work.last;
+      if (edges.moveNext()) {
+        final next = edges.current;
+        if (!index.containsKey(next)) {
+          open(next);
+        } else if (onStack.contains(next)) {
+          low[node] = min(low[node]!, index[next]!);
+        }
+        continue;
+      }
+      work.removeLast();
+      if (work.isNotEmpty) {
+        final parent = work.last.$1;
+        low[parent] = min(low[parent]!, low[node]!);
+      }
+      if (low[node] != index[node]) continue;
+      final component = <String>[];
+      String member;
+      do {
+        member = stack.removeLast();
+        onStack.remove(member);
+        component.add(member);
+      } while (member != node);
+      if (component.length > 1 || (calls[node]?.contains(node) ?? false)) {
+        cyclic.addAll(component);
+      }
+    }
+  }
+  return cyclic;
+}
+
+// The arguments of a declaration in a cycle: every one unbound.
+final class _UnboundArguments extends MapBase<String, Object?> {
+  const _UnboundArguments();
+
+  @override
+  Object? operator [](Object? key) => const _Unbound();
+
+  @override
+  void operator []=(String key, Object? value) =>
+      throw UnsupportedError('unbound arguments');
+
+  @override
+  void clear() => throw UnsupportedError('unbound arguments');
+
+  @override
+  Iterable<String> get keys => const [];
+
+  @override
+  Object? remove(Object? key) => throw UnsupportedError('unbound arguments');
+
+  @override
+  bool containsKey(Object? key) => true;
+}
+
+// What a reference reads in one scope: its loop inputs, outermost first, its
+// builder frames, and its declaration's argument types.
+final class _FitScope {
+  const _FitScope(this.loops, this.frames, this.arguments);
+  final List<Object> loops;
+  final _BuilderFrames frames;
+  final Map<String, Object?>? arguments;
+}
+
+// The type of an RFW value in one scope. A type is a canonical value the
+// event check reads as it reads a literal: one representative per scalar
+// kind, a list type, a map of the types of its entries, a data reference, a
+// builder frame value, missing, unbound, or a union of other types. Every
+// type is interned, so a key names its children by id and shared types are
+// built, keyed and checked once.
+final class _Types {
+  // Steps before a check gives up rather than run unbounded on a crafted
+  // payload. Every step of the pass counts. A zone may set a smaller one, so
+  // a test can bound the work a check does.
+  final int _budget =
+      Zone.current[#restageSurfaceFitStepBudget] as int? ?? 2000000;
+  var _steps = 0;
+  final Map<String, Object?> _canonical = {};
+  final Map<Object?, int> _ids = Map.identity();
+  final Map<int, Map<Object, Object?>> _reads = {};
+  final Map<(_Identity, _Identity, _Identity, int), List<(_FitScope, Object?)>>
+      _loopInputs = {};
+  final Set<(int, SurfaceScreenEventShape, Object, Object)> _fits = {};
+
+  // Value nesting deeper than this is refused rather than recursed into.
+  static const _maxDepth = 512;
+
+  var _depth = 0;
+
+  void step() {
+    if (++_steps > _budget) throw _tooComplex;
+  }
+
+  void _enter() {
+    if (++_depth > _maxDepth) {
+      _depth--;
+      throw _tooComplex;
+    }
+  }
+
+  static const _tooComplex = FormatException(
+    'The surface is too complex to check its events.',
+  );
+
+  Object? of(Object? value, _FitScope scope) {
+    step();
+    _enter();
+    try {
+      return _of(value, scope);
+    } finally {
+      _depth--;
+    }
+  }
+
+  Object? _of(Object? value, _FitScope scope) {
+    switch (value) {
+      case rfw.ArgsReference(:final parts):
+        final arguments = scope.arguments;
+        if (arguments == null || parts.isEmpty) {
+          return _intern(const _Unbound());
+        }
+        final name = parts.first;
+        if (name is! String) return _intern(rfw.missing);
+        return read(
+          _intern(arguments.containsKey(name) ? arguments[name] : rfw.missing),
+          parts.sublist(1),
+        );
+      case rfw.LoopReference(:final loop, :final parts):
+        final index = scope.loops.length - 1 - loop;
+        if (index < 0) return _intern(const _Unbound());
+        return read(items(_loopInput(scope, index)), parts);
+      case rfw.WidgetBuilderArgReference(:final argumentName, :final parts):
+        final fields = scope.frames[argumentName];
+        if (fields != null && parts.length == 2 && parts[1] is String) {
+          final types = fields[parts[1]];
+          if (types != null && parts[0] == 'values') {
+            return _intern(_BuilderFrameValue(types));
+          }
+          if (types != null && parts[0] == 'nulls') {
+            return _intern(const _BuilderFrameValue([ValueType.boolean]));
+          }
+        }
+        return _intern(const _Unbound());
+      case rfw.Switch(:final input, :final outputs):
+        final inputType = of(input, scope);
+        return union([
+          for (final entry in outputs.entries)
+            of(
+              entry.value,
+              _FitScope(
+                scope.loops,
+                _framesForSwitchCase(input, entry.key, outputs, scope.frames),
+                scope.arguments,
+              ),
+            ),
+          // A frame null check, or an input that can be missing, with no
+          // default fires nothing in that case.
+          if (!outputs.containsKey(null) &&
+              (_isFrameNullDiscriminator(input, scope.frames) &&
+                      !(outputs.containsKey(true) &&
+                          outputs.containsKey(false)) ||
+                  _canBeMissing(inputType)))
+            rfw.missing,
+        ]);
+      case final Map<String, Object?> map:
+        return _intern(<String, Object?>{
+          for (final entry in map.entries) entry.key: of(entry.value, scope),
+        });
+      case final List<Object?> list:
+        return _list(
+          [
+            for (final item in list)
+              if (item case rfw.Loop(:final input, :final output))
+                of(
+                  output,
+                  _FitScope(
+                    [...scope.loops, input],
+                    scope.frames,
+                    scope.arguments,
+                  ),
+                )
+              else
+                of(item, scope),
+          ],
+          minLength: list.where((item) => item is! rfw.Loop).length,
+        );
+      case rfw.DataReference():
+        return _intern(value);
+      case null:
+        return _intern(null);
+      case bool():
+        return _intern(false);
+      case int():
+        return _intern(0);
+      case double(isFinite: true):
+        return _intern(0.0);
+      case String() when _isUnicodeScalars(value):
+        return _intern('');
+      case double() || String():
+        // Kept as written, so the check refuses it as it would the literal.
+        return _intern(value);
+      case _ when identical(value, rfw.missing):
+        return _intern(rfw.missing);
+    }
+    return _intern(const _Unbound());
+  }
+
+  // The type of the input of the loop at [index] in [scope], read in the
+  // scope around that loop, once per scope.
+  Object? _loopInput(_FitScope scope, int index) {
+    final input = scope.loops[index];
+    final outer = scope.loops.sublist(0, index);
+    final known = _loopInputs[(
+      _Identity(input),
+      _Identity(scope.arguments),
+      _Identity(scope.frames),
+      index,
+    )] ??= [];
+    for (final (seen, type) in known) {
+      var same = true;
+      for (var at = 0; at < outer.length && same; at++) {
+        step();
+        same = identical(seen.loops[at], outer[at]);
+      }
+      if (same) return type;
+    }
+    final around = _FitScope(outer, scope.frames, scope.arguments);
+    final type = of(input, around);
+    known.add((around, type));
+    return type;
+  }
+
+  // The type at [parts] below [type], missing where RFW finds nothing.
+  Object? read(Object? type, List<Object> parts) {
+    var current = type;
+    for (final part in parts) {
+      current = _readPart(current, part);
+    }
+    return current;
+  }
+
+  // The type one [part] below [type], once per type and part.
+  Object? _readPart(Object? type, Object part) {
+    step();
+    final known = _reads[_id(type)] ??= {};
+    if (known.containsKey(part)) return known[part];
+    final result = switch ((type, part)) {
+      (final _Union union, _) => this.union([
+          for (final option in union.options) _readPart(option, part),
+        ]),
+      (rfw.DataReference(parts: final base), _) =>
+        _intern(rfw.DataReference([...base, part])),
+      (final _Unbound unbound, _) => unbound,
+      (final Map<Object?, Object?> map, final String name) =>
+        _intern(map.containsKey(name) ? map[name] : rfw.missing),
+      // An index reads any item, or nothing past the shortest the list
+      // can be.
+      (final _ListType list, final int index) => union([
+          if (index >= 0) ...list.items,
+          if (index < 0 || index >= list.minLength) rfw.missing,
+        ]),
+      _ => _intern(rfw.missing),
+    };
+    return known[part] = result;
+  }
+
+  // The type of each item a loop over [type] binds.
+  Object? items(Object? type) {
+    step();
+    return switch (type) {
+      rfw.DataReference(parts: final base) =>
+        _intern(rfw.DataReference([...base, _loopItem])),
+      final _Union union => this.union([
+          for (final option in union.options) items(option),
+        ]),
+      final _ListType list => union(list.items),
+      // A loop over nothing binds nothing.
+      _ when identical(type, rfw.missing) => union(const []),
+      _ => _intern(const _Unbound()),
+    };
+  }
+
+  // A list of the distinct [types] of its items, with at least [minLength]
+  // of them.
+  Object? _list(Iterable<Object?> types, {required int minLength}) {
+    final options = union(types);
+    return _intern(
+      _ListType(
+        options is _Union ? options.options : [options],
+        minLength,
+      ),
+    );
+  }
+
+  /// The union of [types], flattened and each listed once.
+  Object? union(Iterable<Object?> types) {
+    final byId = <int, Object?>{};
+    void add(Object? type) {
+      step();
+      final canonical = _intern(type);
+      if (canonical is _Union) {
+        canonical.options.forEach(add);
+      } else {
+        byId.putIfAbsent(_id(canonical), () => canonical);
+      }
+    }
+
+    types.forEach(add);
+    if (byId.length == 1) return byId.values.single;
+    final ids = byId.keys.toList()..sort();
+    return _intern(_Union([for (final id in ids) byId[id]]));
+  }
+
+  int _childId(Object? type) {
+    step();
+    return _id(type);
+  }
+
+  int _id(Object? type) =>
+      _ids[type] ??
+      (throw StateError('A type was used before it was interned.'));
+
+  // The canonical copy of [type], whose children are canonical already.
+  Object? _intern(Object? type) {
+    step();
+    if (_ids.containsKey(type)) return type;
+    final key = _keyOf(type);
+    if (_canonical.containsKey(key)) return _canonical[key];
+    _canonical[key] = type;
+    _ids[type] = _ids.length;
+    return type;
+  }
+
+  // A type-tagged key naming each child by its id.
+  String _keyOf(Object? type) => switch (type) {
+        null => 'n',
+        bool() => 'b',
+        int() => 'i',
+        double(isFinite: true) => 'd',
+        double() => 'D${jsonEncode('$type')}',
+        String() when type.isEmpty => 's',
+        String() => 'S${jsonEncode(type)}',
+        rfw.DataReference(:final parts) => 'r${jsonEncode(_pathKey(parts))}',
+        _BuilderFrameValue(:final types) =>
+          'f${jsonEncode([for (final type in types) type.toJson()])}',
+        _Unbound() => 'u',
+        _Union(:final options) => 'U${options.map(_childId).join(',')}',
+        _ListType(:final items, :final minLength) =>
+          'L$minLength:${items.map(_childId).join(',')}',
+        final Map<Object?, Object?> map => 'M${jsonEncode({
+                for (final key
+                    in (map.keys.map((key) => '$key').toList()..sort()))
+                  key: _childId(map[key]),
+              })}',
+        _ when identical(type, rfw.missing) => 'm',
+        _ => 'o${type.runtimeType}',
+      };
+
+  // Whether [value] already fits [shape] in this context; a type that is not
+  // interned is checked each time.
+  bool _fitsAlready(
+    Object? value,
+    SurfaceScreenEventShape shape,
+    SurfaceScreenHostDataSchema context,
+    Map<String, Object> local,
+  ) {
+    final id = _ids[value];
+    return id != null && _fits.contains((id, shape, context, local));
+  }
+
+  void _fitted(
+    Object? value,
+    SurfaceScreenEventShape shape,
+    SurfaceScreenHostDataSchema context,
+    Map<String, Object> local,
+  ) {
+    if (_ids[value] case final id?) _fits.add((id, shape, context, local));
+  }
+}
+
+bool _canBeMissing(Object? type) =>
+    identical(type, rfw.missing) ||
+    type is _Union && type.options.any(_canBeMissing);
+
+// A map key the SDK's JSON accepts: Unicode scalar values only.
+void _requireUnicodeKey(String key) {
+  if (!_isUnicodeScalars(key)) {
+    throw const FormatException('Emitted event map key is not Unicode text.');
+  }
+}
+
+bool _isUnicodeScalars(String value) {
+  try {
+    const SurfaceScreenEventScalarShapeV1(
+      SurfaceScreenEventScalarKind.string,
+    ).validate(value);
+    return true;
+  } on Object {
+    return false;
+  }
+}
+
+List<Object?> _pathKey(List<Object> parts) => [
+      for (final part in parts)
+        if (identical(part, _loopItem)) const ['item'] else part,
+    ];
+
+// [value] compared by identity, as a map key.
+@immutable
+final class _Identity {
+  const _Identity(this.value);
+
+  final Object? value;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _Identity && identical(other.value, value);
+
+  @override
+  int get hashCode => identityHashCode(value);
+}
+
+// Any one of [options]: every type a value can take.
+final class _Union {
+  const _Union(this.options);
+
+  final List<Object?> options;
+}
+
+// A list whose items are each one of [items], with at least [minLength] of
+// them.
+final class _ListType {
+  const _ListType(this.items, this.minLength);
+
+  final List<Object?> items;
+  final int minLength;
+}
+
+// A value no scope binds; an event that fires it fits no schema.
+final class _Unbound {
+  const _Unbound();
+}
+
+// Widget-tree nesting deeper than this is refused rather than recursed into.
+const _kMaxTreeDepth = 2048;
+
 /// The site of every event in [library].
-Map<rfw.EventHandler, _EventSite> _eventSites(
+_EventSites _eventSites(
   rfw.RemoteWidgetLibrary library, {
   Map<String, ValueOperation> operations = kStandardValueOperations,
   void Function(Object? value, ValueType type)? onCapture,
@@ -941,7 +1525,18 @@ Map<rfw.EventHandler, _EventSite> _eventSites(
     for (final widget in library.widgets) ...[widget.initialState, widget.root]
   ], operations: operations);
   final sites = Map<rfw.EventHandler, _EventSite>.identity();
-  void visit(
+  final declarations = {for (final widget in library.widgets) widget.name};
+  final uses = <String, List<_DeclarationUse>>{};
+  var current = '';
+  var depth = 0;
+  late void Function(
+    Object? value,
+    List<Object> loops, {
+    String? call,
+    String? argument,
+    _BuilderFrames frames,
+  }) visit;
+  void visitAt(
     Object? value,
     List<Object> loops, {
     String? call,
@@ -953,13 +1548,27 @@ Map<rfw.EventHandler, _EventSite> _eventSites(
         visit(input, loops, frames: frames);
         visit(output, [...loops, input], frames: frames);
       case rfw.EventHandler(:final eventArguments):
-        sites[value] =
-            (loops: loops, frames: frames, call: call, argument: argument);
+        sites[value] = (
+          loops: loops,
+          frames: frames,
+          call: call,
+          argument: argument,
+          declaration: current,
+        );
         visit(eventArguments, loops, frames: frames);
       case rfw.ConstructorCall(:final name, :final arguments):
         if (name == kBuilderContinuationWidgetName) {
           visit(arguments, loops, frames: frames);
           return;
+        }
+        if (declarations.contains(name)) {
+          final use = (
+            arguments: arguments,
+            loops: loops,
+            frames: frames,
+            declaration: current,
+          );
+          (uses[name] ??= []).add(use);
         }
         for (final entry in arguments.entries) {
           visit(
@@ -1019,10 +1628,26 @@ Map<rfw.EventHandler, _EventSite> _eventSites(
     }
   }
 
+  visit = (
+    value,
+    loops, {
+    call,
+    argument,
+    frames = const {},
+  }) {
+    if (++depth > _kMaxTreeDepth) throw _Types._tooComplex;
+    try {
+      visitAt(value, loops, call: call, argument: argument, frames: frames);
+    } finally {
+      depth--;
+    }
+  };
+
   for (final declaration in library.widgets) {
+    current = declaration.name;
     visit(declaration.root, const []);
   }
-  return sites;
+  return _EventSites(sites, uses);
 }
 
 bool _isFrameNullDiscriminator(Object input, _BuilderFrames frames) =>
@@ -1085,19 +1710,6 @@ SurfaceScreenEventShape? _callbackValueShape(String? signature) {
 
   return shapeOf(type);
 }
-
-/// [event] with each loop variable read rewritten as a read of the loop's
-/// data, so its arguments validate against the declared context.
-rfw.EventHandler _withoutLoopReferences(
-  rfw.EventHandler event,
-  List<Object> loops, {
-  _BuilderFrames frames = const {},
-}) =>
-    rfw.EventHandler(
-      event.eventName,
-      _rewriteScopedValue(event.eventArguments, loops, frames)!
-          as rfw.DynamicMap,
-    );
 
 Object? _rewriteScopedValue(
   Object? value,
@@ -1439,11 +2051,12 @@ List<SurfaceScreenContractGap> _typedEventGaps(
   SurfaceScreenHostDataSchema context,
   Map<String, Object> local, {
   SurfaceScreenEventShape? widgetValue,
+  _Types? types,
 }) {
   final arguments = _fitEventArguments(emitted);
   bool fits(Object? value, SurfaceScreenEventShape shape) {
     try {
-      _validateFitEventValue(value, shape, context, local);
+      _validateFitEventValue(value, shape, context, local, types);
       return true;
     } on FormatException {
       return false;
@@ -1473,7 +2086,8 @@ List<SurfaceScreenContractGap> _typedEventGaps(
       final values = (shape as SurfaceScreenEventMapShapeV1).values;
       return [
         for (final entry in arguments.entries)
-          if (!fits(entry.value, values)) gap(entry.key),
+          if (!_isUnicodeScalars(entry.key) || !fits(entry.value, values))
+            gap(entry.key),
       ];
   }
 }
@@ -1501,10 +2115,43 @@ void _validateFitEventValue(
   Object? value,
   SurfaceScreenEventShape shape,
   SurfaceScreenHostDataSchema context,
+  Map<String, Object> local, [
+  _Types? types,
+]) {
+  if (types == null) {
+    _validateFitEventValueOnce(value, shape, context, local, null);
+    return;
+  }
+  types
+    ..step()
+    .._enter();
+  try {
+    if (types._fitsAlready(value, shape, context, local)) return;
+    _validateFitEventValueOnce(value, shape, context, local, types);
+    types._fitted(value, shape, context, local);
+  } finally {
+    types._depth--;
+  }
+}
+
+void _validateFitEventValueOnce(
+  Object? value,
+  SurfaceScreenEventShape shape,
+  SurfaceScreenHostDataSchema context,
   Map<String, Object> local,
+  _Types? types,
 ) {
   if (identical(value, rfw.missing)) {
     throw const FormatException('Missing builder event value.');
+  }
+  if (value is _Unbound) {
+    throw const FormatException('Unknown emitted event data type.');
+  }
+  if (value is _Union) {
+    for (final option in value.options) {
+      _validateFitEventValue(option, shape, context, local, types);
+    }
+    return;
   }
   if (value is _BuilderFrameValue) {
     if (!value.types.every(
@@ -1525,7 +2172,7 @@ void _validateFitEventValue(
     if (seed == null) {
       throw const FormatException('Unknown emitted event data type.');
     }
-    _validateFitEventValue(seed, shape, context, local);
+    _validateFitEventValue(seed, shape, context, local, types);
     return;
   }
   if (value is rfw.DataReference) {
@@ -1548,30 +2195,55 @@ void _validateFitEventValue(
   }
   if (value is rfw.Switch) {
     for (final output in value.outputs.values) {
-      _validateFitEventValue(output, shape, context, local);
+      _validateFitEventValue(output, shape, context, local, types);
     }
     return;
   }
   switch (shape) {
     case SurfaceScreenEventNullableShapeV1():
       if (value != null) {
-        _validateFitEventValue(value, shape.value, context, local);
+        _validateFitEventValue(value, shape.value, context, local, types);
       }
     case SurfaceScreenEventListShapeV1(:final items):
-      if (value is! List) {
+      final List<Object?> elements;
+      if (value is _ListType) {
+        elements = value.items;
+      } else if (value is List) {
+        elements = value;
+      } else {
         throw const FormatException('Unknown emitted event list type.');
       }
-      for (final item in value) {
-        _validateFitEventValue(item, items, context, local);
+      for (final item in elements) {
+        _validateFitEventValue(item, items, context, local, types);
       }
     case SurfaceScreenEventMapShapeV1(:final values):
       if (value is! Map<String, Object?>) {
         throw const FormatException('Unknown emitted event map type.');
       }
+      value.keys.forEach(_requireUnicodeKey);
       for (final item in value.values) {
-        _validateFitEventValue(item, values, context, local);
+        _validateFitEventValue(item, values, context, local, types);
+      }
+    // A JSON value is walked through its types, each checked once.
+    case SurfaceScreenEventScalarShapeV1(
+          kind: SurfaceScreenEventScalarKind.jsonValue,
+        )
+        when value is _ListType:
+      for (final item in value.items) {
+        _validateFitEventValue(item, shape, context, local, types);
+      }
+    case SurfaceScreenEventScalarShapeV1(
+          kind: SurfaceScreenEventScalarKind.jsonValue,
+        )
+        when value is Map<String, Object?> && types != null:
+      value.keys.forEach(_requireUnicodeKey);
+      for (final item in value.values) {
+        _validateFitEventValue(item, shape, context, local, types);
       }
     case SurfaceScreenEventScalarShapeV1():
+      if (value is _ListType) {
+        throw const FormatException('Unknown emitted event scalar type.');
+      }
       shape.validate(value);
   }
 }
@@ -1631,11 +2303,30 @@ void _validateFitOutboundEventValue(
   List<String> path,
   SurfaceScreenEventShape shape,
   SurfaceScreenHostDataSchema context,
-  Map<String, Object> local,
-) {
+  Map<String, Object> local, [
+  _Types? types,
+]) {
   if (value is rfw.Switch) {
     for (final output in value.outputs.values) {
-      _validateFitOutboundEventValue(output, path, shape, context, local);
+      _validateFitOutboundEventValue(
+        output,
+        path,
+        shape,
+        context,
+        local,
+        types,
+      );
+    }
+  } else if (value is _Union) {
+    for (final option in value.options) {
+      _validateFitOutboundEventValue(
+        option,
+        path,
+        shape,
+        context,
+        local,
+        types,
+      );
     }
   } else if (value is rfw.DataReference) {
     _validateFitEventValue(
@@ -1645,7 +2336,7 @@ void _validateFitOutboundEventValue(
       local,
     );
   } else if (path.isEmpty) {
-    _validateFitEventValue(value, shape, context, local);
+    _validateFitEventValue(value, shape, context, local, types);
   } else if (value is Map<String, Object?> && value.containsKey(path.first)) {
     _validateFitOutboundEventValue(
       value[path.first],
@@ -1653,6 +2344,7 @@ void _validateFitOutboundEventValue(
       shape,
       context,
       local,
+      types,
     );
   } else {
     throw const FormatException('Unknown typed flow event egress field.');
@@ -1681,7 +2373,9 @@ List<SurfaceScreenContractGap> surfaceScreenContractGaps(
       _validateProgramCapture(value, type, context, localValues);
     },
   );
-  void visit(Object? value) {
+  var depth = 0;
+  late void Function(Object? value) visit;
+  void visitAt(Object? value) {
     switch (value) {
       case rfw.DataReference()
           when value.parts.isNotEmpty && value.parts.first == 'context':
@@ -1693,13 +2387,14 @@ List<SurfaceScreenContractGap> surfaceScreenContractGaps(
           if (typed == null) {
             gaps.add(SurfaceScreenContractGap.event(eventName));
           } else {
-            final emitted = _withoutLoopReferences(
-              value,
-              sites[value]?.loops ?? const [],
-              frames: sites[value]?.frames ?? const {},
-            );
             gaps.addAll(
-              _typedEventGaps(emitted, typed, context, localValues),
+              _typedEventGaps(
+                sites.bound(value),
+                typed,
+                context,
+                localValues,
+                types: sites.types,
+              ),
             );
           }
         }
@@ -1722,6 +2417,15 @@ List<SurfaceScreenContractGap> surfaceScreenContractGaps(
         list.forEach(visit);
     }
   }
+
+  visit = (value) {
+    if (++depth > _kMaxTreeDepth) throw _Types._tooComplex;
+    try {
+      visitAt(value);
+    } finally {
+      depth--;
+    }
+  };
 
   for (final declaration in library.widgets) {
     visit(declaration.initialState);

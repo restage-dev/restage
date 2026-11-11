@@ -5,6 +5,8 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart' show log;
 
+import 'package:restage_codegen/src/const_value_literal.dart'
+    show identifierElement;
 import 'package:restage_codegen/src/islands/islands.dart' show Island;
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/widget_classifier.dart'
@@ -39,11 +41,11 @@ final class AppWidgetEvents {
   /// The `SurfaceEvent` constants the app widgets [islands] show, and the
   /// app widgets in [placed] that render from their registered factories,
   /// fire from their own builds.
-  Future<Set<FieldElement>> firedBy(
+  Future<Set<PropertyInducingElement>> firedBy(
     Iterable<Island> islands,
     Iterable<ClassElement> placed,
   ) async {
-    final fired = <FieldElement>{};
+    final fired = <PropertyInducingElement>{};
     final calls = [
       for (final island in islands) ...await callsBelow(island.node),
       for (final type in placed)
@@ -118,32 +120,42 @@ Issue? inlineEventIssue(MethodInvocation call) {
     message:
         '`${call.toSource()}` at $location builds its event where it fires, '
         "so the surface's contract can't name it and the event refuses. Try "
-        'declaring it as a static const field, for example '
-        '`static const myEvent = $declared;`, and firing that.',
+        'declaring it as a constant, for example '
+        '`static const myEvent = $declared;` or a top-level '
+        '`const myEvent = $declared;`, and firing that.',
     location: location,
     buildNoticeIdentity: '$kInlineEventNoticePrefix$location',
   );
 }
 
-// The static const `SurfaceEvent` [call] fires, when it names one.
-FieldElement? _firedConstant(MethodInvocation call) {
+// The const `SurfaceEvent` [call] fires, when it names one.
+PropertyInducingElement? _firedConstant(MethodInvocation call) {
   final event = call.argumentList.arguments.firstOrNull;
-  if (event == null || event is NamedArgument) return null;
-  var element = switch (event) {
-    SimpleIdentifier(:final element) => element,
-    PrefixedIdentifier(:final identifier) => identifier.element,
-    PropertyAccess(:final propertyName) => propertyName.element,
+  return event == null || event is NamedArgument
+      ? null
+      : surfaceEventConstant(event.argumentExpression);
+}
+
+/// The const `SurfaceEvent` variable [expression] names: a static field or a
+/// top-level constant. Null for anything else.
+PropertyInducingElement? surfaceEventConstant(Expression expression) {
+  var element = switch (expression) {
+    final SimpleIdentifier identifier => identifierElement(identifier),
+    PrefixedIdentifier(:final identifier) => identifierElement(identifier),
+    PropertyAccess(:final propertyName) => identifierElement(propertyName),
     _ => null,
   };
   if (element is PropertyAccessorElement) element = element.variable;
-  if (element is! FieldElement || !element.isStatic || !element.isConst) {
-    return null;
-  }
-  final type = element.type;
+  final constant = switch (element) {
+    final FieldElement field when field.isStatic && field.isConst => field,
+    final TopLevelVariableElement variable when variable.isConst => variable,
+    _ => null,
+  };
+  final type = constant?.type;
   return type is InterfaceType &&
           type.element.name == 'SurfaceEvent' &&
           type.element.library.uri.toString().startsWith('package:restage/')
-      ? element
+      ? constant
       : null;
 }
 

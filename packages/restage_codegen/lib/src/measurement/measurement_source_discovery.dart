@@ -49,6 +49,7 @@ final class MeasurementSourceDiscoveryInput {
     Map<Element, Expression> rootLocalBindings = const {},
     Map<Element, HelperDef> rootHelpers = const {},
     this.rendersFromApp = _nothingFromApp,
+    this.placedByCatalogEntry = _nothingFromApp,
   }) : rootBranches = List.unmodifiable(rootBranches),
        inlinedCustomWidgetBlueprints = Map.unmodifiable(
          inlinedCustomWidgetBlueprints,
@@ -88,6 +89,10 @@ final class MeasurementSourceDiscoveryInput {
   /// Whether a widget renders from the app's compiled code, which records no
   /// events of its own; only its widget arguments are walked.
   final bool Function(AstNode node) rendersFromApp;
+
+  /// Whether a custom widget construction renders from its registered
+  /// factory, as the translator placed it, rather than inlining.
+  final bool Function(AstNode node) placedByCatalogEntry;
 
   static bool _nothingFromApp(AstNode node) => false;
 
@@ -1012,7 +1017,9 @@ final class _MeasurementSourceDiscovery {
         'A statically inlined custom-widget cycle is invalid',
       );
     }
-    final blueprint = input.inlinedCustomWidgetBlueprints[customIdentity];
+    final blueprint = input.placedByCatalogEntry(expression)
+        ? null
+        : input.inlinedCustomWidgetBlueprints[customIdentity];
     if (blueprint == null) {
       // A widget that does not inline, whatever its body holds, renders from
       // the app's compiled factory and is one opaque occurrence.

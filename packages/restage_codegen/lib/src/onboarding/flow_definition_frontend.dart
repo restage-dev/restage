@@ -2041,10 +2041,15 @@ final class _FlowDefinitionGraphParser {
   Future<_EventInfo?> _eventInfo(Expression? expression) async {
     final field = _eventField(expression);
     if (field == null) {
+      // The class that declares a transition's event is its source screen.
       _issue(
         IssueCode.unresolvedIdentifier,
-        'Transition events must be '
-        'analyzer-resolved static const SurfaceEvent fields.',
+        'A transition names its source screen through the class that '
+        'declares its event, so the event must be a static const '
+        'SurfaceEvent field of that screen; got '
+        '${expression?.toSource() ?? '<missing>'}. Try declaring '
+        '`static const event = ${expression?.toSource() ?? 'event'};` on '
+        'the screen and naming that.',
       );
       return null;
     }

@@ -45,7 +45,7 @@ typedef SplitWidgetDefinitions = ({
   Map<String, Map<String, String>> states,
   List<fmt.RfwCatalogConstructorProvenance> origins,
   Set<String> libraries,
-  List<FieldElement> fired,
+  List<PropertyInducingElement> fired,
 });
 
 /// The registered wrapper that hosts a split widget named [catalogName].
@@ -480,8 +480,8 @@ Map<String, SplitWidgetDefinitions> splitWidgetDefinitionsOf(
     for (final split in splits) customWidgetKey(split.mount.screen): split,
   };
   // A split's events, and those of each split it places in turn.
-  List<FieldElement> fired(SplitWidgetInput split) {
-    final events = <FieldElement>{};
+  List<PropertyInducingElement> fired(SplitWidgetInput split) {
+    final events = <PropertyInducingElement>{};
     final seen = <SplitWidgetInput>{};
     final pending = [split];
     while (pending.isNotEmpty) {

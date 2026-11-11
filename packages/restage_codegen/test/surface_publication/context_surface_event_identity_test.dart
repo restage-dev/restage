@@ -151,6 +151,42 @@ void main() {
       );
     },
   );
+
+  test('two top-level events under one name are named by library', () async {
+    String events(String type, String id) =>
+        "import 'package:restage/restage.dart';\n\n"
+        "const close = SurfaceEvent<$type>('$id');\n";
+    final errors = await _errors({
+      _sourceAsset: _source
+          .replaceFirst(
+            "import 'package:restage/restage.dart';\n",
+            "import 'package:restage/restage.dart';\n\n"
+                "import '../shared/a.dart' as a;\n"
+                "import '../shared/b.dart' as b;\n",
+          )
+          .replaceAll(
+            RegExp(r"  static const \w+ = SurfaceEvent<\w+>\('\w+'\);\n"),
+            '',
+          )
+          .replaceFirst('surfaceEvent(close)', 'surfaceEvent(a.close)')
+          .replaceFirst('surfaceEvent(pick, ', 'surfaceEvent(b.close, ')
+          .replaceFirst(
+            'Switch(value: false, onChanged: context.surfaceEvent(toggle)),',
+            '',
+          ),
+      'apps_examples|lib/shared/a.dart': events('void', 'shut'),
+      'apps_examples|lib/shared/b.dart': events('String', 'close'),
+    });
+    expect(
+      errors.join('\n'),
+      contains(
+        '`close` from package:apps_examples/shared/a.dart and `close` from '
+        'package:apps_examples/shared/b.dart. Try importing '
+        "'package:apps_examples/shared/a.dart' as a and declaring "
+        '`static const aClose = a.close;` on EventIdentity.',
+      ),
+    );
+  });
 }
 
 // [_source] with its events declared in [_events].

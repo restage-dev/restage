@@ -46,7 +46,7 @@ import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/islands/islands.dart';
 import 'package:restage_codegen/src/islands/opt_outs.dart';
 import 'package:restage_codegen/src/surface_publication/app_widget_events.dart'
-    show inlineEventIssue;
+    show inlineEventIssue, surfaceEventConstant;
 import 'package:restage_codegen/src/surface_publication/app_widget_mount_install.dart'
     show spellBesideClass;
 import 'package:restage_codegen/src/surface_publication/split_widgets.dart'
@@ -143,7 +143,6 @@ import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
         resolveValueShape;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-const String _kRestageFlutterSdkLibraryOrigin = 'package:restage';
 const String _kSelectionOptionLibraryOrigin =
     'package:restage_core/src/runtime/decoders.dart';
 const Set<String> _kTranslatedTypedListFrameworkItems = {
@@ -266,8 +265,9 @@ final class TranslationResult {
     this.completesSurface = false,
     Iterable<DslEmissionSource> emissionSources = const [],
     Iterable<HoistedValue> hoisted = const [],
-    Iterable<FieldElement> firedEvents = const [],
+    Iterable<PropertyInducingElement> firedEvents = const [],
     Iterable<ClassElement> placedCustomWidgets = const [],
+    Iterable<AstNode> placedCustomWidgetSites = const [],
     Iterable<Island> islands = const [],
     this.split,
     Set<Element> blocked = const {},
@@ -277,6 +277,7 @@ final class TranslationResult {
        hoisted = List.unmodifiable(hoisted),
        firedEvents = List.unmodifiable(firedEvents),
        placedCustomWidgets = Set.unmodifiable(placedCustomWidgets),
+       placedCustomWidgetSites = List.unmodifiable(placedCustomWidgetSites),
        islands = List.unmodifiable(islands),
        localSeeds = Map.unmodifiable(localSeeds),
        iconReferences = List.unmodifiable(iconReferences),
@@ -357,11 +358,14 @@ final class TranslationResult {
 
   /// The `SurfaceEvent` constants the build fires, in the order it fires
   /// them; a screen's contract includes the ones it doesn't declare.
-  final List<FieldElement> firedEvents;
+  final List<PropertyInducingElement> firedEvents;
 
   /// The custom widgets the build places by their catalog entries rather
   /// than inlining them.
   final Set<ClassElement> placedCustomWidgets;
+
+  /// The constructions that place those widgets by catalog entry.
+  final List<AstNode> placedCustomWidgetSites;
 
   /// Widget expressions that render from the app, ordered by ID.
   final List<Island> islands;
@@ -741,10 +745,21 @@ final class ExpressionTranslator {
   List<Issue>? _currentEventClosureNotices;
 
   // The `SurfaceEvent` constants the current translation lowers.
-  Set<FieldElement>? _currentFiredEvents;
+  Set<PropertyInducingElement>? _currentFiredEvents;
+
+  // Refusals only the measured pass raises; an inlined body keeps them.
+  final Set<Issue> _measuredRefusals = Set.identity();
+
+  Issue _measuredRefusal(Issue issue) {
+    _measuredRefusals.add(issue);
+    return issue;
+  }
 
   // The custom widgets the current translation places by catalog entry.
   Set<ClassElement>? _currentPlacedCustomWidgets;
+
+  // The constructions that place them.
+  List<AstNode>? _currentPlacedCustomWidgetSites;
 
   // Whether this translation attached an item to a measured tap.
   bool _currentEmitsInteractionItems = false;
@@ -1131,11 +1146,14 @@ final class ExpressionTranslator {
     final eventClosureNotices = <Issue>[];
     _currentEventClosureNotices = eventClosureNotices;
     final savedFiredEvents = _currentFiredEvents;
-    final firedEvents = <FieldElement>{};
+    final firedEvents = <PropertyInducingElement>{};
     _currentFiredEvents = firedEvents;
     final savedPlaced = _currentPlacedCustomWidgets;
     final placed = <ClassElement>{};
     _currentPlacedCustomWidgets = placed;
+    final savedPlacedSites = _currentPlacedCustomWidgetSites;
+    final placedSites = <AstNode>[];
+    _currentPlacedCustomWidgetSites = placedSites;
     final savedEmitsInteractionItems = _currentEmitsInteractionItems;
     _currentEmitsInteractionItems = false;
     var emitsInteractionItems = false;
@@ -1266,6 +1284,7 @@ final class ExpressionTranslator {
       // A nested translation's events are the enclosing build's too.
       _currentFiredEvents = savedFiredEvents?..addAll(firedEvents);
       _currentPlacedCustomWidgets = savedPlaced?..addAll(placed);
+      _currentPlacedCustomWidgetSites = savedPlacedSites?..addAll(placedSites);
       emitsInteractionItems = _currentEmitsInteractionItems;
       _currentEmitsInteractionItems = savedEmitsInteractionItems;
       _currentLocalFields = savedLocalFields;
@@ -1336,6 +1355,7 @@ final class ExpressionTranslator {
         split: recordedSplit,
         firedEvents: {...firedEvents, ...?islandSession?.firedEvents},
         placedCustomWidgets: placed,
+        placedCustomWidgetSites: placedSites,
         blocked: islandSession?.blocked ?? const {},
         islands: islandSession == null
             ? const []
@@ -4128,7 +4148,7 @@ final class ExpressionTranslator {
         }
         if (call.argumentList.arguments.firstOrNull?.argumentExpression
             case final event?) {
-          if (_staticConstOnboardingEventField(event) case final field?) {
+          if (surfaceEventConstant(event) case final field?) {
             session.firedEvents.add(field);
           }
         }
@@ -11458,8 +11478,8 @@ final class ExpressionTranslator {
             Issue(
               code: IssueCode.unrecognizedMethodCall,
               message:
-                  'Expected a static OnboardingEvent field reference; '
-                  'got ${arg.toSource()}.',
+                  'Expected a const SurfaceEvent, a static field or a '
+                  'top-level constant; got ${arg.toSource()}.',
               location: _locationOf(arg),
             ),
           );
@@ -11472,7 +11492,7 @@ final class ExpressionTranslator {
           return null;
         }
         _currentFiredEvents?.add(
-          _staticConstOnboardingEventField(arg.argumentExpression)!,
+          surfaceEventConstant(arg.argumentExpression)!,
         );
         positional.add(_stringLiteral(descriptorId));
         continue;
@@ -11518,39 +11538,8 @@ final class ExpressionTranslator {
   }
 
   String? _onboardingEventDescriptorId(Expression expr) {
-    final field = _staticConstOnboardingEventField(expr);
+    final field = surfaceEventConstant(expr);
     return field?.computeConstantValue()?.getField('id')?.toStringValue();
-  }
-
-  FieldElement? _staticConstOnboardingEventField(Expression expr) {
-    Element? element;
-    if (expr is SimpleIdentifier) {
-      element = expr.element;
-    } else if (expr is PrefixedIdentifier) {
-      element = identifierElement(expr.identifier);
-    } else if (expr is PropertyAccess) {
-      element = identifierElement(expr.propertyName);
-    }
-    if (element is PropertyAccessorElement) {
-      element = element.variable;
-    }
-    if (element is! FieldElement || !element.isStatic || !element.isConst) {
-      return null;
-    }
-    final type = element.type;
-    if (type is! InterfaceType || !_isRestageSurfaceEvent(type.element)) {
-      return null;
-    }
-    return element;
-  }
-
-  bool _isRestageSurfaceEvent(InterfaceElement element) {
-    final name = element.name;
-    return (name == 'SurfaceEvent' || name == 'OnboardingEvent') &&
-        libraryUriMatchesOrigin(
-          element.library.identifier,
-          _kRestageFlutterSdkLibraryOrigin,
-        );
   }
 
   String? _constDescriptorId(Expression expr) {
@@ -11564,6 +11553,10 @@ final class ExpressionTranslator {
       }
       final id = tryFoldScalarConstant(arguments.single.argumentExpression);
       return id is String ? id : null;
+    }
+    // A named event, a static field or a top-level constant.
+    if (surfaceEventConstant(expr) case final event?) {
+      return event.computeConstantValue()?.getField('id')?.toStringValue();
     }
     Element? element;
     if (expr is SimpleIdentifier) {
@@ -13212,6 +13205,7 @@ final class ExpressionTranslator {
       // Unclassified, it renders from its registered factory.
       if (classification == null) {
         _currentPlacedCustomWidgets?.add(widgetClass);
+        _currentPlacedCustomWidgetSites?.add(anchor);
       }
       if (classification != null) {
         final identity = (
@@ -13250,11 +13244,18 @@ final class ExpressionTranslator {
                       '${_withoutFinalPeriod(inlineIssues.first.message)}',
           );
         }
+        // A body that inlined unmeasured keeps inlining when measured, so a
+        // refusal only measurement raises is the author's to fix, with every
+        // other cause the body reported.
+        if (issues.skip(issueMark).any(_measuredRefusals.contains)) {
+          return '';
+        }
         // Not inlined (imperative, not yet supported, or an inline-attempt
         // diagnostic): discard any inline-specific diagnostics and reference
         // the registered catalog entry below.
         issues.removeRange(issueMark, issues.length);
         _currentPlacedCustomWidgets?.add(widgetClass);
+        _currentPlacedCustomWidgetSites?.add(anchor);
         // A split widget's delivered definition shadows that entry.
         if (splitWidgetDefinitions[key] case final split?) {
           splitPlaced = true;
@@ -15383,12 +15384,14 @@ final class ExpressionTranslator {
     }
     if (value.isEmpty) {
       issues.add(
-        Issue(
-          code: IssueCode.invalidEventConfiguration,
-          message:
-              'The measured inlined custom-widget callback did not '
-              'lower to an RFW event handler.',
-          location: _locationOf(expr),
+        _measuredRefusal(
+          Issue(
+            code: IssueCode.invalidEventConfiguration,
+            message:
+                'The measured inlined custom-widget callback did not '
+                'lower to an RFW event handler.',
+            location: _locationOf(expr),
+          ),
         ),
       );
       return '';
@@ -15437,13 +15440,15 @@ final class ExpressionTranslator {
     }
     if (!handler.startsWith('set ') && !localSet) {
       issues.add(
-        Issue(
-          code: IssueCode.invalidEventConfiguration,
-          message:
-              'The measured callback did not lower to an RFW event or '
-              'state update, so its private Measurement route cannot be '
-              'emitted.',
-          location: _locationOf(expression),
+        _measuredRefusal(
+          Issue(
+            code: IssueCode.invalidEventConfiguration,
+            message:
+                'The measured callback did not lower to an RFW event or '
+                'state update, so its private Measurement route cannot be '
+                'emitted.',
+            location: _locationOf(expression),
+          ),
         ),
       );
       return '';
@@ -17270,14 +17275,16 @@ final class ExpressionTranslator {
     if (marker != null && conditional is ConditionalExpression) {
       if (_handlerArms(conditional) > 1) {
         issues.add(
-          Issue(
-            code: IssueCode.invalidEventConfiguration,
-            message:
-                'A measured callback can run only one handler, but '
-                'this conditional runs a different one in each arm. Keep '
-                'one handler and set the others to null, or give each arm '
-                'its own widget.',
-            location: _locationOf(conditional),
+          _measuredRefusal(
+            Issue(
+              code: IssueCode.invalidEventConfiguration,
+              message:
+                  'A measured callback can run only one handler, but '
+                  'this conditional runs a different one in each arm. Keep '
+                  'one handler and set the others to null, or give each arm '
+                  'its own widget.',
+              location: _locationOf(conditional),
+            ),
           ),
         );
         return '';
@@ -17319,12 +17326,14 @@ final class ExpressionTranslator {
     if (value.isEmpty) {
       if (marker != null) {
         issues.add(
-          Issue(
-            code: IssueCode.invalidEventConfiguration,
-            message:
-                'The measured callback produced no RFW event handler, '
-                'so its private Measurement route cannot be emitted.',
-            location: _locationOf(expr),
+          _measuredRefusal(
+            Issue(
+              code: IssueCode.invalidEventConfiguration,
+              message:
+                  'The measured callback produced no RFW event handler, '
+                  'so its private Measurement route cannot be emitted.',
+              location: _locationOf(expr),
+            ),
           ),
         );
       }
@@ -21707,7 +21716,7 @@ final class _IslandSession {
   final List<Issue> recordIssues = [];
 
   /// The `SurfaceEvent` constants the recorded build fires.
-  final Set<FieldElement> firedEvents = {};
+  final Set<PropertyInducingElement> firedEvents = {};
 
   final String namespace;
 

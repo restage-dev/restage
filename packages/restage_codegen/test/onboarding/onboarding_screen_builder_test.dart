@@ -799,7 +799,7 @@ final class WelcomeScreen extends StatelessWidget {
       expect(
         logs.map((log) => log.message).join('\n'),
         allOf(
-          contains('Expected a static OnboardingEvent field reference'),
+          contains('Expected a const SurfaceEvent'),
           contains('WelcomeScreen.nxt'),
         ),
       );
@@ -856,7 +856,7 @@ final class OnboardingEvent<T> {
       expect(
         logs.map((log) => log.message).join('\n'),
         allOf(
-          contains('Expected a static OnboardingEvent field reference'),
+          contains('Expected a const SurfaceEvent'),
           contains('fake'),
         ),
       );

@@ -1,6 +1,7 @@
 // Analyzer-resolved standalone screen contracts and generated references.
 import 'dart:convert';
 
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
@@ -94,6 +95,7 @@ class ResolvedWidgetMountInput {
     this.hoisted = const [],
     this.firedEvents = const [],
     this.islands = const [],
+    this.placedCustomWidgetSites = const [],
     this.split,
     this.buildArguments = const [],
   });
@@ -124,10 +126,13 @@ class ResolvedWidgetMountInput {
 
   /// The `SurfaceEvent` constants the build fires; the contract includes the
   /// ones the screen doesn't declare.
-  final List<FieldElement> firedEvents;
+  final List<PropertyInducingElement> firedEvents;
 
   /// Widget expressions the mount renders from the app.
   final List<Island> islands;
+
+  /// Custom widget constructions the build places by catalog entry.
+  final List<AstNode> placedCustomWidgetSites;
 
   /// How the mount takes over the surface's shell and `State`.
   final MountSplit? split;
@@ -925,7 +930,7 @@ List<_ResolvedScreenEvent> _inspectScreenEvents(
       input.firedEvents.where((field) => !fields.contains(field)).toList()
         ..sort(
           (left, right) =>
-              _qualifiedName(left).compareTo(_qualifiedName(right)),
+              _describedName(left).compareTo(_describedName(right)),
         );
   for (final field in fired) {
     final id = field.computeConstantValue()?.getField('id')?.toStringValue();
@@ -966,10 +971,21 @@ List<_ResolvedScreenEvent> _inspectScreenEvents(
   return events;
 }
 
-// `Class.field`, how a diagnostic names an event constant.
-String _qualifiedName(FieldElement field) {
-  final owner = field.enclosingElement.name ?? '<unnamed>';
-  return '$owner.${field.name ?? '<unnamed>'}';
+// `Class.field`, or a top-level constant's name, as Dart source spells it.
+String _qualifiedName(PropertyInducingElement field) {
+  final name = field.name ?? '<unnamed>';
+  return switch (field.enclosingElement) {
+    InstanceElement(name: final owner) => '${owner ?? '<unnamed>'}.$name',
+    _ => name,
+  };
+}
+
+// How a diagnostic names an event constant: a top-level one with its library.
+String _describedName(PropertyInducingElement field, {bool code = true}) {
+  final name = code ? '`${_qualifiedName(field)}`' : _qualifiedName(field);
+  return field.enclosingElement is InstanceElement
+      ? name
+      : '$name from ${field.library.uri}';
 }
 
 // [name] with its first letter in [upper] or lower case.
@@ -996,7 +1012,7 @@ void _reportEventNameCollisions(
     final ids = {for (final event in entry.value) event.id};
     if (ids.length < 2) continue;
     final names = [
-      for (final event in entry.value) _qualifiedName(event.field),
+      for (final event in entry.value) _describedName(event.field),
     ];
     final foreign = entry.value
         .map((event) => event.field)
@@ -1004,24 +1020,50 @@ void _reportEventNameCollisions(
           (field) => field.enclosingElement != input.screen,
           orElse: () => entry.value.last.field,
         );
-    final owner = foreign.enclosingElement.name ?? '';
-    final suggested =
-        _withInitial(owner, upper: false) +
-        _withInitial(entry.key, upper: true);
+    final String advice;
+    if (foreign.enclosingElement case InstanceElement(:final name?)) {
+      final suggested =
+          _withInitial(name, upper: false) +
+          _withInitial(entry.key, upper: true);
+      advice =
+          'Try declaring '
+          '`static const $suggested = ${_qualifiedName(foreign)};` on $screen.';
+    } else {
+      // A top-level constant is named through a prefixed import, so the
+      // alias can't read the screen's own field of the same name.
+      final library = foreign.library.uri;
+      final prefix = _libraryPrefix(library);
+      final suggested = prefix + _withInitial(entry.key, upper: true);
+      advice =
+          "Try importing '$library' as $prefix and declaring "
+          '`static const $suggested = $prefix.${entry.key};` on $screen.';
+    }
     issues.add(
       _issue(
         input,
         IssueCode.duplicateId,
         '$screen fires events with different IDs under one name, '
-        '${names.map((name) => '`$name`').join(' and ')}. Try declaring '
-        '`static const $suggested = ${_qualifiedName(foreign)};` on $screen.',
+        '${names.join(' and ')}. $advice',
       ),
     );
   }
 }
 
+// A lowerCamelCase import prefix for [library], from its file name.
+String _libraryPrefix(Uri library) {
+  final stem = library.pathSegments.last.replaceFirst(RegExp(r'\.dart$'), '');
+  final words = stem.split(RegExp('[^A-Za-z0-9]+')).where((w) => w.isNotEmpty);
+  final prefix = [
+    for (final (index, word) in words.indexed)
+      _withInitial(word, upper: index > 0),
+  ].join();
+  return prefix.isEmpty || RegExp('^[0-9]').hasMatch(prefix)
+      ? 'events'
+      : prefix;
+}
+
 _ResolvedScreenEvent? _eventFromType({
-  required FieldElement field,
+  required PropertyInducingElement field,
   required String id,
   required DartType payloadType,
   required ResolvedWidgetMountInput input,
@@ -1056,7 +1098,7 @@ _ResolvedScreenEvent? _eventFromType({
 _DartEventShape? _shapeFromType(
   DartType type, {
   required ResolvedWidgetMountInput input,
-  required FieldElement field,
+  required PropertyInducingElement field,
   required List<Issue> issues,
 }) {
   void reject(String reason) {
@@ -1064,7 +1106,7 @@ _DartEventShape? _shapeFromType(
       _issue(
         input,
         IssueCode.buildMethodTooComplex,
-        'Static SurfaceEvent field ${field.name ?? '<unnamed>'} has '
+        'SurfaceEvent ${_qualifiedName(field)} has '
         'unsupported payload type ${type.getDisplayString()}: $reason.',
       ),
     );
@@ -1120,7 +1162,7 @@ _DartEventShape? _shapeFromType(
 _DartEventShape? _shapeFromInterface(
   InterfaceType type, {
   required ResolvedWidgetMountInput input,
-  required FieldElement field,
+  required PropertyInducingElement field,
   required List<Issue> issues,
 }) {
   void reject(String reason) {
@@ -1128,7 +1170,7 @@ _DartEventShape? _shapeFromInterface(
       _issue(
         input,
         IssueCode.buildMethodTooComplex,
-        'Static SurfaceEvent field ${field.name ?? '<unnamed>'} has '
+        'SurfaceEvent ${_qualifiedName(field)} has '
         'unsupported payload type ${type.getDisplayString()}: $reason.',
       ),
     );
@@ -1200,7 +1242,7 @@ void _reportDuplicateEventIds(
         ..sort((left, right) => left.key.compareTo(right.key));
   for (final entry in duplicateIds) {
     final fields = entry.value
-        .map((event) => _qualifiedName(event.field))
+        .map((event) => _describedName(event.field, code: false))
         .join(', ');
     issues.add(
       _issue(
@@ -3654,7 +3696,7 @@ final class _ResolvedScreenEvent {
     required this.dartShape,
   });
 
-  final FieldElement field;
+  final PropertyInducingElement field;
   final String id;
   final SurfaceScreenEventArguments arguments;
   final _DartEventShape? dartShape;

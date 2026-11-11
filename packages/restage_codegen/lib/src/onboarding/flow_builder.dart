@@ -26,6 +26,8 @@ import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/onboarding/general_discipline_validators.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
 import 'package:restage_codegen/src/screen_source_admission.dart';
+import 'package:restage_codegen/src/surface_publication/app_widget_events.dart'
+    show surfaceEventConstant;
 import 'package:restage_codegen/src/surface_publication/compiled_flow_emitter.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
@@ -2512,36 +2514,16 @@ String? _eventId(
     Issue(
       code: IssueCode.buildMethodTooComplex,
       message:
-          'Expected a static OnboardingEvent field reference; got '
-          '${expression?.toSource() ?? '<missing>'}.',
+          'Expected a const SurfaceEvent, a static field or a top-level '
+          'constant; got ${expression?.toSource() ?? '<missing>'}.',
       location: assetId.path,
     ),
   );
   return null;
 }
 
-FieldElement? _onboardingEventFieldFor(Expression? expression) {
-  return _staticConstOnboardingEventField(
-    _referencedVariableElement(expression),
-  );
-}
-
-FieldElement? _staticConstOnboardingEventField(Element? element) {
-  if (element is! FieldElement || !element.isStatic || !element.isConst) {
-    return null;
-  }
-  final type = element.type;
-  if (type is! InterfaceType ||
-      (type.element.name != 'SurfaceEvent' &&
-          type.element.name != 'OnboardingEvent') ||
-      !libraryUriMatchesOrigin(
-        type.element.library.identifier,
-        _kSdkLibraryOrigin,
-      )) {
-    return null;
-  }
-  return element;
-}
+PropertyInducingElement? _onboardingEventFieldFor(Expression? expression) =>
+    expression == null ? null : surfaceEventConstant(expression);
 
 _FlowAction? _actionForRef(
   Expression? expression,

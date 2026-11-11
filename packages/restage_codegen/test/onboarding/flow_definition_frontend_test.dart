@@ -50,6 +50,35 @@ final blocked = FlowDefinition(
       }
     });
 
+    // The class declaring a transition's event is its source screen.
+    test(
+      'a top-level transition event says to declare it on the screen',
+      () async {
+        final result = await _inspect({
+          'lib/onboarding/screens/start.dart':
+              "${_screenSource('StartScreen', '')}\n"
+              "const go = SurfaceEvent<void>('go');\n",
+          'lib/onboarding/flows/go.dart': '''
+import 'package:restage/restage.dart';
+import '../screens/start.dart';
+
+@FlowGraph(surface: Surface.onboarding)
+final goFlow = FlowDefinition(
+  start: StartScreen,
+  transitions: [Transition.complete(go)],
+);
+''',
+        });
+        expect(
+          result.issues.map((issue) => issue.message).join('\n'),
+          contains(
+            'the event must be a static const SurfaceEvent field of that '
+            'screen; got go. Try declaring `static const event = go;`',
+          ),
+        );
+      },
+    );
+
     test(
       'a source extending the host widget is told which class it wanted',
       () async {
