@@ -47,7 +47,8 @@ melos:
       description: >-
         Format check across all packages. Generated Dart is excluded: its
         layout is the emitter's business and drifts across `dart format`
-        versions. Keep this list identical to the CI workflow's.
+        versions. The `rfw_formats` copy keeps upstream rfw formatting. Keep
+        this list identical to the CI workflow's.
       run: |
         find packages apps tool -name '*.dart' \
           -not -name '*.g.dart' \
@@ -55,6 +56,7 @@ melos:
           -not -path 'packages/restage_codegen/test/fixtures/*' \
           -not -path 'packages/restage_codegen/test/coverage_measurement/coverage_fixtures/*' \
           -not -path 'packages/restage_svg/lib/registry.dart' \
+          -not -path 'packages/restage_shared/lib/src/rfw_formats/*' \
           -not -path '*/restage.generated/*' \
           -not -path '*/.dart_tool/*' -print0 \
           | xargs -0 dart format --output=none --set-exit-if-changed

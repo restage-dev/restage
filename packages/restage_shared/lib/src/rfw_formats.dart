@@ -2,10 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
-// Vendored from package:rfw 1.1.3 (lib/formats.dart). Upstream license:
-// src/rfw_formats/LICENSE-rfw (BSD-3-Clause).
+// Copies of a formats library derived from rfw 2.0.0's lib/src/dart/, kept
+// identical to their source. Upstream license: src/rfw_formats/LICENSE-rfw
+// (BSD-3-Clause).
 
-/// # Remote Flutter Widgets — formats only (vendored).
+/// # Remote Flutter Widgets — formats only.
 ///
 /// Pure-Dart subset of the [rfw](https://pub.dev/packages/rfw) library that
 /// does not depend on Flutter. Lets pure-Dart code parse and (de)encode

@@ -8,7 +8,7 @@
 /// directly from `rfw_catalog_schema`.
 ///
 /// Consumers also have access to a separate
-/// `package:restage_shared/rfw_formats.dart` barrel for the vendored rfw
+/// `package:restage_shared/rfw_formats.dart` barrel for the pure-Dart rfw
 /// formats sublibrary — kept separate to avoid name collisions with
 /// `package:rfw/rfw.dart` for consumers that import both.
 library;

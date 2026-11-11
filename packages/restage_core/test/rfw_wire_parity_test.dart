@@ -1,15 +1,15 @@
 // Cross-codec wire-format parity gate.
 //
-// The build-time toolchain encodes `.rfw` blobs with a vendored, pure-Dart copy
-// of the rfw `formats` library (re-exported by `package:restage_shared/`), so a
+// The build-time toolchain encodes `.rfw` blobs with a pure-Dart copy of the
+// rfw `formats` library (re-exported by `package:restage_shared/`), so a
 // Dart-only build image does not need the Flutter SDK. The host app runtime
 // — and the editor's blob encoder — instead use the published `package:rfw`.
 // `restage_shared` carries no `rfw` dependency, so the runtime's `rfw` version
-// floats independently of the frozen vendored copy.
+// floats independently of that copy.
 //
 // Nothing else asserts that the two codecs agree. This gate closes that gap. It
 // proves, for a representative library, that:
-//   1. the vendored encoder and the pub encoder emit byte-identical output, and
+//   1. the restage_shared encoder and the pub encoder emit byte-identical output, and
 //   2. each codec can decode the other's blob and re-encode it byte-identically.
 //
 // A breaking binary-format change in a future pub `rfw` minor would fail here
