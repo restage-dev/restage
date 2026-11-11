@@ -1,5 +1,6 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:meta/meta.dart';
+import 'package:restage_codegen/src/callback_body.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 
 /// Result of recognising a State method as a candidate single-assignment
@@ -87,6 +88,11 @@ RecognisedSetState recogniseSetState(
     );
   }
   final body = method.body;
+  if (!runsWhenCalled(body)) {
+    return const SetStateUnrecognised(
+      reason: 'the method is a generator, so calling it never runs its body',
+    );
+  }
   final innerCall = _extractSingleCall(body);
   if (innerCall == null) {
     return const SetStateUnrecognised(
@@ -235,6 +241,7 @@ String? recogniseLocalValueWrite(Expression callback) {
   final parameters = closure.parameters?.parameters ?? const [];
   if (parameters.length != 1) return null;
   final parameter = parameters.single.declaredFragment?.element;
+  if (!runsWhenCalled(closure.body)) return null;
   final call = _extractSingleCall(closure.body);
   if (parameter == null ||
       call == null ||

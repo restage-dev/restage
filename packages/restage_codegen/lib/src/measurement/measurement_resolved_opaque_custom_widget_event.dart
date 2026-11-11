@@ -320,8 +320,9 @@ InterfaceElement? _enclosingOpaqueClass(Element element) {
   return null;
 }
 
-/// Whether [property] is an event a tap can measure: a callback that returns
-/// a value is passed to Flutter unmeasured.
+/// Whether [property] is an event a tap can measure, decided by the slot's
+/// declared callback type: a slot whose callback returns a value is passed to
+/// Flutter unmeasured, whatever the handler given to it returns.
 bool isMeasurableEvent(PropertyEntry property) =>
     property.type == PropertyType.event &&
     (property.callbackTypeId?.endsWith('->void') ?? true);
