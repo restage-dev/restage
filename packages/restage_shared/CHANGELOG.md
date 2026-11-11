@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+`package:restage_shared/rfw_formats.dart` adds the expression nodes `Program`,
+`Effects`, `Guard` and `NativeReference`, `expressionNodesFormatVersion`, and the
+reserved state key `restageInitStateKey`. Binary
+decoding rejects a map with a duplicate key and a switch with a duplicate case.
+
 Add `scopeMisses`, which lists the captures and parameters of a `ValueProgram`
 that declared facts cannot supply, as `ValueScopeMiss` values with a
 `ValueScopeBinding` and a `ValueScopeMissKind`. A fact fits when the declared

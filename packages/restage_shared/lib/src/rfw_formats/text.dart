@@ -9,6 +9,8 @@
 
 import 'model.dart';
 
+part 'text_expressions.dart';
+
 /// Parse a Remote Flutter Widgets text data file.
 ///
 /// This data is usually used in conjunction with [DynamicContent].
@@ -2408,7 +2410,7 @@ class _Parser {
         _advance();
         return _withSourceRange(LoopReference(_loopIdentifiers.length - index, _readParts(optional: true)), start);
       }
-      return _readConstructorCall(widgetBuilderScope: widgetBuilderScope);
+      return _readExpressionNodeOrConstructorCall(widgetBuilderScope: widgetBuilderScope);
     }
     throw ParserException._unexpected(_source.current);
   }

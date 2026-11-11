@@ -7053,7 +7053,11 @@ void main() {
   test('ordinary backlog respects a query-advanced retry time', () async {
     final directory = await Directory.systemTemp.createTemp('restage-engine-');
     addTearDown(() => _deleteAfterCommerceStops(directory));
-    final queue = CommerceFileReportQueue(directoryPath: directory.path);
+    final clock = _HeldClock();
+    final queue = CommerceFileReportQueue(
+      directoryPath: directory.path,
+      clock: clock.now,
+    );
     await queue.enqueue(
       CommerceReportRecord(
         reportId: '9f34be90-98d1-4ec8-a01c-d1006a9ca36e',
@@ -7089,6 +7093,7 @@ void main() {
     _activate(
       adapter: adapter,
       queueFactory: () async => queue,
+      clock: clock.now,
       runtimeContextProvider: () => _context(
         fingerprint: 'same-scope',
         token: _applicationToken,
@@ -7139,7 +7144,7 @@ void main() {
     expect(ownedCalls, 1);
     expect(retained.storeTransactionId, 'owned-order');
     expect(retained.retryAttempt, 1);
-    expect(retained.nextRetryAt.isAfter(DateTime.now().toUtc()), isTrue);
+    expect(retained.nextRetryAt.isAfter(clock.now()), isTrue);
   });
 
   test('context change during publication token wait fences Apple finish',

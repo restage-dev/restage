@@ -11,6 +11,8 @@ import 'dart:typed_data';
 
 import 'model.dart';
 
+part 'binary_expressions.dart';
+
 /// The first four bytes of a Remote Flutter Widgets binary data blob.
 ///
 /// This signature is automatically added by [encodeDataBlob] and is checked in
@@ -388,7 +390,7 @@ class _BlobDecoder {
     if (count == 0 && nullIfEmpty) {
       return null;
     }
-    return DynamicMap.fromEntries(
+    return _uniqueKeys(DynamicMap.fromEntries(
       Iterable<MapEntry<String, Object>>.generate(
         count,
         (int index) => MapEntry<String, Object>(
@@ -396,7 +398,7 @@ class _BlobDecoder {
           readNode(),
         ),
       ),
-    );
+    ), count);
   }
 
   Object? _readSwitchKey() {
@@ -410,7 +412,7 @@ class _BlobDecoder {
   Switch _readSwitch() {
     final Object value = _readArgument();
     final int count = _readInt64();
-    final cases = Map<Object?, Object>.fromEntries(
+    final Map<Object?, Object> cases = _uniqueCases(Map<Object?, Object>.fromEntries(
       Iterable<MapEntry<Object?, Object>>.generate(
         count,
         (int index) => MapEntry<Object?, Object>(
@@ -418,7 +420,7 @@ class _BlobDecoder {
           _readArgument(),
         ),
       ),
-    );
+    ), count);
     return Switch(value, cases);
   }
 
@@ -471,6 +473,8 @@ class _BlobDecoder {
         return _readWidgetBuilder();
       case _msWidgetBuilderArgReference:
         return WidgetBuilderArgReference(_readString(), _readPartList());
+      case >= _msProgram && <= _msNativeReference:
+        return _readExpressionNode(type);
       default:
         return _parseValue(type, _readArgument);
     }
@@ -689,6 +693,7 @@ class _BlobEncoder {
       _writeInt64(reference.parts.length);
       reference.parts.forEach(_writePart);
       _writeArgument(value.value);
+    } else if (_writeExpressionNode(value)) {
     } else {
       assert(value is! BlobNode);
       _writeValue(value, _writeArgument);
