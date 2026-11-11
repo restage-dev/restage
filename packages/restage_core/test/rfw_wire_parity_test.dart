@@ -9,8 +9,8 @@
 //
 // Nothing else asserts that the two codecs agree. This gate closes that gap. It
 // proves, for a representative library, that:
-//   1. the restage_shared encoder and the pub encoder emit byte-identical output, and
-//   2. each codec can decode the other's blob and re-encode it byte-identically.
+//   1. the restage_shared and pub encoders emit byte-identical output, and
+//   2. each codec decodes the other's blob and re-encodes it byte-identically.
 //
 // A breaking binary-format change in a future pub `rfw` minor would fail here
 // rather than silently skewing a server-produced blob against a newer runtime

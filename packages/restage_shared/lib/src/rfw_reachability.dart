@@ -39,7 +39,8 @@ RemoteWidgetLibrary retainReachableFrom(
   );
 }
 
-/// Uses bytes at the boundary between restage_shared's and the runtime's RFW types.
+/// Uses bytes at the boundary between restage_shared's and the runtime's RFW
+/// types.
 /// Returns original bytes when no declarations are stripped.
 Uint8List retainReachableFromBlob(Uint8List blob, String entryWidgetName) {
   final library = decodeLibraryBlob(blob);

@@ -8,6 +8,8 @@
 // intended to function even in pure Dart server or CLI environments.
 import 'package:meta/meta.dart';
 
+part 'model_expressions.dart';
+
 /// A map whose keys are strings and whose values are [DynamicMap],
 /// [DynamicList], int, double, bool, string, and [BlobNode] objects.
 ///
