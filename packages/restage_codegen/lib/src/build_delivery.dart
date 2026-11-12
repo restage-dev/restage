@@ -31,6 +31,29 @@ const String kBuildChannelName = '_restageChannel';
 /// The generated constant holding the build's analytics default.
 const String kBuildAnalyticsName = '_restageAnalytics';
 
+/// The generated constant holding the build's delivery keys.
+const String kBuildDeliveryKeysName = '_restageDeliveryKeys';
+
+/// The `delivery_keys` option of the root package's
+/// `restage_codegen:user_factories` builder, each
+/// `<organizationId>:<base64url key>` as `restage keys delivery` prints it.
+List<String> readBuildDeliveryKeys(BuilderOptions options) {
+  if (!options.isRoot) return const [];
+  final value = options.config['delivery_keys'];
+  if (value == null) return const [];
+  if (value is! List ||
+      value.any((key) => key is! String || key.trim().isEmpty)) {
+    throw ArgumentError.value(
+      value,
+      'delivery_keys',
+      'The delivery_keys option of restage_codegen:user_factories takes a '
+          'list of keys as `restage keys delivery` prints them. Try running '
+          '`restage init`, which writes it.',
+    );
+  }
+  return [for (final key in value) (key as String).trim()];
+}
+
 /// The `api_key`, `base_url` and `channel` options of the root package's
 /// `restage_codegen:user_factories` builder; the service URL in canonical
 /// form.

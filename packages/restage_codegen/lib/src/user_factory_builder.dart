@@ -8,6 +8,8 @@ import 'package:glob/glob.dart';
 import 'package:restage_codegen/src/surface_publication/split_widgets.dart'
     show SplitRegistration;
 import 'package:restage_codegen/src/app_size_disclosure.dart';
+import 'package:restage_codegen/src/build_notice.dart';
+import 'package:restage_codegen/src/durable_state.dart';
 import 'package:restage_codegen/src/app_widget_vocabulary.dart';
 import 'package:restage_codegen/src/authored_library_predicate.dart';
 import 'package:restage_codegen/src/build_delivery.dart';
@@ -64,6 +66,7 @@ final class UserFactoryBuilder implements Builder {
     // Read before any other work so a bad option value fails the build loudly.
     final scope = readInstalledCatalogScope(options.config);
     final settings = readBuildDeliveryOptions(options);
+    final deliveryKeys = readBuildDeliveryKeys(options);
     // The aggregate names SDK types, so a package whose own pubspec does not
     // depend on the SDK never receives one — that is the catalog packages the
     // SDK itself depends on, not an app.
@@ -119,6 +122,7 @@ final class UserFactoryBuilder implements Builder {
             declaresSurfaces: declaresSurfaces,
             delivery: delivery,
             analytics: settings.analytics,
+            deliveryKeys: deliveryKeys,
           )
         : emitAdmittedUserFactoriesDart(
             collection.widgets,
@@ -141,6 +145,7 @@ final class UserFactoryBuilder implements Builder {
             declaresSurfaces: declaresSurfaces,
             delivery: delivery,
             analytics: settings.analytics,
+            deliveryKeys: deliveryKeys,
           );
 
     await buildStep.writeAsString(
@@ -151,24 +156,33 @@ final class UserFactoryBuilder implements Builder {
       ),
     );
 
-    // Every build shows the summary, so a developer reads what a delivered
-    // surface can render without opening the generated file. The per-group
-    // costs are longer, and ride the info log that --verbose shows.
+    // The summary tells a developer what a delivered surface can render
+    // without opening the generated file. The per-group costs are longer, and
+    // ride the info log that --verbose shows.
     final position = switch (scope) {
       InstalledCatalogScope.whole => CatalogPosition.wholeCatalog,
       InstalledCatalogScope.derived when derivation.installsWholeCatalog =>
         CatalogPosition.appInstalled,
       InstalledCatalogScope.derived => CatalogPosition.derived,
     };
-    // ignore: avoid_print
-    print(
-      summariseAppVocabulary(
-        appVocabulary,
-        position: position,
-        builtInWidgetCount: derivation.builtInWidgetCount,
-        docsOrigin: await projectDocsOrigin(buildStep),
-      ),
+    final summary = summariseAppVocabulary(
+      appVocabulary,
+      position: position,
+      builtInWidgetCount: derivation.builtInWidgetCount,
+      docsOrigin: await projectDocsOrigin(buildStep),
     );
+    // Shown when it changes, not on every build; --verbose shows repeats.
+    if (isNewBuildNotice(
+      await restagePackageRoot(buildStep.inputId.package),
+      'app_vocabulary',
+      summary,
+    )) {
+      // Build output the developer reads without --verbose.
+      // ignore: avoid_print
+      print(summary);
+    } else {
+      log.info(summary);
+    }
     if (options.isRoot && declaresSurfaces) {
       final line = missingBuildDeliveryLine(settings);
       // The line shows without --verbose, like the summary above.
@@ -307,6 +321,7 @@ String emitAdmittedUserFactoriesDart(
   bool declaresSurfaces = false,
   BuildDelivery? delivery,
   bool analytics = true,
+  List<String> deliveryKeys = const [],
 }) {
   final source = emitUserFactoriesDart(
     widgets,
@@ -326,6 +341,7 @@ String emitAdmittedUserFactoriesDart(
     declaresSurfaces: declaresSurfaces,
     delivery: delivery,
     analytics: analytics,
+    deliveryKeys: deliveryKeys,
     onSkip: _throwAdmittedFactoryCoherenceFailure,
   );
   return source ??
@@ -336,6 +352,7 @@ String emitAdmittedUserFactoriesDart(
         declaresSurfaces: declaresSurfaces,
         delivery: delivery,
         analytics: analytics,
+        deliveryKeys: deliveryKeys,
       );
 }
 

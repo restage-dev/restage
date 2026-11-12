@@ -109,4 +109,39 @@ void main() {
       '`base_url: https://api.restage.dev`.',
     );
   });
+
+  test('delivery_keys is a list of keys, read for the root only', () {
+    const config = {
+      'delivery_keys': [' 7:AQEB ', '7:AgIC'],
+    };
+    expect(
+      readBuildDeliveryKeys(const BuilderOptions(config, isRoot: true)),
+      ['7:AQEB', '7:AgIC'],
+    );
+    expect(readBuildDeliveryKeys(const BuilderOptions(config)), isEmpty);
+    expect(
+      readBuildDeliveryKeys(BuilderOptions.forRoot),
+      isEmpty,
+    );
+    for (final bad in <Object>[
+      '7:AQEB',
+      <Object>[7],
+      <Object>[''],
+    ]) {
+      expect(
+        () => readBuildDeliveryKeys(
+          BuilderOptions({'delivery_keys': bad}, isRoot: true),
+        ),
+        throwsA(
+          isA<ArgumentError>().having(
+            (error) => error.message,
+            'message',
+            'The delivery_keys option of restage_codegen:user_factories takes '
+                'a list of keys as `restage keys delivery` prints them. Try '
+                'running `restage init`, which writes it.',
+          ),
+        ),
+      );
+    }
+  });
 }

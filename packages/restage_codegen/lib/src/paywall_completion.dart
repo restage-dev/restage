@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 
@@ -21,6 +22,28 @@ Set<String> paywallCompletionEvents(ClassElement paywall) {
     };
   }
   return const {};
+}
+
+/// The event names app code in [node] fires by calling
+/// `context.surfaceEvent(event)()`, as opposed to passing it as a callback.
+Set<String> appFiredEventNamesIn(AstNode? node) {
+  if (node == null) return const {};
+  final visitor = _AppFiredEvents();
+  node.accept(visitor);
+  return visitor.names;
+}
+
+final class _AppFiredEvents extends RecursiveAstVisitor<void> {
+  final names = <String>{};
+
+  @override
+  void visitFunctionExpressionInvocation(FunctionExpressionInvocation node) {
+    final function = node.function;
+    if (function is MethodInvocation) {
+      if (authoredEventName(function) case final name?) names.add(name);
+    }
+    super.visitFunctionExpressionInvocation(node);
+  }
 }
 
 /// The event names [callback] fires from any branch of a conditional.

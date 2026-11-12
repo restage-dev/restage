@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- The `delivery_keys` option of `restage_codegen:user_factories` lists the
+  app's delivery keys. The generated `kRestageWidgetRegistration` carries them,
+  and `Restage.configure` uses them when it is passed no `deliveryKeys`.
+
+- The build's advice for state files it cannot see lists the four state paths
+  under `.restage/` instead of `.restage/**`, which also admitted push output
+  and made repeated builds delete the generated surface parts.
+
+- A paywall's `completesOn` event is fired by app code in the paywall's library,
+  `context.surfaceEvent(event)()`, typically once a purchase succeeds; the build
+  warns when only a tap fires it, and no tap route is marked as completing any
+  more. A single-screen paywall that declares `completesOn` gets a completion
+  route, and the generated paywall carries its completion event ids. Rebuild
+  and republish the paywall: a version published before this records no
+  completion route, so its presentations record neither completion nor
+  dismissal.
+- "Evaluated in the app" lists each surface's values under that surface.
+- The widget catalog summary prints when it changes rather than on every
+  build; `--verbose` shows it every time.
 - For an app that installs the whole widget catalog, the startup request
   template claims the built-in icons the app and its surfaces name, as the
   runtime installs them. Rebuild to take it.

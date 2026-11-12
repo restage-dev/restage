@@ -283,6 +283,10 @@ final String _navPrelude = _stateless('PreludeNav', r'''
     );
     return Column(children: [Text('$route'), Text('at $route')]);''');
 
+final String _popPrelude = _stateless('PreludePop', r'''
+    final canPop = Navigator.canPop(context);
+    return Text('$canPop');''');
+
 final String _literalWidgetKey = _stateless(
   'LiteralWidgetKey',
   "    return const Text('Ready', key: ValueKey<String>('literal'));",
@@ -703,9 +707,37 @@ void main() {
     // The mount pushes once and both values read the result.
     expect(
       logs.join('\n'),
-      contains("Evaluated in the app:\n  '\$route'\n  'at \$route'"),
+      contains(
+        "Evaluated in the app by PreludeNav:\n  '\$route'\n  'at \$route'",
+      ),
     );
     expect(logs.join('\n'), isNot(contains('Navigator.push')));
+  });
+
+  test('each surface lists only the values it evaluates in the app', () async {
+    final sources = {
+      '$_package|lib/paywalls/prelude_nav.dart': _navPrelude,
+      '$_package|lib/paywalls/prelude_pop.dart': _popPrelude,
+    };
+    final logs = <String>[];
+    final compiled = await testBuilders(
+      [restageCodegenBuilder(BuilderOptions.empty)],
+      sources,
+      rootPackage: _package,
+      readerWriter: await _seeded(sources),
+      flattenOutput: true,
+      onLog: (record) => logs.add(record.message),
+    );
+    expect(compiled.succeeded, isTrue, reason: compiled.errors.join('\n'));
+    final log = logs.join('\n');
+    expect(
+      log,
+      contains(
+        "Evaluated in the app by PreludeNav:\n  '\$route'\n  'at \$route'\n",
+      ),
+    );
+    expect(log, contains("Evaluated in the app by PreludePop:\n  '\$canPop'"));
+    expect(log, isNot(contains("'at \$route'\n  '\$canPop'")));
   });
 
   // A key is carried when it compares by value, read through any local;

@@ -111,11 +111,7 @@ void main() {
           logs.join('\n'),
           allOf([
             contains('$package must expose $path as a build input.'),
-            contains('additional_public_assets: [.restage/**]'),
-            contains(
-              'If the target restricts sources, '
-              'include `.restage/**` there too.',
-            ),
+            contains(kUntrackedDurableStateAdvice),
             if (state == 'legacy widget IDs')
               contains('Also include `wire_ids.events.jsonl`'),
           ]),

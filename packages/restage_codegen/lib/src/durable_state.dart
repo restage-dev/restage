@@ -100,9 +100,11 @@ void _requireAgreement(
 
 /// The build.yaml line that makes edits to the durable state trigger a rebuild.
 const String kUntrackedDurableStateAdvice =
-    'Add `additional_public_assets: [.restage/**]` to build.yaml so edits to '
-    'these files trigger a rebuild. '
-    'If the target restricts sources, include `.restage/**` there too.';
+    'Add `additional_public_assets: [.restage/measurement-state.json, '
+    '.restage/wire-ids.events.jsonl, .restage/receipts/**, '
+    '.restage/library-contracts/**]` to build.yaml so edits to these files '
+    'trigger a rebuild. If the target restricts sources, include them there '
+    'too. Leave `.restage/build/` out: builds and pushes write there.';
 
 /// Visibility advice for current state and root-level legacy files.
 String durableRestageStateAdvice(String path) => path.startsWith('.restage/')

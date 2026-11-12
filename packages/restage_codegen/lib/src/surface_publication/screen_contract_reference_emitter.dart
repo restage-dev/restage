@@ -33,6 +33,8 @@ import 'package:restage_codegen/src/islands/context_reach.dart'
 import 'package:restage_codegen/src/islands/island_registration.dart';
 import 'package:restage_codegen/src/islands/islands.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
+import 'package:restage_codegen/src/paywall_completion.dart'
+    show paywallCompletionEvents;
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
 import 'package:restage_codegen/src/surface_publication/output_location.dart';
@@ -306,6 +308,16 @@ String _mountNameOf(ResolvedWidgetMountInput input) => generatedSurfaceName(
   fallback: 'SurfaceScreen',
 );
 
+// The paywall's id, and the events that complete it when it declares any.
+String _paywallDefinitionArguments(String id, ClassElement paywall) {
+  final completes = paywallCompletionEvents(paywall).toList()..sort();
+  return [
+    'id: ${dartStringLiteral(id)}',
+    if (completes.isNotEmpty)
+      'completesOn: const <String>{${completes.map(dartStringLiteral).join(', ')}}',
+  ].join(', ');
+}
+
 /// Emits a typed paywall mount using the same constructor contract as screens.
 ///
 /// [appWidgetLibraries] returns the app widget registrations the mount
@@ -345,7 +357,7 @@ emitPaywallMount(
     ..writeln(
       emitPlacementDefinition(
         declarationName: input.screen.name!,
-        defaultSurfaceArgument: 'id: ${dartStringLiteral(id)}',
+        defaultSurfaceArgument: _paywallDefinitionArguments(id, input.screen),
         surface: Surface.paywall,
         slug: id,
         hostContract: SurfaceHostContractV1(

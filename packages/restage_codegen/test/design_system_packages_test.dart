@@ -647,14 +647,14 @@ dependencies:
           package,
           dependencies,
           {
-            'additional_public_assets': ['.restage/**'],
+            'additional_public_assets': restageBuildStateInputs,
             'targets': {
               package: {
                 'sources': [
                   r'$package$',
                   'lib/**',
                   'pubspec.yaml',
-                  '.restage/**',
+                  ...restageBuildStateInputs,
                 ],
                 'builders': {
                   if (package == _app) ...{

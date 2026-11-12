@@ -1125,18 +1125,26 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       );
     }
   }
-  // An item's position is bookkeeping, never something the developer wrote.
-  final appValues = {
-    for (final value in hoisted)
-      if (value.kind != HoistValueKind.itemIndex) value.label,
-  }.toList()..sort();
-  if (appValues.isNotEmpty) {
+  // Each surface lists only the values it reads; an item's position is
+  // bookkeeping, never something the developer wrote.
+  final appValuesBySurface = <String, Set<String>>{};
+  for (final artifact in finalRendered) {
+    for (final value
+        in artifact.compiledScreenInput?.hoisted ?? const <HoistedValue>[]) {
+      if (value.kind == HoistValueKind.itemIndex) continue;
+      (appValuesBySurface[artifact.declaration.displayName] ??= {}).add(
+        value.label,
+      );
+    }
+  }
+  for (final surface in appValuesBySurface.keys.toList()..sort()) {
     // Build output the developer reads, like the app vocabulary summary.
     // ignore: avoid_print
     print(
       [
-        'Evaluated in the app:',
-        for (final label in appValues) '  $label',
+        'Evaluated in the app by $surface:',
+        for (final label in appValuesBySurface[surface]!.toList()..sort())
+          '  $label',
       ].join('\n'),
     );
   }
