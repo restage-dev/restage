@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:restage_shared/commerce.dart'
     show
         CommerceFulfillmentSummary,
+        CommerceOfferingsPage,
+        IntentBoundOfferSignatureRequest,
+        OfferSignatureScheme,
         CommerceIntentRequest,
         CommerceIntentResponse,
         CommercePurchaserStateRequest,
@@ -71,6 +74,7 @@ final class CommerceCapabilityCode {
       'purchase' => purchase,
       'restore' => restore,
       'purchaser_state.read' => purchaserStateRead,
+      'offerings.read' => offeringsRead,
       _ => CommerceCapabilityCode._(code, false),
     };
   }
@@ -94,6 +98,9 @@ final class CommerceCapabilityCode {
     'purchaser_state.read',
     true,
   );
+
+  /// Reading a named or current offering.
+  static const offeringsRead = CommerceCapabilityCode._('offerings.read', true);
 
   @override
   bool operator ==(Object other) =>
@@ -178,6 +185,7 @@ final class CommerceFailureCode {
       'not_activated' => notActivated,
       'unsupported_capability' => unsupportedCapability,
       'invalid_request' => invalidRequest,
+      'package_selection_required' => packageSelectionRequired,
       'unsupported_response' => unsupportedResponse,
       _ => CommerceFailureCode._(code, false),
     };
@@ -202,6 +210,10 @@ final class CommerceFailureCode {
 
   /// The request violates the typed commerce contract.
   static const invalidRequest = CommerceFailureCode._('invalid_request', true);
+
+  /// Select an exact package before purchasing this offering.
+  static const packageSelectionRequired =
+      CommerceFailureCode._('package_selection_required', true);
 
   /// A response could not be mapped to recognized Restage semantics.
   static const unsupportedResponse = CommerceFailureCode._(
@@ -276,7 +288,7 @@ final class CommercePurchaserStateStatusCode {
 abstract final class CommerceRequest<R extends CommerceResponse> {
   const CommerceRequest._();
 
-  Future<R> _dispatch(RestageCommerce commerce);
+  Future<R> _dispatch(_CommerceEngine commerce);
 }
 
 abstract final class CommerceResponse {
@@ -292,7 +304,7 @@ final class CommerceAvailabilityRequest
   final CommerceOfferId? offerId;
 
   @override
-  Future<CommerceAvailability> _dispatch(RestageCommerce commerce) =>
+  Future<CommerceAvailability> _dispatch(_CommerceEngine commerce) =>
       commerce.availability(this);
 
   @override
@@ -309,25 +321,85 @@ final class CommerceAvailabilityRequest
 ///
 /// The commerce authority resolves [offerId] to the exact purchasable
 /// configuration; the request never names provider products, and device input
-/// cannot widen what the authority resolved. Selection among multiple
-/// purchasable alternatives under one offer is reserved for future optional
-/// parameters.
+/// cannot widen what the authority resolved. [packageSelection] selects an exact
+/// logical package when the offer contains several alternatives.
 final class CommercePurchaseRequest
     extends CommerceRequest<CommerceActionResult> {
-  const CommercePurchaseRequest(this.offerId) : super._();
+  const CommercePurchaseRequest(this.offerId, {this.packageSelection})
+      : super._();
 
   final CommerceOfferId offerId;
 
+  /// Exact logical package identifier within the selected offering.
+  final String? packageSelection;
+
   @override
-  Future<CommerceActionResult> _dispatch(RestageCommerce commerce) =>
+  Future<CommerceActionResult> _dispatch(_CommerceEngine commerce) =>
       commerce.purchase(this);
 
   @override
   bool operator ==(Object other) =>
-      other is CommercePurchaseRequest && other.offerId == offerId;
+      other is CommercePurchaseRequest &&
+      other.offerId == offerId &&
+      other.packageSelection == packageSelection;
 
   @override
-  int get hashCode => offerId.hashCode;
+  int get hashCode => Object.hash(offerId, packageSelection);
+}
+
+/// Requests exactly one page of a named or current offering.
+final class CommerceOfferingsRequest
+    extends CommerceRequest<CommerceOfferingsResponse> {
+  CommerceOfferingsRequest({this.offerId, this.cursor, this.limit = 100})
+      : super._() {
+    if (limit < 1 || limit > 100) throw ArgumentError.value(limit, 'limit');
+    if (cursor != null && cursor!.isEmpty) {
+      throw ArgumentError.value(cursor, 'cursor');
+    }
+  }
+
+  /// Named offering, or the current offering when absent.
+  final CommerceOfferId? offerId;
+
+  /// Opaque continuation from the previous page.
+  final String? cursor;
+
+  /// Maximum complete package identities in this page.
+  final int limit;
+
+  @override
+  Future<CommerceOfferingsResponse> _dispatch(_CommerceEngine commerce) =>
+      commerce.offerings(this);
+
+  @override
+  bool operator ==(Object other) =>
+      other is CommerceOfferingsRequest &&
+      other.offerId == offerId &&
+      other.cursor == cursor &&
+      other.limit == limit;
+
+  @override
+  int get hashCode => Object.hash(offerId, cursor, limit);
+}
+
+/// The requested page, or the normalized reason it could not be read.
+final class CommerceOfferingsResponse extends CommerceResponse {
+  const CommerceOfferingsResponse._({this.page, this.failureCode}) : super._();
+
+  /// Requested page, when available.
+  final CommerceOfferingsPage? page;
+
+  /// Normalized reason the requested page could not be read.
+  final CommerceFailureCode? failureCode;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CommerceOfferingsResponse &&
+      other.page == page &&
+      other.failureCode == failureCode;
+
+  @override
+  int get hashCode => Object.hash(page, failureCode);
 }
 
 final class CommerceRestoreRequest
@@ -335,7 +407,7 @@ final class CommerceRestoreRequest
   const CommerceRestoreRequest() : super._();
 
   @override
-  Future<CommerceActionResult> _dispatch(RestageCommerce commerce) =>
+  Future<CommerceActionResult> _dispatch(_CommerceEngine commerce) =>
       commerce.restore();
 
   @override
@@ -350,7 +422,7 @@ final class CommerceRefreshRequest
   const CommerceRefreshRequest() : super._();
 
   @override
-  Future<CommercePurchaserState> _dispatch(RestageCommerce commerce) =>
+  Future<CommercePurchaserState> _dispatch(_CommerceEngine commerce) =>
       commerce.refresh();
 
   @override
@@ -630,10 +702,12 @@ final class _RestageCommerce implements RestageCommerce {
 
   @override
   Future<R> perform<R extends CommerceResponse>(CommerceRequest<R> request) =>
-      request._dispatch(this);
+      request._dispatch(_engine);
 }
 
 abstract interface class _CommerceEngine {
+  Future<CommerceOfferingsResponse> offerings(CommerceOfferingsRequest request);
+
   Future<CommerceAvailability> availability(
     CommerceAvailabilityRequest request,
   );
@@ -667,7 +741,8 @@ final class _InactiveCommerceEngine implements _CommerceEngine {
     if (!request.capability.isKnown) {
       failureCode = CommerceFailureCode.unsupportedCapability;
     } else if (request.offerId != null &&
-        request.capability != CommerceCapabilityCode.purchase) {
+        request.capability != CommerceCapabilityCode.purchase &&
+        request.capability != CommerceCapabilityCode.offeringsRead) {
       failureCode = CommerceFailureCode.invalidRequest;
     } else {
       failureCode = CommerceFailureCode.notActivated;
@@ -679,6 +754,12 @@ final class _InactiveCommerceEngine implements _CommerceEngine {
       failureCode: failureCode,
     );
   }
+
+  @override
+  Future<CommerceOfferingsResponse> offerings(
+          CommerceOfferingsRequest request) async =>
+      const CommerceOfferingsResponse._(
+          failureCode: CommerceFailureCode.notActivated);
 
   @override
   Future<CommerceActionResult> purchase(
@@ -858,6 +939,8 @@ final class _RetainedCommerceTransaction {
       report.hasSameProviderIdentity(candidate);
 }
 
+enum _ExpiryRecovery { unrequested, pending, completed }
+
 final class _OwnedQueryMember {
   _OwnedQueryMember(this.transaction);
 
@@ -868,6 +951,7 @@ final class _OwnedQueryMember {
   CommercePurchaserStateResponse? verifiedState;
   List<CommerceVerifiedPurchase>? verifiedPurchases;
   CommerceVerifiedPurchase? occurrence;
+  _ExpiryRecovery expiryRecovery = _ExpiryRecovery.unrequested;
 
   void retainCompletionTransaction(CommerceStoreTransaction candidate) {
     if (!transaction.requiresDeviceCompletion &&
@@ -971,6 +1055,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
   Timer? _retryTimer;
   bool _ownedRecoveryInFlight = false;
   bool _ownedRecoveryRequested = false;
+  bool _ownedRecoveryNeedsStoreQuery = false;
   int _ownedRecoveryAttempt = 0;
   DateTime? _nextOwnedRecoveryAt;
   int _ownedQueryGeneration = 0;
@@ -981,6 +1066,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
   final Map<String, _OwnedQueryMember> _ownedSnapshotMembers = {};
   bool? _ownedSnapshotHasProductionPurchaseHistory;
   bool _hasObservedProductionPurchaseHistory = false;
+  int _catalogRevision = 0;
   int _stateEpoch = 0;
   int _statePublicationRevision = 0;
   CommercePurchaserStateResponse? _latestCanonicalPurchaserState;
@@ -995,7 +1081,8 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     if (!request.capability.isKnown || !adapter.store.isKnown) {
       failureCode = CommerceFailureCode.unsupportedCapability;
     } else if (request.offerId != null &&
-        request.capability != CommerceCapabilityCode.purchase) {
+        request.capability != CommerceCapabilityCode.purchase &&
+        request.capability != CommerceCapabilityCode.offeringsRead) {
       failureCode = CommerceFailureCode.invalidRequest;
     } else {
       failureCode = null;
@@ -1009,6 +1096,33 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
   }
 
   @override
+  Future<CommerceOfferingsResponse> offerings(
+      CommerceOfferingsRequest request) async {
+    final context = _currentContext();
+    final client = _rpcClientProvider();
+    if (_disposed || context == null || !context.isCurrent || client == null) {
+      return const CommerceOfferingsResponse._(
+          failureCode: CommerceFailureCode.unsupportedResponse);
+    }
+    try {
+      final page = await client
+          .fetchCommerceOfferings(
+            offerId: request.offerId?.value,
+            cursor: request.cursor,
+            limit: request.limit,
+          )
+          .within(_attemptDeadline);
+      if (page != null && !_disposed && context.isCurrent) {
+        return CommerceOfferingsResponse._(page: page);
+      }
+    } on Object {
+      // Failed reads carry no catalog or access authority.
+    }
+    return const CommerceOfferingsResponse._(
+        failureCode: CommerceFailureCode.unsupportedResponse);
+  }
+
+  @override
   Future<CommerceActionResult> purchase(CommercePurchaseRequest request) {
     final mountContext = MountAttributionEventContext.bound?.capture();
     final capturedCommerceContext =
@@ -1016,6 +1130,10 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     return _run(() async {
       if (_disposed || !adapter.store.isKnown) {
         return _unavailableAction(CommerceFailureCode.unsupportedCapability);
+      }
+      final package = request.packageSelection;
+      if (package != null && !_commerceLogicalIdPattern.hasMatch(package)) {
+        return _failedAction(CommerceFailureCode.invalidRequest);
       }
       try {
         await _queue();
@@ -1045,6 +1163,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
             CommerceIntentRequest(
               intentId: intentId,
               offerId: request.offerId.value,
+              packageSelection: request.packageSelection,
               store: adapter.store.value,
               appAnonymousToken: token,
               surfaceId: selectedSurface?.surfaceIdentity.surfaceId.value,
@@ -1065,11 +1184,28 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         return _failedAction(CommerceFailureCode.unsupportedResponse);
       }
       final resolved = response.resolved;
-      if (_resolvedProductKind(resolved) == null ||
-          resolved.offerSignature != null) {
+      if (_resolvedProductKind(resolved) == null) {
         return _failedAction(CommerceFailureCode.unsupportedCapability);
       }
 
+      var promotion = resolved.offerSignature;
+      if (adapter.store == CommerceStore.appStore &&
+          resolved.storeOfferIdentifier != null) {
+        promotion ??= await client
+            .fetchCommerceOfferSignature(
+              IntentBoundOfferSignatureRequest(purchaseIntentId: intentId),
+            )
+            .within(_attemptDeadline);
+        if (promotion == null ||
+            promotion.scheme != OfferSignatureScheme.legacy) {
+          return _failedAction(CommerceFailureCode.unsupportedCapability);
+        }
+      } else if (promotion != null) {
+        return _failedAction(CommerceFailureCode.unsupportedCapability);
+      }
+      if (!context.isCurrent) {
+        return _failedAction(CommerceFailureCode.unsupportedResponse);
+      }
       final products = await adapter.queryProducts({resolved.storeProductId});
       if (!context.isCurrent) {
         return _failedAction(CommerceFailureCode.unsupportedResponse);
@@ -1082,6 +1218,8 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         CommerceStorePurchasable(
           product: product,
           applicationAccountToken: resolved.appAccountToken,
+          promotionalOffer: promotion,
+          storeOfferIdentifier: resolved.storeOfferIdentifier,
           fulfillmentForm: _fulfillmentFormFor(resolved.fulfillmentForm),
         ),
       );
@@ -1091,7 +1229,9 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
             : CommerceActionStatusCode.notPresented,
       );
     }).catchError(
-      (Object _) => _failedAction(CommerceFailureCode.unsupportedResponse),
+      (Object error) => _failedAction(error is CommercePackageSelectionRequired
+          ? CommerceFailureCode.packageSelectionRequired
+          : CommerceFailureCode.unsupportedResponse),
     );
   }
 
@@ -1118,13 +1258,15 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       _run(() => _refresh(restoreAppHistory: true));
 
   Future<CommercePurchaserState> _refresh(
-      {bool restoreAppHistory = false}) async {
+      {bool restoreAppHistory = false, bool catalogOnly = false}) async {
     if (_disposed) return _staleState();
     final epoch = _stateEpoch;
     final context = _currentContext();
     final queryGeneration = ++_ownedQueryGeneration;
-    _clearOwnedSnapshot(retainReceipts: true);
-    _emit(_staleState());
+    if (!catalogOnly) {
+      _clearOwnedSnapshot(retainReceipts: true);
+      _emit(_staleState());
+    }
     final publicationRevision = _statePublicationRevision;
     String? token;
     try {
@@ -1144,20 +1286,28 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     }
     _bindOwnedScope(context, token);
     try {
-      final queried = await adapter.queryOwnedTransactions().within(
-            _attemptDeadline,
-          );
+      final queried = catalogOnly
+          ? const <CommerceStoreTransaction>[]
+          : await adapter.queryOwnedTransactions().within(_attemptDeadline);
       if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
         return _staleState();
       }
       final members = <String, _OwnedQueryMember>{};
+      String? receiptHistoryAnchorKey;
       if (_hasCurrentOwnedScope(context, token)) {
         for (final retained in _ownedSnapshotMembers.values) {
+          if (catalogOnly &&
+              !_needsReceiptRefresh(retained) &&
+              !(_expiredReceiptSubscription(retained) &&
+                  retained.expiryRecovery == _ExpiryRecovery.pending)) continue;
           final key = _transactionKey(
             retained.transaction,
             context.configurationFingerprint,
             token,
           );
+          if (catalogOnly && _needsReceiptHistory(retained)) {
+            receiptHistoryAnchorKey ??= key;
+          }
           final previous = members[key];
           if (previous == null ||
               !retained.verifiedState!.retrievedAt
@@ -1181,11 +1331,13 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
             .putIfAbsent(key, () => _OwnedQueryMember(transaction))
             .retainCompletionTransaction(transaction);
       }
-      final historyAnchor = restoreAppHistory &&
-              adapter.store == CommerceStore.appStore &&
-              members.isNotEmpty
-          ? members.values.first
-          : null;
+      final historyAnchor = adapter.store != CommerceStore.appStore
+          ? null
+          : receiptHistoryAnchorKey != null
+              ? members[receiptHistoryAnchorKey]
+              : restoreAppHistory && members.isNotEmpty
+                  ? members.values.first
+                  : null;
       final reportResults = await Future.wait([
         for (final member in members.values)
           _verifyOwnedQueryMember(
@@ -1241,7 +1393,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         throw StateError('Canonical purchaser state is unavailable');
       }
       if (response.status != 'current') {
-        _clearOwnedSnapshot(retainReceipts: true);
+        if (!catalogOnly) _clearOwnedSnapshot(retainReceipts: true);
         return _emitFreshState(
           response,
           context: context,
@@ -1256,9 +1408,11 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       }
       final latest = _latestCanonicalPurchaserState;
       if (latest != null &&
+          response.catalogRevision <= latest.catalogRevision &&
           response.retrievedAt.isBefore(latest.retrievedAt) &&
+          response.catalogRevision == _catalogRevision &&
           !receiptUpdates) {
-        _clearOwnedSnapshot(retainReceipts: true);
+        if (!catalogOnly) _clearOwnedSnapshot(retainReceipts: true);
         return _publishObservedProductionPurchaseHistory();
       }
       _ownedSnapshotCurrent = true;
@@ -1272,7 +1426,6 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         response,
         context: context,
         applicationAnonymousToken: token,
-        reprojectOwnedSnapshot: receiptUpdates,
       );
       _ownedRecoveryAttempt = 0;
       _nextOwnedRecoveryAt = null;
@@ -1280,6 +1433,13 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     } on Object {
       if (!_isCurrentOwnedAttempt(context, epoch, queryGeneration)) {
         return _staleState();
+      }
+      if (catalogOnly) {
+        final canonical = _latestCanonicalPurchaserState;
+        return canonical == null
+            ? _lastPublishedPurchaserState
+            : _emitFreshState(canonical,
+                context: context, applicationAnonymousToken: token);
       }
       _clearOwnedSnapshot(retainReceipts: true);
       return _emitStaleIfUnchanged(publicationRevision);
@@ -1334,6 +1494,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     while (_inFlight.isNotEmpty) {
       await Future.wait(_inFlight.toList());
     }
+    _ownedRecoveryNeedsStoreQuery = false;
   }
 
   /// Background work that [dispose] waits for.
@@ -1358,7 +1519,8 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
           product.storeProductId == resolved.storeProductId &&
           product.kind == _resolvedProductKind(resolved) &&
           product.basePlanId == resolved.basePlanId &&
-          product.storeOfferIdentifier == resolved.storeOfferIdentifier,
+          (adapter.store == CommerceStore.appStore ||
+              product.storeOfferIdentifier == resolved.storeOfferIdentifier),
     );
     return matches.length == 1 ? matches.single : null;
   }
@@ -1901,12 +2063,11 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     final verified =
         response.outcome == 'verified' ? response.verifiedPurchaseState : null;
     final additionalPurchaseStates = [if (verified != null) verified];
-    var receiptUpdates = false;
     if (publishPurchaserState &&
         verified?.status == 'current' &&
         response.verifiedPurchases != null) {
       final completion = _transactionsByReportId[report.reportId];
-      receiptUpdates = _mergeVerifiedReceipt(_OwnedQueryMember(
+      _mergeVerifiedReceipt(_OwnedQueryMember(
         completion?.transaction ?? _ReportedCommerceTransaction(report),
       )
         ..completion = completion
@@ -1921,7 +2082,6 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         context: context,
         applicationAnonymousToken: report.applicationAnonymousToken,
         additionalPurchaseStates: additionalPurchaseStates,
-        reprojectOwnedSnapshot: receiptUpdates,
       );
     } else {
       _rememberProductionPurchaseHistory([
@@ -1998,6 +2158,14 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     }) {
       if (!admission.inFlight) consider(admission.nextRetryAt);
     }
+    for (final member in _ownedSnapshotMembers.values) {
+      final end = member.occurrence?.expiresAtMs;
+      if (member.occurrence?.outcome == 'granted' &&
+          end != null &&
+          end > _now().millisecondsSinceEpoch) {
+        consider(DateTime.fromMillisecondsSinceEpoch(end, isUtc: true));
+      }
+    }
     final recoveryAt = _nextOwnedRecoveryAt;
     if (recoveryAt != null && !_ownedRecoveryInFlight) consider(recoveryAt);
 
@@ -2028,21 +2196,26 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       final retryOwnedRecovery = _isOwnedRecoveryDue();
       _retryPendingAdmissions();
       _requestDrain();
-      if (retryOwnedRecovery) _requestOwnedRecovery();
+      final recoverExpiry = _publishReceiptExpiry();
+      if (retryOwnedRecovery || recoverExpiry)
+        _requestOwnedRecovery(catalogOnly: !_ownedRecoveryNeedsStoreQuery);
       _scheduleRetryWake();
     });
   }
 
   bool _isOwnedRecoveryDue() {
     final retryAt = _nextOwnedRecoveryAt;
-    return retryAt != null && !retryAt.isAfter(_now());
+    return !_ownedRecoveryInFlight &&
+        retryAt != null &&
+        !retryAt.isAfter(_now());
   }
 
-  void _requestOwnedRecovery({bool force = false}) {
+  void _requestOwnedRecovery({bool force = false, bool catalogOnly = false}) {
     if (_disposed ||
         (!force && (_nextOwnedRecoveryAt?.isAfter(_now()) ?? false))) {
       return;
     }
+    _ownedRecoveryNeedsStoreQuery |= !catalogOnly;
     _ownedRecoveryRequested = true;
     if (_ownedRecoveryInFlight) return;
     final context = _currentContext();
@@ -2051,18 +2224,21 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     }
     _ownedRecoveryRequested = false;
     _ownedRecoveryInFlight = true;
-    _track(_recoverOwnedPurchases());
+    final queryStore = _ownedRecoveryNeedsStoreQuery;
+    _ownedRecoveryNeedsStoreQuery = false;
+    _track(_recoverOwnedPurchases(catalogOnly: !queryStore));
   }
 
-  Future<void> _recoverOwnedPurchases() async {
+  Future<void> _recoverOwnedPurchases({required bool catalogOnly}) async {
     try {
-      final state = await _run(_refresh);
+      final state = await _run(() => _refresh(catalogOnly: catalogOnly));
       if (state.status != CommercePurchaserStateStatusCode.available) {
         throw StateError('Owned purchase recovery is not current');
       }
       _ownedRecoveryAttempt = 0;
       _nextOwnedRecoveryAt = null;
     } on Object {
+      _ownedRecoveryNeedsStoreQuery |= !catalogOnly;
       _nextOwnedRecoveryAt = _now().add(
         commerceReportRetryDelay(_ownedRecoveryAttempt),
       );
@@ -2070,7 +2246,8 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     } finally {
       _ownedRecoveryInFlight = false;
       if (_ownedRecoveryRequested && !_disposed) {
-        _requestOwnedRecovery(force: true);
+        _requestOwnedRecovery(
+            force: true, catalogOnly: !_ownedRecoveryNeedsStoreQuery);
       } else if (_nextOwnedRecoveryAt != null) {
         _scheduleRetryWake();
       }
@@ -2143,6 +2320,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
 
   void _invalidateState({bool resetProductionHistory = true}) {
     _stateEpoch += 1;
+    _ownedRecoveryNeedsStoreQuery = false;
     _ownedQueryGeneration += 1;
     _clearOwnedSnapshot(
       clearScope: resetProductionHistory,
@@ -2150,6 +2328,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     );
     if (resetProductionHistory) _hasObservedProductionPurchaseHistory = false;
     _latestCanonicalPurchaserState = null;
+    _catalogRevision = 0;
     _lastPublishedPurchaserState = _staleState();
     _emit(_lastPublishedPurchaserState);
   }
@@ -2160,14 +2339,9 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
     required String applicationAnonymousToken,
     Iterable<CommercePurchaserStateResponse> additionalPurchaseStates =
         const [],
-    bool reprojectOwnedSnapshot = false,
   }) {
     _rememberProductionPurchaseHistory([response, ...additionalPurchaseStates]);
     final canonical = _rememberCanonicalState(response);
-    if (response.retrievedAt.isBefore(canonical.retrievedAt) &&
-        !reprojectOwnedSnapshot) {
-      return _publishObservedProductionPurchaseHistory();
-    }
     _lastPublishedPurchaserState = _project(
       _withOwnedSnapshot(
         canonical,
@@ -2182,14 +2356,46 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
         ]),
       ),
     );
+    if (!_ownedRecoveryInFlight &&
+        (canonical.status == 'stale' ||
+            canonical.catalogRevision < _catalogRevision ||
+            _ownedSnapshotMembers.values.any(_needsReceiptRefresh))) {
+      _requestOwnedRecovery(catalogOnly: true);
+    }
+    _scheduleRetryWake();
     return _emit(_lastPublishedPurchaserState);
+  }
+
+  void _observeCatalogRevision(int revision) {
+    if (revision > _catalogRevision) _catalogRevision = revision;
   }
 
   CommercePurchaserStateResponse _rememberCanonicalState(
     CommercePurchaserStateResponse response,
   ) {
+    _observeCatalogRevision(response.catalogRevision);
     final latest = _latestCanonicalPurchaserState;
-    if (latest == null || !response.retrievedAt.isBefore(latest.retrievedAt)) {
+    final fresh =
+        latest == null || !response.retrievedAt.isBefore(latest.retrievedAt);
+    if (response.status != 'current' && latest != null) {
+      if (fresh && latest.status != 'unknown') {
+        _latestCanonicalPurchaserState = CommercePurchaserStateResponse(
+          status: 'stale',
+          catalogRevision: latest.catalogRevision,
+          entitlements: latest.entitlements,
+          fulfillments: latest.fulfillments,
+          retrievedAt: latest.retrievedAt,
+          hasProductionPurchaseHistory: latest.hasProductionPurchaseHistory,
+        );
+      }
+      return _latestCanonicalPurchaserState!;
+    }
+    if (latest == null ||
+        (response.status == 'current' &&
+            response.catalogRevision >= _catalogRevision &&
+            (latest.status == 'unknown' ||
+                response.catalogRevision > latest.catalogRevision ||
+                response.catalogRevision == latest.catalogRevision && fresh))) {
       _latestCanonicalPurchaserState = response;
     }
     return _latestCanonicalPurchaserState!;
@@ -2212,29 +2418,89 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       _ownedSnapshotApplicationAnonymousToken == applicationAnonymousToken &&
       context.isCurrent;
 
+  bool _receiptOnly(_OwnedQueryMember member) =>
+      member.occurrence?.includedInPurchaserState != true;
+
+  bool _needsReceiptRefresh(_OwnedQueryMember member) =>
+      _receiptOnly(member) &&
+      member.verifiedState!.catalogRevision < _catalogRevision &&
+      (member.transaction.store != CommerceStore.appStore ||
+          member.occurrence == null ||
+          member.transaction.storeTransactionId ==
+              member.occurrence!.storeTransactionId ||
+          _needsReceiptHistory(member));
+
+  bool _needsReceiptHistory(_OwnedQueryMember member) =>
+      member.transaction.store == CommerceStore.appStore &&
+      member.occurrence?.requiresHistoryRecovery == true &&
+      member.transaction.storeTransactionId !=
+          member.occurrence!.storeTransactionId;
+
+  bool _expiredReceiptSubscription(_OwnedQueryMember member) =>
+      _receiptOnly(member) &&
+      member.occurrence?.kind == 'subscription' &&
+      _occurrenceExpired(member);
+
   CommercePurchaserStateResponse _withOwnedSnapshot(
     CommercePurchaserStateResponse canonical, {
     required CommerceRuntimeContext context,
     required String applicationAnonymousToken,
     required bool? hasProductionPurchaseHistory,
   }) {
+    final members = _hasCurrentOwnedSnapshot(context, applicationAnonymousToken)
+        ? _ownedSnapshotMembers.values.where(_receiptOnly).toList()
+        : const <_OwnedQueryMember>[];
+    final coherent = canonical.catalogRevision == _catalogRevision &&
+        members.every((member) =>
+            member.verifiedState!.catalogRevision == _catalogRevision &&
+            member.expiryRecovery != _ExpiryRecovery.pending);
     return CommercePurchaserStateResponse(
-      status: canonical.status,
+      status: canonical.status != 'current'
+          ? canonical.status
+          : coherent
+              ? 'current'
+              : 'stale',
+      catalogRevision: _catalogRevision,
       entitlements: _selectEntitlements([
         ...canonical.entitlements,
-        if (_hasCurrentOwnedSnapshot(context, applicationAnonymousToken))
-          ..._snapshotEntitlements(),
+        ..._snapshotEntitlements(members),
       ], hasProductionPurchaseHistory: hasProductionPurchaseHistory),
       fulfillments: _selectFulfillments([
         ...canonical.fulfillments,
-        if (_hasCurrentOwnedSnapshot(context, applicationAnonymousToken))
-          for (final member in _ownedSnapshotMembers.values)
-            if (!_occurrenceExpired(member))
-              ...member.verifiedState!.fulfillments,
+        for (final member in members)
+          if (!_occurrenceExpired(member))
+            ...member.verifiedState!.fulfillments,
       ], hasProductionPurchaseHistory: hasProductionPurchaseHistory),
       retrievedAt: canonical.retrievedAt,
       hasProductionPurchaseHistory: hasProductionPurchaseHistory,
     );
+  }
+
+  bool _publishReceiptExpiry() {
+    final canonical = _latestCanonicalPurchaserState;
+    final context = _ownedSnapshotContext;
+    final token = _ownedSnapshotApplicationAnonymousToken;
+    if (canonical != null &&
+        context != null &&
+        token != null &&
+        _hasCurrentOwnedSnapshot(context, token)) {
+      var recover = false;
+      for (final member in _ownedSnapshotMembers.values) {
+        if (_expiredReceiptSubscription(member) &&
+            member.expiryRecovery == _ExpiryRecovery.unrequested) {
+          member.expiryRecovery = _ExpiryRecovery.pending;
+          recover = true;
+        }
+      }
+      final state = _project(_withOwnedSnapshot(canonical,
+          context: context,
+          applicationAnonymousToken: token,
+          hasProductionPurchaseHistory:
+              _lastPublishedPurchaserState.hasProductionPurchaseHistory));
+      if (state != _lastPublishedPurchaserState) _emit(state);
+      return recover;
+    }
+    return false;
   }
 
   String _snapshotTransactionKey(CommerceStoreTransaction transaction) {
@@ -2247,14 +2513,15 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
 
   bool _occurrenceExpired(_OwnedQueryMember member) {
     final occurrence = member.occurrence;
-    return occurrence?.kind == 'oneTimePurchase' &&
-        occurrence!.outcome == 'granted' &&
+    return occurrence != null &&
+        occurrence.outcome == 'granted' &&
         occurrence.expiresAtMs != null &&
         _now().millisecondsSinceEpoch >= occurrence.expiresAtMs!;
   }
 
-  Iterable<EntitlementSummary> _snapshotEntitlements() sync* {
-    for (final member in _ownedSnapshotMembers.values) {
+  Iterable<EntitlementSummary> _snapshotEntitlements(
+      Iterable<_OwnedQueryMember> members) sync* {
+    for (final member in members) {
       final expired = _occurrenceExpired(member);
       for (final entitlement in member.verifiedState!.entitlements) {
         if (expired && entitlement.status == 'active') {
@@ -2274,6 +2541,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
   }
 
   bool _mergeVerifiedReceipt(_OwnedQueryMember member) {
+    _observeCatalogRevision(member.verifiedState!.catalogRevision);
     final purchases = member.verifiedPurchases;
     if (purchases == null) {
       final sourceKey = _snapshotTransactionKey(member.transaction);
@@ -2289,6 +2557,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
           ..completion = member.completion
           ..verifiedState = CommercePurchaserStateResponse(
             status: state.status,
+            catalogRevision: state.catalogRevision,
             entitlements: state.entitlements,
             retrievedAt: state.retrievedAt,
             hasProductionPurchaseHistory: state.hasProductionPurchaseHistory,
@@ -2303,10 +2572,12 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
           null;
     }
     for (final purchase in purchases) {
+      _observeCatalogRevision(purchase.catalogRevision);
       final key =
           '${member.transaction.store.value}\u0000${purchase.providerEnvironment}\u0000${purchase.storeTransactionId}';
       final state = CommercePurchaserStateResponse(
         status: 'current',
+        catalogRevision: purchase.catalogRevision,
         entitlements: purchase.entitlements,
         fulfillments: purchase.fulfillments,
         retrievedAt: member.verifiedState!.retrievedAt,
@@ -2316,9 +2587,26 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
       if (purchase.providerEnvironment == 'production') {
         _hasObservedProductionPurchaseHistory = true;
       }
+      final previous = _ownedSnapshotMembers[key]?.transaction;
+      final ownCarrier =
+          previous?.storeTransactionId == purchase.storeTransactionId
+              ? previous
+              : null;
       updated = _replaceSnapshotMember(
               key,
-              _OwnedQueryMember(member.transaction)
+              _OwnedQueryMember(purchase.storeVerificationData == null
+                  ? ownCarrier ?? member.transaction
+                  : _ReportedCommerceTransaction(CommerceReportRecord(
+                      reportId: generateUuidV4(),
+                      store: member.transaction.store,
+                      storeProductId: purchase.productId,
+                      storeTransactionId: purchase.storeTransactionId,
+                      storeVerificationData: purchase.storeVerificationData!,
+                      applicationAnonymousToken:
+                          _ownedSnapshotApplicationAnonymousToken!,
+                      configurationFingerprint:
+                          _ownedSnapshotConfigurationFingerprint!,
+                    )))
                 ..completion = member.completion
                 ..verifiedState = state
                 ..occurrence = purchase) ||
@@ -2338,16 +2626,27 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
             occurrence!.outcomeOrder!.compareTo(retained!.outcomeOrder!);
         if (order < 0 ||
             (order == 0 &&
+                state.catalogRevision <
+                    previous!.verifiedState!.catalogRevision) ||
+            (order == 0 &&
                 _oneTimeOutcomePrecedence(occurrence.outcome) <
                     _oneTimeOutcomePrecedence(retained.outcome))) {
           return false;
         }
       }
     } else if (previous != null &&
-        state.retrievedAt.isBefore(previous.verifiedState!.retrievedAt)) {
+        (state.catalogRevision < previous.verifiedState!.catalogRevision ||
+            state.catalogRevision == previous.verifiedState!.catalogRevision &&
+                state.retrievedAt
+                    .isBefore(previous.verifiedState!.retrievedAt))) {
       return false;
     }
     _rememberProductionPurchaseHistory([state]);
+    member.expiryRecovery = previous != null &&
+            previous.expiryRecovery != _ExpiryRecovery.unrequested &&
+            previous.occurrence?.expiresAtMs == occurrence?.expiresAtMs
+        ? _ExpiryRecovery.completed
+        : _ExpiryRecovery.unrequested;
     // Empty signed outcomes retain their proof and ordering, but grant nothing.
     _ownedSnapshotMembers[key] = member;
     return true;
@@ -2367,6 +2666,7 @@ final class _StoreAdapterCommerceEngine implements _CommerceEngine {
             _ownedSnapshotApplicationAnonymousToken != token)) {
       _clearOwnedSnapshot();
       _latestCanonicalPurchaserState = null;
+      _catalogRevision = 0;
       _hasObservedProductionPurchaseHistory = false;
     }
     if (!_ownedSnapshotCurrent) _ownedSnapshotContext = context;

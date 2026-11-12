@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+Apple receipt-only access refreshes through its signed history anchor when proof
+metadata is omitted; existing exact receipt proofs remain usable.
+
+Commerce keeps confirmed access while provider reports are pending, retains
+receipt-only access during catalog refresh, and exports typed promotional
+signatures for store adapters. Ambiguous offering
+purchases return `packageSelectionRequired`; select an exact package to retry.
+
+**Unreleased store-adapter SPI:** the opaque
+`CommerceStorePurchasable.offerSignature` argument is removed. Pass typed
+`promotionalOffer` instead.
+
 The first-launch request the Android and iOS plugins send before Dart starts
 follows what the app last configured. After a `Restage.configure` with no
 publishable key, such as `apiKey: ''`, the next launch sends none. After

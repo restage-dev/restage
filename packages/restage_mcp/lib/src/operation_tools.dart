@@ -106,6 +106,10 @@ Schema _schemaOf(OperationParam param) {
     ParamType.string => Schema.string(description: description),
     ParamType.integer => Schema.int(description: description),
     ParamType.boolean => Schema.bool(description: description),
+    ParamType.clearableInteger => Schema.combined(
+      description: description,
+      anyOf: [Schema.int(), Schema.nil()],
+    ),
     ParamType.clearable => Schema.combined(
       description: description,
       anyOf: [Schema.string(), Schema.nil()],
@@ -134,7 +138,10 @@ Future<CallToolResult> _call(
     for (final param in operation.params)
       if (!param.cliOnly && arguments.containsKey(param.key))
         param.key: switch (arguments[param.key]) {
-          final num value when param.type == ParamType.integer => value.toInt(),
+          final num value
+              when param.type == ParamType.integer ||
+                  param.type == ParamType.clearableInteger =>
+            value.toInt(),
           final value => value,
         },
   });

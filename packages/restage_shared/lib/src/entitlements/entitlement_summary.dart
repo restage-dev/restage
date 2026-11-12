@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:restage_shared/src/entitlements/commerce_wire.dart';
 
 /// Authoritative entitlement state returned by the server.
 ///
@@ -34,8 +35,13 @@ final class EntitlementSummary {
   factory EntitlementSummary.fromJson(Map<String, dynamic> json) {
     final status = _normalizeKnown(_requiredString(json, 'status'), _statuses);
     final source = _normalizeKnown(_requiredString(json, 'source'), _sources);
+    final key = _requiredString(json, 'entitlementId');
+    if (!isCanonicalCommerceEntitlementKey(key)) {
+      throw ArgumentError.value(
+          key, 'entitlementId', 'Expected a canonical key');
+    }
     return EntitlementSummary(
-      entitlementId: _requiredString(json, 'entitlementId'),
+      entitlementId: key,
       status: status,
       productId: _requiredString(json, 'productId'),
       source: source,

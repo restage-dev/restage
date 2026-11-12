@@ -55,23 +55,30 @@ class AppAdminApi {
     'organizationId': ?organizationId,
   });
 
-  /// Create or replace one slot and its complete store mapping. A null
-  /// product id unmaps that store.
+  /// Save a slot's entitlement keys and the product mappings it changes;
+  /// mappings not listed stay unchanged.
   Future<AdminRow> upsertProductSlot({
     required String project,
     required String app,
     required String name,
-    required String entitlement,
-    required String? iosProductId,
-    required String? androidProductId,
+    required List<String> entitlementKeys,
+    int? slotId,
+    int? expectedCatalogRevision,
+    List<Map<String, Object?>> add = const [],
+    List<Map<String, Object?>> remove = const [],
+    List<Map<String, Object?>> move = const [],
     int? organizationId,
-  }) => _row('productSlot', 'upsert', {
+  }) => _row('commerceCatalog', 'saveSlot', {
     'projectSlug': project,
     'appSlug': app,
     'name': name,
-    'entitlement': entitlement,
-    'iosProductId': ?iosProductId,
-    'androidProductId': ?androidProductId,
+    'entitlementKeys': entitlementKeys,
+    'retired': false,
+    'slotId': ?slotId,
+    'expectedCatalogRevision': ?expectedCatalogRevision,
+    'add': add,
+    'remove': remove,
+    'move': move,
     'organizationId': ?organizationId,
   });
 

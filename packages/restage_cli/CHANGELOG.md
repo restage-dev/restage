@@ -2,6 +2,13 @@
 
 ## 0.1.0 — unreleased
 
+Commerce commands manage slot key sets and exact Google plans. `slots set`
+maps products with `--add`, `--remove` and `--move` at a `--catalog-revision`;
+`products map` is removed. Offering saves patch supplied packages, with explicit
+`--retired-package-ids`.
+`offerings retire --revive` reactivates the offering and packages retired with it;
+earlier individual retirements remain unless that package is explicitly upserted.
+
 Initial release of the `restage` command-line interface.
 
 `restage build push` names each live version that shows the app's compiled

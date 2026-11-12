@@ -7,6 +7,7 @@ import 'package:restage_shared/src/offers/offer_signature_response.dart';
 const _intentRequestFields = {
   'intentId',
   'offerId',
+  'packageSelection',
   'store',
   'appAnonymousToken',
   'surfaceId',
@@ -27,6 +28,7 @@ final class CommerceIntentRequest {
     required String offerId,
     required String store,
     required String appAnonymousToken,
+    String? packageSelection,
     String? surfaceId,
     String? surfaceKind,
     String? variantSlug,
@@ -37,6 +39,9 @@ final class CommerceIntentRequest {
   }) {
     requireCommerceUuidV4(intentId, 'intentId');
     requireCommerceOfferId(offerId, 'offerId');
+    if (packageSelection != null) {
+      requireCommerceOfferId(packageSelection, 'packageSelection');
+    }
     if (!commerceStoreValues.contains(store)) {
       throw ArgumentError.value(store, 'store', 'Unsupported store');
     }
@@ -78,6 +83,7 @@ final class CommerceIntentRequest {
     return CommerceIntentRequest._(
       intentId: intentId,
       offerId: offerId,
+      packageSelection: packageSelection,
       store: store,
       appAnonymousToken: appAnonymousToken,
       surfaceId: surfaceId,
@@ -99,6 +105,7 @@ final class CommerceIntentRequest {
     required this.surfaceKind,
     required this.variantSlug,
     required this.publishedVersion,
+    this.packageSelection,
     this.attribution,
     this.routingSelectionReceipt,
     this.assignment,
@@ -110,6 +117,7 @@ final class CommerceIntentRequest {
     return CommerceIntentRequest(
       intentId: requiredCommerceUuidV4(json, 'intentId'),
       offerId: requiredCommerceString(json, 'offerId'),
+      packageSelection: optionalCommerceString(json, 'packageSelection'),
       store: requiredCommerceString(json, 'store'),
       appAnonymousToken: requiredCommerceUuidV4(
         json,
@@ -138,6 +146,9 @@ final class CommerceIntentRequest {
 
   /// Logical offer selected by the application.
   final String offerId;
+
+  /// Exact logical package within the offering, when selected.
+  final String? packageSelection;
 
   /// Store where the application will present the purchase.
   final String store;
@@ -170,6 +181,7 @@ final class CommerceIntentRequest {
   Map<String, dynamic> toJson() => {
         'intentId': intentId,
         'offerId': offerId,
+        if (packageSelection != null) 'packageSelection': packageSelection,
         'store': store,
         'appAnonymousToken': appAnonymousToken,
         if (surfaceId != null) 'surfaceId': surfaceId,
@@ -188,6 +200,7 @@ final class CommerceIntentRequest {
       other is CommerceIntentRequest &&
           other.intentId == intentId &&
           other.offerId == offerId &&
+          other.packageSelection == packageSelection &&
           other.store == store &&
           other.appAnonymousToken == appAnonymousToken &&
           other.surfaceId == surfaceId &&
@@ -202,6 +215,7 @@ final class CommerceIntentRequest {
   int get hashCode => Object.hash(
         intentId,
         offerId,
+        packageSelection,
         store,
         appAnonymousToken,
         surfaceId,

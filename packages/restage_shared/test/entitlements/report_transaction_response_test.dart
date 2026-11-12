@@ -3,6 +3,89 @@ import 'package:test/test.dart';
 
 void main() {
   group('CommerceReportResponse', () {
+    test('exact membership and signed evidence are strict value fields', () {
+      final purchase = CommerceVerifiedPurchase(
+          storeTransactionId: 'receipt-b',
+          productId: 'sku',
+          providerEnvironment: 'production',
+          kind: 'oneTimePurchase',
+          outcome: 'granted',
+          outcomeOrder: 1,
+          includedInPurchaserState: true,
+          storeVerificationData: 'b.signed.jws',
+          entitlements: []);
+      final json = purchase.toJson();
+      expect(purchase.requiresHistoryRecovery, isFalse);
+      expect(json, isNot(contains('requiresHistoryRecovery')));
+      final equal = CommerceVerifiedPurchase.fromJson(json);
+      expect(equal, purchase);
+      expect(equal.hashCode, purchase.hashCode);
+      expect(equal.includedInPurchaserState, isTrue);
+      expect(equal.storeVerificationData, 'b.signed.jws');
+      for (final change in <String, Object?>{
+        'includedInPurchaserState': false,
+        'storeVerificationData': 'a.signed.jws',
+        'requiresHistoryRecovery': true,
+      }.entries) {
+        expect(
+            CommerceVerifiedPurchase.fromJson(
+                {...json, change.key: change.value}),
+            isNot(purchase));
+      }
+      expect(
+          CommerceVerifiedPurchase.fromJson(
+                  {...json}..remove('storeVerificationData'))
+              .storeVerificationData,
+          isNull);
+      final missingProof = CommerceVerifiedPurchase.fromJson({
+        ...json,
+        'includedInPurchaserState': false,
+        'storeVerificationData': null,
+        'requiresHistoryRecovery': true,
+      });
+      expect(missingProof.requiresHistoryRecovery, isTrue);
+      expect(missingProof.storeVerificationData, isNull);
+      final equalMissingProof =
+          CommerceVerifiedPurchase.fromJson(missingProof.toJson());
+      expect(equalMissingProof, missingProof);
+      expect(equalMissingProof.hashCode, missingProof.hashCode);
+      expect(
+          CommerceVerifiedPurchase.fromJson(
+              {...json, 'requiresHistoryRecovery': false}),
+          purchase);
+      for (final key in [
+        'includedInPurchaserState',
+        'requiresHistoryRecovery'
+      ]) {
+        for (final invalid in [null, 'true', 1]) {
+          expect(
+              () => CommerceVerifiedPurchase.fromJson({...json, key: invalid}),
+              throwsArgumentError,
+              reason: key);
+        }
+      }
+      expect(
+          () => CommerceVerifiedPurchase.fromJson(
+              {...json}..remove('includedInPurchaserState')),
+          throwsArgumentError);
+      for (final invalid in ['', 1, false]) {
+        expect(
+            () => CommerceVerifiedPurchase.fromJson(
+                {...json, 'storeVerificationData': invalid}),
+            throwsArgumentError);
+      }
+      expect(
+          () => CommerceVerifiedPurchase(
+              storeTransactionId: 'b',
+              productId: 'sku',
+              providerEnvironment: 'production',
+              kind: 'subscription',
+              outcome: 'granted',
+              storeVerificationData: '',
+              entitlements: []),
+          throwsArgumentError);
+    });
+
     test('round-trips ordinary and verified purchase state', () {
       final response = CommerceReportResponse(
         outcome: 'verified',
@@ -257,6 +340,7 @@ void main() {
           'outcome': 'settled_later',
           'purchaserState': <String, dynamic>{
             'status': 'current',
+            'catalogRevision': 0,
             'entitlements': <dynamic>[],
             'retrievedAt': '2026-09-05T12:00:00.000Z',
           },

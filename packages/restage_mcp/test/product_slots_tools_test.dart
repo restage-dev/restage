@@ -46,166 +46,250 @@ void main() {
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
-  test('tools/list exposes both slot tools; upsert names both stores '
-      'required', () async {
+  test(
+    'slot schema requires a key set without full-store replacement',
+    () async {
+      final connection = await connectServer(
+        store: store,
+        httpClient: MockClient((_) async => http.Response('[]', 200)),
+      );
+      final tools = {
+        for (final tool in (await connection.listTools(
+          ListToolsRequest(),
+        )).tools)
+          tool.name: tool,
+      };
+      final schema = tools['restage_upsert_product_slot']!.inputSchema;
+      expect(schema.required, containsAll(['name', 'entitlementKeys']));
+      expect(schema.properties, isNot(contains('iosProductId')));
+      expect(schema.properties, isNot(contains('androidProductId')));
+      expect(tools, contains('restage_read_commerce_catalog'));
+      expect(tools, contains('restage_save_commerce_offering'));
+    },
+  );
+
+  test('offering tools expose patch retirement and explicit revival', () async {
+    final rec = _recorder('{"id":4}');
     final connection = await connectServer(
       store: store,
-      httpClient: MockClient((_) async => http.Response('[]', 200)),
+      httpClient: rec.client,
     );
     final tools = {
-      for (final t in (await connection.listTools(ListToolsRequest())).tools)
-        t.name: t,
+      for (final tool in (await connection.listTools(ListToolsRequest())).tools)
+        tool.name: tool,
     };
-
-    expect(tools, contains('restage_list_product_slots'));
-    expect(tools, contains('restage_upsert_product_slot'));
-
-    // Full-replace footgun-guard: both store ids are REQUIRED inputs so the
-    // agent must consciously state each store's mapping (a product id to keep
-    // it, or null to unmap it) every call.
+    final save = tools['restage_save_commerce_offering']!.inputSchema;
+    expect(save.properties, contains('retiredPackageIds'));
+    expect(save.required, isNot(contains('retiredPackageIds')));
     expect(
-      tools['restage_upsert_product_slot']!.inputSchema.required,
-      containsAll(['name', 'entitlement', 'iosProductId', 'androidProductId']),
+      tools['restage_retire_commerce_offering']!.inputSchema.properties,
+      contains('revive'),
     );
+    for (final ids in [null, '[17,19]']) {
+      rec.calls.clear();
+      final result = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_save_commerce_offering',
+          arguments: {
+            'organizationId': 7,
+            'projectSlug': 'acme',
+            'appSlug': 'ios',
+            'appId': 5,
+            'offering': '{"id":4,"offerId":"default"}',
+            'packages': '[]',
+            if (ids != null) 'retiredPackageIds': ids,
+          },
+        ),
+      );
+      expect(result.isError, isNot(true));
+      expect(rec.calls.single.body['method'], 'saveOffering');
+      expect(
+        rec.calls.single.body['retiredPackageIds'],
+        ids == null ? <int>[] : [17, 19],
+      );
+      expect(rec.calls.single.body['packages'], isEmpty);
+    }
+    for (final revive in [false, true]) {
+      rec.calls.clear();
+      final result = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_retire_commerce_offering',
+          arguments: {
+            'organizationId': 7,
+            'projectSlug': 'acme',
+            'appSlug': 'ios',
+            'offeringId': 4,
+            'revive': revive,
+          },
+        ),
+      );
+      expect(result.isError, isNot(true));
+      expect(rec.calls.single.body['retired'], !revive);
+    }
   });
 
-  test('list_product_slots hits productSlot.list', () async {
+  test('slot tool shares the CLI key-set decoder', () async {
     final rec = _recorder(
-      jsonEncode([
-        {
-          'id': 1,
-          'appId': 2,
-          'name': 'pro',
-          'entitlement': 'pro_access',
-          '__className__': 'ProductSlot',
-        },
-      ]),
+      '{"id":3,"name":"pro","entitlementKeys":["premium","pro"]}',
     );
     final connection = await connectServer(
       store: store,
       httpClient: rec.client,
     );
-
-    final result = await connection.callTool(
-      CallToolRequest(
-        name: 'restage_list_product_slots',
-        arguments: {'projectSlug': 'acme', 'appSlug': 'ios'},
-      ),
-    );
-
-    expect(result.isError, isNot(true));
-    expect(rec.calls.single.url.toString(), 'https://api.test/productSlot');
-    expect(rec.calls.single.body['method'], 'list');
-    final slots = result.structuredContent!['productSlots']! as List<dynamic>;
-    expect((slots.single as Map)['name'], 'pro');
-  });
-
-  test('upsert with both ids maps both stores and wraps one slot', () async {
-    final rec = _recorder(
-      jsonEncode({
-        'id': 5,
-        'appId': 2,
-        'name': 'pro',
-        'entitlement': 'pro_access',
-        '__className__': 'ProductSlot',
-      }),
-    );
-    final connection = await connectServer(
-      store: store,
-      httpClient: rec.client,
-    );
-
-    final result = await connection.callTool(
-      CallToolRequest(
-        name: 'restage_upsert_product_slot',
-        arguments: {
-          'projectSlug': 'acme',
-          'appSlug': 'ios',
-          'name': 'pro',
-          'entitlement': 'pro_access',
-          'iosProductId': 'pro_monthly_ios',
-          'androidProductId': 'pro_monthly_android',
-        },
-      ),
-    );
-
-    expect(result.isError, isNot(true));
-    expect(rec.calls.single.url.toString(), 'https://api.test/productSlot');
-    expect(rec.calls.single.body['method'], 'upsert');
-    expect(rec.calls.single.body['name'], 'pro');
-    expect(rec.calls.single.body['entitlement'], 'pro_access');
-    expect(rec.calls.single.body['iosProductId'], 'pro_monthly_ios');
-    expect(rec.calls.single.body['androidProductId'], 'pro_monthly_android');
-    // Single object, not a list.
-    final slot = result.structuredContent!['productSlot']! as Map;
-    expect(slot['id'], 5);
-  });
-
-  test('upsert with an explicit null id unmaps that store (key dropped on '
-      'the wire)', () async {
-    final rec = _recorder(
-      jsonEncode({
-        'id': 5,
-        'name': 'pro',
-        'entitlement': 'pro_access',
-        '__className__': 'ProductSlot',
-      }),
-    );
-    final connection = await connectServer(
-      store: store,
-      httpClient: rec.client,
-    );
-
     final result = await connection.callTool(
       CallToolRequest(
         name: 'restage_upsert_product_slot',
         arguments: {
+          'organizationId': 7,
           'projectSlug': 'acme',
           'appSlug': 'ios',
           'name': 'pro',
-          'entitlement': 'pro_access',
-          'iosProductId': 'pro_monthly_ios',
-          'androidProductId': null, // explicit unmap
+          'slotId': 3,
+          'entitlementKeys': '["premium","pro"]',
         },
       ),
     );
-
     expect(result.isError, isNot(true));
-    // The unmapped store id is dropped from the wire body; the backend reads a
-    // missing nullable parameter as null and unmaps that store.
-    expect(rec.calls.single.body['iosProductId'], 'pro_monthly_ios');
-    expect(rec.calls.single.body.containsKey('androidProductId'), isFalse);
+    expect(rec.calls.single.body['method'], 'saveSlot');
+    expect(rec.calls.single.body['entitlementKeys'], ['premium', 'pro']);
+    expect(rec.calls.single.body['slotId'], 3);
   });
 
-  test('omitting a required store id is rejected by the framework '
-      '(fails closed — no silent unmap)', () async {
+  test('catalog tool uses supplied existing IDs in one request', () async {
     final rec = _recorder(
-      jsonEncode({'id': 5, '__className__': 'ProductSlot'}),
+      '{"currentOfferingId":4,"catalogRevision":2,"nextCursor":null}',
     );
     final connection = await connectServer(
       store: store,
       httpClient: rec.client,
     );
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_read_commerce_catalog',
+        arguments: {
+          'organizationId': 7,
+          'projectSlug': 'acme',
+          'appSlug': 'ios',
+          'appId': 5,
+          'environmentSlug': 'staging',
+          'runtimePlane': 'sandbox',
+          'environmentTargetId': 12,
+        },
+      ),
+    );
+    expect(result.isError, isNot(true));
+    expect(rec.calls.single.body, {
+      'method': 'readCatalog',
+      'organizationId': 7,
+      'appId': 5,
+      'environmentId': 12,
+      'limit': 100,
+      'section': 'offerings',
+    });
+  });
 
+  test('catalog section and cursor remain one explicit page request', () async {
+    final rec = _recorder('{"catalogRevision":2,"nextCursor":"next"}');
+    final connection = await connectServer(
+      store: store,
+      httpClient: rec.client,
+    );
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_read_commerce_catalog',
+        arguments: {
+          'organizationId': 7,
+          'projectSlug': 'acme',
+          'appSlug': 'ios',
+          'appId': 5,
+          'environmentSlug': 'staging',
+          'environmentTargetId': 12,
+          'section': 'products',
+          'cursor': 'previous',
+        },
+      ),
+    );
+    expect(result.isError, isNot(true));
+    expect(rec.calls.single.body['section'], 'products');
+    expect(rec.calls.single.body['cursor'], 'previous');
+  });
+
+  test('slot tool maps products as a patch at a catalog revision', () async {
+    final rec = _recorder('{"id":3,"name":"pro","entitlementKeys":["pro"]}');
+    final connection = await connectServer(
+      store: store,
+      httpClient: rec.client,
+    );
     final result = await connection.callTool(
       CallToolRequest(
         name: 'restage_upsert_product_slot',
         arguments: {
+          'organizationId': 7,
           'projectSlug': 'acme',
           'appSlug': 'ios',
           'name': 'pro',
-          'entitlement': 'pro_access',
-          'iosProductId': 'pro_monthly_ios',
-          // androidProductId omitted entirely
+          'slotId': 3,
+          'entitlementKeys': '["pro"]',
+          'catalogRevision': 4,
+          'add': '[{"productId":9,"basePlanId":"annual"}]',
+          'move': '[{"productId":11}]',
         },
       ),
     );
-
-    // Required-but-nullable: an omitted store id is a schema violation, so the
-    // framework rejects it before the handler — no wire call, no silent unmap.
-    expect(result.isError, isTrue);
-    expect(rec.calls, isEmpty);
+    expect(result.isError, isNot(true));
+    expect(rec.calls.single.body, {
+      'method': 'saveSlot',
+      'organizationId': 7,
+      'projectSlug': 'acme',
+      'appSlug': 'ios',
+      'name': 'pro',
+      'entitlementKeys': ['pro'],
+      'retired': false,
+      'slotId': 3,
+      'expectedCatalogRevision': 4,
+      'add': [
+        {'productId': 9, 'basePlanId': 'annual'},
+      ],
+      'remove': <Object?>[],
+      'move': [
+        {'productId': 11, 'basePlanId': null},
+      ],
+    });
+    final tools = await connection.listTools(ListToolsRequest());
+    expect(
+      tools.tools.map((t) => t.name),
+      isNot(contains('restage_set_product_slot')),
+    );
   });
+
+  test(
+    'invalid key JSON refuses before a mutation and leaks no secret',
+    () async {
+      final rec = _recorder('{}');
+      final connection = await connectServer(
+        store: store,
+        httpClient: rec.client,
+      );
+      final result = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_upsert_product_slot',
+          arguments: {
+            'organizationId': 7,
+            'projectSlug': 'acme',
+            'appSlug': 'ios',
+            'name': 'pro',
+            'entitlementKeys': '{}',
+          },
+        ),
+      );
+      expect(result.isError, isTrue);
+      expect(rec.calls, isEmpty);
+      expect(
+        (result.content.single as TextContent).text,
+        isNot(contains('SUPERSECRET')),
+      );
+    },
+  );
 
   test(
     'a wrong-shape 200 leaks neither the secret nor a stack trace',
