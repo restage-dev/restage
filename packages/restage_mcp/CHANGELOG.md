@@ -12,11 +12,20 @@ Install it from the repository with `dart pub global activate --source git
 https://github.com/restage-dev/restage.git --git-path packages/restage_mcp`.
 Its Restage dependencies come from the same commit.
 
-**Breaking:** `restage_init` no longer takes `earlyRequest`; an app without
-`sdkKey` builds and runs offline.
+**Breaking:** `restage_init` no longer takes `earlyRequest`. Without `sdkKey`
+it keeps the publishable key `build.yaml` has, or mints a public key for the
+environment when it has none.
 
-`restage_login` signs in to Restage Cloud (`https://api.restage.dev/`) unless
-`RESTAGE_BACKEND_URL` names another backend.
+`restage_read_surface_funnel` takes optional `revisionOrdinals`, version numbers
+matched in the reading. It takes an optional `surfaceType` and refuses a
+surface of another type.
+
+`restage_login` signs in to the backend `RESTAGE_BACKEND_URL` names, else the
+one the project's `restage_config.yaml` or `build.yaml` names (from
+`projectDirectory`, or the server's working directory), else Restage Cloud
+(`https://api.restage.dev/`). Its result names the backend. A project file can
+send sign-in only to Restage's own servers or this machine; any other server it
+names is refused, with the refused origin in the result.
 
 `restage_push_surface_draft` accepts `acceptUnhandledEvents: true` to push a
 flow draft whose screens emit events the flow does not handle; without it the

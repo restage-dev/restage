@@ -31,6 +31,7 @@ void main() {
   // Default status has blob shape, liveVersion 3, and published versions
   // 1–3 so tests can target version 1 as a known-good rollback target.
   http.Response statusResponse({
+    bool locked = false,
     String deliveryShape = 'blob',
     int? liveVersion = 3,
     String environmentSlug = 'staging',
@@ -61,7 +62,7 @@ void main() {
       'surfaceSlug': 'pro',
       'environmentSlug': environmentSlug,
       'liveVersion': liveVersion,
-      'locked': false,
+      'locked': locked,
       'deliveryShape': deliveryShape,
       'draftOrigin': 'code',
       'versions': versions,
@@ -240,6 +241,70 @@ void main() {
       expect(capturedBody!['lockAfter'], true);
       expect(out.toString(), contains('(frozen)'));
     });
+
+    test(
+      'a frozen surface is told a rollback unfreezes it, unless --freeze',
+      () async {
+        Future<String> rollback(
+          List<String> args, {
+          Interactive interactive = const NonInteractive(),
+        }) async {
+          final out = StringBuffer();
+          final code = await makeRunner(
+            stdout: out,
+            stderr: StringBuffer(),
+            interactive: interactive,
+            httpClient: mockHttpClient((req) {
+              final body = jsonDecode(req.body) as Map<String, dynamic>;
+              return switch (body['method']) {
+                'surfaceStatus' => statusResponse(locked: true),
+                'rollbackPreflight' => preflightResponse(),
+                _ => rollbackOkResponse(),
+              };
+            }),
+          ).run(args);
+          expect(code, 0);
+          return out.toString();
+        }
+
+        const note = 'This unfreezes "pro"; add --freeze to keep it frozen.\n';
+        final preview = await rollback([...baseArgs(yes: false), '--preview']);
+        expect(preview, contains(note));
+        expect(preview, contains('Preview only'));
+
+        final applied = await rollback(baseArgs());
+        expect(applied, contains(note));
+        // The confirmation names the unfreeze too.
+        final confirmed = await rollback(
+          baseArgs(yes: false),
+          interactive: const _FakeInteractive(confirmAnswer: true),
+        );
+        expect(confirmed, contains('from v3 to v1 and unfreeze it.'));
+
+        final kept = await rollback(baseArgs(freeze: true));
+        expect(kept, isNot(contains('unfreeze')));
+        expect(kept, contains('(frozen)'));
+      },
+    );
+
+    test(
+      '--preview with --review-measurement is refused before any call',
+      () async {
+        final err = StringBuffer();
+        final code = await makeRunner(
+          stdout: StringBuffer(),
+          stderr: err,
+          httpClient: mockHttpClient((_) => fail('No call is made.')),
+        ).run([...baseArgs(yes: false), '--preview', '--review-measurement']);
+        expect(code, 1);
+        expect(
+          err.toString(),
+          '--preview and --review-measurement are separate checks and cannot be '
+          'combined. Try running --preview first, then --review-measurement '
+          'with --reason.\n',
+        );
+      },
+    );
 
     test('preflight and rollback use the configured organization', () async {
       await seedRestageConfig(

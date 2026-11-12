@@ -29,6 +29,11 @@ void addSurfaceMeasurementReviewOptions(ArgParser parser) {
     );
 }
 
+/// Whether the command only returns the measurement review: it changes
+/// nothing, so it asks no confirmation and prints only the review.
+bool measurementReviewOnly(ArgResults arguments) =>
+    arguments['review-measurement'] as bool;
+
 /// Reviews the same complete surface operation that the caller will submit.
 Future<({DeliveryMeasurementMutationProceedV1? proceed, int? exitCode})>
 reviewSurfaceMeasurement({
@@ -72,8 +77,9 @@ reviewSurfaceMeasurement({
     io.stderr.writeln(error);
     return (proceed: null, exitCode: 2);
   }
-  if (arguments['review-measurement'] as bool) {
-    io.stdout.writeln(formatDeliveryMeasurementMutationReview(review));
+  if (measurementReviewOnly(arguments)) {
+    // The whole of stdout is the review, the same on every command.
+    io.stdout.writeln(measurementReviewDocument(review));
     return (proceed: null, exitCode: review.refusalCodes.isEmpty ? 0 : 1);
   }
   try {

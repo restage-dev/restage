@@ -74,6 +74,10 @@ class SurfaceKillCommand extends Command<int> implements LiveGuardedCommand {
   String get name => 'kill';
 
   @override
+  String get invocation =>
+      super.invocation.replaceFirst(' [arguments]', ' <id> [arguments]');
+
+  @override
   String get description =>
       'Deactivate a surface in an environment, forcing the SDK to fall back '
       'to its bundled asset.';
@@ -122,17 +126,19 @@ class SurfaceKillCommand extends Command<int> implements LiveGuardedCommand {
           : 'v${status.liveVersion}';
       final yesFlag = argResults!['yes'] as bool;
       final frozen = argResults!['frozen'] as bool;
-      final confirmed = await confirmDestructive(
-        interactive: _io.interactive,
-        stdout: _io.stdout,
-        stderr: _io.stderr,
-        environment: target.environment,
-        runtimePlane: target.runtimePlane,
-        yesFlag: yesFlag,
-        impactLine:
-            'Kill ${identity.surface.wireName} "$slug" in '
-            '${target.environment} (currently serving $liveLabel).',
-      );
+      final confirmed =
+          measurementReviewOnly(argResults!) ||
+          await confirmDestructive(
+            interactive: _io.interactive,
+            stdout: _io.stdout,
+            stderr: _io.stderr,
+            environment: target.environment,
+            runtimePlane: target.runtimePlane,
+            yesFlag: yesFlag,
+            impactLine:
+                'Kill ${identity.surface.wireName} "$slug" in '
+                '${target.environment} (currently serving $liveLabel).',
+          );
       if (!confirmed) {
         // Only an interactive decline lacks a message of its own.
         if (!yesFlag && _io.interactive.isInteractive) {

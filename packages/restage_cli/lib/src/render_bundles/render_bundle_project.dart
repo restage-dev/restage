@@ -3,16 +3,17 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
-import 'package:restage_cli/src/publication/publication_errors.dart';
-import 'package:restage_cli/src/publication/publication_outputs.dart';
 import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
 import 'package:restage_cli/src/render_bundles/package_resolution.dart';
 import 'package:restage_cli/src/render_bundles/surface_capture_source.dart'
     show SurfaceCaptureWrapper;
 import 'package:yaml/yaml.dart';
 
-/// The directory under the generated output root a render bundle builds in.
+/// The directory under [standInProjectsDirectory] a render bundle builds in.
 const renderBundleProjectDirectory = 'render_bundle';
+
+/// Where, relative to the app, the projects a push renders in live.
+const standInProjectsDirectory = '.dart_tool/restage';
 
 /// The dart-define carrying the dashboard origin the bundle answers.
 const renderBundleParentOriginDefine = 'RESTAGE_RENDER_BUNDLE_PARENT_ORIGIN';
@@ -95,7 +96,7 @@ Future<Directory> writeRenderBundleProject({
   return directory;
 }
 
-/// The directory under the generated output root surface images render in.
+/// The directory under [standInProjectsDirectory] surface images render in.
 const surfaceCaptureProjectDirectory = 'surface_capture';
 
 /// Writes the Flutter project that renders [projectRoot]'s surfaces to images
@@ -180,14 +181,6 @@ Future<_StandIn> _standInProject(
   bool includeDev = false,
 }) async {
   final app = _readApp(root);
-  final String outputRoot;
-  try {
-    outputRoot =
-        await readConfiguredRestageOutputRoot(root) ??
-        defaultRestagePortableOutputRoot;
-  } on PublicationException {
-    throw const RenderBundleBuildException(RenderBundleBuildFailure.outputRoot);
-  }
   final PackageResolution resolution;
   final Set<String> closure;
   final List<String> direct;
@@ -217,11 +210,10 @@ Future<_StandIn> _standInProject(
     );
   }
 
+  // Under .dart_tool, which no build reads: the project links the app's lib/,
+  // and a build that saw it would generate the app's parts twice.
   final directory = Directory(
-    p.joinAll([
-      root.path,
-      ...p.posix.join(outputRoot, directoryName).split('/'),
-    ]),
+    p.join(root.path, standInProjectsDirectory, directoryName),
   );
   await directory.create(recursive: true);
   // Links and anything an earlier run left are rebuilt; the caches and the

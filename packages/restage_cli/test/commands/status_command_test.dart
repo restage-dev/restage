@@ -473,8 +473,12 @@ endpoint: https://evil.example.com/
       expect(exitCode, 1);
       expect(
         stderr.toString(),
-        contains('restage login --endpoint https://evil.example.com/'),
+        contains(
+          'restage_config.yaml names https://evil.example.com, which is not a '
+          'Restage server',
+        ),
       );
+      expect(stderr.toString(), isNot(contains('restage login --endpoint')));
       expect(stdout.toString(), isEmpty);
     },
   );

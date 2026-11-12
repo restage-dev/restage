@@ -28,7 +28,14 @@ import 'package:restage_cli/src/commands/status_command.dart';
 import 'package:restage_cli/src/commands/surface_command.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/commands/whoami_command.dart';
+import 'package:restage_cli/src/api/backend_sites.dart'
+    show
+        SignInBackend,
+        UntrustedSignInBackendException,
+        backendUrlVariable,
+        signInBackend;
 import 'package:restage_cli/src/api/default_endpoint.dart';
+import 'package:restage_cli/src/version.dart';
 import 'package:restage_cli/src/api/experiment_activation_api.dart';
 import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
@@ -154,8 +161,15 @@ class RestageCli {
     // before command dispatch. Falling back to an empty parse on
     // unknown args keeps `--help` / unknown-command paths working.
     final globalResults = _tryParseGlobals(_globalParser(), unplaced);
+    if (globalResults['version'] == true) {
+      _stdout.writeln(await restageVersionLine());
+      return 0;
+    }
     final runner = commandRunner(
       interactive: _interactiveFactory(globalResults),
+      backendFooter: _asksForTopLevelHelp(unplaced)
+          ? await _backendFooter(io.Directory(directory ?? '.'))
+          : null,
     );
     final args = _placeDirectory(runner, unplaced, directory);
     try {
@@ -182,6 +196,50 @@ class RestageCli {
     }
   }
 
+  static bool _asksForTopLevelHelp(List<String> args) {
+    final command = args.where((arg) => !arg.startsWith('-')).firstOrNull;
+    return command == null ||
+        (command == 'help' &&
+            args.where((a) => !a.startsWith('-')).length == 1);
+  }
+
+  /// The server commands use, or where a sign-in from [directory] would go.
+  Future<String> _backendFooter(io.Directory directory) async {
+    const another = 'Run `restage login --endpoint <url>` to use another.';
+    try {
+      final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
+      final credential = await store.read();
+      if (credential != null) {
+        final origin = Uri.parse(credential.endpoint).origin;
+        return 'Commands use $origin, the server you signed in to. $another';
+      }
+    } on Object {
+      // No readable sign-in; describe where one would go.
+    }
+    final environment = _environment ?? io.Platform.environment;
+    final SignInBackend backend;
+    try {
+      backend = await signInBackend(
+        environment: environment,
+        from: directory,
+        fallback: _defaultEndpoint,
+      );
+    } on UntrustedSignInBackendException catch (refused) {
+      return 'Not signed in. ${refused.message()}';
+    }
+    final origin = backend.endpoint.origin;
+    final named = environment[backendUrlVariable];
+    final source =
+        backend.namedBy ??
+        (named != null && named.isNotEmpty ? backendUrlVariable : null);
+    return source == null
+        ? 'Not signed in. `restage login` signs in to $origin unless '
+              "$backendUrlVariable or the project's restage_config.yaml or "
+              'build.yaml names another Restage server. $another'
+        : 'Not signed in. `restage login` signs in to $origin, which $source '
+              'names. $another';
+  }
+
   List<String> _inheritTarget(CommandRunner<int> runner, List<String> args) {
     final defaults = _targetDefaults;
     if (defaults == null) return args;
@@ -204,12 +262,14 @@ class RestageCli {
   /// The command tree [run] dispatches through, prompting via [interactive].
   CommandRunner<int> commandRunner({
     Interactive interactive = const NonInteractive(),
+    String? backendFooter,
   }) {
     final runner = _RestageRunner(
       'restage',
       'Restage — tools for building, previewing, and publishing Flutter '
           'surfaces.',
       defaultEndpoint: _defaultEndpoint,
+      backendFooter: backendFooter,
     );
     _addGlobalOptions(runner.argParser);
     // The credential-store path resolution can fail with [StateError]
@@ -228,6 +288,7 @@ class RestageCli {
           sleep: _sleep,
           openBrowser: _openBrowser,
           interactive: interactive,
+          environment: _environment,
         ),
       )
       ..addCommand(
@@ -409,6 +470,7 @@ class RestageCli {
   // Global flag: switches every interactive prompt to its non-interactive
   // form. `--yes` is the conventional alias.
   ArgParser _addGlobalOptions(ArgParser parser) => parser
+    ..addFlag('version', negatable: false, help: 'Print the CLI version.')
     ..addFlag(
       'non-interactive',
       negatable: false,
@@ -566,12 +628,20 @@ final class _RestageRunner extends CommandRunner<int> {
     super.executableName,
     super.description, {
     required this.defaultEndpoint,
+    this.backendFooter,
   });
 
   final Uri defaultEndpoint;
 
+  /// What the footer says about the server, when it was looked up.
+  final String? backendFooter;
+
   @override
   String get usageFooter =>
-      'Commands use the server you signed in to, ${defaultEndpoint.origin} '
-      'by default. Run `restage login --endpoint <url>` to use another.';
+      backendFooter ??
+      'Commands use the server you signed in to. `restage login` signs in to '
+          "$backendUrlVariable when set, else the backend the project's "
+          'restage_config.yaml or build.yaml names, else '
+          '${defaultEndpoint.origin}. Run `restage login --endpoint <url>` to use '
+          'another.';
 }

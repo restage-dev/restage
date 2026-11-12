@@ -408,6 +408,32 @@ void main() {
     ('freeze', 'surfaceFreeze', 'setSurfaceLock', <String>[], null, true),
     ('unfreeze', 'surfaceFreeze', 'setSurfaceLock', <String>[], null, false),
   ]) {
+    test('$command --review-measurement prints only the review document, '
+        'without asking or changing anything', () async {
+      final h = await SurfaceReviewHarness.create();
+      addTearDown(h.dispose);
+      h.review = surfaceMutationReview(operation);
+      expect(
+        await h.run(command, [
+          for (final flag in flags)
+            if (flag != '--yes') flag,
+          '--review-measurement',
+        ]),
+        0,
+        reason: h.stderr.toString(),
+      );
+      expect(h.mutations, isEmpty);
+      final document = jsonDecode(h.stdout.toString()) as Map<String, Object?>;
+      expect(document.keys, ['digest', 'review']);
+      expect(document['digest'], h.review.digest.hex);
+      expect(
+        DeliveryMeasurementMutationReviewV1.fromJson(
+          document['review']! as Map<String, Object?>,
+        ).digest,
+        h.review.digest,
+      );
+    });
+
     test(
       '$command registered CLI preserves every reviewed coordinate and warning acknowledgement',
       () async {

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/backend_sites.dart';
@@ -8,6 +10,7 @@ import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
+import 'package:restage_cli/src/init/build_yaml_editor.dart' show planBuildYaml;
 import 'package:restage_cli/src/receipts/receipt_location.dart';
 import 'package:restage_cli/src/receipts/release_receipt.dart';
 import 'package:restage_cli/src/receipts/release_recorder.dart';
@@ -171,6 +174,43 @@ const _outcomeUnknownStatuses = {502, 503, 504, 520, 521, 522, 523, 524};
 String alreadyLiveMessage(String slug, int revision, String environment) =>
     '"$slug" r$revision is already live in $environment. Devices see no change.';
 
+/// Whether the app at [projectRoot] already has hosted delivery set up: a
+/// configure call under lib/, and a publishable key and delivery keys, each
+/// in build.yaml or the configure call. A publish then needs no setup guide.
+@experimental
+bool appConfiguresDelivery(Directory projectRoot) {
+  final lib = Directory('${projectRoot.path}/lib');
+  if (!lib.existsSync()) return false;
+  final configure = RegExp(r'Restage\.configure(WithInstalledCatalog)?\(');
+  var configures = false;
+  var keyInCall = false;
+  var deliveryKeysInCall = false;
+  for (final entity in lib.listSync(recursive: true, followLinks: false)) {
+    if (entity is! File || !entity.path.endsWith('.dart')) continue;
+    final String source;
+    try {
+      source = entity.readAsStringSync();
+    } on FileSystemException {
+      continue;
+    }
+    if (!configure.hasMatch(source)) continue;
+    configures = true;
+    keyInCall |= source.contains('apiKey:');
+    deliveryKeysInCall |= source.contains('deliveryKeys:');
+  }
+  if (!configures) return false;
+  if (keyInCall && deliveryKeysInCall) return true;
+  final buildYaml = File('${projectRoot.path}/build.yaml');
+  if (!buildYaml.existsSync()) return false;
+  try {
+    final plan = planBuildYaml(buildYaml.readAsStringSync());
+    return (keyInCall || plan.hasApiKey) &&
+        (deliveryKeysInCall || plan.hasDeliveryKeys);
+  } on FileSystemException {
+    return false;
+  }
+}
+
 /// How to show a published [kind] of surface in an app. [mountName] is the
 /// generated widget the published version names, when it names one; the
 /// guide links the docs of [backend].
@@ -181,16 +221,14 @@ String mountGuide(
   required Uri backend,
   String? mountName,
 }) {
-  final init = currentSelectorSyntax.command(
-    const FollowUp('init', 'restage_init', [
-      FollowUpArg('sdkKey', 'rs_pk_...', flag: 'sdk-key'),
-    ]),
-  );
+  final init = currentSelectorSyntax.command(initFollowUp);
   final configure =
-      "In your app, put this environment's publishable key in build.yaml "
-      'using $init and call '
-      'Restage.configure(registerWidgets: kRestageWidgetRegistration) once '
-      'at startup';
+      "In your app, run $init to put this environment's publishable key and "
+      'delivery keys in build.yaml, and call '
+      'Restage.configure(registerWidgets: kRestageWidgetRegistration, '
+      'liveRefresh: {SurfaceRefreshTrigger.updateChannel}) once at startup '
+      '(liveRefresh is optional: it swaps a surface already on screen to a '
+      'new version)';
   final docs = '${backendSites(backend).docs}/delivery/hosted-delivery';
   return switch (kind) {
     SurfaceSourceKind.paywall =>

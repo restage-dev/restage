@@ -87,13 +87,40 @@ String _reading(Object? bucket) {
     );
     numerator = at('observedValue');
     admitted = total - excluded - at('latePending');
+    if (admitted <= BigInt.zero) return _whyUnavailable(at);
+    return '${_percentOf(numerator, admitted)} ($numerator of $admitted views)';
   } else {
     return kFigureUnavailable;
   }
   if (admitted <= BigInt.zero) return kFigureUnavailable;
+  return _percentOf(numerator, admitted);
+}
+
+String _percentOf(BigInt numerator, BigInt admitted) {
   final tenths =
       (numerator * BigInt.from(1000) + admitted ~/ BigInt.two) ~/ admitted;
   return '${tenths ~/ BigInt.from(10)}.${tenths % BigInt.from(10)}%';
+}
+
+/// Why a rate counted no view, from the states its views were held in.
+String _whyUnavailable(BigInt Function(String state) at) {
+  bool any(List<String> states) => states.any((s) => at(s) > BigInt.zero);
+  if (any(const ['latePending', 'rightCensored'])) {
+    return 'Not available yet: the sessions that showed it are still open.';
+  }
+  if (any(const ['sourceUnavailable'])) {
+    return 'Not available: the app did not report these views in full.';
+  }
+  if (any(const ['structurallyInapplicable'])) {
+    return 'Not available: the app build cannot record this.';
+  }
+  if (any(const ['transportTruncated'])) {
+    return 'Not available: some of the data was cut off on the way.';
+  }
+  if (any(const ['domainRejected', 'semanticNull', 'observedNoValue'])) {
+    return 'Not available: the recorded data does not fit this measure.';
+  }
+  return 'Not available: no view in this period recorded it.';
 }
 
 /// One line per funnel step: its name, how many reached it and the share of

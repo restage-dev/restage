@@ -29,10 +29,11 @@ Future<void> printPublishedReach({
   } on FormatException {
     return;
   }
+  // Read as the publish lands, before any device could fetch it.
   stdout
-    ..writeln('Reach: ${surfaceReachHeadline(reach)}')
+    ..writeln('Reach at publish time: ${surfaceReachHeadline(reach)}')
     ..writeln(
-      'Watch it climb: restage surface status $surfaceSlug '
-      '--type $surfaceType --watch',
+      'It rises as devices fetch the new version. Watch it with: '
+      'restage surface status $surfaceSlug --type $surfaceType --watch',
     );
 }

@@ -32,22 +32,3 @@ List<LibraryRequirement> unionRequiredLibraries(
       ),
   ];
 }
-
-/// Returns an informational capability note for a generated publication.
-String? publishCapabilityWarning(CapabilityManifest manifest) {
-  final needsAboveBaseline = manifest.builtInFloor > kBaselineCatalogVersion;
-  if (!needsAboveBaseline && manifest.requiredLibraries.isEmpty) return null;
-
-  final requirements = <String>[
-    if (needsAboveBaseline)
-      'the built-in widget catalog at content version '
-          '${manifest.builtInFloor} or later',
-    for (final requirement in manifest.requiredLibraries)
-      'the app widget library "${requirement.namespace}" at version '
-          '${requirement.minVersion} or later',
-  ];
-  return 'Note for devices: this publication renders only in app builds '
-      'that register ${requirements.join(' and ')}. Installs of older app '
-      'builds show their configured fallback. This is about device delivery; '
-      'dashboard previews depend on a build push instead.';
-}

@@ -362,8 +362,35 @@ app: my-app
               .having(
                 (e) => e.toString(),
                 'message',
-                contains('restage login --endpoint https://evil.example.com/'),
+                'restage_config.yaml names https://evil.example.com, which is '
+                    'not a Restage server, and the stored credential belongs '
+                    'to https://safe.example.com/, so nothing was sent. Try '
+                    'correcting `endpoint` in restage_config.yaml, or removing '
+                    'it to use the server you signed in to.',
               ),
+        ),
+      );
+    });
+
+    test('a Restage server in the config is offered as a sign-in', () {
+      expect(
+        () => resolveApiEndpoint(
+          config: const RestageConfig(
+            project: 'p',
+            app: 'a',
+            endpoint: 'https://api-example.restage.dev/',
+          ),
+          credential: _credential(endpoint: 'https://api.restage.dev/'),
+        ),
+        throwsA(
+          isA<EndpointMismatchException>().having(
+            (e) => e.toString(),
+            'message',
+            contains(
+              'Run `restage login --endpoint https://api-example.restage.dev/` '
+              'to sign in for this project.',
+            ),
+          ),
         ),
       );
     });

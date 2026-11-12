@@ -193,9 +193,6 @@ class PaywallPushCommand extends Command<int> {
     }
 
     for (final publication in assembled) {
-      if (publication.capabilityWarning != null) {
-        _stderr.writeln(publication.capabilityWarning);
-      }
       if (publication.unhandledEventsWarning != null) {
         _stderr.writeln(publication.unhandledEventsWarning);
       }

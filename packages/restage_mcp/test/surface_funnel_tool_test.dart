@@ -481,6 +481,49 @@ void main() {
       expect(request['surfaceRevisionIds'], [_revisionId]);
     });
 
+    test('reads versions by number, matching them in the reading', () async {
+      final kept = await callTool({
+        ...readArguments(),
+        'revisionOrdinals': [3],
+      });
+      expect(sent.last.containsKey('surfaceRevisionIds'), isFalse);
+      expect(
+        (kept.structuredContent!['versions']! as List<Object?>),
+        hasLength(1),
+      );
+
+      final none = await callTool({
+        ...readArguments(),
+        'revisionOrdinals': [2],
+      });
+      expect(none.structuredContent!['versions'], isEmpty);
+    });
+
+    test('refuses revisionOrdinals that are not version numbers', () async {
+      for (final bad in <Object>[
+        ['2'],
+        [0],
+        [-1],
+        2,
+      ]) {
+        sent.clear();
+        final result = await callTool({
+          ...readArguments(),
+          'revisionOrdinals': bad,
+        });
+        expect(result.isError, isTrue, reason: '$bad');
+        expect(sent, isEmpty, reason: '$bad');
+        // A wrong type fails the schema; a number below 1 fails the tool.
+        if (bad case [final int _]) {
+          expect(
+            (result.content.single as TextContent).text,
+            'revisionOrdinals must be a list of version numbers counting from '
+            '1, such as [2].',
+          );
+        }
+      }
+    });
+
     test('refuses a reading bound to another surface', () async {
       final wrong = SurfaceFunnelViewV1.of(
         target: _target,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -42,12 +43,12 @@ Target: restage_status and restage_doctor check that the project's restage_confi
 Publish: generate code in the Flutter project (`dart run build_runner build`), push with restage_push_surface, then make the revision live with restage_publish_surface.
 
 Custom widgets (your own @RestageWidget classes):
-- On devices: a surface that uses them renders only in app builds that have those widgets compiled in and registered at the library version the push note names (the @RestageLibrary capabilityVersion). Older installs show their fallback. Devices need no build or catalog push.
+- On devices: a surface that uses them renders only in app builds that have those widgets compiled in and registered at the library version a published version needs (the @RestageLibrary capabilityVersion); the placement fit report restage_push_surface returns names each app build that falls short. Older installs show their fallback. Devices need no build or catalog push.
 - In dashboard previews: the dashboard draws app widgets from a build pushed with restage_push_build. Builds use the app's own Flutter, whatever version it is.
 - In the dashboard editor palette: restage_push_catalog uploads the widget list. Devices and previews do not need it.
 
-Show a published surface in an app (restage_publish_surface returns this as showInApp):
-- Configure hosted delivery: restage_init with sdkKey writes the publishable key and service URL to build.yaml, and `Restage.configure(registerWidgets: kRestageWidgetRegistration)` once at startup uses them. The key picks the environment; restage_resolve_api_key shows which.
+Show a published surface in an app (restage_publish_surface returns this as showInApp, unless the projectDirectory it is given already has the key and the configure call):
+- Configure hosted delivery: restage_init writes the publishable key, service URL and delivery keys to build.yaml, minting a public key when build.yaml has none (pass sdkKey to use a key you already have), and `Restage.configure(registerWidgets: kRestageWidgetRegistration)` once at startup uses them. Add `liveRefresh: {SurfaceRefreshTrigger.updateChannel}` to swap a surface already on screen to a new version. The key picks the environment; restage_resolve_api_key shows which.
 - Paywalls: mount the generated typed mount, such as `ProUpgradePaywallSurface()` for a class `ProUpgradePaywall`, or render by slug with `RestagePaywall(id: '<slug>')`.
 - Screens and flows (onboarding, messages, surveys, general): there is no mount by slug. The app must compile the generated mount, such as `WelcomeFlowSurface(onComplete: ...)`, and a published version must match the contract that app build carries. Add `part 'restage.generated/<file>.restage.g.dart';` to the declaring library.
 - A generated mount fetches the live version and falls back to the compiled widget.
@@ -240,7 +241,19 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'to start: it returns a verification URL and a short code and opens '
         'your browser. Approve there, THEN call restage_login AGAIN to '
         'complete sign-in. If a session is already active, it says so instead.',
-    inputSchema: Schema.object(properties: {}),
+    inputSchema: Schema.object(
+      properties: {
+        'projectDirectory': Schema.string(
+          description:
+              'The Flutter project root. Sign-in goes to RESTAGE_BACKEND_URL '
+              'when set, else the Restage server its restage_config.yaml '
+              '(endpoint) or build.yaml (base_url) names, else Restage Cloud. '
+              "A project file can name only Restage's own servers or this "
+              'machine; any other server is refused. Omit it to search from '
+              "the server's working directory.",
+        ),
+      },
+    ),
   );
 
   static final _whoamiTool = Tool(
@@ -323,14 +336,31 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
           });
         }
       }
-      return _startLogin();
+      return _startLogin(request.optStr('projectDirectory'));
     });
   }
 
   /// Start a new device authorization, stash it, open the browser best-effort,
   /// and return the verification URL + user code (never the device code).
-  Future<CallToolResult> _startLogin() {
-    final endpoint = _resolveLoginEndpoint();
+  Future<CallToolResult> _startLogin(String? projectDirectory) async {
+    final Uri endpoint;
+    try {
+      endpoint = await _resolveLoginEndpoint(projectDirectory);
+    } on UntrustedSignInBackendException catch (refused) {
+      return CallToolResult(
+        isError: true,
+        content: [
+          TextContent(
+            text: jsonEncode(<String, Object?>{
+              'status': 'refused',
+              'refusedOrigin': refused.endpoint.origin,
+              'namedBy': refused.namedBy,
+              'message': refused.message(mcp: true),
+            }),
+          ),
+        ],
+      );
+    }
     return _withRawApi(
       endpoint,
       body: (api) async {
@@ -544,6 +574,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   }) {
     return jsonResult(<String, Object?>{
       'status': 'authorization_pending',
+      'endpoint': pending.endpoint.origin,
       'verificationUri': pending.verificationUri,
       'userCode': pending.userCode,
       'message':
@@ -569,12 +600,15 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     }
   }
 
-  Uri _resolveLoginEndpoint() {
+  Future<Uri> _resolveLoginEndpoint(String? projectDirectory) async {
     final injected = _loginEndpoint;
     if (injected != null) return injected;
-    final env = Platform.environment['RESTAGE_BACKEND_URL'];
-    if (env != null && env.isNotEmpty) return Uri.parse(env);
-    return Uri.parse(defaultRestageEndpoint);
+    final backend = await signInBackend(
+      environment: _environment,
+      from: projectDirectory == null ? null : Directory(projectDirectory),
+      fallback: Uri.parse(defaultRestageEndpoint),
+    );
+    return backend.endpoint;
   }
 
   /// Handle `restage_whoami`.

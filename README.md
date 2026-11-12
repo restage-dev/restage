@@ -64,13 +64,14 @@ WelcomeScreenSurface(
 ```
 
 The mount installs the widgets it needs and uses your original widget as a
-fallback. For hosted updates, configure Restage at app startup with your public
-API key and service URL:
+fallback. For hosted updates, run `restage init` while signed in. It writes your
+public API key, service URL and delivery keys to `build.yaml`. Rebuild, and
+configure Restage at app startup:
 
 ```dart
-Restage.configureWithInstalledCatalog(
-  apiKey: const String.fromEnvironment('RESTAGE_API_KEY'),
-  baseUrl: const String.fromEnvironment('RESTAGE_BASE_URL'),
+Restage.configure(
+  registerWidgets: kRestageWidgetRegistration, // from user_factories.g.dart
+  surfaces: restageSurfaces, // from restage_surfaces.g.dart
 );
 ```
 
@@ -182,8 +183,14 @@ dev_dependencies:
 Release builds need no special flags. The build step records which widgets
 and icons your app uses, and Flutter's icon tree-shaking works as usual.
 
-The `restage` CLI is optional. It is not on pub.dev yet. Clone this repo and
-run `melos run cli:install` to compile it onto your PATH.
+The `restage` CLI is optional. Install it from the `main` branch:
+
+```sh
+dart pub global activate --source git https://github.com/restage-dev/restage.git \
+  --git-path packages/restage_cli
+```
+
+That puts `restage` in `~/.pub-cache/bin`, which needs to be on your `PATH`.
 
 ## Packages
 

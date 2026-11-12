@@ -58,7 +58,9 @@ class LoginCommand extends Command<int> {
     Future<void> Function(Duration)? sleep,
     Future<void> Function(String)? openBrowser,
     Interactive? interactive,
+    Map<String, String>? environment,
   }) : _stdout = stdout,
+       _environment = environment,
        _stderr = stderr,
        _credentialStore = credentialStore,
        _defaultEndpoint = defaultEndpoint,
@@ -71,7 +73,16 @@ class LoginCommand extends Command<int> {
         'endpoint',
         help:
             'Backend origin to sign in to. Defaults to $backendUrlVariable '
-            'when set, else ${defaultEndpoint.origin}.',
+            "when set, else the Restage server the project's "
+            'restage_config.yaml (endpoint) or build.yaml (base_url) names, '
+            'else ${defaultEndpoint.origin}. A project file can name only '
+            "Restage's own servers or this machine.",
+      )
+      ..addOption(
+        'directory',
+        abbr: 'C',
+        defaultsTo: '.',
+        help: 'Directory to start the project search from.',
       )
       ..addFlag(
         'open',
@@ -95,6 +106,7 @@ class LoginCommand extends Command<int> {
   final Future<void> Function(Duration) _sleep;
   final Future<void> Function(String) _openBrowser;
   final Interactive _interactive;
+  final Map<String, String>? _environment;
 
   @override
   String get name => 'login';
@@ -106,7 +118,22 @@ class LoginCommand extends Command<int> {
 
   @override
   Future<int> run() async {
-    final endpoint = _resolveEndpoint();
+    final SignInBackend backend;
+    try {
+      backend = await signInBackend(
+        flag: argResults?['endpoint'] as String?,
+        environment: _environment,
+        from: Directory(argResults!['directory'] as String),
+        fallback: _defaultEndpoint,
+      );
+    } on UntrustedSignInBackendException catch (refused) {
+      _stderr.writeln(refused.message());
+      return 1;
+    }
+    final endpoint = backend.endpoint;
+    if (backend.namedBy case final file?) {
+      _stdout.writeln('Signing in to ${endpoint.origin}, which $file names.');
+    }
     final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
     final RestageApi api;
     try {
@@ -262,14 +289,6 @@ class LoginCommand extends Command<int> {
   String _spinnerMessage(String userCode, {required Duration elapsed}) {
     final seconds = elapsed.inSeconds;
     return 'Waiting for approval — code $userCode (${seconds}s elapsed)';
-  }
-
-  Uri _resolveEndpoint() {
-    final fromFlag = argResults?['endpoint'] as String?;
-    if (fromFlag != null && fromFlag.isNotEmpty) return Uri.parse(fromFlag);
-    final fromEnv = Platform.environment[backendUrlVariable];
-    if (fromEnv != null && fromEnv.isNotEmpty) return Uri.parse(fromEnv);
-    return _defaultEndpoint;
   }
 
   /// Says where to create an organization when the account has none.

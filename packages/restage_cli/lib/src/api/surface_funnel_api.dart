@@ -71,3 +71,59 @@ class SurfaceFunnelApi {
 }
 
 const _endpointName = 'surfaceFunnel';
+
+/// Why [view] does not answer for a surface of [expectedType], or null when
+/// it does or the service named no type.
+String? surfaceFunnelTypeMismatch(
+  SurfaceFunnelViewV1 view,
+  String? expectedType,
+) {
+  final actual = view.surfaceType;
+  if (expectedType == null || actual == null || actual == expectedType) {
+    return null;
+  }
+  return '"${view.surfaceId}" has the type $actual, not $expectedType. '
+      'Try leaving the type out, or naming $actual.';
+}
+
+/// `--version` values split into version numbers (`2` or `v2`) and version
+/// identities.
+({Set<int> ordinals, List<String> ids}) parseFunnelVersions(
+  Iterable<String> values,
+) {
+  final ordinals = <int>{};
+  final ids = <String>[];
+  for (final value in values) {
+    final number = RegExp(r'^v?([1-9][0-9]*)$').firstMatch(value.trim());
+    if (number != null) {
+      ordinals.add(int.parse(number.group(1)!));
+    } else {
+      ids.add(value);
+    }
+  }
+  return (ordinals: ordinals, ids: ids);
+}
+
+/// [view] with only the versions numbered in [ordinals] or named in [ids].
+SurfaceFunnelViewV1 onlyFunnelVersions(
+  SurfaceFunnelViewV1 view, {
+  required Set<int> ordinals,
+  required Iterable<String> ids,
+}) {
+  final named = ids.toSet();
+  return SurfaceFunnelViewV1.of(
+    target: view.target,
+    surfaceId: view.surfaceId,
+    surfaceType: view.surfaceType,
+    windowStartMicros: view.windowStartMicros,
+    windowEndExclusiveMicros: view.windowEndExclusiveMicros,
+    asOfMicros: view.asOfMicros,
+    disclosureFloor: view.disclosureFloor,
+    versions: [
+      for (final version in view.versions)
+        if (ordinals.contains(version.revisionOrdinal) ||
+            named.contains(version.surfaceRevisionId))
+          version,
+    ],
+  );
+}

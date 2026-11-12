@@ -72,7 +72,9 @@ class SurfaceRollbackCommand extends Command<int>
       ..addFlag(
         'freeze',
         negatable: false,
-        help: 'Lock the surface against future publishes after rolling back.',
+        help:
+            'Lock the surface against future publishes after rolling back. '
+            'Without it, a frozen surface is unfrozen.',
       )
       ..addFlag(
         'yes',
@@ -94,6 +96,10 @@ class SurfaceRollbackCommand extends Command<int>
 
   @override
   String get name => 'rollback';
+
+  @override
+  String get invocation =>
+      super.invocation.replaceFirst(' [arguments]', ' <id> [arguments]');
 
   @override
   String get description =>
@@ -135,6 +141,14 @@ class SurfaceRollbackCommand extends Command<int>
     // Step 3.5: --preview runs only the read path (status validation +
     // preflight) — no audit reason, no confirm, no mutation.
     final preview = argResults!['preview'] as bool;
+    if (preview && measurementReviewOnly(argResults!)) {
+      _io.stderr.writeln(
+        '--preview and --review-measurement are separate checks and cannot '
+        'be combined. Try running --preview first, then --review-measurement '
+        'with --reason.',
+      );
+      return 1;
+    }
 
     // Step 4: require a non-empty audit reason (not for a preview — nothing
     // is mutated, so there is nothing to audit).
@@ -234,6 +248,23 @@ class SurfaceRollbackCommand extends Command<int>
       return 1;
     }
 
+    // Review only: the review is the whole output and nothing is confirmed.
+    if (measurementReviewOnly(argResults!)) {
+      final impact = await reviewSurfaceMeasurement(
+        io: _io,
+        arguments: argResults!,
+        api: surfaces,
+        target: ctx,
+        identity: identity,
+        operation: 'surfaceRollback',
+        reason: reason!,
+        publishedRevision: toVersion,
+        contractVersion: status.contractVersion,
+        frozen: freeze,
+      );
+      return impact.exitCode ?? 0;
+    }
+
     // The cohort-impact note is printed on every path and never gates.
     final preflight = await surfaces.rollbackPreflight(
       project: ctx.project,
@@ -249,6 +280,13 @@ class SurfaceRollbackCommand extends Command<int>
       sourceKind: identity.sourceKind,
     );
     _io.stdout.writeln(_compatibilityNote(preflight));
+    // A rollback is the way out of a freeze; say so before it happens.
+    final unfreezes = !freeze && (status.locked || (status.frozen ?? false));
+    if (unfreezes) {
+      _io.stdout.writeln(
+        'This unfreezes "$slug"; add --freeze to keep it frozen.',
+      );
+    }
     writeRunningExperiments(
       _io.stderr,
       preflight.runningExperiments,
@@ -273,7 +311,11 @@ class SurfaceRollbackCommand extends Command<int>
       impactLine:
           'Roll back "$slug" in ${ctx.environment} '
           'from v${status.liveVersion} to v$toVersion'
-          '${freeze ? ' and freeze' : ''}.',
+          '${freeze
+              ? ' and freeze'
+              : unfreezes
+              ? ' and unfreeze it'
+              : ''}.',
     );
     if (!confirmed) {
       // Only an interactive decline lacks a message of its own.

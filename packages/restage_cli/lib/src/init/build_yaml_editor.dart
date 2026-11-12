@@ -1,17 +1,15 @@
 import 'package:meta/meta.dart';
-import 'package:restage_shared/restage_shared.dart' show canonicalServiceUrl;
+import 'package:restage_shared/restage_shared.dart'
+    show canonicalServiceUrl, restageBuildStateInputs;
 import 'package:yaml/yaml.dart';
 import 'package:yaml_edit/yaml_edit.dart';
 
 /// Restage state files that builds read as inputs.
-const List<String> restageStateBuildInputs = <String>['.restage/**'];
+const List<String> restageStateBuildInputs = restageBuildStateInputs;
 
-/// Older entries that [restageStateBuildInputs] covers; init replaces them.
-const List<String> _coveredStateInputs = <String>[
-  '.restage/measurement-state.json',
-  '.restage/wire-ids.events.jsonl',
-  '.restage/receipts/**',
-];
+/// Older entries init replaces: `.restage/**` also admits `.restage/build/`,
+/// whose push output feeds the build its own generated files.
+const List<String> _coveredStateInputs = <String>['.restage/**'];
 
 /// The builder whose options hold the app's publishable key, service URL and
 /// delivery channel.
@@ -49,6 +47,7 @@ class StateBuildInputsPlan {
     this.written = const [],
     this.kept = const [],
     this.hasApiKey = false,
+    this.hasDeliveryKeys = false,
   });
 
   /// What applying the plan does.
@@ -68,6 +67,9 @@ class StateBuildInputsPlan {
 
   /// Whether the file has a publishable key once the plan is applied.
   final bool hasApiKey;
+
+  /// Whether the planned file lists delivery keys.
+  final bool hasDeliveryKeys;
 }
 
 /// Plans `build.yaml`, whose current [source] is null when the file is absent:
@@ -75,11 +77,13 @@ class StateBuildInputsPlan {
 /// under the [deliveryOptionsBuilderKey] options.
 ///
 /// Options under [legacyDeliveryOptionsBuilderKey] move to their new place and
-/// `early_request` is dropped. Existing values are never replaced.
+/// `early_request` is dropped. Existing values are never replaced; missing
+/// [deliveryKeys] are added to `delivery_keys`.
 StateBuildInputsPlan planBuildYaml(
   String? source, {
   String? apiKey,
   String? baseUrl,
+  List<String> deliveryKeys = const [],
 }) {
   final current = source ?? '';
   final manual = StateBuildInputsPlan(
@@ -103,6 +107,7 @@ StateBuildInputsPlan planBuildYaml(
       editor,
       apiKey: apiKey,
       baseUrl: baseUrl == null ? null : canonicalServiceUrl(baseUrl),
+      deliveryKeys: deliveryKeys,
     );
     written.addAll(delivery.written);
     final hasApiKey =
@@ -113,6 +118,12 @@ StateBuildInputsPlan planBuildYaml(
           'api_key',
         ]) !=
         null;
+    final listedKeys = _at(_doc(editor), [
+      ..._builders,
+      deliveryOptionsBuilderKey,
+      'options',
+      'delivery_keys',
+    ]);
     var next = editor.toString();
     if (next != current && !next.endsWith('\n')) next = '$next\n';
     return StateBuildInputsPlan(
@@ -125,6 +136,7 @@ StateBuildInputsPlan planBuildYaml(
       written: written,
       kept: delivery.kept,
       hasApiKey: hasApiKey,
+      hasDeliveryKeys: listedKeys is YamlList && listedKeys.isNotEmpty,
     );
   } on Exception {
     return manual;
@@ -157,6 +169,7 @@ bool _planStateInputs(YamlEditor editor) {
   YamlEditor editor, {
   String? apiKey,
   String? baseUrl,
+  List<String> deliveryKeys = const [],
 }) {
   final options = [..._builders, deliveryOptionsBuilderKey, 'options'];
   final legacy = [..._builders, legacyDeliveryOptionsBuilderKey];
@@ -207,6 +220,25 @@ bool _planStateInputs(YamlEditor editor) {
       written.add(words);
     } else if (_comparable(key, existing) != value) {
       kept.add(key);
+    }
+  }
+  if (deliveryKeys.isNotEmpty) {
+    final path = [...options, 'delivery_keys'];
+    final listed = _at(_doc(editor), path);
+    if (listed == null) {
+      _set(editor, path, deliveryKeys);
+      written.add('the delivery keys');
+    } else if (listed is YamlList) {
+      final missing = [
+        for (final key in deliveryKeys)
+          if (!listed.contains(key)) key,
+      ];
+      for (final key in missing) {
+        editor.appendToList(path, key);
+      }
+      if (missing.isNotEmpty) written.add('the delivery keys');
+    } else {
+      kept.add('delivery_keys');
     }
   }
   return (written: written, kept: kept);

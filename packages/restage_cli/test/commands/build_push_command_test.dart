@@ -1311,12 +1311,50 @@ void main() {
     expect(networkCalls, 0);
     expect(
       stderr.toString(),
-      'restage_config.yaml names https://api.attacker.example/, but a key is '
-      'sent only to https://api.restage.dev/. Set RESTAGE_BACKEND_URL to push '
-      'to that server with a key.\n',
+      'restage_config.yaml names https://api.attacker.example, which is not a '
+      'Restage server, so the key was not sent there. Try correcting '
+      '`endpoint` in restage_config.yaml.\n',
     );
     expect(builder.projectRoot, isNull);
   });
+
+  test(
+    'a Restage server in the config is named with how to push there',
+    () async {
+      await seedRestageConfig(
+        root,
+        'demo',
+        'mobile',
+        endpoint: 'https://api-example.restage.dev/',
+      );
+      var networkCalls = 0;
+      final builder = _FakeBuilder(Uint8List.fromList(<int>[1]));
+      final exit = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse('https://api.restage.dev/'),
+        httpClient: MockClient((_) async {
+          networkCalls++;
+          return http.Response('', 500);
+        }),
+        renderBundleBuilder: builder,
+        renderBundleFlutterToolchain: _fakeFlutter,
+        renderBundleCatalog: catalogStep.call,
+        renderBundleSource: sourceStep.call,
+        environment: const <String, String>{'RESTAGE_API_KEY': _key},
+      ).run(<String>['build', 'push', '-C', root.path]);
+      expect(exit, 1);
+      expect(networkCalls, 0);
+      expect(
+        stderr.toString(),
+        'restage_config.yaml names https://api-example.restage.dev/, but a key '
+        'is sent only to https://api.restage.dev/. Set RESTAGE_BACKEND_URL to '
+        'push to that server with a key.\n',
+      );
+      expect(builder.projectRoot, isNull);
+    },
+  );
 
   test(
     'a key goes to the built-in endpoint when nothing else is named',

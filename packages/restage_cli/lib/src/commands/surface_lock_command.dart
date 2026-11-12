@@ -56,6 +56,10 @@ class SurfaceLockCommand extends Command<int> implements LiveGuardedCommand {
   String get name => _lock ? 'freeze' : 'unfreeze';
 
   @override
+  String get invocation =>
+      super.invocation.replaceFirst(' [arguments]', ' <id> [arguments]');
+
+  @override
   String get description => _lock
       ? 'Freeze a surface: no version can be published until you unfreeze it.'
       : 'Unfreeze a surface so versions can be published again.';
@@ -86,16 +90,18 @@ class SurfaceLockCommand extends Command<int> implements LiveGuardedCommand {
 
     return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
       final target = ctx.target!;
-      final confirmed = await confirmLiveChange(
-        command: this,
-        interactive: _io.interactive,
-        stdout: _io.stdout,
-        stderr: _io.stderr,
-        runtimePlane: target.runtimePlane,
-        impactLine:
-            '${_lock ? 'Freeze' : 'Unfreeze'} ${identity.surface.wireName} '
-            '"$slug" in ${target.environment} (live).',
-      );
+      final confirmed =
+          measurementReviewOnly(argResults!) ||
+          await confirmLiveChange(
+            command: this,
+            interactive: _io.interactive,
+            stdout: _io.stdout,
+            stderr: _io.stderr,
+            runtimePlane: target.runtimePlane,
+            impactLine:
+                '${_lock ? 'Freeze' : 'Unfreeze'} ${identity.surface.wireName} '
+                '"$slug" in ${target.environment} (live).',
+          );
       if (!confirmed) return 1;
       final surfaces = SurfaceApi(ctx.api);
       final impact = await reviewSurfaceMeasurement(

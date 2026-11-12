@@ -26,6 +26,7 @@ final readSurfaceFunnelTool = Tool(
       'surfaceId': Schema.string(
         description: 'The surface slug or measurement id.',
       ),
+      'surfaceType': surfaceReadTypeProperty,
       'windowStartMicros': Schema.int(
         description:
             'Start of the window, inclusive, in microseconds since '
@@ -43,6 +44,12 @@ final readSurfaceFunnelTool = Tool(
             '${measurement.kSurfaceFunnelMaximumVersions}. Omit for every '
             'version served in the window.',
         items: Schema.string(),
+      ),
+      'revisionOrdinals': Schema.list(
+        description:
+            'Read only the versions with these numbers, counting from 1. '
+            'With surfaceRevisionIds, versions matching either are kept.',
+        items: Schema.int(),
       ),
     },
     required: [
@@ -70,13 +77,30 @@ Future<CallToolResult> handleReadSurfaceFunnel(
     return Future.value(mcpError('The declared runtime plane is invalid.'));
   }
 
+  final rawOrdinals = (request.arguments ?? const {})['revisionOrdinals'];
+  if (rawOrdinals != null &&
+      (rawOrdinals is! List ||
+          rawOrdinals.any((value) => value is! int || value < 1))) {
+    return Future.value(
+      mcpError(
+        'revisionOrdinals must be a list of version numbers counting from 1, '
+        'such as [2].',
+      ),
+    );
+  }
+  final ordinals = {
+    for (final value in (rawOrdinals as List?) ?? const []) value as int,
+  };
   final measurement.SurfaceFunnelSelectionV1 selection;
+  final List<String>? ids;
   try {
+    ids = _versions(request);
     selection = measurement.SurfaceFunnelSelectionV1(
       surfaceId: request.str('surfaceId'),
       windowStartMicros: request.reqInt('windowStartMicros'),
       windowEndExclusiveMicros: request.reqInt('windowEndExclusiveMicros'),
-      surfaceRevisionIds: _versions(request),
+      // Numbers are matched against the reading; identities alone narrow it.
+      surfaceRevisionIds: ordinals.isEmpty ? ids : null,
     );
   } on measurement.CanonicalFormatException catch (error) {
     return Future.value(mcpError(error.message));
@@ -86,9 +110,16 @@ Future<CallToolResult> handleReadSurfaceFunnel(
     final target = await exactTargetCoordinate(api, request);
     if (target == null) return mcpError(exactTargetError);
     try {
-      final view = await SurfaceFunnelApi(
+      final read = await SurfaceFunnelApi(
         api,
       ).read(target: target, selection: selection);
+      final view = ordinals.isEmpty
+          ? read
+          : onlyFunnelVersions(read, ordinals: ordinals, ids: ids ?? const []);
+      if (surfaceFunnelTypeMismatch(view, request.optStr('surfaceType'))
+          case final mismatch?) {
+        return mcpError(mismatch);
+      }
       return jsonResult(view.toJson());
     } on SurfaceFunnelMismatchException {
       return mcpError(_readingError);

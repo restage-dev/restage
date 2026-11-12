@@ -81,6 +81,7 @@ void main() {
                 'minClient': 1,
                 'payloadKind': 'blob',
                 'isActive': false,
+                'label': 'Spring launch',
               },
             ],
           }),
@@ -117,5 +118,8 @@ void main() {
     expect(out.toString(), contains('family: non-versioned paywall'));
     expect(out.toString(), contains('r2'));
     expect(out.toString(), contains('sha-2'));
+    expect(out.toString(), contains('\tPAYLOAD\tNAME\n'));
+    expect(out.toString(), contains('\tsha-1\t1\tblob\tSpring launch\n'));
+    expect(out.toString(), contains('\tsha-2\t1\tblob\t\n'));
   });
 }

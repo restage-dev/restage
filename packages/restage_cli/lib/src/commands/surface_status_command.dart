@@ -83,6 +83,10 @@ class SurfaceStatusCommand extends Command<int> {
   String get name => 'status';
 
   @override
+  String get invocation =>
+      super.invocation.replaceFirst(' [arguments]', ' <id> [arguments]');
+
+  @override
   String get description =>
       'Show the live version, lock state, shape, and version history of a '
       'surface in an environment.';
@@ -171,8 +175,12 @@ class SurfaceStatusCommand extends Command<int> {
   ///     vM           ISO-8601  contentHash  typed|general
   /// ```
   void _printStatus(SurfaceStatusResult status) {
+    final liveName = status.versions
+        .where((v) => v.isActive)
+        .firstOrNull
+        ?.label;
     final liveLabel = status.liveVersion != null
-        ? 'v${status.liveVersion}'
+        ? 'v${status.liveVersion}${liveName == null ? '' : ' "$liveName"'}'
         : '— (none)';
     final activeMode = status.versions
         .where((v) => v.isActive)
@@ -201,8 +209,9 @@ class SurfaceStatusCommand extends Command<int> {
     for (final v in status.versions) {
       final activeMarker = v.isActive ? ' (active)' : '';
       final mode = v.deliveryMode != null ? '  ${v.deliveryMode}' : '';
+      final name = v.label == null ? '' : ' "${v.label}"';
       _io.stdout.writeln(
-        '  v${v.version}$activeMarker  '
+        '  v${v.version}$name$activeMarker  '
         '${v.publishedAt.toIso8601String()}  ${v.contentHash}$mode',
       );
     }

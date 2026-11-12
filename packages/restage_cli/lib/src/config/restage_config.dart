@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:restage_cli/src/api/backend_sites.dart'
+    show isTrustedProjectBackend;
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/discovery_models.dart';
@@ -285,6 +287,14 @@ class EndpointMismatchException implements EndpointConfigurationException {
 
   @override
   String toString() {
+    // A checked-in file never gets to choose a sign-in server.
+    if (!isTrustedProjectBackend(configEndpoint)) {
+      return 'restage_config.yaml names ${configEndpoint.origin}, which is not '
+          'a Restage server, and the stored credential belongs to '
+          '$credentialEndpoint, so nothing was sent. Try correcting `endpoint` '
+          'in restage_config.yaml, or removing it to use the server you '
+          'signed in to.';
+    }
     final login = '`restage login --endpoint $configEndpoint`';
     return 'restage_config.yaml expects $configEndpoint, but the stored '
         'credential belongs to $credentialEndpoint. '

@@ -986,7 +986,10 @@ final List<Operation> sharedOperations = [
         'id': view['id'],
         'kind': view['kind'],
         'environmentSlug': view['environmentSlug'],
-        'runtimePlane': view['runtimePlane'],
+        'runtimePlane': switch (view['target']) {
+          {'runtimePlane': final Object plane} => plane,
+          _ => null,
+        },
         'keyPrefix': view['keyPrefix'],
         'key': result['plaintext'],
       };
@@ -1059,16 +1062,31 @@ final List<Operation> sharedOperations = [
     cliPath: 'keys delivery',
     mcpName: 'restage_delivery_keys',
     description:
-        'Print the public keys delivered content is signed with, for '
-        'Restage.configure(deliveryKeys: ...).',
+        'Print the public keys delivered content is signed with, each '
+        '<organizationId>:<public key>. restage init writes them to '
+        'build.yaml.',
     mcpDescription:
         "List the public keys the app's delivered content is signed with, "
         'each `<organizationId>:<base64url key>`, the signing key first. '
-        'Pass them to `Restage.configure(deliveryKeys: [...])`; content '
-        'signed by any other key never renders.',
+        'restage_init writes them to build.yaml as delivery_keys, where '
+        '`Restage.configure` reads them; content signed by any other key '
+        'never renders.',
     scope: OperationScope.app,
     resultKey: 'deliveryKeys',
-    render: (out, value, _, _) => (value! as List).forEach(out.writeln),
+    render: (out, value, _, _) {
+      final keys = (value! as List).cast<String>();
+      if (keys.isEmpty) {
+        out.writeln('This app has no delivery keys yet.');
+        return;
+      }
+      final organization = keys.first.split(':').first;
+      out.writeln(
+        'Delivery keys for organization $organization, as '
+        '<organizationId>:<public key>, the signing key first. restage init '
+        'writes them to build.yaml as delivery_keys.',
+      );
+      keys.forEach(out.writeln);
+    },
     call: (target, _) => DeliveryKeysApi(target.api).list(
       project: target.project!,
       app: target.app!,

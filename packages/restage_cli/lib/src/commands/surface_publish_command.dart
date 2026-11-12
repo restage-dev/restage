@@ -83,6 +83,10 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
   String get name => 'publish';
 
   @override
+  String get invocation =>
+      super.invocation.replaceFirst(' [arguments]', ' <id> [arguments]');
+
+  @override
   String get description =>
       'Publish a pushed revision in one exact surface family; defaults to '
       'the latest pushed revision.';
@@ -112,6 +116,7 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
     // publication is never made with no way to record it.
     final directory = Directory(argResults?['directory'] as String? ?? '.');
     final loadedConfig = await loadRestageConfig(from: directory);
+    final projectRoot = loadedConfig?.source.parent ?? directory.absolute;
     final ReleaseRecorder? recorder;
     if (_recordGit(loadedConfig?.config)) {
       try {
@@ -129,17 +134,19 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
 
     return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
       final target = ctx.target!;
-      final confirmed = await confirmLiveChange(
-        command: this,
-        interactive: _io.interactive,
-        stdout: _io.stdout,
-        stderr: _io.stderr,
-        runtimePlane: target.runtimePlane,
-        impactLine:
-            'Publish ${identity.surface.wireName} "$slug" at '
-            '${explicit.revision == null ? 'the latest pushed revision' : 'r${explicit.revision}'} '
-            'in ${target.environment} (live).',
-      );
+      final confirmed =
+          measurementReviewOnly(argResults!) ||
+          await confirmLiveChange(
+            command: this,
+            interactive: _io.interactive,
+            stdout: _io.stdout,
+            stderr: _io.stderr,
+            runtimePlane: target.runtimePlane,
+            impactLine:
+                'Publish ${identity.surface.wireName} "$slug" at '
+                '${explicit.revision == null ? 'the latest pushed revision' : 'r${explicit.revision}'} '
+                'in ${target.environment} (live).',
+          );
       if (!confirmed) return 1;
       final surfaces = SurfaceApi(ctx.api);
       final impact = await reviewSurfaceMeasurement(
@@ -187,8 +194,9 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
                   : 'Published "$slug" at r$revision in ${target.environment} '
                         '(${describeFamily(sourceKind, result.contractVersion ?? family.contractVersion)}).',
             )
-            ..writeln('Active revision: $active   frozen: ${result.frozen}')
-            ..writeln(
+            ..writeln('Active revision: $active   frozen: ${result.frozen}');
+          if (!appConfiguresDelivery(projectRoot)) {
+            _io.stdout.writeln(
               mountGuide(
                 sourceKind,
                 slug,
@@ -196,6 +204,7 @@ class SurfacePublishCommand extends Command<int> implements LiveGuardedCommand {
                 mountName: result.mountName,
               ),
             );
+          }
           writeRunningExperiments(
             _io.stderr,
             result.runningExperiments,

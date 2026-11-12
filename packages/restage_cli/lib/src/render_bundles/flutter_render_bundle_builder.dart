@@ -36,7 +36,6 @@ typedef RenderBundleTempDirectoryCreator =
 enum RenderBundleBuildFailure {
   projectIdentity('project_identity'),
   factoriesMissing('factories_missing'),
-  outputRoot('output_root'),
   dependenciesUnresolved('dependencies_unresolved'),
   renderHostMissing('render_host_missing'),
   dependenciesFailed('dependencies_failed'),

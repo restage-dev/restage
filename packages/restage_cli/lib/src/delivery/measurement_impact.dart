@@ -14,6 +14,16 @@ String formatDeliveryMeasurementMutationReview(
     '${deliveryMeasurementMutationReviewSummary(review)}\n'
     '${const JsonEncoder.withIndent('  ').convert(review.toJson())}';
 
+/// [review] as the JSON document `--review-measurement` prints, the whole of
+/// its output: the aggregate `digest` to pass as `--reviewed-digest`, and the
+/// complete `review`.
+@experimental
+String measurementReviewDocument(DeliveryMeasurementMutationReviewV1 review) =>
+    const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+      'digest': review.digest.hex,
+      'review': review.toJson(),
+    });
+
 /// The one-line summary of [review]: its operation, digest and consequence.
 @experimental
 String deliveryMeasurementMutationReviewSummary(
@@ -55,8 +65,9 @@ class DeliveryMeasurementReviewRequired extends FormatException {
 
 /// Present the server review and ask separately about its measurement warnings.
 ///
-/// A review with nothing to acknowledge is summarized in one line; warnings
-/// and refusals print in full. Returns null on an interactive decline.
+/// Warnings and refusals print in full; a review with nothing to acknowledge
+/// prints only a serving consequence, if any. Returns null on an interactive
+/// decline.
 /// Headless callers must supply the digest they reviewed; general
 /// confirmation flags cannot acknowledge it.
 @experimental
@@ -69,11 +80,12 @@ confirmDeliveryMeasurementProceed({
   String? operationId,
 }) async {
   final warned = review.reviews.any((impact) => impact.warningCodes.isNotEmpty);
-  stdout.writeln(
-    warned || review.refusalCodes.isNotEmpty
-        ? formatDeliveryMeasurementMutationReview(review)
-        : deliveryMeasurementMutationReviewSummary(review),
-  );
+  if (warned || review.refusalCodes.isNotEmpty) {
+    stdout.writeln(formatDeliveryMeasurementMutationReview(review));
+  } else if (deliveryMeasurementMutationConsequence(review)
+      case final consequence?) {
+    stdout.writeln(consequence);
+  }
   var approvedDigest = reviewedDigest;
   if (review.refusalCodes.isEmpty &&
       warned &&

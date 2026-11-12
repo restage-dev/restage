@@ -90,6 +90,7 @@ export 'src/commands/surface_publish_operation.dart'
         FamilyTarget,
         SurfacePublication,
         alreadyLiveMessage,
+        appConfiguresDelivery,
         familyHistory,
         familyTargetOf,
         mountGuide,
