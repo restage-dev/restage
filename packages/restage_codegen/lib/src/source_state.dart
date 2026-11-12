@@ -338,6 +338,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
   for (final entry in eventHandlers.entries) {
     final verdict = entry.value;
     if (verdict is SetStateUnrecognised) {
+      final handler = entry.key;
       if (liftState) {
         final kept =
             "`${stateClass.name}` stays in your app's code, so a published "
@@ -363,7 +364,10 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
         return lifted(
           keptInApp: Issue(
             code: IssueCode.stateKeptInApp,
-            message: setsState
+            message: verdict is SetStateGenerator
+                ? '$kept: ${verdict.problem(handler)}. '
+                      'Try ${verdict.fix(handler)}.'
+                : setsState
                 ? "$kept: in '${entry.key}', ${verdict.reason}. Try writing "
                       '${entry.key} as one `setState(() => field = value)` '
                       'call.'
@@ -383,10 +387,12 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
       issues.add(
         Issue(
           code: IssueCode.stateShapeUnsupported,
-          message:
-              "State handler '${entry.key}' cannot be lowered: "
-              '${verdict.reason}. Rewrite it as a single setState(...) '
-              'assignment to one supported State field.',
+          message: verdict is SetStateGenerator
+              ? "State handler '$handler' cannot be lowered: "
+                    '${verdict.problem(handler)}. Try ${verdict.fix(handler)}.'
+              : "State handler '${entry.key}' cannot be lowered: "
+                    '${verdict.reason}. Rewrite it as a single setState(...) '
+                    'assignment to one supported State field.',
           location: '$location.${entry.key}',
         ),
       );

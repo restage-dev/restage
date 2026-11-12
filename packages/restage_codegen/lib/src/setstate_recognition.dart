@@ -63,6 +63,73 @@ final class SetStateUnrecognised extends RecognisedSetState {
   final String reason;
 }
 
+/// A generator handler or setState writer, whose body runs only when its
+/// result is iterated.
+final class SetStateGenerator extends SetStateUnrecognised {
+  /// Creates a verdict for a generator marked with [keyword]; [writer] when
+  /// it is the closure passed to setState.
+  const SetStateGenerator({required this.keyword, this.writer = false})
+    : super(reason: 'it is a generator, whose body runs only when iterated');
+
+  /// The generator keyword, `sync*` or `async*`.
+  final String keyword;
+
+  /// Whether the generator is the closure passed to setState.
+  final bool writer;
+
+  String get _kind => '${keyword.startsWith('a') ? 'an' : 'a'} `$keyword`';
+
+  /// The problem, naming [handler]; with no [handler] the closure is inline.
+  String problem(String? handler) => switch ((writer, handler)) {
+    (true, _) =>
+      '${_writer(handler)} is $_kind generator, so setState never runs it',
+    (false, null) =>
+      'the callback is $_kind generator, so calling it never runs its body',
+    (false, _) =>
+      "`$handler` is $_kind generator method, which a design can't run",
+  };
+
+  /// The general fix, naming [handler].
+  String fix(String? handler) => switch ((writer, handler)) {
+    (true, _) => 'removing `$keyword` from ${_writer(handler)}',
+    (false, null) => 'removing `$keyword` from the callback',
+    (false, _) =>
+      'writing a plain method that does the work or returns the values',
+  };
+
+  static String _writer(String? handler) => handler == null
+      ? 'the closure passed to setState'
+      : 'the closure `$handler` passes to setState';
+}
+
+/// The generator verdict for a callback that is a generator, or whose
+/// setState writer is one, such as `(v) => setState(() sync* { f = v; })`;
+/// null for any other expression.
+SetStateGenerator? generatorCallback(Expression callback) {
+  var closure = callback;
+  while (closure is ParenthesizedExpression) {
+    closure = closure.expression;
+  }
+  if (closure is! FunctionExpression) return null;
+  if (!runsWhenCalled(closure.body)) {
+    return SetStateGenerator(keyword: generatorKeyword(closure.body)!);
+  }
+  final call = _extractSingleCall(closure.body);
+  if (call == null ||
+      call.methodName.name != 'setState' ||
+      call.argumentList.arguments.length != 1) {
+    return null;
+  }
+  final writer = call.argumentList.arguments.single;
+  if (writer is! FunctionExpression || runsWhenCalled(writer.body)) {
+    return null;
+  }
+  return SetStateGenerator(
+    keyword: generatorKeyword(writer.body)!,
+    writer: true,
+  );
+}
+
 /// Recognises the shape of [method] as a [SetStateLiteral] /
 /// [SetStateBoolFlip] / [SetStateUnrecognised] verdict.
 ///
@@ -82,15 +149,13 @@ RecognisedSetState recogniseSetState(
   MethodDeclaration method, {
   required Set<String> stateFieldNames,
 }) {
+  final body = method.body;
+  if (!runsWhenCalled(body)) {
+    return SetStateGenerator(keyword: generatorKeyword(body)!);
+  }
   if (stateFieldNames.isEmpty) {
     return const SetStateUnrecognised(
       reason: 'the State has no primitive fields that could be set',
-    );
-  }
-  final body = method.body;
-  if (!runsWhenCalled(body)) {
-    return const SetStateUnrecognised(
-      reason: 'the method is a generator, so calling it never runs its body',
     );
   }
   final innerCall = _extractSingleCall(body);
@@ -114,6 +179,12 @@ RecognisedSetState recogniseSetState(
     );
   }
   final closure = args.single as FunctionExpression;
+  if (!runsWhenCalled(closure.body)) {
+    return SetStateGenerator(
+      keyword: generatorKeyword(closure.body)!,
+      writer: true,
+    );
+  }
   final assignment = _extractSingleAssignment(closure.body);
   if (assignment == null) {
     return const SetStateUnrecognised(
@@ -237,12 +308,12 @@ String? recogniseLocalValueWrite(Expression callback) {
   while (closure is ParenthesizedExpression) {
     closure = closure.expression;
   }
-  if (closure is! FunctionExpression) return null;
-  final parameters = closure.parameters?.parameters ?? const [];
+  final function = runnableClosure(closure);
+  if (function == null) return null;
+  final parameters = function.parameters?.parameters ?? const [];
   if (parameters.length != 1) return null;
   final parameter = parameters.single.declaredFragment?.element;
-  if (!runsWhenCalled(closure.body)) return null;
-  final call = _extractSingleCall(closure.body);
+  final call = _extractSingleCall(function.body);
   if (parameter == null ||
       call == null ||
       call.methodName.name != 'setState' ||
@@ -251,8 +322,8 @@ String? recogniseLocalValueWrite(Expression callback) {
   }
   final arguments = call.argumentList.arguments;
   if (arguments.length != 1) return null;
-  final writer = arguments.single.argumentExpression;
-  if (writer is! FunctionExpression) return null;
+  final writer = runnableClosure(arguments.single.argumentExpression);
+  if (writer == null) return null;
   final assignment = _extractSingleAssignment(writer.body);
   final value = assignment?.rightHandSide;
   if (assignment == null ||

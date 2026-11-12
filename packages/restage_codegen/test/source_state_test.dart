@@ -777,6 +777,73 @@ void main() {
       },
     );
 
+    test('names a generator handler as the reason', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class GestureDetector extends Widget {
+          const GestureDetector({this.onTap, this.child});
+          final void Function()? onTap;
+          final Widget? child;
+        }
+
+        class ProPaywall extends StatefulWidget {
+          const ProPaywall();
+          _ProPaywallState createState() => _ProPaywallState();
+        }
+
+        class _ProPaywallState extends State<ProPaywall> {
+          bool annual = false;
+          Iterable<void> toggle() sync* {
+            setState(() => annual = true);
+          }
+          Widget build(BuildContext context) => GestureDetector(onTap: toggle);
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(
+        result.issues.single.message,
+        "State handler 'toggle' cannot be lowered: `toggle` is a `sync*` "
+        "generator method, which a design can't run. Try writing a plain "
+        'method that does the work or returns the values.',
+      );
+    });
+
+    test('names a generator setState writer as the reason', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class GestureDetector extends Widget {
+          const GestureDetector({this.onTap, this.child});
+          final void Function()? onTap;
+          final Widget? child;
+        }
+
+        class ProPaywall extends StatefulWidget {
+          const ProPaywall();
+          _ProPaywallState createState() => _ProPaywallState();
+        }
+
+        class _ProPaywallState extends State<ProPaywall> {
+          bool annual = false;
+          void toggle() => setState(() sync* {
+            annual = true;
+          });
+          Widget build(BuildContext context) => GestureDetector(onTap: toggle);
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(
+        result.issues.single.message,
+        "State handler 'toggle' cannot be lowered: the closure `toggle` "
+        'passes to setState is a `sync*` generator, so setState never runs '
+        'it. Try removing `sync*` from the closure `toggle` passes to '
+        'setState.',
+      );
+    });
+
     test('accepts unused ordinary helper methods', () async {
       final result = await _extractBlueprint('''
         $kSourceStateStubs

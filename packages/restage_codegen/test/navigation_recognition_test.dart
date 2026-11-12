@@ -243,6 +243,32 @@ class Paywall {
     });
   });
 
+  // A generator body never runs when a slot calls it, so nothing lowers.
+  group('Navigation generator handlers', () {
+    for (final keyword in ['sync*', 'async*']) {
+      test('a $keyword push trigger is not recognised', () async {
+        final outcome = recogniseNavigationTrigger(
+          await _parseNavigationSlot('''
+() $keyword {
+  Navigator.push<void>(
+    context,
+    MaterialPageRoute<void>(builder: (_) => const DetailsScreen()),
+  );
+}
+'''),
+        );
+        expect(outcome, isA<NavigationNotRecognised>());
+      });
+
+      test('a $keyword pop-back is not recognised', () async {
+        final outcome = recogniseNavigatorPopBack(
+          await _parseNavigationSlot('() $keyword { Navigator.pop(context); }'),
+        );
+        expect(outcome, isA<NavigatorPopNotRecognised>());
+      });
+    }
+  });
+
   group('Navigator pop-back recognition', () {
     test(
       'recognises sync zero-arg callback to Navigator.pop(context)',

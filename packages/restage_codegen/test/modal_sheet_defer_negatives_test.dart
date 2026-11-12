@@ -1,11 +1,34 @@
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/modal_sheet_recognition.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
 import 'modal_sheet_test_helpers.dart';
 
 void main() {
+  // A generator body never runs when a slot calls it, so nothing lowers.
+  group('Modal sheet generator handlers', () {
+    for (final keyword in ['sync*', 'async*']) {
+      test('a $keyword trigger is not recognised', () async {
+        final outcome = recogniseModalSheetTrigger(
+          await parseModalSheetRoot(
+            '() $keyword { showModalBottomSheet<void>(context: context, '
+            "builder: (_) => const Text('Sheet')); }",
+          ),
+        );
+        expect(outcome, isA<ModalSheetNotRecognised>());
+      });
+
+      test('a $keyword close handler is not recognised', () async {
+        final outcome = recogniseModalSheetCloseHandler(
+          await parseModalSheetRoot('() $keyword { Navigator.pop(context); }'),
+        );
+        expect(outcome, isA<ModalSheetCloseNotRecognised>());
+      });
+    }
+  });
+
   group('Modal sheet fatal-defer negatives', () {
     for (final scenario in <({String name, String builder})>[
       (

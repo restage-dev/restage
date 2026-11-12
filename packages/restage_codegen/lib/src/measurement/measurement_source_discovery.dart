@@ -48,9 +48,11 @@ final class MeasurementSourceDiscoveryInput {
     Map<String, String> inlinedCustomWidgetCollectionRefusals = const {},
     Map<Element, Expression> rootLocalBindings = const {},
     Map<Element, HelperDef> rootHelpers = const {},
+    Expression? designExpression,
     this.rendersFromApp = _nothingFromApp,
     this.placedByCatalogEntry = _nothingFromApp,
-  }) : rootBranches = List.unmodifiable(rootBranches),
+  }) : designExpression = designExpression ?? rootExpression,
+       rootBranches = List.unmodifiable(rootBranches),
        inlinedCustomWidgetBlueprints = Map.unmodifiable(
          inlinedCustomWidgetBlueprints,
        ),
@@ -70,6 +72,10 @@ final class MeasurementSourceDiscoveryInput {
 
   /// Resolved expression returned by the source root's effective `build()`.
   final Expression rootExpression;
+
+  /// What the design is translated from, as its mount split records it;
+  /// [rootExpression] without a split. A sheet is planned only from here.
+  final Expression designExpression;
 
   /// Each path the build renders when it has several, in the order its
   /// mount numbers them; empty for one.
@@ -428,6 +434,12 @@ final class _MeasurementSourceDiscovery {
   late final CollectionSemanticTraversalSession _collectionSession =
       CollectionSemanticTraversalSession(admitsPlacedReuse: _routedPerSpot);
   late final _WidgetVisitContext _rootContext;
+  late final RecognisedModalSheet? _loweredSheet = switch (scanRootModalSheet(
+    input.designExpression,
+  )) {
+    RootModalSheetLowers(:final sheet) => sheet,
+    _ => null,
+  };
 
   // Inlined widgets, by class identity, that every placement shares; empty on
   // the first walk.
@@ -1297,19 +1309,15 @@ final class _MeasurementSourceDiscovery {
         !_sharedSpots.add(emissionOccurrence)) {
       return;
     }
-    final trigger = recogniseModalSheetTrigger(sourceExpression);
-    switch (trigger) {
-      case ModalSheetRecognised(:final sheet):
-        // The tap that opens the sheet is routed; the sheet body is lowered
-        // from the root and measured under the tap's sheet scope.
-        _visitWidgetExpression(
-          _modalSheetBuilderBody(sheet),
-          _rootContext.withOccurrenceScope(emissionOccurrence.sheetBuilder()),
-        );
-      case ModalSheetResultDropped(:final reason):
-        throw ArgumentError(reason);
-      case ModalSheetNotRecognised():
-        break;
+    // Only the sheet the root lowers is measured under the tap's sheet scope;
+    // the app opens any other, so its taps are the app's.
+    if (recogniseModalSheetTrigger(sourceExpression) case ModalSheetRecognised(
+      :final sheet,
+    ) when identical(sheet.call, _loweredSheet?.call)) {
+      _visitWidgetExpression(
+        _modalSheetBuilderBody(sheet),
+        _rootContext.withOccurrenceScope(emissionOccurrence.sheetBuilder()),
+      );
     }
     final event = MeasurementDiscoveredEvent._(
       node: node,

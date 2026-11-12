@@ -4,7 +4,6 @@ import 'package:restage_compiler_core/src/rfw_scalar_callback_contract.dart'
 import 'package:restage_codegen/src/scalar_callback_lowering.dart';
 import 'package:restage_codegen/src/grid_value_recipes.dart';
 import 'package:restage_codegen/src/builder_expression_lowering.dart';
-import 'package:restage_codegen/src/callback_body.dart';
 import 'package:restage_codegen/src/widget_builder_lowering.dart';
 import 'package:restage_codegen/src/widget_collection_lowering.dart';
 import 'dart:collection';
@@ -1178,14 +1177,23 @@ final class ExpressionTranslator {
           ? expr
           : _splitRoot(expr, islandSession, liftedState);
       if (islandSession?.problem case final problem?) issues.add(problem);
-      final rootIssues = <Issue>[];
-      bool clean() => issues.isEmpty && rootIssues.isEmpty;
-      var modalSheet = _findSingleRootModalSheetTrigger(design, rootIssues);
+      // Under a split, a root sheet or navigation that cannot lower leaves
+      // its closures to the mount as actions. A refused sheet also leaves
+      // navigation to the app; failing navigation keeps the sheet. Without a
+      // split, either refusal fails the build.
+      final split = islandSession != null;
+      bool refuses(List<Issue> found) =>
+          found.any((issue) => !issue.code.isBuildNotice);
+      final sheetIssues = <Issue>[];
+      final modalSheet = _findSingleRootModalSheetTrigger(design, sheetIssues);
+      final navigationIssues = <Issue>[];
+      bool clean() =>
+          issues.isEmpty && navigationIssues.isEmpty && sheetIssues.isEmpty;
       final navigationTriggers = entryId == null || !clean()
           ? const <RecognisedNavigation>[]
           : _findRootNavigationTriggers(
               design,
-              rootIssues,
+              navigationIssues,
               buildContextParameter: buildContextParameter,
             );
       var navigationContext = clean() && entryId != null
@@ -1193,18 +1201,13 @@ final class ExpressionTranslator {
               entryId: entryId,
               expr: design,
               triggers: navigationTriggers,
-              issues: rootIssues,
+              issues: navigationIssues,
               buildContextParameter: buildContextParameter,
             )
           : null;
-      // Under a split, a root sheet or navigation that cannot lower leaves
-      // its closures to the mount as actions.
-      if (islandSession != null &&
-          rootIssues.any((issue) => !issue.code.isBuildNotice)) {
-        modalSheet = null;
-        navigationContext = null;
-      } else {
-        issues.addAll(rootIssues);
+      if (split && refuses(navigationIssues)) navigationContext = null;
+      for (final found in [sheetIssues, navigationIssues]) {
+        if (!split || !refuses(found)) issues.addAll(found);
       }
       final rootShapeIssue = issues.isEmpty
           ? _validateRootStateShape(rootState, rootEventHandlers, expr)
@@ -1247,9 +1250,6 @@ final class ExpressionTranslator {
           );
         }
         _currentNavigation = navigationContext;
-        if (navigationContext != null && navigationContext.hasTransitions) {
-          navigationLowering = navigationContext.toLowering();
-        }
         if (_branches(issues) case final branches?) {
           dsl = branches;
         } else if (_admitOrdinaryLeaf(design, issues)) {
@@ -1264,6 +1264,12 @@ final class ExpressionTranslator {
           );
         }
         if (context != null && issues.isNotEmpty) dsl = '';
+        // The plan holds only transitions whose event the design fires.
+        if (navigationContext != null && navigationContext.hasTransitions) {
+          navigationLowering = navigationContext.toLowering(
+            emitted: [dsl, ...widgetDefinitions.values],
+          );
+        }
         if (navigationContext != null &&
             (issues.any((issue) => !issue.code.isBuildNotice) ||
                 _currentTranslationSuppressed)) {
@@ -2714,6 +2720,7 @@ final class ExpressionTranslator {
         // A switch's design root is its last case, as a build's is its last
         // return.
         designRoot: returns.length > 1 ? root : branches.last,
+        designExpression: root,
         shell: const [],
         state: state,
       );
@@ -5936,7 +5943,6 @@ final class ExpressionTranslator {
   // the callback is a field of the widget.
   bool _splitsAction(Expression expression) {
     if (expression is! FunctionExpression ||
-        !runsWhenCalled(expression.body) ||
         expression.parameters?.parameters.isNotEmpty != false) {
       return false;
     }
@@ -7212,6 +7218,20 @@ final class ExpressionTranslator {
           expr,
           IssueCode.unrecognizedMethodCall,
           capabilityGapSubject: 'expression:${_nodeKind(expr)}',
+        ),
+      );
+      return '';
+    }
+    // Same code as the general refusal, so a split still binds the closure.
+    if (generatorCallback(expr) case final generator?) {
+      issues.add(
+        Issue(
+          code: IssueCode.unrecognizedMethodCall,
+          message:
+              "Restage can't translate "
+              '`${readableSource(expr.toSource())}` (${_locationOf(expr)}): '
+              '${generator.problem(null)}. Try ${generator.fix(null)}.',
+          location: _declarationOf(expr),
         ),
       );
       return '';
@@ -12262,23 +12282,15 @@ final class ExpressionTranslator {
     Expression expr,
     List<Issue> issues,
   ) {
-    final scanner = _RootModalSheetTriggerScanner();
-    expr.accept(scanner);
-    if (scanner.resultDrop != null) {
-      issues.add(_modalSheetUnsupportedIssue(scanner.resultDrop!, expr));
-      return null;
+    switch (scanRootModalSheet(expr)) {
+      case RootModalSheetLowers(:final sheet):
+        return sheet;
+      case RootModalSheetRefused(:final reason):
+        issues.add(_modalSheetUnsupportedIssue(reason, expr));
+        return null;
+      case RootModalSheetNone():
+        return null;
     }
-    if (scanner.recognised.isEmpty) return null;
-    if (scanner.recognised.length > 1) {
-      issues.add(
-        _modalSheetUnsupportedIssue(
-          'only one modal sheet trigger can be lowered in a paywall root',
-          expr,
-        ),
-      );
-      return null;
-    }
-    return scanner.recognised.single;
   }
 
   List<RecognisedNavigation> _findRootNavigationTriggers(
@@ -16659,6 +16671,16 @@ final class ExpressionTranslator {
         );
         final location = _locationOf(method ?? anchor);
         final problem = reason.split(' — ').first;
+        if (value is SetStateGenerator) {
+          return Issue(
+            code: IssueCode.nestedStateIsland,
+            message:
+                "'$className' keeps its state in the app: "
+                '${value.problem(handler)} ($location). Try '
+                '${value.fix(handler)}.',
+            location: _locationOf(anchor),
+          );
+        }
         return Issue(
           code: IssueCode.nestedStateIsland,
           message:
@@ -16720,7 +16742,7 @@ final class ExpressionTranslator {
     for (final entry in eventHandlers.entries) {
       final verdict = entry.value;
       if (verdict is SetStateUnrecognised) {
-        return _setStateUnrecognisedIssue(entry.key, verdict.reason, anchor);
+        return _setStateUnrecognisedIssue(entry.key, verdict, anchor);
       }
     }
     return null;
@@ -16757,8 +16779,8 @@ final class ExpressionTranslator {
         final path = 'state${_rfwPathPart(fieldName)}';
         return 'set $path = switch $path '
             '{ true: false, false: true }';
-      case SetStateUnrecognised(:final reason):
-        issues.add(_setStateUnrecognisedIssue(methodName, reason, anchor));
+      case SetStateUnrecognised():
+        issues.add(_setStateUnrecognisedIssue(methodName, verdict, anchor));
         return '';
     }
   }
@@ -16770,17 +16792,20 @@ final class ExpressionTranslator {
   /// (`_validateRootStateShape`) so the wording stays in one place.
   Issue _setStateUnrecognisedIssue(
     String methodName,
-    String reason,
+    SetStateUnrecognised verdict,
     AstNode anchor,
   ) {
     return Issue(
       code: IssueCode.stateShapeUnsupported,
-      message:
-          'State method "$methodName" is referenced as an event '
-          'handler but its body is not a recognised setState shape '
-          '(a single `setState(() => <field> = <literal>);` or '
-          '`setState(() => <field> = !<field>);`). Specifically: '
-          '$reason.',
+      message: verdict is SetStateGenerator
+          ? 'State method "$methodName" is referenced as an event handler, '
+                'but ${verdict.problem(methodName)}. Try '
+                '${verdict.fix(methodName)}.'
+          : 'State method "$methodName" is referenced as an event '
+                'handler but its body is not a recognised setState shape '
+                '(a single `setState(() => <field> = <literal>);` or '
+                '`setState(() => <field> = !<field>);`). Specifically: '
+                '${verdict.reason}.',
       location: _locationOf(anchor),
     );
   }
@@ -21538,17 +21563,24 @@ final class _NavigationEmitContext {
     return null;
   }
 
-  NavigationLowering toLowering() => NavigationLowering(
-    entryId: entryId,
-    transitions: [
+  /// The lowering of the transitions whose event appears in [emitted], or
+  /// null when the design fires none.
+  NavigationLowering? toLowering({required Iterable<String> emitted}) {
+    final transitions = [
       for (final entry in entries)
-        NavigationTransition(
-          event: entry.event,
-          pushedId: entry.trigger.paywallSourceId,
-        ),
-    ],
-    terminatingEvent: 'skip',
-  );
+        if (emitted.any((text) => text.contains('event "${entry.event}"')))
+          NavigationTransition(
+            event: entry.event,
+            pushedId: entry.trigger.paywallSourceId,
+          ),
+    ];
+    if (transitions.isEmpty) return null;
+    return NavigationLowering(
+      entryId: entryId,
+      transitions: transitions,
+      terminatingEvent: 'skip',
+    );
+  }
 }
 
 final class _NavigationTriggerEntry {
@@ -21743,43 +21775,6 @@ final class _EventHelperCalls extends RecursiveAstVisitor<void> {
 // The event a `context.surfaceEvent(...)` call fires, or null.
 String? _authoredEventCallName(MethodInvocation node) =>
     isContextSurfaceEvent(node) ? authoredEventName(node) : null;
-
-final class _RootModalSheetTriggerScanner extends RecursiveAstVisitor<void> {
-  final List<RecognisedModalSheet> recognised = [];
-  String? resultDrop;
-
-  @override
-  void visitFunctionExpression(FunctionExpression node) {
-    final outcome = recogniseModalSheetTrigger(node);
-    if (!_isModalTriggerSlot(node)) {
-      switch (outcome) {
-        case ModalSheetRecognised():
-          resultDrop ??= kModalSheetTriggerSlotUnsupportedReason;
-        case ModalSheetResultDropped(:final reason):
-          resultDrop ??= reason;
-        case ModalSheetNotRecognised():
-          break;
-      }
-      super.visitFunctionExpression(node);
-      return;
-    }
-    switch (outcome) {
-      case ModalSheetRecognised(:final sheet):
-        recognised.add(sheet);
-      case ModalSheetResultDropped(:final reason):
-        resultDrop ??= reason;
-      case ModalSheetNotRecognised():
-        break;
-    }
-    super.visitFunctionExpression(node);
-  }
-
-  bool _isModalTriggerSlot(FunctionExpression node) {
-    final parent = node.parent;
-    if (parent is! NamedArgument) return false;
-    return isModalSheetTriggerSlotName(parent.name.lexeme);
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Helpers for string-interpolation decomposition.

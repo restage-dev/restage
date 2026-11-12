@@ -3,6 +3,7 @@ import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
+import 'package:restage_codegen/src/callback_body.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 
 /// Flutter route constructors recognised as declarative screen navigation.
@@ -247,12 +248,11 @@ typedef CanonicalPaywallIdFor = String? Function(ClassElement declaration);
 /// dropping a route result: `() => Navigator.push(...)` or the block
 /// equivalent.
 NavigationTriggerOutcome recogniseNavigationTrigger(
-  Expression slotValue, {
+  Expression handler, {
   CanonicalPaywallIdFor? canonicalPaywallIdFor,
 }) {
-  if (slotValue is! FunctionExpression) {
-    return const NavigationNotRecognised();
-  }
+  final slotValue = runnableClosure(handler);
+  if (slotValue == null) return const NavigationNotRecognised();
 
   final navigationCallCount = _countNavigatorCalls(slotValue.body);
   if (navigationCallCount == 0) return const NavigationNotRecognised();
@@ -362,10 +362,9 @@ NavigationBuilderOutcome recogniseStaticNavigationBuilder(Expression builder) {
 }
 
 /// Recognises the flow-screen back form: `() => Navigator.pop(context)`.
-NavigatorPopBackOutcome recogniseNavigatorPopBack(Expression slotValue) {
-  if (slotValue is! FunctionExpression) {
-    return const NavigatorPopNotRecognised();
-  }
+NavigatorPopBackOutcome recogniseNavigatorPopBack(Expression handler) {
+  final slotValue = runnableClosure(handler);
+  if (slotValue == null) return const NavigatorPopNotRecognised();
 
   final popCount = _countNavigatorPopCalls(slotValue.body);
   if (popCount == 0) return const NavigatorPopNotRecognised();
