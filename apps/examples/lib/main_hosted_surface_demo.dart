@@ -73,7 +73,6 @@ Future<void> main() async {
       deliveryKeys: [demoDeliveryKey],
       resolver: RestageVariantResolver(
         apiKey: _fakeApiKey,
-        environment: RestageEnvironment.sandbox,
         baseUrl: _fakeBaseUrl,
         httpClient: FakeSurfaceServer(envelope),
       ),
@@ -220,7 +219,6 @@ class _HostedPaywallDemoState extends State<HostedPaywallDemo> {
     final envelope = await buildPaywallSurfaceEnvelope(_bundledPaywallId);
     return RestageVariantResolver(
       apiKey: _fakeApiKey,
-      environment: RestageEnvironment.sandbox,
       baseUrl: _fakeBaseUrl,
       httpClient: FakeSurfaceServer(envelope),
     );

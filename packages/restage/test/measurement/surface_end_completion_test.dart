@@ -16,61 +16,39 @@ import '../support/pump_until.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('a tap never completes the surface, even on a completing route',
+      (tester) async {
+    final attempt = _Attempt();
+    addTearDown(attempt.close);
+    final session = attempt.openDeferred();
+    await tester.pumpWidget(_host(session));
+    await attempt.release(tester);
+
+    session.sanitizeAndRecordEvent(_tap(completing: true));
+    expect(session.debugCompleted, isFalse);
+
+    await tester.runAsync(() => session.teardown());
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets(
-      'a tap on a completing route latches completion until another '
-      'interaction replaces it', (tester) async {
+      'a completion noted before the session opens is replayed and stays, '
+      'whatever is tapped afterwards', (tester) async {
     final attempt = _Attempt();
     addTearDown(attempt.close);
     final session = attempt.openDeferred();
     await tester.pumpWidget(_host(session));
     await tester.pump();
 
-    // Held while pending, then replayed in order once the session opens.
-    session.sanitizeAndRecordEvent(_tap(completing: true));
+    session.noteCompletion();
     await attempt.release(tester);
     expect(session.debugState, MeasurementHostSessionDebugState.active);
-    expect(session.debugLastInteractionCompletes, isTrue);
+    expect(session.debugCompleted, isTrue);
 
     session.sanitizeAndRecordEvent(_tap(completing: false));
-    expect(session.debugLastInteractionCompletes, isFalse);
-
-    session.sanitizeAndRecordEvent(_tap(completing: true));
-    expect(session.debugLastInteractionCompletes, isTrue);
-
-    // An event with no measured route leaves the latch as it was.
-    session.sanitizeAndRecordEvent(const <String, Object?>{'plan': 'annual'});
-    expect(session.debugLastInteractionCompletes, isTrue);
-
-    await tester.runAsync(() => session.teardown());
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
-
-  testWidgets('typing after a completing tap still closes as completion',
-      (tester) async {
-    final attempt = _Attempt();
-    addTearDown(attempt.close);
-    final session = attempt.openDeferred();
-    await tester.pumpWidget(_host(session));
-    await attempt.release(tester);
-
-    session.sanitizeAndRecordEvent(_tap(completing: true));
-    session.sanitizeAndRecordEvent(const <String, Object?>{'value': 'SAVE10'});
     session.sanitizeAndRecordEvent('SAVE10');
-    expect(session.debugLastInteractionCompletes, isTrue);
+    expect(session.debugCompleted, isTrue);
 
-    // Closing now records completion: the surface end reads this latch.
-    await tester.runAsync(() => session.teardown());
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
-
-  testWidgets('an event before any tap leaves the surface dismissed',
-      (tester) async {
-    final attempt = _Attempt();
-    addTearDown(attempt.close);
-    final session = attempt.openDeferred();
-    await tester.pumpWidget(_host(session));
-    await attempt.release(tester);
-    expect(session.debugLastInteractionCompletes, isFalse);
     await tester.runAsync(() => session.teardown());
     await tester.pumpWidget(const SizedBox.shrink());
   });

@@ -33,6 +33,10 @@ final Uint8List _paywallBlob = Uint8List.fromList(encodeLibraryBlob(
         onTap: event "browse" { $kMeasurementPublicationRouteArgumentKeyV1: "${_carrier('A')}" },
         child: Text(text: "Browse"),
       ),
+      GestureDetector(
+        onTap: event "purchased" {},
+        child: Text(text: "Purchased"),
+      ),
     ]);
   '''),
 ));
@@ -65,8 +69,10 @@ void main() {
 
   Future<List<MeasurementWorkerAppendValue>> endAfterTap(
     WidgetTester tester,
-    String label,
-  ) async {
+    String label, {
+    Set<String> completesOn = const {},
+    Future<void> Function(WidgetTester tester)? before,
+  }) async {
     final fixture = AdmittedBundledPublicationFixture.build(
       completingTap: true,
       lifecycleEnds: true,
@@ -85,6 +91,10 @@ void main() {
       home: Scaffold(
         body: RestagePaywall(
           id: 'pro_upgrade',
+          placementBinding: completesOn.isEmpty
+              ? null
+              : RestagePaywall.generatedPlacementBinding(
+                  definition: () => _definition(completesOn)),
           resolver: _BundledResolver(fixture),
           controller: controller,
         ),
@@ -103,6 +113,7 @@ void main() {
       reason: 'a worker registration',
     );
 
+    await before?.call(tester);
     await tester.tap(find.text(label));
     await tester.pump();
     controller.dismiss();
@@ -121,11 +132,47 @@ void main() {
     ];
   }
 
-  testWidgets('closing after a completing tap records completion',
+  testWidgets('a tap on a route marked as completing still dismisses',
       (tester) async {
     expect(
       await endAfterTap(tester, 'Buy'),
+      [MeasurementWorkerAppendValue.dismiss],
+    );
+  });
+
+  testWidgets(
+      'a completesOn event fired by app code completes the paywall, '
+      'whatever is tapped after it', (tester) async {
+    expect(
+      await endAfterTap(
+        tester,
+        'Browse',
+        completesOn: {'purchased'},
+        before: (tester) async {
+          // App code below the paywall, as after a successful purchase.
+          final context = tester.element(find.text('Browse'));
+          context.surfaceEvent(const SurfaceEvent<void>('purchased'))();
+          await tester.pump();
+        },
+      ),
       [MeasurementWorkerAppendValue.completion],
+    );
+  });
+
+  testWidgets(
+      'a completesOn event a tap in the design fires does not complete the '
+      'paywall', (tester) async {
+    expect(
+      await endAfterTap(tester, 'Purchased', completesOn: {'purchased'}),
+      [MeasurementWorkerAppendValue.dismiss],
+    );
+  });
+
+  testWidgets('an event the paywall does not complete on still dismisses',
+      (tester) async {
+    expect(
+      await endAfterTap(tester, 'Purchased', completesOn: {'other'}),
+      [MeasurementWorkerAppendValue.dismiss],
     );
   });
 
@@ -136,3 +183,30 @@ void main() {
     );
   });
 }
+
+GeneratedPlacementDefinition _definition(Set<String> completesOn) =>
+    RestagePaywall.generatedPlacementDefinition(
+      id: 'pro_upgrade',
+      defaultSurfaceLocatorJson: <String, Object?>{
+        'surfaceType': 'paywall',
+        'slug': 'pro_upgrade',
+        'family': <String, Object?>{'kind': 'general'},
+      },
+      hostContractJson: <String, Object?>{
+        'schemaVersion': 1,
+        'hosting': <String, Object?>{
+          'contentKind': 'single',
+          'presentation': 'inline',
+        },
+        'providedContext': <String, Object?>{
+          'schemaVersion': 1,
+          'inputs': <String, Object?>{},
+        },
+        'handledEvents': <String, Object?>{
+          'schemaVersion': 1,
+          'events': <Object?>[],
+        },
+        'flowBoundary': null,
+      },
+      completesOn: completesOn,
+    );

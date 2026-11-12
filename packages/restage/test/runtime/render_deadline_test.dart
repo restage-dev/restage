@@ -945,7 +945,7 @@ widget OnboardingScreen = ThrowingWidget();
       await tester.pump();
       expect(find.text('Fresh'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
-      await tester.pump(MeasurementHostSessionController.openBudget);
+      await tester.pump(MeasurementHostSessionController.openCeiling);
     });
 
     testWidgets('a screen paints while its session is still opening',
@@ -958,7 +958,7 @@ widget OnboardingScreen = ThrowingWidget();
       await tester.pump();
       expect(find.text('Hosted screen'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
-      await tester.pump(MeasurementHostSessionController.openBudget);
+      await tester.pump(MeasurementHostSessionController.openCeiling);
     });
 
     testWidgets('a flow paints while its session is still opening',
@@ -976,7 +976,7 @@ widget OnboardingScreen = ThrowingWidget();
       await tester.pump();
       expect(find.text('Fresh'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
-      await tester.pump(MeasurementHostSessionController.openBudget);
+      await tester.pump(MeasurementHostSessionController.openCeiling);
     });
   });
 
@@ -1034,7 +1034,6 @@ widget OnboardingScreen = ThrowingWidget();
           SurfaceStoreKey(
             scope: SurfaceStoreKey.scopeFor(
               apiKey: 'key',
-              environment: RestageEnvironment.production.name,
             ),
             surfaceType: 'paywall',
             slug: 'pro',
@@ -1049,7 +1048,6 @@ widget OnboardingScreen = ThrowingWidget();
         (tester) async {
       final scope = SurfaceStoreKey.scopeFor(
         apiKey: 'key',
-        environment: RestageEnvironment.production.name,
       );
       final stored = SurfaceStoreKey(
         scope: scope,
@@ -1146,7 +1144,6 @@ widget OnboardingScreen = ThrowingWidget();
         (tester) async {
       final scope = SurfaceStoreKey.scopeFor(
         apiKey: 'key',
-        environment: RestageEnvironment.production.name,
       );
       final storedFlow = SurfaceStoreKey(
         scope: scope,
@@ -1172,7 +1169,6 @@ widget OnboardingScreen = ThrowingWidget();
         (tester) async {
       final scope = SurfaceStoreKey.scopeFor(
         apiKey: 'key',
-        environment: RestageEnvironment.production.name,
       );
       final storedFlow = SurfaceStoreKey(
         scope: scope,

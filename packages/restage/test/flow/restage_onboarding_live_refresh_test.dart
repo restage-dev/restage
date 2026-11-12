@@ -10,6 +10,7 @@ import 'package:restage/src/flow/flow_resolver.dart' show ActiveArmFlowResolver;
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../support/debug_print_capture.dart';
 import 'flow_test_support.dart';
 
 /// A flow resolver whose served flow is mutable between resolves.
@@ -128,6 +129,23 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Second'), findsOneWidget);
     expect(find.text('First'), findsNothing);
+  });
+
+  testWidgets('a refresh that swaps an onboarding flow logs it',
+      (tester) async {
+    final resolver = _MutableFlowResolver(resolvedFlow(welcomeText: 'First'));
+    await tester.pumpWidget(_host(resolver));
+    await tester.pumpAndSettle();
+
+    final logs = await captureRestageLogs(() async {
+      resolver.flow = resolvedFlow(welcomeText: 'Second');
+      await Restage.reloadSurfaces();
+      await tester.pumpAndSettle();
+    });
+
+    expect(find.text('Second'), findsOneWidget);
+    expect(logs, hasLength(1));
+    expect(logs.single, startsWith('[restage] live refresh: onboarding '));
   });
 
   testWidgets('a pending onboarding retains its accepted context',

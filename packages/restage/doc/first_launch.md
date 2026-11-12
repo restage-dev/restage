@@ -8,8 +8,7 @@ choose the wait.
 ## How fast delivered content arrives
 
 These times run from app start to when the delivered content reaches the device.
-They were measured on 2026-11-04 against a pre-release environment of our hosted
-service: one Android phone on Wi-Fi, and an Android emulator with its network
+They come from one Android phone on Wi-Fi, and an Android emulator with its network
 throttled to stand in for slower mobile networks.
 
 | Network | Fresh install | Returning launch |
@@ -29,11 +28,15 @@ their distance from the service and the size of your surfaces.
 
 ## Choosing `firstLaunchWait`
 
-The default is 3 s. The wait only ends early when content arrives, so on a fast
-network it costs nothing: the mount paints as soon as the content is there.
+The default is 3 s. The wait ends as soon as the request for delivered content
+answers or fails and the device has read what it saved, so on a fast network it
+costs nothing: the mount paints as soon as the content is there. A request that
+stalls, as on a network with no internet access, keeps a fresh install waiting the
+whole time before it paints the compiled original. Show a `loadingBuilder`
+meanwhile.
 
 The wait counts from when the surface mounts, which is a little after app start
-(0.2 s on Wi-Fi, and 0.4 s or more on slower networks in our runs). So a 3 s
+(0.2 s on Wi-Fi, and 0.4 s or more on slower networks in these measurements). So a 3 s
 wait covers content that arrives up to about 3.2–3.4 s after app start.
 
 | Wait | Effect, from the measurements above |

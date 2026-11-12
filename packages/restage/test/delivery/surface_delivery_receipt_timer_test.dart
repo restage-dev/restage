@@ -86,7 +86,6 @@ void main() {
         measurementEnabled: false,
         resolver: RestageVariantResolver(
           apiKey: _apiKey,
-          environment: RestageEnvironment.production,
           baseUrl: _baseUrl,
           httpClient: client,
         ),

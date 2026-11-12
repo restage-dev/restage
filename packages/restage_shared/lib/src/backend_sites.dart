@@ -3,6 +3,10 @@ const defaultDocsOrigin = 'https://docs.restage.dev';
 
 final _cloudApiHost = RegExp(r'^api((?:-[a-z0-9]+)*)\.restage\.dev$');
 
+/// Whether [endpoint] is a Restage Cloud API, `https://api<suffix>.restage.dev`.
+bool isRestageCloudApi(Uri endpoint) =>
+    endpoint.scheme == 'https' && _cloudApiHost.hasMatch(endpoint.host);
+
 /// The docs and dashboard that belong to the backend at [endpoint].
 ///
 /// A Restage Cloud API at `api<suffix>.restage.dev` pairs with

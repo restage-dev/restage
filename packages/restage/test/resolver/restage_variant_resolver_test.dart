@@ -58,7 +58,6 @@ void main() {
       final requests = <http.Request>[];
       final resolver = RestageVariantResolver(
         apiKey: 'rs_pk_dev_fallback',
-        environment: RestageEnvironment.production,
         baseUrl: 'https://surfaces.example.com',
         httpClient: _server(
             _paywallFlowEnvelope(screenBytes: hosted, slug: 'native_offer'),
@@ -84,13 +83,11 @@ void main() {
   const apiKey = 'rs_pk_test_abc123';
   final blob = Uint8List.fromList([10, 20, 30, 255]);
 
-  test('constructor exposes apiKey + environment', () {
+  test('constructor exposes apiKey', () {
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
     );
     expect(resolver.apiKey, 'rs_pk_test');
-    expect(resolver.environment, RestageEnvironment.sandbox);
   });
 
   group('resolve — fresh hosted fetch (active arm)', () {
@@ -101,7 +98,6 @@ void main() {
       final requests = <http.Request>[];
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _server(
           envelope,
@@ -136,7 +132,6 @@ void main() {
       final assignment = canonicalAssignmentFixture();
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _server(
           _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob),
@@ -169,7 +164,6 @@ void main() {
       final requests = <http.Request>[];
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _server(envelope, onRequest: requests.add),
       );
@@ -202,7 +196,6 @@ void main() {
       final installedRequests = <http.Request>[];
       await RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _server(envelope, onRequest: installedRequests.add),
       ).resolve('pro_upgrade');
@@ -216,7 +209,6 @@ void main() {
       final clearedRequests = <http.Request>[];
       await RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _server(envelope, onRequest: clearedRequests.add),
       ).resolve('pro_upgrade');
@@ -233,7 +225,6 @@ void main() {
       final requests = <http.Request>[];
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _delivery.client((request) async {
           requests.add(request);
@@ -270,7 +261,6 @@ void main() {
       final flowEnvelope = _flowEnvelope();
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _server(flowEnvelope),
         // No bundled asset for this id -> the ladder ends in a throw.
@@ -287,7 +277,6 @@ void main() {
     test('a non-decodable envelope falls through to a typed error', () async {
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _delivery.client(
           (_) async => http.Response(
@@ -315,7 +304,6 @@ void main() {
       );
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _server(envelope),
       );
@@ -335,7 +323,6 @@ void main() {
           _blobEnvelope(slug: 'other_paywall', version: 9, blob: blob);
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _server(envelope),
       );
@@ -358,7 +345,6 @@ void main() {
       );
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _server(envelope),
       );
@@ -380,7 +366,6 @@ void main() {
     RestageVariantResolver resolverFor(Uint8List envelope) =>
         RestageVariantResolver(
           apiKey: apiKey,
-          environment: RestageEnvironment.production,
           baseUrl: baseUrl,
           httpClient: _server(envelope),
         );
@@ -460,7 +445,6 @@ void main() {
       // so resolution would fall to the in-memory hold-last-good cache.
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _sequenceServer([
           http.Response(
@@ -493,7 +477,6 @@ void main() {
       final assignment = canonicalAssignmentFixture();
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _sequenceServer([
           http.Response(
@@ -540,7 +523,6 @@ void main() {
       holdAssignmentsUnder('assignment-key-a');
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _sequenceServer([
           http.Response(
@@ -579,7 +561,6 @@ void main() {
       );
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _sequenceServer([
           http.Response(jsonEncode({..._delivery.describeEnvelope(good)}), 200),
@@ -607,7 +588,6 @@ void main() {
       );
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _delivery.client(
           (_) async => http.Response(jsonEncode({'error': 'unavailable'}), 503),
@@ -625,7 +605,6 @@ void main() {
         () async {
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _delivery.client(
           (_) async => http.Response(jsonEncode({'error': 'unavailable'}), 503),
@@ -653,7 +632,6 @@ void main() {
       );
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         // No baseUrl -> no hosted tier.
         assetFallback: _StubResolver(returns: assetVariant),
       );
@@ -669,7 +647,6 @@ void main() {
           _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _server(envelope),
       );
@@ -690,7 +667,6 @@ void main() {
           _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _sequenceServer([
           http.Response(
@@ -724,7 +700,6 @@ void main() {
       );
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _delivery.client(
           (_) async => http.Response(jsonEncode({'error': 'unavailable'}), 503),
@@ -764,7 +739,6 @@ void main() {
         ..writeScreen('paywall_pro_upgrade.rfw', bundledScreen);
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _server(hostedFlowEnvelope),
         assetFallback: AssetVariantResolver(bundle: bundle),
@@ -801,7 +775,6 @@ void main() {
         ..writeScreen('paywall_pro_upgrade.rfw', bundledScreen);
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _server(
           _paywallFlowEnvelope(screenBytes: hostedScreen, version: 9),
@@ -835,7 +808,6 @@ void main() {
         ..writeScreen('paywall_pro_upgrade.rfw', bundledScreen);
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _sequenceServer([
           http.Response(
@@ -893,7 +865,6 @@ void main() {
         ..writeScreen('paywall_pro_upgrade.rfw', bundledScreen);
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _delivery.client(
           (_) async => http.Response(jsonEncode({'error': 'unavailable'}), 503),
@@ -922,7 +893,6 @@ void main() {
     test('a stored delivery above the installed floor is skipped', () async {
       final resolver = RestageVariantResolver(
         apiKey: 'rs_pk_test',
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _sequenceServer([http.Response('unavailable', 503)]),
         assetFallback: _StubResolver(returns: bundledVariant),
@@ -955,7 +925,6 @@ void main() {
       final requests = <http.Request>[];
       final resolver = RestageVariantResolver(
         apiKey: 'rs_pk_test',
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _delivery.client((request) async {
           requests.add(request);
@@ -995,7 +964,6 @@ void main() {
       var calls = 0;
       final resolver = RestageVariantResolver(
         apiKey: 'rs_pk_test',
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _delivery.client((request) async {
           calls += 1;
@@ -1030,7 +998,6 @@ void main() {
       final requests = <http.Request>[];
       final resolver = RestageVariantResolver(
         apiKey: 'rs_pk_test',
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _delivery.client((request) async {
           requests.add(request);

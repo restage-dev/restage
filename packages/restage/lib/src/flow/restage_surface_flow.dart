@@ -40,6 +40,7 @@ import '../resolver/surface_delivery_observations.dart'
         requestingViewShortestLogicalSide,
         withSurfaceDeliveryObservations;
 import '../refresh/delivery_announcement.dart';
+import '../refresh/refresh_swap_log.dart';
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/surface_update_channel.dart';
@@ -471,6 +472,12 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
       return;
     }
     _disposePending(); // supersede any in-flight pending (the loser)
+    // A placement refresh is reported when it swaps; other resolvers report
+    // as they resolve.
+    final reportTo = switch (adoptedRoot == null ? _resolver() : null) {
+      final PlacementFlowResolver placement => placement,
+      _ => null,
+    };
     late final RestageFlowController<R> pending;
     pending = _buildController(
       adoptedRoot: adoptedRoot,
@@ -528,7 +535,11 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         transaction,
         presentation,
       ),
-      onPainted: report?.painted,
+      onPainted: () {
+        debugLogRefreshSwap(widget.flow.surfaceType.wireName, widget.flow.id,
+            pending.resolvedVersion);
+        report?.painted();
+      },
       afterRejection: () => _discardPending(pending),
     );
     _pendingController = pending;
@@ -555,6 +566,10 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
           announced?.drop();
           _scheduleDiscardPending(pending);
           return;
+        }
+        if ((reportTo, pending.currentResolvedFlow)
+            case (final resolver?, final resolved?)) {
+          reportRaceWinner(resolver, resolver.storeKey, resolved);
         }
         _offstage.route(pending, pending.currentLibrary,
             step: pending.currentStepMount != null);

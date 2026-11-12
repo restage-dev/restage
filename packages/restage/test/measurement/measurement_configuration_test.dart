@@ -220,7 +220,6 @@ widget Paywall = MeasurementSourcePresented(
     final deliveryResponse = Completer<http.Response>();
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_assignment_frame',
-      environment: RestageEnvironment.production,
       baseUrl: 'https://surfaces.example.com',
       httpClient: delivery.client((_) => deliveryResponse.future),
     );

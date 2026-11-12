@@ -86,10 +86,14 @@ Expose this state to consumer builds in the package's `build.yaml`:
 
 ```yaml
 additional_public_assets:
-  - .restage/**
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+  - .restage/receipts/**
+  - .restage/library-contracts/**
 ```
 
-If a target restricts `sources`, include `.restage/**` there too. Apply this to
+If a target restricts `sources`, include these entries there too. Leave
+`.restage/build/` out, because builds write their output there. Apply this to
 each package that owns Restage state, including members built with
 `dart run build_runner build --workspace`. The app declares the shared package
 in `dependencies`, imports its library and runs its usual build.

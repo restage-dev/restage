@@ -31,6 +31,7 @@ import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../measurement/placement_mount_attribution.dart';
 import '../delivery/surface_delivery_receipt_batch.dart';
 import '../resolver/placement_mount_resolver.dart';
+import '../refresh/refresh_swap_log.dart';
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_update_channel.dart' show SurfaceRef;
 import '../runtime/placement_presentation.dart';
@@ -57,6 +58,7 @@ import '../runtime/state_variables.dart'
     show currentDevicePlatform, populateDeviceData, populateThemeData;
 import 'surface_screen_runtime_provenance.dart';
 import 'surface_screen_types.dart';
+import 'asset_surface_screen_resolver.dart';
 
 /// Category-neutral host for one independently published screen.
 ///
@@ -281,13 +283,30 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       return true;
     }());
     _disposeStages();
+    // With nothing that could deliver, the first frame shows the original.
+    final undeliverable = _undeliverable();
     setState(() {
-      _unavailableError = null;
+      _unavailableError = undeliverable;
       _showDeadlineFallback = false;
       _late = null;
     });
+    if (undeliverable != null) {
+      deadline
+        ..markSettled()
+        ..cancel();
+      scheduleMicrotask(() {
+        if (_isCurrent(epoch)) widget.onUnavailable?.call(undeliverable);
+      });
+      return;
+    }
     if (!_presentHeld(epoch)) unawaited(_resolveInScope(epoch));
   }
+
+  SurfaceScreenUnavailableError? _undeliverable() => switch (_resolver()) {
+        final AssetSurfaceScreenResolver bundled =>
+          bundled.unavailableWithoutLoading(widget.screen),
+        _ => null,
+      };
 
   // Stages a decision this process already accepted before the first build.
   // Fresh still answers, as it does after a local candidate wins the race.
@@ -390,7 +409,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   }
 
   Future<void> _stageResolved(int epoch, Object resolved,
-      {bool isRefresh = false}) async {
+      {bool isRefresh = false, bool swapsShown = false}) async {
     if (!((surfaceAssignmentLeaseFor(resolved)?.isCurrent ?? true) &&
         (placementAdmissionFor(resolved)?.isCurrent ?? true))) {
       if (!isRefresh) await _resolveLocalAfterInvalidation(epoch);
@@ -420,6 +439,10 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
                 (placementAdmissionFor(resolved)?.isCurrent ?? true)),
         commit: () {},
         onPainted: () {
+          if (isRefresh || swapsShown) {
+            debugLogRefreshSwap(stage.content.surface.wireName,
+                stage.content.slug, stage.content.version);
+          }
           _placementDiscovery.markPainted(resolved);
           _acceptedStage = stage;
           _acceptedDecision = null;
@@ -623,10 +646,17 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
         assert(_debugCheckStageInvariants(shown: true));
         return;
       }
+      _reportRefresh(resolver, fresh);
       await _stageResolved(epoch, fresh, isRefresh: true);
     } on Object {
       // A failed refresh keeps the accepted presentation.
     }
+  }
+
+  // Refreshed content is reported like a first resolution.
+  void _reportRefresh(PlacementScreenResolver resolver, Object fresh) {
+    final raced = racedResolverOf<Object>(resolver);
+    if (raced != null) reportRaceWinner(raced, resolver.storeKey, fresh);
   }
 
   // A delivery replaces the shown fallback as a new presentation.
@@ -638,7 +668,8 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       if (fresh == null || !_isCurrent(epoch) || !_canRefreshPlacement()) {
         return;
       }
-      await _stageResolved(++_resolutionEpoch, fresh);
+      _reportRefresh(resolver, fresh);
+      await _stageResolved(++_resolutionEpoch, fresh, swapsShown: true);
     } on Object {
       // A failed refresh keeps the fallback.
     }
@@ -715,6 +746,7 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
           );
     final outcome = await raceSurface<Object>(
       answerArrived: raced == null ? null : () => raced.freshAnswerArrived,
+      hosted: raced != null,
       deadline: deadline,
       fresh: fresh,
       bestLocal: raced == null ? () async => null : () => raced.bestLocal(key!),

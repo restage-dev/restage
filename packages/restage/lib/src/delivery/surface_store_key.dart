@@ -16,27 +16,20 @@ final class SurfaceStoreKey {
     required this.contractVersion,
   });
 
-  /// The scope for [apiKey] in [environment]: the first 16 hex characters of
-  /// their SHA-256.
-  static String scopeFor({
-    required String apiKey,
-    required String environment,
-    String? baseUrl,
-  }) =>
-      configurationFingerprintFor(
-              apiKey: apiKey, environment: environment, baseUrl: baseUrl)
+  /// The scope for [apiKey]: the first 16 hex characters of its SHA-256.
+  static String scopeFor({required String apiKey, String? baseUrl}) =>
+      configurationFingerprintFor(apiKey: apiKey, baseUrl: baseUrl)
           .substring(0, 16);
 
   /// Stable configured delivery authority, without retaining the credential.
   static String configurationFingerprintFor({
     required String apiKey,
-    required String environment,
     String? baseUrl,
   }) =>
       sha256
           .convert(utf8.encode(baseUrl == null
-              ? '$apiKey\u0000$environment'
-              : '${normalizedOrigin(baseUrl)}\u0000$apiKey\u0000$environment'))
+              ? apiKey
+              : '${normalizedOrigin(baseUrl)}\u0000$apiKey'))
           .toString();
 
   /// Normalizes the configured service endpoint for local delivery isolation.

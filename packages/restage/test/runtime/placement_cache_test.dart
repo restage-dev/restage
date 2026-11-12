@@ -176,9 +176,7 @@ void main() {
       () async {
     final fixture = readPlacementDeliveryFixture();
     final scope = SurfaceStoreKey.scopeFor(
-        apiKey: 'test_key',
-        environment: 'production',
-        baseUrl: 'https://example.com');
+        apiKey: 'test_key', baseUrl: 'https://example.com');
     final unreadable = SurfaceStoreKey(
         scope: scope,
         surfaceType: 'placementDecision',
@@ -193,9 +191,7 @@ void main() {
             sidecar: {
               'authenticatedConfigurationFingerprint':
                   SurfaceStoreKey.configurationFingerprintFor(
-                      apiKey: 'test_key',
-                      environment: 'production',
-                      baseUrl: 'https://example.com'),
+                      apiKey: 'test_key', baseUrl: 'https://example.com'),
             }));
     final initial = _registry((request) async => http.Response.bytes(
         placementFixtureResponse(sentPlacementRequest(request.bodyBytes))
@@ -1005,10 +1001,9 @@ PlacementRegistry _registry(
           placementFixtureArtifact(request) ?? await respond(request)));
   addTearDown(client.close);
   return PlacementRegistry(
-      scope: SurfaceStoreKey.scopeFor(
-          apiKey: credential, environment: 'production', baseUrl: origin),
+      scope: SurfaceStoreKey.scopeFor(apiKey: credential, baseUrl: origin),
       configurationFingerprint: SurfaceStoreKey.configurationFingerprintFor(
-          apiKey: credential, environment: 'production', baseUrl: origin),
+          apiKey: credential, baseUrl: origin),
       client: () => client,
       isCurrent: isCurrent ?? () => true,
       now: now ?? () => DateTime.utc(2026, 10, 4, 12));

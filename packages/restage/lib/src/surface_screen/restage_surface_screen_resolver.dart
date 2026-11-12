@@ -8,7 +8,6 @@ import '../delivery/surface_artifact_store.dart';
 import '../delivery/surface_delivery_receipt.dart';
 import '../flow/flow_descriptors.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
-import '../resolver/restage_variant_resolver.dart' show RestageEnvironment;
 import '../resolver/surface_resolution_report.dart';
 import '../resolver/surface_canonical_carrier_provider.dart';
 import '../resolver/delivery_input_budget.dart';
@@ -27,7 +26,6 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
   /// Creates the standard hosted standalone-screen resolver.
   RestageScreenResolver({
     required this.apiKey,
-    required this.environment,
     this.baseUrl,
     this.assetFallback = const AssetSurfaceScreenResolver(),
     RestageRpcClient? Function()? rpcClientProvider,
@@ -37,9 +35,6 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
 
   /// Credential used when this resolver constructs its own RPC client.
   final String apiKey;
-
-  /// Configured delivery environment.
-  final RestageEnvironment environment;
 
   /// Hosted service origin. A null origin uses the bundled resolver directly.
   final String? baseUrl;
@@ -70,10 +65,7 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
   @internal
   SurfaceStoreKey storeKeyFor<E>(SurfaceScreenRef<E> screen) {
     final key = SurfaceStoreKey(
-      scope: SurfaceStoreKey.scopeFor(
-        apiKey: apiKey,
-        environment: environment.name,
-      ),
+      scope: SurfaceStoreKey.scopeFor(apiKey: apiKey),
       surfaceType: SurfaceSourceKind.screen.wireName,
       slug: screen.slug,
       contractVersion: screen.contractVersion,

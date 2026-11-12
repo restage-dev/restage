@@ -436,7 +436,6 @@ void main() {
       final fallback = FixedBundledScreenResolver(fixture.bundled());
       final resolver = RestageScreenResolver(
         apiKey: _apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: _baseUrl,
         assetFallback: fallback,
         rpcClientProvider: () => RestageRpcClient(
@@ -1097,7 +1096,6 @@ RestageScreenResolver _resolver({
 }) =>
     RestageScreenResolver(
       apiKey: _apiKey,
-      environment: RestageEnvironment.production,
       baseUrl: _baseUrl,
       assetFallback: fallback,
       rpcClientProvider: () => client,

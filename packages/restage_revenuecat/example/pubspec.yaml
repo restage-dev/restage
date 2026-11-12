@@ -23,7 +23,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   http: ^1.2.0
-  package_info_plus: ^9.0.1
+  package_info_plus: ^10.2.2
   restage_shared:
     path: ../../restage_shared
   restage_measurement_schema:

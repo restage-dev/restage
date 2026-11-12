@@ -20,8 +20,9 @@ final class Paywall {
   /// Optional stable source identity.
   final String? id;
 
-  /// Declared events whose taps mark the paywall interaction as completed for
-  /// measurement rather than dismissed.
+  /// Declared events that mark the paywall completed for measurement rather
+  /// than dismissed, once app code fires one after a successful purchase with
+  /// `context.surfaceEvent(event)()`. A tap never completes the paywall.
   ///
   /// The host still handles purchases and navigation. This does not close a
   /// route or advance a flow.

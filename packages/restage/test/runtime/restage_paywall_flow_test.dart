@@ -1559,7 +1559,6 @@ void main() {
     ));
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test_x',
-      environment: RestageEnvironment.production,
       baseUrl: 'https://surfaces.example.com',
       httpClient: _delivery.client(
         (_) async => http.Response(

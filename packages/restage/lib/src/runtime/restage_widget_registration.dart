@@ -32,3 +32,11 @@ abstract interface class RestageBuildAnalytics {
   /// True unless build.yaml sets `analytics: false`.
   bool get analyticsEnabled;
 }
+
+/// The delivery keys build.yaml lists under `delivery_keys`.
+///
+/// `Restage.configure` uses them when it is passed no `deliveryKeys`.
+abstract interface class RestageBuildDeliveryKeys {
+  /// Each key as `<organizationId>:<base64url key>`.
+  List<String> get deliveryKeys;
+}

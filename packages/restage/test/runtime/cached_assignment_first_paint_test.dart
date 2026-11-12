@@ -77,7 +77,6 @@ void main() {
       );
       final real = RestageVariantResolver(
         apiKey: 'rs_pk_cached',
-        environment: RestageEnvironment.sandbox,
         baseUrl: 'https://edge.example.test',
         assetFallback:
             flowShaped ? _FlowFallback(_flow(bundledScreen)) : _NoFallback(),
@@ -216,7 +215,6 @@ void main() {
       );
       final real = RestageSurfaceScreenResolver(
         apiKey: 'rs_pk_cached',
-        environment: RestageEnvironment.sandbox,
         baseUrl: 'https://edge.example.test',
         assetFallback: FixedBundledScreenResolver(fixture.bundled()),
         rpcClientProvider: () => client,

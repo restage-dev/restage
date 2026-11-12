@@ -17,7 +17,11 @@ If sign-in is needed, `restage login` opens a browser approval flow. Let the
 user complete it; do not request their credentials. For automation, supply a
 secret key through `RESTAGE_API_KEY`. For a backend other than Restage Cloud,
 sign in with `restage login --endpoint <url>` or set `RESTAGE_BACKEND_URL`;
-`restage init` then records it as `endpoint` in `restage_config.yaml`.
+`restage init` then records it as `endpoint` in `restage_config.yaml`. Without
+either, sign-in follows the project's `restage_config.yaml` `endpoint`, then its
+`build.yaml` `base_url`, but only to Restage's own servers over HTTPS, or to this
+machine. It refuses any other server a project file names;
+pass that server with `--endpoint` only if the user trusts it.
 
 `restage init` needs an organization and app. When the account has none, the
 user creates them in the dashboard first.

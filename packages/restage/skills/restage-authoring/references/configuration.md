@@ -10,11 +10,12 @@ provide registration, implicit placements and compiled-widget fallback.
 | Setting | Default | When to change it |
 | --- | --- | --- |
 | `apiKey`, `baseUrl` | From `registerWidgets: kRestageWidgetRegistration` (`api_key`, `base_url` in `build.yaml`); else unset, no hosted delivery | Set them in `build.yaml`. A value passed here wins. A blank key turns hosted delivery off; from the next launch the built-in first-launch request is not sent. |
+| `deliveryKeys` | From `registerWidgets` (`delivery_keys` in `build.yaml`, which a signed-in `restage init` writes); with none, no delivered content renders | Pass a list only to override the `build.yaml` keys, each as `restage keys delivery` prints it (`<organizationId>:<public key>`). |
+| `liveRefresh` | Empty set: a new version shows on the next mount | `{SurfaceRefreshTrigger.updateChannel}` updates surfaces on screen after a publish; `appResume` checks on return to the foreground. |
 | `surfaces` | Empty list | Pass generated `restageSurfaces` to prefetch known surfaces after the first frame. Prefetch does not enroll experiment participants. |
 | `firstLaunchWait` | `Duration(seconds: 3)` | How long a placement with nothing saved shows nothing while delivered content arrives, before its compiled fallback. `firstLaunchWaits` overrides it per placement id. |
 | `freshWindow` | `Duration(milliseconds: 150)` | How long a placement with saved content waits for a fresher version before showing the saved one. |
 | `channel` | From `build.yaml` `channel` via `registerWidgets`; else unset | Label the app build for delivery rules, such as `beta` or `stable`. Empty values and values over 128 UTF-8 bytes are omitted. |
-| `environment` | `RestageEnvironment.production` | Set a matching local hint for sandbox integrations. Hosted authorization uses the environment bound to the API key; this setting does not select a server environment. |
 
 Leave `resolver`, `flowResolver` and `surfaceScreenResolver` unset for normal
 hosted delivery. These are extension points for custom resolution; an explicit
@@ -31,7 +32,7 @@ usable fallback can keep waiting for the response.
 | `Restage.configure(...)` | Default setup. Installs the full built-in catalog when no catalog selection exists. |
 | `includeMaterial`, `includeCupertino` | Both default to `true`. Set a family to `false` to omit its full catalog. Core widgets and explicitly installed or generated-required entries remain available. |
 | `registerWidgets: kRestageWidgetRegistration` | Pass the generated registration object from `user_factories.g.dart` when startup registration must respect the family flags. Generated mounts already register their required widgets. |
-| `Restage.configureWithInstalledCatalog(...)` | Use after generated `registerRestageWidgets()` with `catalog: derived`, or with a catalog the app installs itself. It skips built-in catalog bootstrap and has no family-selection or registration-callback arguments. |
+| `Restage.configureWithInstalledCatalog(...)` | Use only with `catalog: derived`, or with a catalog the app installs itself. Pass `registerWidgets: kRestageWidgetRegistration` as with `configure`. It skips built-in catalog bootstrap and has no family-selection arguments. |
 
 The registration callback runs after shared configuration and before catalog
 bootstrap. Calling `registerRestageWidgets()` with no arguments uses its normal

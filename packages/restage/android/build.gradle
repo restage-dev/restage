@@ -22,8 +22,9 @@ rootProject.allprojects {
     }
 }
 
+// Kotlin comes from the app: built-in Kotlin, or the Kotlin plugin that
+// Flutter applies when built-in Kotlin is off.
 apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
 
 android {
     namespace 'dev.restage.early'
@@ -34,11 +35,17 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = 17
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
     }
 
     defaultConfig {
         minSdk 21
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }

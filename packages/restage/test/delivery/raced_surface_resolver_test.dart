@@ -18,7 +18,6 @@ void main() {
     expect(
       racedResolverOf<ResolvedPaywallPayload>(RestageVariantResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
       )),
       isNotNull,
@@ -32,7 +31,6 @@ void main() {
     expect(
       racedResolverOf<ResolvedSurfaceScreen>(RestageScreenResolver(
         apiKey: apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: baseUrl,
       )),
       isNotNull,
@@ -44,7 +42,6 @@ void main() {
     expect(
       racedResolverOf<ResolvedFlow>(RestageVariantResolver(
         apiKey: 'rs_pk_test',
-        environment: RestageEnvironment.production,
       )),
       isNull,
     );

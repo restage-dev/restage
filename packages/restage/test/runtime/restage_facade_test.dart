@@ -51,13 +51,11 @@ void main() {
     }
   });
 
-  test('configure sets apiKey and environment', () {
+  test('configure sets apiKey', () {
     Restage.configure(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
     );
     expect(Restage.debugApiKey, 'rs_pk_test');
-    expect(Restage.configuredEnvironment, RestageEnvironment.sandbox);
   });
 
   test('commerce is stable across runtime resets', () {
@@ -75,17 +73,15 @@ void main() {
     expect(Restage.debugDefaultResolver, isA<RestageVariantResolver>());
   });
 
-  test('configure threads apiKey + environment into the default resolver', () {
-    // apiKey + environment are the observable threading; baseUrl rides the
-    // same constructor call and is wrapped into the hosted-fetch client.
+  test('configure threads apiKey into the default resolver', () {
+    // apiKey is the observable threading; baseUrl rides the same constructor
+    // call and is wrapped into the hosted-fetch client.
     Restage.configure(
       apiKey: 'rs_pk_live_xyz',
-      environment: RestageEnvironment.production,
     );
     final resolver = Restage.debugDefaultResolver;
     expect(resolver, isA<RestageVariantResolver>());
     expect((resolver as RestageVariantResolver).apiKey, 'rs_pk_live_xyz');
-    expect(resolver.environment, RestageEnvironment.production);
   });
 
   test('an explicit resolver overrides the hosted default', () {

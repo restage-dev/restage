@@ -9,6 +9,8 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show DeliverySurfaceTypeId;
 
 import '../delivery/mounted_surface_report.dart';
+import '../measurement/placement_mount_attribution.dart'
+    show placementResolvedLeaf;
 import '../measurement/measurement_resolved_publication_provenance.dart'
     show surfaceResolutionSourceFor;
 import '../resolver/placement_mount_resolver.dart' show placementAdmissionFor;
@@ -69,6 +71,23 @@ final _hostPresentationCurrency = Expando<bool Function()>();
 bool placementHostIsCurrent(SurfaceHostContractV1 host) =>
     _hostPresentationCurrency[host]?.call() ?? true;
 
+// The delivered content each placement's mounts show now, by content digest.
+final Map<PlacementMountRequestV1, Map<String, int>> _onScreen = {};
+
+String? _contentOf(Object resolved) =>
+    placementAdmissionFor(placementResolvedLeaf(resolved))
+        ?.delivery
+        .publicProjectionDigest
+        .hex;
+
+/// Whether a mount of [mount] shows [resolved]'s content now, as one that is
+/// being replaced by a remount still does.
+@internal
+bool placementContentOnScreen(PlacementMountRequestV1 mount, Object resolved) {
+  final content = _contentOf(resolved);
+  return content != null && (_onScreen[mount]?[content] ?? 0) > 0;
+}
+
 /// Keeps a host's declaration and local registration on the same mount lease.
 @internal
 final class PlacementHostDiscovery {
@@ -83,6 +102,30 @@ final class PlacementHostDiscovery {
   PlacementDeclaration? _declaration;
   PlacementDiscoveryRegistration? _registration;
   int _generation = -1;
+  ({PlacementMountRequestV1 mount, String content})? _shown;
+
+  void _show(PlacementMountRequestV1 mount, String? content) {
+    _release();
+    if (content == null) return;
+    _shown = (mount: mount, content: content);
+    final counts = _onScreen[mount] ??= {};
+    counts[content] = (counts[content] ?? 0) + 1;
+  }
+
+  void _release() {
+    final shown = _shown;
+    if (shown == null) return;
+    _shown = null;
+    final counts = _onScreen[shown.mount];
+    if (counts == null) return;
+    final remaining = (counts[shown.content] ?? 1) - 1;
+    if (remaining > 0) {
+      counts[shown.content] = remaining;
+    } else {
+      counts.remove(shown.content);
+      if (counts.isEmpty) _onScreen.remove(shown.mount);
+    }
+  }
 
   PlacementDeclaration? get declaration => _declaration;
 
@@ -118,6 +161,9 @@ final class PlacementHostDiscovery {
   void markPainted([Object? resolved]) {
     _registration?.markPainted();
     final mount = _declaration?.mount;
+    if (mount != null) {
+      _show(mount, resolved == null ? null : _contentOf(resolved));
+    }
     if (mount == null || resolved == null) return;
     final source = surfaceResolutionSourceFor(resolved);
     final document = placementAdmissionFor(resolved)?.document;
@@ -134,6 +180,7 @@ final class PlacementHostDiscovery {
   }
 
   void dispose() {
+    _release();
     _registration?.dispose();
     _registration = null;
     _binding = null;

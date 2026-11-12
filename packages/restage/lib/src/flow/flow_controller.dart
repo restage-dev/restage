@@ -597,6 +597,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     try {
       outcome = await raceSurface<ResolvedFlow>(
         answerArrived: raced == null ? null : () => raced.freshAnswerArrived,
+        hosted: raced != null,
         deadline: deadline,
         fresh: fresh,
         bestLocal:

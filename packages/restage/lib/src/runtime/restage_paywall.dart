@@ -48,6 +48,7 @@ import '../resolver/surface_delivery_observations.dart'
         withSurfaceDeliveryObservations;
 import '../measurement/measurement_rfw_presentation.dart';
 import '../refresh/delivery_announcement.dart';
+import '../refresh/refresh_swap_log.dart';
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/surface_update_channel.dart';
@@ -149,9 +150,11 @@ class RestagePaywall extends StatefulWidget implements RestagePlacementMount {
     required Map<String, Object?> hostContractJson,
     SurfaceVocabulary vocabulary = SurfaceVocabulary.none,
     String? surfaceWidget,
+    Set<String> completesOn = const {},
   }) =>
       GeneratedPlacementDefinition.generated(
-        defaultSurface: PaywallRef(id, surfaceWidget: surfaceWidget),
+        defaultSurface: PaywallRef(id,
+            surfaceWidget: surfaceWidget, completesOn: completesOn),
         defaultSurfaceLocatorJson: defaultSurfaceLocatorJson,
         hostContractJson: hostContractJson,
         vocabulary: vocabulary,
@@ -322,16 +325,25 @@ class _RestagePaywallState extends State<RestagePaywall> {
   // dispatcher keeps it across rebuilds.
   final Expando<PaywallEventHandler> _flowAppEventHandlers = Expando();
 
+  // App code completes a paywall by firing a completesOn event; an event a tap
+  // in the delivered design fires never does.
+  PaywallEventHandler _completingAppEvents(PaywallEventHandler handler,
+          MeasurementHostSessionController? Function() session) =>
+      (name, args) {
+        if (_completesOn.contains(name)) session()?.noteCompletion();
+        handler(name, args);
+      };
+
   PaywallEventHandler _flowAppEventHandlerFor(
     RestageFlowController<void> controller,
   ) =>
-      _flowAppEventHandlers[controller] ??= (name, args) {
+      _flowAppEventHandlers[controller] ??= _completingAppEvents((name, args) {
         final normalized = normalizeEventArgs(
           sanitizeAndRecordHostFlowEvent(controller, args),
         );
         if (_interceptFlowScreenEvent(name, normalized)) return;
         controller.handleEvent(name, normalized);
-      };
+      }, () => _flowMeasurementSessions[controller]);
 
   // The paywall events come from; it changes when another paywall takes this
   // element.
@@ -726,6 +738,16 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _fallbackAnalyticsPresentation;
   }
 
+  // The events that complete this paywall, from its generated definition.
+  Set<String> get _completesOn {
+    final binding = widget.placementBinding;
+    if (binding == null || !binding.isGenerated) return const {};
+    return switch (binding.definition().defaultSurface) {
+      PaywallRef(:final completesOn) => completesOn,
+      _ => const {},
+    };
+  }
+
   void _fireEvent(
     RestageEvent event, {
     RootAnalyticsContextSource? attribution,
@@ -1085,6 +1107,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
         stopwatch: stopwatch,
         epoch: epoch,
         isRefresh: isRefresh,
+        reportRefreshTo:
+            isRefresh && resolver is PlacementPaywallResolver ? resolver : null,
       );
     } on RestagePaywallError catch (e) {
       if (!mounted || epoch != _loadEpoch) return;
@@ -1125,6 +1149,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       guard: () => mounted && epoch == _loadEpoch,
       resolve: () => raceSurface<ResolvedPaywallPayload>(
         answerArrived: raced == null ? null : () => raced.freshAnswerArrived,
+        hosted: raced != null,
         deadline: _renderDeadline,
         fresh: () => freshFuture = raced == null
             ? _resolveStablePayload(resolver, epoch)
@@ -1300,6 +1325,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     required Stopwatch stopwatch,
     required int epoch,
     required bool isRefresh,
+    PlacementPaywallResolver? reportRefreshTo,
   }) async {
     {
       // This check is intentionally the first work after the await. A newer
@@ -1331,7 +1357,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
           return;
         }
         if (isRefresh) {
-          _refreshFlow(payload, stopwatch, epoch);
+          _refreshFlow(payload, stopwatch, epoch, reportTo: reportRefreshTo);
           return;
         }
         // The flow is cached only after its first screen commits successfully
@@ -1394,6 +1420,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
           payload.abandonHostedLastGood();
           return;
         }
+        _reportPlacementRefresh(reportRefreshTo, payload);
       }
       await _stageBlob(
         payload,
@@ -1492,8 +1519,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
   void _refreshFlow(
     FlowPaywallPayload payload,
     Stopwatch stopwatch,
-    int epoch,
-  ) {
+    int epoch, {
+    PlacementPaywallResolver? reportTo,
+  }) {
     final announced = currentAnnouncedWant;
     final freshVersion = payload.paywallPublishedVersion;
     final renderedVersion = _resolvedPaywallPublishedVersion;
@@ -1514,6 +1542,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       payload.abandonHostedLastGood();
       return;
     }
+    _reportPlacementRefresh(reportTo, payload);
     // Resolve-then-swap: load the fresh flow in a PENDING controller without
     // touching the live one. Promote only once it renders its first screen;
     // discard it silently on failure so a failed refresh keeps the current
@@ -1560,6 +1589,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _stagePaywallAnalyticsPresentation(analyticsPresentation, payload);
       },
       onPainted: () {
+        debugLogRefreshSwap(Surface.paywall.wireName, widget.id,
+            payload.paywallPublishedVersion);
         _placementDiscovery.markPainted(placementResolvedLeaf(payload));
         if (_refreshHandle case final handle?) {
           SurfaceRefreshRegistry.instance.acceptedPlacementChanged(handle);
@@ -1745,6 +1776,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _resolvedPaywallPublishedVersion = payload.paywallPublishedVersion;
     _renderedAssignmentLease = payload.assignmentLease;
     _renderedSurfaceVersion = null;
+  }
+
+  // A placement refresh is reported when it swaps; other resolvers report as
+  // they resolve.
+  static void _reportPlacementRefresh(
+      PlacementPaywallResolver? resolver, ResolvedPaywallPayload payload) {
+    if (resolver == null) return;
+    reportRaceWinner(resolver, resolver.storeKey, payload);
   }
 
   /// Publishes both resolver and widget last-good only after descendant paint
@@ -2838,6 +2877,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
       });
     }
     final variant = stage.payload.variant;
+    if (stage.isRefresh) {
+      debugLogRefreshSwap(
+          Surface.paywall.wireName, widget.id, variant.surfaceVersion);
+    }
     _announceRenderedPaywall(
       presentation: stage.analyticsPresentation,
       loadDuration: stage.loadDuration,
@@ -3456,7 +3499,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
                 content: stage,
                 isCurrent: () => _isBlobEventStageCurrent(stage),
                 child: RestagePaywallEventDispatcher(
-                  onEvent: stage.eventHandler,
+                  onEvent: stage.appEventHandler ??= _completingAppEvents(
+                      stage.eventHandler, () => stage.measurementSession),
                   mount: _eventMount,
                   child: RuntimeErrorBoundary(
                     debugLabel: widget.id,
@@ -3632,6 +3676,9 @@ final class _BlobStage {
   final MeasurementHostSessionController measurementSession;
   final MountAttributionSnapshotV1? mountAttribution;
   late final PaywallEventHandler eventHandler;
+
+  /// [eventHandler] for events app code fires on this stage.
+  PaywallEventHandler? appEventHandler;
   RemoteWidget? remoteWidget;
 
   _BlobStage? previousBlob;

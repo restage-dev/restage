@@ -76,7 +76,6 @@ void main() {
         screen: fixture.ref,
         resolver: RestageScreenResolver(
           apiKey: _apiKey,
-          environment: RestageEnvironment.production,
           baseUrl: _baseUrl,
           assetFallback: FixedBundledScreenResolver(fixture.bundled()),
           rpcClientProvider: () => client,
@@ -147,7 +146,6 @@ void main() {
       home: NativeOfferSurface(
         resolver: RestageVariantResolver(
           apiKey: _apiKey,
-          environment: RestageEnvironment.production,
           baseUrl: _baseUrl,
           httpClient: _silentServer(paths),
           assetFallback: AssetVariantResolver(bundle: _NoAssets()),

@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:restage/src/resolver/restage_variant_resolver.dart';
 import 'package:restage/src/resolver/surface_canonical_carrier_provider.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
@@ -234,7 +233,6 @@ void main() {
       }),
       resolve: () => RestageScreenResolver(
         apiKey: 'rs_pk_test',
-        environment: RestageEnvironment.values.first,
         rpcClientProvider: () => client,
       ).resolve(fixture.ref),
     );
@@ -369,7 +367,6 @@ void main() {
         for (var attempt = 0; attempt < 2; attempt++) {
           final resolver = RestageScreenResolver(
             apiKey: 'rs_pk_test',
-            environment: RestageEnvironment.values.first,
             rpcClientProvider: () => client,
           );
           await resolver.resolve(fixture.ref);

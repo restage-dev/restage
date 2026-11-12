@@ -14,6 +14,50 @@ purchases return `packageSelectionRequired`; select an exact package to retry.
 `CommerceStorePurchasable.offerSignature` argument is removed. Pass typed
 `promotionalOffer` instead.
 
+`Restage.configure` and `configureWithInstalledCatalog` use the delivery keys
+the generated `kRestageWidgetRegistration` carries when they are passed no
+`deliveryKeys`. `RestageBuildDeliveryKeys` is the interface that carries them;
+`delivery_keys` in build.yaml sets them, and `restage init` writes it.
+
+**Breaking:** `RestageEnvironment` is removed, along with the `environment`
+parameter of `Restage.configure`, `Restage.configureWithInstalledCatalog`,
+`RestageVariantResolver`, `RestageScreenResolver` and `ServerFlowResolver`. The
+API key already selects the environment; the parameter only labelled local
+storage. `dart fix --apply` removes the argument. Code that read
+`Restage.configuredEnvironment` has no replacement and needs a manual edit.
+Saved surfaces and placement decisions are stored per API key now, so content
+saved by an earlier version is not read again and is fetched afresh. The
+assignment registration is keyed the same way, so an upgraded install may
+register its assignment anew.
+
+A generated screen widget shows its compiled widget on its first frame, and
+again after it mounts anew, when nothing can be delivered: no key, `apiKey: ''`,
+or `Restage.configure` not called, and no packaged bundle. `onUnavailable` still
+reports it just after that frame. The debug line about a failed hosted resolve
+prints only for hosted delivery, and the hint for an app that never called
+`Restage.configure` no longer suggests bundling assets.
+
+In debug builds, a live refresh that swaps what a mounted surface shows prints
+`[restage] live refresh: <surface type> "<id>" now shows r<version>.`, and
+`onSurfaceResolution` reports the swap for a generated placement.
+
+A surface whose Measurement session takes more than 3 s to open keeps its first
+paint and replays it when the session opens, up to 60 s, so a cold first launch
+still counts the view. Outcome reports stop waiting for the session at 3 s.
+
+A paywall counts as completed only when app code fires one of its `completesOn`
+events, typically after a purchase succeeds (`context.surfaceEvent(event)()`); a
+later tap no longer turns it into a dismissal. A tap never completes a paywall,
+including a tap on a route an earlier build marked as completing, so a cancelled
+purchase is a dismissal. A single-screen paywall with `completesOn` records its
+completion. Push and publish the paywall again for its completions to be recorded:
+a version published before this declares no completion, so its presentations
+record neither a completion nor a dismissal.
+
+The Android plugin uses the app's Kotlin and no longer applies the Kotlin
+Gradle Plugin. `device_info_plus` is now `^13.3.0` and `package_info_plus`
+`^10.2.2`, the versions that do the same.
+
 The first-launch request the Android and iOS plugins send before Dart starts
 follows what the app last configured. After a `Restage.configure` with no
 publishable key, such as `apiKey: ''`, the next launch sends none. After
