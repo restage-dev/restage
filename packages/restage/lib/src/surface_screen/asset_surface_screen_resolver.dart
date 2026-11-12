@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../delivery/surface_sections_carrier.dart';
@@ -30,17 +31,26 @@ final class AssetSurfaceScreenResolver implements BundledSurfaceScreenResolver {
   /// Loads the packaged bundle a screen's provenance names.
   final SurfaceScreenBundleProvider? bundleProvider;
 
+  /// Why [screen] cannot resolve here, known before loading anything, or
+  /// null when a packaged bundle may serve it.
+  @internal
+  SurfaceScreenUnavailableError? unavailableWithoutLoading(
+          SurfaceScreenRef<Object?> screen) =>
+      screen.provenance.bundle == null || bundleProvider == null
+          ? _noBundle
+          : null;
+
+  static const _noBundle = SurfaceScreenUnavailableError(
+    reason: SurfaceScreenUnavailableReason.missing,
+    message: 'No packaged bundle is available for this screen.',
+  );
+
   @override
   Future<ResolvedSurfaceScreen> resolve<E>(SurfaceScreenRef<E> screen) async {
     final provenance = screen.provenance;
     final locator = provenance.bundle;
     final provider = bundleProvider;
-    if (locator == null || provider == null) {
-      throw const SurfaceScreenUnavailableError(
-        reason: SurfaceScreenUnavailableReason.missing,
-        message: 'No packaged bundle is available for this screen.',
-      );
-    }
+    if (locator == null || provider == null) throw _noBundle;
 
     final bundle = await provider.load(locator);
     _requireDeclaredBy(bundle, locator);

@@ -16,7 +16,6 @@ void main() {
     final envelope = await buildPaywallSurfaceEnvelope('narrate_membership');
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_demo',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://fake-surfaces.local',
       httpClient: FakeSurfaceServer(envelope),
     );

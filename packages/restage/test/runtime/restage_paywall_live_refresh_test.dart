@@ -15,6 +15,7 @@ import 'package:rfw/formats.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart' show RemoteWidget;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../support/debug_print_capture.dart';
 import '../flow/flow_test_support.dart';
 import '../support/pump_until.dart';
 
@@ -351,6 +352,42 @@ void main() {
     expect(find.text('A'), findsNothing);
     expect(viewed.length, 2);
     expect(viewed.last.publishedVersion, 2);
+  });
+
+  testWidgets('a refresh that swaps a paywall logs the new revision',
+      (tester) async {
+    final resolver = _MutableResolver(_blob('A'), version: 1);
+    await _pump(tester, RestagePaywall(id: 'p', resolver: resolver));
+
+    final logs = await captureRestageLogs(() async {
+      await Restage.reloadSurfaces();
+      await tester.pumpAndSettle();
+      resolver
+        ..bytes = _blob('B')
+        ..version = 2;
+      await Restage.reloadSurfaces();
+      await tester.pumpAndSettle();
+    });
+
+    expect(find.text('B'), findsOneWidget);
+    expect(logs, ['[restage] live refresh: paywall "p" now shows r2.']);
+  });
+
+  testWidgets('a flow refresh of a paywall logs the new revision',
+      (tester) async {
+    final resolver = _FlowResolver(resolvedFlow(welcomeText: 'FlowA'), 1);
+    await _pump(tester, RestagePaywall(id: 'p', resolver: resolver));
+
+    final logs = await captureRestageLogs(() async {
+      resolver
+        ..flow = resolvedFlow(welcomeText: 'FlowB')
+        ..version = 2;
+      await Restage.reloadSurfaces();
+      await tester.pumpAndSettle();
+    });
+
+    expect(find.text('FlowB'), findsOneWidget);
+    expect(logs, ['[restage] live refresh: paywall "p" now shows r2.']);
   });
 
   testWidgets('unchanged content is not re-applied (no duplicate lifecycle)',

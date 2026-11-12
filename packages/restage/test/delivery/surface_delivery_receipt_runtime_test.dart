@@ -74,7 +74,6 @@ final class _Hosted {
       deliveryReceiptsEnabled: deliveryReceiptsEnabled,
       resolver: RestageVariantResolver(
         apiKey: _apiKey,
-        environment: RestageEnvironment.production,
         baseUrl: _baseUrl,
         httpClient: client,
       ),

@@ -71,7 +71,6 @@ void main() {
     var online = true;
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.production,
       baseUrl: 'https://surfaces.example.com',
       httpClient: delivery.client((_) async => online
           ? http.Response(jsonEncode(body), 200)

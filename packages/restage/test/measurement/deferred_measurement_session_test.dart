@@ -105,13 +105,57 @@ void main() {
         [MeasurementWorkerDeliveryKind.frame]);
   });
 
-  testWidgets('a session that opens after the background bound is dropped',
+  testWidgets(
+      'a session that opens after the budget still records its held first '
+      'paint, and a teardown requested meanwhile sends its frame',
       (tester) async {
     final attempt = _DeferredAttempt();
     addTearDown(attempt.close);
     final session = attempt.openDeferred();
     await tester.pumpWidget(_host(session));
     await tester.pump(MeasurementHostSessionController.openBudget);
+    expect(session.debugState, MeasurementHostSessionDebugState.pending);
+    final teardown = session.teardown();
+    await tester.pumpWidget(const SizedBox.shrink());
+
+    await attempt.release(tester);
+    await tester.runAsync(() => teardown);
+    await tester.pump();
+
+    expect(attempt.presentedLineages, [_rootLineage]);
+    expect(attempt.harness.worker.deliveries,
+        [MeasurementWorkerDeliveryKind.frame]);
+  });
+
+  testWidgets('an outcome flush stops waiting at the budget', (tester) async {
+    final attempt = _DeferredAttempt();
+    addTearDown(attempt.close);
+    final session = attempt.openDeferred();
+    await tester.pumpWidget(_host(session));
+    var flushed = false;
+    unawaited(session.flushForOutcome().then((_) => flushed = true));
+    await tester.pump();
+    expect(flushed, isFalse);
+
+    await tester.pump(MeasurementHostSessionController.openBudget);
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    expect(flushed, isTrue);
+    expect(session.debugState, MeasurementHostSessionDebugState.pending);
+
+    await attempt.release(tester);
+    await tester.pump();
+    expect(attempt.presentedLineages, [_rootLineage]);
+    await tester.runAsync(() => session.teardown());
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('a session that opens after the ceiling is dropped',
+      (tester) async {
+    final attempt = _DeferredAttempt();
+    addTearDown(attempt.close);
+    final session = attempt.openDeferred();
+    await tester.pumpWidget(_host(session));
+    await tester.pump(MeasurementHostSessionController.openCeiling);
     expect(session.debugState, MeasurementHostSessionDebugState.disabled);
 
     await attempt.release(tester);

@@ -61,7 +61,9 @@ final paywall = RevenueCatPaywallSurface(
 
 Keep the `Restage.configureWithInstalledCatalog(surfaces: restageSurfaces, ...)`
 configuration from `lib/main.dart` with your public API key and base URL for
-hosted delivery. If resolution fails, the generated mount renders the original
+hosted delivery. The example sets `catalog: derived` in `build.yaml`, which is
+why it uses that call. An app on the default whole catalog calls
+`Restage.configure` with the same arguments. If resolution fails, the generated mount renders the original
 compiled paywall with the same typed inputs and event handler.
 
 To try another price point, add a package to the same offering and publish a version

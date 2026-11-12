@@ -53,7 +53,6 @@ void main() {
     final server = _ControlledHostedServer();
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://surfaces.example.com',
       httpClient: server.client,
       assetFallback: const _AlwaysFailingFallback(),
@@ -248,7 +247,6 @@ void main() {
     final server = _ControlledHostedServer();
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://surfaces.example.com',
       httpClient: server.client,
       assetFallback: AssetVariantResolver(bundle: bundle),
@@ -365,7 +363,6 @@ void main() {
     final server = _ControlledHostedServer();
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://surfaces.example.com',
       httpClient: server.client,
       assetFallback: AssetVariantResolver(bundle: bundle),
@@ -469,7 +466,6 @@ void main() {
     final server = _ControlledHostedServer();
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://surfaces.example.com',
       httpClient: server.client,
       assetFallback: AssetVariantResolver(bundle: bundle),
@@ -641,7 +637,6 @@ void main() {
     final events = <RestageEvent>[];
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://surfaces.example.com',
       httpClient: server.client,
       assetFallback: AssetVariantResolver(bundle: bundle),
@@ -699,7 +694,6 @@ void main() {
     final server = _ControlledHostedServer();
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://surfaces.example.com',
       httpClient: server.client,
       assetFallback: AssetVariantResolver(bundle: bundle),
@@ -1002,7 +996,6 @@ void main() {
     final fallback = _ControlledFallback();
     final hosted = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://surfaces.example.com',
       httpClient: server.client,
       assetFallback: fallback,
@@ -1106,7 +1099,6 @@ void main() {
     final server = _ControlledHostedServer();
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://surfaces.example.com',
       httpClient: server.client,
       assetFallback: _ControlledFallback(),
@@ -1185,7 +1177,6 @@ void main() {
     final server = _ControlledHostedServer();
     final hosted = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://surfaces.example.com',
       httpClient: server.client,
       assetFallback: _ControlledFallback(),
@@ -1248,7 +1239,6 @@ void main() {
     final server = _ControlledHostedServer();
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://surfaces.example.com',
       httpClient: server.client,
       assetFallback: const _AlwaysFailingFallback(),

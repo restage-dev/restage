@@ -169,7 +169,6 @@ void main() {
     late Map<String, Object?> sent;
     final resolver = RestageScreenResolver(
       apiKey: _apiKey,
-      environment: RestageEnvironment.production,
       rpcClientProvider: () => _client((request) async {
         sent = (jsonDecode(request.body) as Map).cast();
         return http.Response('', 404);
@@ -212,7 +211,6 @@ void main() {
       await client.fetchSurface(surfaceType: 'general', surfaceSlug: 'notice');
       await RestageScreenResolver(
         apiKey: _apiKey,
-        environment: RestageEnvironment.production,
         rpcClientProvider: () => client,
         assetFallback: FixedBundledScreenResolver(fixture.bundled()),
       ).resolve(fixture.ref);
@@ -298,7 +296,6 @@ void main() {
       );
       final resolver = RestageScreenResolver(
         apiKey: _apiKey,
-        environment: RestageEnvironment.production,
         rpcClientProvider: () => client,
         assetFallback: FixedBundledScreenResolver(fixture.bundled()),
       );
@@ -370,7 +367,6 @@ void main() {
       apiKey: _apiKey,
       baseUrl: _baseUrl,
       channel: 'release',
-      environment: RestageEnvironment.sandbox,
       analyticsEnabled: false,
       measurementEnabled: false,
     );
@@ -483,7 +479,6 @@ void main() {
       });
       final resolver = RestageScreenResolver(
         apiKey: _apiKey,
-        environment: RestageEnvironment.production,
         rpcClientProvider: () => client,
         assetFallback: FixedBundledScreenResolver(fixture.bundled()),
       );

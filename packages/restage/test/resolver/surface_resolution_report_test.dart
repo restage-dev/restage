@@ -134,7 +134,6 @@ void main() {
         );
         final resolver = RestageScreenResolver(
           apiKey: 'rs_pk_test',
-          environment: RestageEnvironment.sandbox,
           rpcClientProvider: () => client,
         );
         Future<void> mount() async {
@@ -300,7 +299,6 @@ void main() {
       final delegate = source == SurfaceResolutionSource.bundled
           ? RestageVariantResolver(
               apiKey: 'rs_pk_test',
-              environment: RestageEnvironment.sandbox,
               assetFallback: _FixedVariantResolver(fixture.bundled),
             )
           : fixture.resolver;
@@ -475,9 +473,7 @@ void main() {
         home: RestageScreen(
       screen: fixture.ref,
       resolver: RestageScreenResolver(
-          apiKey: 'rs_pk_test',
-          environment: RestageEnvironment.sandbox,
-          rpcClientProvider: () => client),
+          apiKey: 'rs_pk_test', rpcClientProvider: () => client),
       fallbackBuilder: (_) => const Text('unavailable'),
     )));
     await tester.pumpAndSettle();
@@ -750,7 +746,6 @@ final class _ResolutionFixture {
     );
     resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://example.com',
       assetFallback: _FixedVariantResolver(bundled),
       httpClient: delivery.client((request) async {

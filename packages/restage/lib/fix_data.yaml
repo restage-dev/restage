@@ -1,5 +1,50 @@
 version: 1
 transforms:
+  - title: "Remove 'environment'; the API key selects the environment"
+    date: 2026-11-11
+    element:
+      uris: ['restage.dart', 'src/runtime/restage.dart']
+      method: 'configure'
+      inClass: 'Restage'
+    changes:
+      - kind: 'removeParameter'
+        name: 'environment'
+  - title: "Remove 'environment'; the API key selects the environment"
+    date: 2026-11-11
+    element:
+      uris: ['restage.dart', 'src/runtime/restage.dart']
+      method: 'configureWithInstalledCatalog'
+      inClass: 'Restage'
+    changes:
+      - kind: 'removeParameter'
+        name: 'environment'
+  - title: "Remove 'environment'; the API key selects the environment"
+    date: 2026-11-11
+    element:
+      uris: ['package:restage/restage.dart']
+      constructor: ''
+      inClass: 'RestageVariantResolver'
+    changes:
+      - kind: 'removeParameter'
+        name: 'environment'
+  - title: "Remove 'environment'; the API key selects the environment"
+    date: 2026-11-11
+    element:
+      uris: ['package:restage/restage.dart']
+      constructor: ''
+      inClass: 'RestageScreenResolver'
+    changes:
+      - kind: 'removeParameter'
+        name: 'environment'
+  - title: "Remove 'environment'; the API key selects the environment"
+    date: 2026-11-11
+    element:
+      uris: ['package:restage/restage.dart']
+      constructor: ''
+      inClass: 'ServerFlowResolver'
+    changes:
+      - kind: 'removeParameter'
+        name: 'environment'
   - title: "Rename 'renderDeadline' to 'firstLaunchWait'"
     date: 2026-10-28
     element:

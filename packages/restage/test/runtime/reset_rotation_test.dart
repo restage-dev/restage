@@ -257,7 +257,6 @@ void main() {
     var issued = 0;
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'http://127.0.0.1:1',
       assetFallback: _TextResolver(),
       httpClient: delivery.client((request) async {

@@ -54,8 +54,14 @@ triggers a rebuild. If you set up without `init`, add them yourself:
 
 ```yaml
 additional_public_assets:
-  - .restage/**
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+  - .restage/receipts/**
+  - .restage/library-contracts/**
 ```
+
+Don't list `.restage/**`: it also covers `.restage/build/`, where builds write their
+output.
 
 Generated mounts keep the widget you wrote as their fallback, so nothing has to be
 bundled as an asset. Leave `bundled_runtime` at its default, `false`, for ordinary
@@ -85,8 +91,12 @@ The build writes:
 - `lib/user_factories.g.dart`: widget registration for the app;
 - `lib/user_catalog.g.dart` when the package declares custom widgets.
 
-Commit the generated Dart files, `.restage/measurement-state.json` and
-`.restage/wire-ids.events.jsonl` and `.restage/library-contracts/` (written by a push);
+Commit the generated Dart files, including each `restage.generated/` part: the
+build writes them into `lib/`, and an app's `part` directives need them, so a
+checkout without them compiles only after `dart run build_runner build`. Commit
+`.restage/measurement-state.json`,
+`.restage/wire-ids.events.jsonl` (written once the package has a `@RestageWidget`
+class) and `.restage/library-contracts/` (written by a push);
 these keep analytics and catalog identities/contracts stable
 across clean builds. `.restage/build/` is build output; `restage init` adds it to
 `.gitignore`.
@@ -148,8 +158,10 @@ need to manage that setup yourself.
 
 ## Hosted delivery
 
-Put the key and service URL in the app's `build.yaml`. `restage init --sdk-key rs_pk_...`
-writes them:
+Put the key, service URL and delivery keys in the app's `build.yaml`. Signed in,
+`restage init` with no `--sdk-key` mints a publishable key and writes all three
+(minting needs the organization admin role; otherwise ask an admin for the key and
+run `restage init --sdk-key rs_pk_...`). `--sdk-key` also works without an account:
 
 ```yaml
 targets:
@@ -159,11 +171,13 @@ targets:
         options:
           api_key: rs_pk_sandbox_dev_...
           base_url: https://api.restage.dev
+          delivery_keys:
+            - 42:Hx3...
           # channel: stable   (optional)
 ```
 
-Then pass the generated setup to `Restage.configure`. It carries the key, URL and
-channel; do not repeat them in Dart:
+Then pass the generated setup to `Restage.configure`. It carries the key, URL,
+delivery keys and channel; do not repeat them in Dart:
 
 <!-- skill-check: declarations -->
 ```dart
@@ -171,19 +185,29 @@ void main() {
   Restage.configure(
     registerWidgets: kRestageWidgetRegistration, // from 'user_factories.g.dart'
     surfaces: restageSurfaces, // from 'restage_surfaces.g.dart'
+    liveRefresh: const {SurfaceRefreshTrigger.updateChannel}, // optional
   );
   runApp(const MyApp());
 }
 ```
 
+- Delivered content renders only when signed with one of the delivery keys. Without
+  any, every delivered version is refused and the compiled widget shows.
+  `restage keys delivery` prints them; pass `deliveryKeys:` to `Restage.configure`
+  only to override the `build.yaml` list.
+- `liveRefresh` is optional. With `SurfaceRefreshTrigger.updateChannel`, a surface on
+  screen updates shortly after a publish; `appResume` checks when the app returns to
+  the foreground. Without it, a new version shows on the next mount.
 - The key is the public SDK key (`rs_pk_...`) for one environment. The prefix names its
   side and environment, such as `rs_pk_sandbox_dev_` or `rs_pk_live_prod_`. Never put a
   secret key (`rs_sk_...`) in app code.
-- `base_url` is the API of the backend the project uses. `init --sdk-key` writes the
+- `base_url` is the API of the backend the project uses. `init` writes the
   backend you signed in to, else `RESTAGE_BACKEND_URL`, else `https://api.restage.dev`.
   It must be HTTPS, except `localhost`, `127.0.0.1` and `::1`.
-- `build.yaml` is the only source; the build reads no environment variables. In CI,
-  pass the values on the command line:
+- The build reads the values only from its builder options, never from environment
+  variables. The public key can stay committed in `build.yaml`. To build with a
+  different key or URL, such as one per environment in CI, pass them with `--define`,
+  which overrides `build.yaml`:
   `dart run build_runner build --define "restage_codegen:user_factories=api_key=rs_pk_..." --define "restage_codegen:user_factories=base_url=https://api.restage.dev"`.
 - With a key, the build writes the first-launch request the Android and iOS plugins
   send before Dart starts. On iOS, `pubspec.yaml` must list
@@ -255,8 +279,9 @@ targets:
           catalog: derived
 ```
 
-Then call the generated `registerRestageWidgets()` followed by
-`Restage.configureWithInstalledCatalog(...)` in place of `Restage.configure(...)`.
+Then call `Restage.configureWithInstalledCatalog(...)` in place of
+`Restage.configure(...)`, with the same arguments, including
+`registerWidgets: kRestageWidgetRegistration`.
 Updates can then use the installed catalog, including
 [widgets reserved for later updates](configuration.md#reserve-widgets-for-later-updates).
 They can still use any icon: each surface carries the icons it names. Release

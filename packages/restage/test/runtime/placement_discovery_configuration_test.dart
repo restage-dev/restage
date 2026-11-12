@@ -143,16 +143,13 @@ void main() {
     Restage.configure(
         apiKey: 'rs_pk_test',
         baseUrl: 'https://example.com',
-        environment: RestageEnvironment.sandbox,
         analyticsEnabled: false,
         measurementEnabled: false,
         deliveryReceiptsEnabled: false);
     expect(
         Restage.placementRegistry!.scope,
         SurfaceStoreKey.scopeFor(
-            apiKey: 'rs_pk_test',
-            environment: 'sandbox',
-            baseUrl: 'https://example.com'));
+            apiKey: 'rs_pk_test', baseUrl: 'https://example.com'));
   });
 }
 

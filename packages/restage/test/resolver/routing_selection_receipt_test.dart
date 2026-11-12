@@ -38,7 +38,6 @@ void main() {
       );
       final resolver = RestageVariantResolver(
         apiKey: 'rs_pk_test',
-        environment: RestageEnvironment.sandbox,
         baseUrl: 'https://example.com',
         httpClient: delivery.client((request) async {
           expect(request.url.path, '/sdk/v1/surface');
@@ -83,7 +82,6 @@ void main() {
       );
       final resolver = RestageScreenResolver(
         apiKey: 'rs_pk_test',
-        environment: RestageEnvironment.sandbox,
         assetFallback: fallback,
         rpcClientProvider: () => client,
       );
@@ -113,7 +111,6 @@ void main() {
     var deliveryCalls = 0;
     final resolver = RestageVariantResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       baseUrl: 'https://example.com',
       httpClient: delivery.client((request) async {
         expect(request.url.path, '/sdk/v1/surface');
@@ -170,7 +167,6 @@ void main() {
       );
       final resolver = RestageScreenResolver(
         apiKey: 'rs_pk_test',
-        environment: RestageEnvironment.sandbox,
         assetFallback: AbsentBundledScreenResolver(),
         rpcClientProvider: () => client,
       );

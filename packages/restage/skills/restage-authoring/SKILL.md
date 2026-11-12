@@ -152,6 +152,7 @@ or the MCP tools `restage_docs_search` and `restage_docs_read`. They read the
 docs that match the backend in `restage_config.yaml` or the stored sign-in, so
 prefer them over fixed URLs.
 
-The docs for Restage Cloud are at https://docs.restage.dev. Each docs site lists
-every page at `/llms.txt` and serves each page as Markdown at its URL plus
-`.md`, such as `/delivery/hosted-delivery.md`.
+Don't assume a docs URL. Each backend has its own docs site, and the URLs that
+`restage docs search` prints are on the site for the configured backend. That
+site lists every page at `/llms.txt` and serves each page as Markdown at its URL
+plus `.md`, such as `/delivery/hosted-delivery.md`.

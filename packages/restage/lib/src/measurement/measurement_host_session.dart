@@ -443,7 +443,6 @@ final class MeasurementHostSessionController
   })  : _captureSession = captureSession,
         _presentationRouteHandle = presentationRouteHandle,
         _routeTable = routeTable,
-        _completionRoutes = routeTable,
         _transport = transport,
         _routingSelectionReceipt = routingSelectionReceipt,
         _debugState = MeasurementHostSessionDebugState.active;
@@ -457,9 +456,7 @@ final class MeasurementHostSessionController
   MeasurementHostSessionController._workerOwned({
     required MeasurementHostConstructionSession constructionSession,
     required MeasurementPresentationRouteHandle presentationRouteHandle,
-    MeasurementRuntimeRouteTable? routeTable,
   })  : _constructionSession = constructionSession,
-        _completionRoutes = routeTable,
         _presentationRouteHandle = presentationRouteHandle,
         _debugState = MeasurementHostSessionDebugState.active;
 
@@ -500,6 +497,9 @@ final class MeasurementHostSessionController
   /// The longest a surface waits for its Measurement session to open.
   static const Duration openBudget = Duration(seconds: 3);
 
+  /// The longest a deferred session holds what it recorded before it opens.
+  static const Duration openCeiling = Duration(seconds: 60);
+
   /// The most entries a pending session holds before its session opens.
   static const int pendingEntryLimit = 256;
 
@@ -507,8 +507,9 @@ final class MeasurementHostSessionController
   /// paint.
   ///
   /// Until the session opens it holds the first-paint outcome and up to
-  /// [pendingEntryLimit] recorded entries, and replays them on open. A session
-  /// not open within [openBudget] is dropped with what it held.
+  /// [pendingEntryLimit] recorded entries, and replays them on open. Callers
+  /// waiting on it stop waiting after [openBudget]; a session not open within
+  /// [openCeiling] is dropped with what it held.
   static MeasurementHostSessionController openDeferred(
     Object resolvedOrPayload, {
     Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
@@ -522,7 +523,8 @@ final class MeasurementHostSessionController
     final pending = MeasurementHostSessionController._pending(
       workerOwned: authority._constructionOwner != null,
     );
-    pending._pendingBound = Timer(openBudget, pending._dropPending);
+    pending._pendingBound = Timer(openBudget, pending._releasePendingWaiters);
+    pending._pendingCeiling = Timer(openCeiling, pending._dropPending);
     unawaited(_openForResolvedArtifact(
       resolvedOrPayload,
       presentationObservations: presentationObservations,
@@ -688,7 +690,6 @@ final class MeasurementHostSessionController
         final sink = _FirstPaintSink(constructionSession);
         final controller = MeasurementHostSessionController._workerOwned(
           constructionSession: constructionSession,
-          routeTable: routeTable,
           presentationRouteHandle: MeasurementPresentationRouteHandle.open(
             publishedSurfaceRevision: resolvedMount.publishedSurfaceRevision,
             captureSink: sink,
@@ -762,6 +763,7 @@ final class MeasurementHostSessionController
   MeasurementPendingPresentationRoute? _pendingRoute;
   bool _pendingWorkerOwned = false;
   Timer? _pendingBound;
+  Timer? _pendingCeiling;
   Completer<void>? _pendingReady;
   List<void Function(MeasurementHostSessionController opened)>?
       _pendingEntries =
@@ -777,8 +779,7 @@ final class MeasurementHostSessionController
   MeasurementHostConstructionSession? _constructionSession;
   MeasurementPresentationRouteHandle? _presentationRouteHandle;
   MeasurementRuntimeRouteTable? _routeTable;
-  MeasurementRuntimeRouteTable? _completionRoutes;
-  bool _lastInteractionCompletes = false;
+  bool _completed = false;
   MeasurementIngestTransport? _transport;
   String? _routingSelectionReceipt;
   MeasurementHostSessionLifecycleRegistration? _lifecycleRegistration;
@@ -837,8 +838,7 @@ final class MeasurementHostSessionController
       _dropPending();
       return;
     }
-    _pendingBound?.cancel();
-    _pendingBound = null;
+    _cancelPendingTimers();
     _opened = opened;
     _debugState = MeasurementHostSessionDebugState.active;
     _pendingPointEventBinding?.call(opened);
@@ -859,20 +859,32 @@ final class MeasurementHostSessionController
       _pendingTeardown = null;
       teardown.complete(opened.teardown());
     }
-    _pendingReady?.complete();
+    _releasePendingWaiters();
+  }
+
+  // A slow open stops delaying outcome reports but keeps what it holds.
+  void _releasePendingWaiters() {
+    final ready = _pendingReady;
+    if (ready != null && !ready.isCompleted) ready.complete();
+  }
+
+  void _cancelPendingTimers() {
+    _pendingBound?.cancel();
+    _pendingBound = null;
+    _pendingCeiling?.cancel();
+    _pendingCeiling = null;
   }
 
   void _dropPending() {
     if (!_isPending) return;
     _debugState = MeasurementHostSessionDebugState.disabled;
-    _pendingBound?.cancel();
-    _pendingBound = null;
+    _cancelPendingTimers();
     _pendingEntries = null;
     _pendingPointEventBinding = null;
     _pendingBinder.resolve(null);
     _pendingTeardown?.complete(null);
     _pendingTeardown = null;
-    _pendingReady?.complete();
+    _releasePendingWaiters();
   }
 
   bool _startLifecycleObservation(
@@ -1082,7 +1094,6 @@ final class MeasurementHostSessionController
         (o) => o._recordInteractionCarrier(rawCarrier, item: item))) {
       return;
     }
-    _noteInteraction(rawCarrier);
     final constructionSession = _constructionSession;
     if (constructionSession != null) {
       constructionSession.recordInteractionCarrier(rawCarrier, item: item);
@@ -1133,44 +1144,26 @@ final class MeasurementHostSessionController
     if (route != null) capture.recordAnswer(route, value);
   }
 
-  /// Latches whether the latest measured interaction completes the surface;
-  /// events without a measured route leave the latch as it was.
-  void _noteInteraction(String rawCarrier) {
-    if (_holdPending((o) => o._noteInteraction(rawCarrier))) return;
-    _lastInteractionCompletes = _completesSurface(rawCarrier);
+  /// Marks this presentation completed, as app code firing a completesOn event
+  /// does: its end records completion, whatever the user taps afterwards.
+  void noteCompletion() {
+    final opened = _opened;
+    if (opened != null) return opened.noteCompletion();
+    if (_holdPending((o) => o.noteCompletion())) return;
+    _completed = true;
   }
 
-  bool _completesSurface(String rawCarrier) {
-    final table = _completionRoutes;
-    if (table == null) return false;
-    try {
-      final handle = table.resolveOpaqueRoute(
-        context: table.mountedArtifactContext,
-        token: OpaqueMeasurementEventSlotToken(rawCarrier),
-      );
-      if (handle == null) return false;
-      return table.orderedCaptureV1?.routes.any((route) =>
-              route.completesSurfaceV1 &&
-              route.occurrenceId == handle.occurrenceId &&
-              route.lineageId == handle.lineageId) ??
-          false;
-    } on Object {
-      return false;
-    }
-  }
-
-  /// Whether the latest authored interaction completes the surface, for tests.
+  /// Whether this presentation ends as completed, for tests.
   @visibleForTesting
-  bool get debugLastInteractionCompletes =>
-      _opened?.debugLastInteractionCompletes ?? _lastInteractionCompletes;
+  bool get debugCompleted => _opened?.debugCompleted ?? _completed;
 
-  /// Records how the surface ended: completion when the latest authored
-  /// interaction's route completes the surface, otherwise dismiss.
+  /// Records how the surface ended: completion when app code fired a
+  /// completing event, otherwise dismiss.
   void recordSurfaceEnd() {
     final opened = _opened;
     if (opened != null) return opened.recordSurfaceEnd();
     if (_holdPending((o) => o.recordSurfaceEnd())) return;
-    recordLifecycle(_lastInteractionCompletes
+    recordLifecycle(_completed
         ? MeasurementOccurrenceChannelV1.completion
         : MeasurementOccurrenceChannelV1.dismiss);
   }

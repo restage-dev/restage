@@ -9,15 +9,18 @@ const kFeatures = [
   'Home screen widgets',
 ];
 
-@Paywall(id: 'pro_upgrade', completesOn: [ProUpgradePaywall.startTrial])
+@Paywall(id: 'pro_upgrade', completesOn: [ProUpgradePaywall.trialStarted])
 class ProUpgradePaywall extends StatelessWidget {
-  const ProUpgradePaywall({super.key, this.onClose});
+  const ProUpgradePaywall({super.key, this.onClose, this.onStartTrial});
 
   /// Dismisses the paywall.
   final VoidCallback? onClose;
 
-  /// Starting the trial completes the paywall.
-  static const startTrial = SurfaceEvent<void>('start_trial');
+  /// Starts the trial; true when the purchase went through.
+  final Future<bool> Function()? onStartTrial;
+
+  /// Fired once the trial started; it completes the paywall.
+  static const trialStarted = SurfaceEvent<void>('trial_started');
 
   Widget _feature(String text) =>
       ListTile(leading: const Icon(Icons.check), title: Text(text));
@@ -38,7 +41,12 @@ class ProUpgradePaywall extends StatelessWidget {
             title,
             for (final feature in kFeatures) _feature(feature),
             FilledButton(
-              onPressed: context.surfaceEvent(ProUpgradePaywall.startTrial),
+              onPressed: () async {
+                final started = await onStartTrial?.call() ?? false;
+                if (started && context.mounted) {
+                  context.surfaceEvent(ProUpgradePaywall.trialStarted)();
+                }
+              },
               child: const Text('Start free trial'),
             ),
             TextButton(

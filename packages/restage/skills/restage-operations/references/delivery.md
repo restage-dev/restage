@@ -38,7 +38,9 @@ restage surface status welcome_flow
 - Publishing changes what apps receive at that target, subject to targeting,
   compatibility and experiment assignment.
 - Run the `--review-measurement` invocation first and read the complete review.
-  Live confirmation controls also apply to it.
+  Its whole output is one JSON document, the same on every command: `digest`,
+  to pass as `--reviewed-digest`, and the complete `review`. It changes
+  nothing and asks no confirmation.
 - If warnings require acknowledgement, follow
   [Protect running experiments](experiments.md#protect-running-experiments).
   Pass `--reviewed-digest` only when the user has authorized that impact.

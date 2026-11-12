@@ -220,18 +220,13 @@ void main() {
     expect((await memoryOnly.read(key))!.artifactBytes, entry(9).artifactBytes);
   });
 
-  test('scopeFor is stable, 16 hex characters, and environment-sensitive', () {
-    final production = SurfaceStoreKey.scopeFor(
-        apiKey: 'rk_live_1', environment: 'production');
-    final sandbox =
-        SurfaceStoreKey.scopeFor(apiKey: 'rk_live_1', environment: 'sandbox');
+  test('scopeFor is stable, 16 hex characters, and key-sensitive', () {
+    final live = SurfaceStoreKey.scopeFor(apiKey: 'rk_live_1');
+    final sandbox = SurfaceStoreKey.scopeFor(apiKey: 'rk_sandbox_1');
 
-    expect(production, matches(RegExp(r'^[0-9a-f]{16}$')));
-    expect(
-      production,
-      SurfaceStoreKey.scopeFor(apiKey: 'rk_live_1', environment: 'production'),
-    );
-    expect(production, isNot(sandbox));
+    expect(live, matches(RegExp(r'^[0-9a-f]{16}$')));
+    expect(live, SurfaceStoreKey.scopeFor(apiKey: 'rk_live_1'));
+    expect(live, isNot(sandbox));
   });
 }
 

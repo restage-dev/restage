@@ -39,7 +39,6 @@ void main() {
     );
     final resolver = RestageScreenResolver(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.production,
       baseUrl: 'https://surfaces.example.com',
       assetFallback: fallback,
       rpcClientProvider: () => client,

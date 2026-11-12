@@ -267,8 +267,13 @@ ids move.
 ## Delivery
 
 Generated mounts render their compiled-widget fallback without a server or
-bundled surface assets. To fetch surfaces from Restage Cloud or your own server, call
-`Restage.configure(apiKey: 'rs_pk_...', baseUrl: ...)` at startup. Hosted delivery
+bundled surface assets. To fetch surfaces from Restage Cloud or your own server, put
+the publishable key, service URL and delivery keys in `build.yaml` (as `api_key`,
+`base_url` and `delivery_keys` under `restage_codegen:user_factories`; a signed-in
+`restage init` writes all three), then call
+`Restage.configure(registerWidgets: kRestageWidgetRegistration)` at startup.
+Delivered content renders only when it is signed with one of the delivery keys.
+Hosted delivery
 covers screens, paywalls and flows by default, including each generated mount's
 placement. Leave `flowResolver` unset for ordinary setup; a resolver you set
 replaces that default for flows.
@@ -423,11 +428,14 @@ targets:
           catalog: derived
 ```
 
-Then call the generated helper before `Restage.configureWithInstalledCatalog`:
+Then replace `Restage.configure` with `Restage.configureWithInstalledCatalog`,
+keeping the same arguments:
 
 ```dart
-registerRestageWidgets();
-Restage.configureWithInstalledCatalog(/* your existing configuration */);
+Restage.configureWithInstalledCatalog(
+  registerWidgets: kRestageWidgetRegistration,
+  // Your existing delivery settings.
+);
 ```
 
 The build collects the catalog widgets your code draws and the ones your
@@ -437,7 +445,8 @@ extra flags; don't pass `--no-tree-shake-icons`. Unused Cupertino widgets alone
 don't remove the bundled Cupertino font; that also needs the font's package
 dependency removed.
 
-Each build reports which catalog selection it uses. Compare release builds
+The build reports which catalog selection it uses the first time and whenever
+it changes; `--verbose` shows it on every build. Compare release builds
 using the same Flutter version, platform and build settings to measure the
 difference.
 

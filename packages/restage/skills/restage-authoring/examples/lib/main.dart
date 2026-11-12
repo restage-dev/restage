@@ -67,6 +67,8 @@ class HomePage extends StatelessWidget {
               MaterialPageRoute<void>(
                 builder: (_) => ProUpgradePaywallSurface(
                   onClose: () => Navigator.of(context).pop(),
+                  // Your store call; true once the trial started.
+                  onStartTrial: () async => true,
                 ),
               ),
             ),

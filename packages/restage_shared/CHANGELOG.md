@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+`restageBuildStateInputs` lists the files under `.restage/` that builds read.
+
 `package:restage_shared/rfw_formats.dart` adds the expression nodes `Program`,
 `Effects`, `Guard` and `NativeReference`, `expressionNodesFormatVersion`, and the
 reserved state key `restageInitStateKey`. Binary

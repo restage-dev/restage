@@ -30,13 +30,11 @@ import '../assets/bundled_asset_source.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_artifact_assembly.dart';
-import '../resolver/restage_variant_resolver.dart' show RestageEnvironment;
 import '../resolver/surface_assignment_key_provider.dart';
 import '../resolver/report_surface_resolution.dart';
 import '../resolver/surface_resolution_report.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
-import '../runtime/restage.dart';
 import '../runtime/surface_vocabulary.dart';
 import 'bundled_flow_loader.dart';
 import 'compiled_flow.dart';
@@ -96,19 +94,16 @@ final class ServerFlowResolver
   /// [active] enables active delivery; otherwise requests are exact-version only.
   /// The flow descriptor supplies the namespace. [bundle] supplies active-delivery
   /// contracts and fallback assets, defaulting to `rootBundle`.
-  /// [environment] defaults to the SDK configuration.
   ServerFlowResolver({
     required String baseUrl,
     required String apiKey,
     http.Client? httpClient,
     bool active = false,
     AssetBundle? bundle,
-    RestageEnvironment? environment,
     RestageRpcClient? Function()? rpcClientProvider,
   })  : _active = active,
         _bundle = bundle,
         _apiKey = apiKey,
-        _environment = environment,
         _rpcClientProvider = rpcClientProvider,
         _baseUrl = baseUrl,
         _httpClient = httpClient {
@@ -128,13 +123,8 @@ final class ServerFlowResolver
   final bool _active;
   final AssetBundle? _bundle;
   final String _apiKey;
-  final RestageEnvironment? _environment;
 
-  // The configured environment when none was passed.
-  String get _scope => SurfaceStoreKey.scopeFor(
-        apiKey: _apiKey,
-        environment: (_environment ?? Restage.configuredEnvironment).name,
-      );
+  String get _scope => SurfaceStoreKey.scopeFor(apiKey: _apiKey);
   late final RacedSurfaceDelegate<ResolvedFlow> _raced =
       RacedSurfaceDelegate<ResolvedFlow>(bestLocal: bestLocal, fresh: fresh);
 

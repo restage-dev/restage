@@ -1150,6 +1150,9 @@ bool presentHeldPlacement<T extends Object>(
         onError: (Object _) => onPresentFailed()));
   }
 
+  // Content a remount's predecessor shows now stays on screen from the first
+  // frame; fresh still answers, under the usual late-answer rules.
+  if (placementContentOnScreen(raced.declaration.mount, held)) show(held);
   unawaited(fresh.then((value) {
     if (value == null) {
       show(held);

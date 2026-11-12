@@ -18,7 +18,8 @@ const _local = [
 ];
 
 void main() {
-  test('dart fix --apply renames renderDeadline to firstLaunchWait', () async {
+  test('dart fix --apply renames renderDeadline and removes environment',
+      () async {
     final packages = Directory.current.parent.path;
     // Directory.systemTemp follows TMPDIR.
     final app = Directory.systemTemp.createTempSync('restage_fix_data');
@@ -49,6 +50,15 @@ void main() {
   Restage.configure(renderDeadline: const Duration(milliseconds: 500));
   Restage.configureWithInstalledCatalog(
       renderDeadline: const Duration(milliseconds: 400));
+  Restage.configure(apiKey: 'k', environment: RestageEnvironment.sandbox);
+  Restage.configureWithInstalledCatalog(
+      apiKey: 'k', environment: RestageEnvironment.production);
+  RestageVariantResolver(apiKey: 'k', environment: RestageEnvironment.sandbox);
+  RestageScreenResolver(apiKey: 'k', environment: RestageEnvironment.sandbox);
+  ServerFlowResolver(
+      baseUrl: 'https://example.com',
+      apiKey: 'k',
+      environment: RestageEnvironment.sandbox);
 }
 ''');
 
@@ -64,5 +74,9 @@ void main() {
     expect(fixed, contains('Restage.configure(firstLaunchWait:'));
     expect(fixed,
         contains('configureWithInstalledCatalog(\n      firstLaunchWait:'));
+    expect(fixed, isNot(contains('environment')));
+    expect(fixed, contains("Restage.configure(apiKey: 'k');"));
+    expect(fixed, contains("RestageVariantResolver(apiKey: 'k');"));
+    await run('dart', ['analyze', '--fatal-infos', 'lib']);
   });
 }

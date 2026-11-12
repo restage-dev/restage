@@ -2495,9 +2495,7 @@ void main() {
         .capture();
     await PlacementDecisionStore(
             scope: SurfaceStoreKey.scopeFor(
-                apiKey: 'rs_pk_test',
-                environment: 'production',
-                baseUrl: 'https://example.com'),
+                apiKey: 'rs_pk_test', baseUrl: 'https://example.com'),
             store: sharedSurfaceArtifactStore)
         .remember(dynamicMount.mount, dynamicMount.host, () => true);
     _configure(requests, surfaces: definitions);
@@ -2528,9 +2526,7 @@ void main() {
     final removed = _paywallDefinition('removed', host);
     final store = PlacementDecisionStore(
         scope: SurfaceStoreKey.scopeFor(
-            apiKey: 'rs_pk_test',
-            environment: 'production',
-            baseUrl: 'https://example.com'),
+            apiKey: 'rs_pk_test', baseUrl: 'https://example.com'),
         store: sharedSurfaceArtifactStore);
     for (final binding in [
       PlacementMountBinding(definition: () => removed),

@@ -79,7 +79,8 @@ bool _isSaved(Object local) =>
 /// A mount with nothing saved waits for fresh until [deadline], then renders
 /// its original. A mount with saved content waits for fresh only until
 /// the deadline's fresh window, then renders the saved content. A fresh value accepted after
-/// the race settled goes to [onLateFresh].
+/// the race settled goes to [onLateFresh]. A [hosted] fresh failure is logged
+/// in debug builds.
 @internal
 Future<RaceOutcome<T>> raceSurface<T extends Object>({
   required RenderDeadline deadline,
@@ -87,6 +88,7 @@ Future<RaceOutcome<T>> raceSurface<T extends Object>({
   required Future<T?> Function() bestLocal,
   void Function(T value)? onLateFresh,
   bool Function()? answerArrived,
+  bool hosted = false,
 }) {
   final settled = Completer<RaceOutcome<T>>();
   T? local;
@@ -152,7 +154,7 @@ Future<RaceOutcome<T>> raceSurface<T extends Object>({
     },
     onError: (Object error) {
       freshError = error;
-      if (kDebugMode) {
+      if (kDebugMode && hosted) {
         debugPrint('[restage] hosted resolve failed '
             '(${error.runtimeType}): $error');
       }

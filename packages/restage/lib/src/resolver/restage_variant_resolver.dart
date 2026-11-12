@@ -60,7 +60,7 @@ final class RestageVariantResolver
         VariantResolver,
         FlowCapableVariantResolver,
         PresentationPaywallResolver {
-  /// Creates a [RestageVariantResolver] targeting [apiKey] / [environment].
+  /// Creates a [RestageVariantResolver] targeting [apiKey].
   ///
   /// [baseUrl] is the delivery service origin (config-supplied, never baked in).
   /// When null or empty the hosted fetch tier is unavailable and resolution goes
@@ -70,7 +70,6 @@ final class RestageVariantResolver
   /// elsewhere.
   RestageVariantResolver({
     required this.apiKey,
-    required this.environment,
     String? baseUrl,
     http.Client? httpClient,
     VariantResolver assetFallback = const AssetVariantResolver(),
@@ -87,9 +86,6 @@ final class RestageVariantResolver
 
   /// Publishable Restage key used by hosted paywall delivery.
   final String apiKey;
-
-  /// Environment the API key targets (sandbox vs production).
-  final RestageEnvironment environment;
 
   final RestageRpcClient? _client;
   final VariantResolver _assetFallback;
@@ -109,10 +105,7 @@ final class RestageVariantResolver
   /// The store key for paywall [id]; paywalls carry no contract version.
   @internal
   SurfaceStoreKey storeKeyFor(String id) => SurfaceStoreKey(
-        scope: SurfaceStoreKey.scopeFor(
-          apiKey: apiKey,
-          environment: environment.name,
-        ),
+        scope: SurfaceStoreKey.scopeFor(apiKey: apiKey),
         surfaceType: Surface.paywall.wireName,
         slug: id,
         contractVersion: 0,
@@ -1234,14 +1227,3 @@ ResolvedPaywallPayload withoutAssignmentLeaseForDelivery(
       BlobPaywallPayload(:final variant) => BlobPaywallPayload(variant),
       FlowPaywallPayload() => payload.copyForDelivery(assignmentLease: null),
     };
-
-/// Local environment hint passed to `Restage.configure` and resolvers.
-/// Hosted authorization and metering use the environment bound to the API key;
-/// this hint and the key's readable environment label do not select it.
-enum RestageEnvironment {
-  /// Sandbox hint, commonly used with `rs_pk_sandbox_…` keys.
-  sandbox,
-
-  /// Production hint, commonly used with `rs_pk_live_…` keys.
-  production,
-}

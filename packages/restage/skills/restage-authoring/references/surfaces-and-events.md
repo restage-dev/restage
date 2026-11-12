@@ -80,8 +80,9 @@ name in UpperCamelCase, then `Event`.
 - Make things happen with plain Flutter callbacks first: `final VoidCallback? onClose;`
   and `onPressed: onClose`, or a closure such as `() => cubit.purchase(plan)`. The
   generated mount takes the same callbacks and hands your closures to the delivered
-  design. Use a typed event when Restage acts on the tap: a flow step's outcome, an
-  outcome a flow or placement routes, or a paywall's `completesOn` event.
+  design. Use a typed event when Restage acts on the tap: a flow step's outcome, or
+  an outcome a flow or placement routes. A paywall's `completesOn` event is fired
+  from your own code after a purchase, never by a tap.
   A design you'll deliver into more than one placement fires typed events; app
   callbacks tie it to its own mount.
 - Declare each event once as a `static const` `SurfaceEvent<T>` field on the surface
@@ -109,19 +110,23 @@ name in UpperCamelCase, then `Event`.
   `final VoidCallback? onClose;` and `onPressed: onClose`. The generated mount takes the
   same callbacks and hands your closures to the delivered paywall. Fire a typed event
   only when Restage acts on it: a flow step's outcome, an outcome a flow or placement
-  routes, or an event in `completesOn`. The generated paywall mount delivers a typed
-  event as `PaywallCustomEvent` with `eventName` and `args`; a map value is its `args`
+  routes, or, from your own code after a purchase, an event in `completesOn`. The
+  generated paywall mount delivers a typed event as `PaywallCustomEvent` with `eventName` and `args`; a map value is its `args`
   and any other value arrives as `args['value']`. The names `purchase`, `restore`
   and `restage.purchase…`/`restage.restore…` are reserved; use names such as
   `restore_purchases`. A paywall used as a flow step declares `SurfaceEvent`s for its
   transitions, like any screen.
-- `@Paywall(completesOn: [ProUpgradePaywall.startTrial])` marks that tap as a
-  completed interaction for measurement. Declare the event with
-  `static const startTrial = SurfaceEvent<void>('start_trial');`. The host still
-  performs purchases and navigation; this does not close a route or advance a
-  flow. Other exits are recorded as dismissals. Naming an event that no tap fires
-  stops the build. A tap on your own `@RestageWidget`'s callback counts, including
-  one inside a wrapper widget's `Widget` child.
+- `@Paywall(completesOn: [ProUpgradePaywall.trialStarted])` records the paywall as
+  completed for measurement when your app fires that event. Declare it with
+  `static const trialStarted = SurfaceEvent<void>('trial_started');` and fire it
+  from your own code once the purchase succeeds:
+  `if (ok && context.mounted) context.surfaceEvent(trialStarted)();`. The call can
+  sit in the paywall's build or in any widget in the same file. Once it fires, the
+  paywall ends as completed, whatever is tapped afterwards. A tap never completes a
+  paywall, so a cancelled purchase is a dismissal. The host still performs purchases
+  and navigation; this does not close a route or advance a flow. Naming an event the
+  paywall's code never fires stops the build, and an event only a tap fires gets a
+  build warning.
 - For a parent `GestureDetector` that owns the tap over a child with its own,
   wrap the child in `IgnorePointer` and set `behavior: HitTestBehavior.opaque`;
   without it the detector misses taps the ignored child would have received.

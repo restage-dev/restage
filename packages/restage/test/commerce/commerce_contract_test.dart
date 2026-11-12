@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/commerce.dart' as commerce;
-import 'package:restage/restage.dart' show Restage, RestageEnvironment;
+import 'package:restage/restage.dart' show Restage;
 
 void main() {
   group('commerce values', () {
@@ -262,7 +262,6 @@ void main() {
       Restage.configure(
         apiKey: 'rs_pk_test',
         baseUrl: 'https://api.example.com',
-        environment: RestageEnvironment.sandbox,
       );
 
       final availability = await facade.availability(

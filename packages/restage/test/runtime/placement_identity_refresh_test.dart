@@ -21,6 +21,7 @@ import 'package:rfw/formats.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart' show RemoteWidget, Runtime;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../support/debug_print_capture.dart';
 import '../support/placement_delivery_fixture.dart';
 import '../support/sent_placement_request.dart';
 import '../surface_screen/surface_screen_test_support.dart';
@@ -107,6 +108,7 @@ final class _Harness {
   var broken = false;
   // Every answer carries a receipt of its own, as a signing service's do.
   final receipts = <String>[];
+  final resolutions = <SurfaceResolutionReport>[];
   var requests = 0;
 
   // Holds an answer until it completes; the answer is built after it.
@@ -151,6 +153,7 @@ widget OnboardingScreen = Broken();
       deliveryReceiptsEnabled: false,
       updateChannel: channel,
       liveRefresh: const {SurfaceRefreshTrigger.updateChannel},
+      onSurfaceResolution: resolutions.add,
     );
     const SurfaceVocabulary(libraries: [_islands]).addToInstalled();
     debugResetInstallObservations();
@@ -232,25 +235,18 @@ widget OnboardingScreen = Broken();
           .first,
       vocabulary: SurfaceVocabulary.none,
     );
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (mount) {
-            final recording = RestageRecording(owner: mount);
-            final island = recording.island(
-              'Keep',
-              TextButton(
-                onPressed: recording.surfaceEvent(_close),
-                child: const Text('island close'),
-              ),
-            );
-            return RestageIslandScope(
-              owner: mount,
-              builders: {
-                'Keep': (context, source) =>
-                    recording.islandAt('Keep', const [], context, source),
-              },
-              child: RestageScreen<String>(
+    _app = () => MaterialApp(
+          home: Builder(
+            builder: (mount) {
+              final recording = RestageRecording(owner: mount);
+              final island = recording.island(
+                'Keep',
+                TextButton(
+                  onPressed: recording.surfaceEvent(_close),
+                  child: const Text('island close'),
+                ),
+              );
+              final screen = RestageScreen<String>(
                 screen: fixture.ref,
                 placementBinding: RestageScreen.generatedPlacementBinding(
                   definition: () => definition,
@@ -258,15 +254,38 @@ widget OnboardingScreen = Broken();
                 ),
                 onEvent: events.add,
                 fallbackBuilder: (_) => island,
-              ),
-            );
-          },
-        ),
-      ),
-    );
+              );
+              return RestageIslandScope(
+                owner: mount,
+                builders: {
+                  'Keep': (context, source) =>
+                      recording.islandAt('Keep', const [], context, source),
+                },
+                // A transition that changes type remounts the screen, as one
+                // that follows Reduce Motion does.
+                child: fade
+                    ? FadeTransition(
+                        opacity: kAlwaysCompleteAnimation, child: screen)
+                    : SlideTransition(
+                        position: const AlwaysStoppedAnimation(Offset.zero),
+                        child: screen),
+              );
+            },
+          ),
+        );
+    await tester.pumpWidget(_app());
     await _frames(tester);
     expect(tester.takeException(), isNull);
     expect(find.text(text), findsOneWidget);
+  }
+
+  late Widget Function() _app;
+  var fade = false;
+
+  /// Remounts the screen by changing the transition around it.
+  Future<void> remount() {
+    fade = !fade;
+    return tester.pumpWidget(_app());
   }
 
   Runtime get runtime =>
@@ -337,6 +356,66 @@ void main() {
       }
     },
   );
+
+  testWidgets(
+      'a refresh that swaps a screen logs and reports it; the same content '
+      'does neither', (tester) async {
+    final harness = _Harness(tester);
+    try {
+      await harness.mount();
+      final logs = await captureRestageLogs(() async {
+        harness.digest = CanonicalDigest('b' * 64);
+        await harness.refresh();
+        await harness.settle();
+        harness
+          ..text = 'newer'
+          ..digest = CanonicalDigest('c' * 64);
+        await harness.refresh();
+        await harness.settle();
+      });
+
+      expect(find.text('newer'), findsOneWidget);
+      expect([
+        for (final report in harness.resolutions) report.source
+      ], [
+        SurfaceResolutionSource.fresh,
+        SurfaceResolutionSource.fresh,
+      ]);
+      expect(logs, hasLength(1));
+      expect(logs.single,
+          '[restage] live refresh: general "welcome" now shows r9.');
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  testWidgets(
+      'a remount shows the content its predecessor showed from its first '
+      'frame, and fresh answers under the usual rules', (tester) async {
+    final harness = _Harness(tester);
+    try {
+      await harness.mount();
+      // An app that lists its surfaces reads its saved decisions at configure.
+      Restage.placementRegistry!.warmSaved();
+      await harness.settle();
+      final before = harness.requests;
+      harness.text = 'newer';
+      harness.digest = CanonicalDigest('b' * 64);
+
+      await harness.remount();
+      expect(find.text('delivered'), findsOneWidget, reason: 'first frame');
+      for (var frame = 0; frame < 5; frame++) {
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(find.text('delivered'), findsOneWidget, reason: 'frame $frame');
+      }
+      await harness.settle();
+      expect(harness.requests, greaterThan(before));
+      // A late answer is kept for the next mount, as after any held decision.
+      expect(find.text('delivered'), findsOneWidget);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
 
   testWidgets(
       'a refresh while newer content waits for its first paint stages the '

@@ -896,11 +896,9 @@ void main() {
     expect(requests, isEmpty);
   });
 
-  test('a flow resolver without an environment keys under the configured one',
-      () {
+  test('a flow resolver keys its store under its API key', () {
     Restage.configure(
       apiKey: 'rs_pk_test',
-      environment: RestageEnvironment.sandbox,
       analyticsEnabled: false,
       measurementEnabled: false,
     );
@@ -912,7 +910,7 @@ void main() {
 
     expect(
       resolver.storeKeyFor(flowRef).scope,
-      SurfaceStoreKey.scopeFor(apiKey: 'rs_pk_test', environment: 'sandbox'),
+      SurfaceStoreKey.scopeFor(apiKey: 'rs_pk_test'),
     );
   });
 }

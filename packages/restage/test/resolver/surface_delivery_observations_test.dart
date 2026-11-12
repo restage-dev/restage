@@ -103,6 +103,7 @@ Map<String, Object?> _androidReply(int sdkInt) => <String, Object?>{
       'supported64BitAbis': <String>['arm64-v8a'],
       'supportedAbis': <String>['arm64-v8a'],
       'tags': 'tags',
+      'time': 0,
       'type': 'user',
       'isPhysicalDevice': true,
       'freeDiskSize': 1024,

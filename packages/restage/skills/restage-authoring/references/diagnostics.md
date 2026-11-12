@@ -164,15 +164,17 @@ State fields support `bool`, `int`, `double`, `num`, `String` and enums with non
 constant initializers. A missing initializer, unsupported field type or lifecycle
 method stops the build. Keep controllers and subscriptions in app code.
 
-## completesOn names an event no tap fires
+## completesOn names an event the paywall's file never fires
 
 ```text
-[annotationEvaluationFailed] lib/src/measurement/restage.measurement.compiler.json: Could not construct Measurement route plan for paywall/stray_complete: Invalid argument(s): completesOn names the event 'buy', which no tap on this paywall fires. A tap fires it with context.surfaceEvent(<the declared event constant>).
+[annotationEvaluationFailed] lib/src/measurement/restage.measurement.compiler.json: Could not construct Measurement route plan for paywall/stray_complete: Invalid argument(s): completesOn names the event 'buy', which this paywall's own file never fires. Fire it from app code in package:my_app/paywalls/stray_complete.dart once the purchase succeeds: context.surfaceEvent(<the declared event constant>)(). A call in another file is not seen; move it into package:my_app/paywalls/stray_complete.dart.
 ```
 
-Fire the event from the tap that completes the paywall with
-`context.surfaceEvent(Paywall.buy)`, or remove it from `completesOn`. Taps on your own widgets'
-callbacks count, including inside a wrapper widget's child.
+Fire the event from your own code once the purchase succeeds, in the paywall's
+build or any widget in the paywall's own file; a call in another file is not seen:
+`if (ok && context.mounted) context.surfaceEvent(Paywall.purchased)();`. Or remove it
+from `completesOn`. If only a tap fires it, the build warns instead: a tap never
+completes a paywall.
 
 ## A widget the build can't match to an earlier one
 

@@ -314,7 +314,6 @@ final class _Harness {
         screen: fixture.ref,
         resolver: RestageScreenResolver(
           apiKey: _apiKey,
-          environment: RestageEnvironment.production,
           baseUrl: _baseUrl,
           assetFallback: FixedBundledScreenResolver(fixture.bundled()),
           rpcClientProvider: () => client,

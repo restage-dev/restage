@@ -153,7 +153,6 @@ void main() {
         screen: fixture.ref,
         resolver: RestageScreenResolver(
           apiKey: _apiKey,
-          environment: RestageEnvironment.values.first,
           rpcClientProvider: () => client,
         ),
         fallbackBuilder: (_) => const Text('unavailable'),
@@ -201,7 +200,6 @@ void main() {
       });
       final resolver = RestageVariantResolver(
         apiKey: _apiKey,
-        environment: RestageEnvironment.sandbox,
         baseUrl: _baseUrl,
         httpClient: server.client,
         assetFallback: AssetVariantResolver(bundle: _TestBundle({})),
@@ -258,7 +256,6 @@ void main() {
       });
       final resolver = RestageVariantResolver(
         apiKey: _apiKey,
-        environment: RestageEnvironment.sandbox,
         baseUrl: _baseUrl,
         httpClient: server.client,
         assetFallback: AssetVariantResolver(bundle: bundle),
@@ -307,7 +304,6 @@ void main() {
       );
       final resolver = RestageScreenResolver(
         apiKey: _apiKey,
-        environment: RestageEnvironment.values.first,
         rpcClientProvider: () => client,
       );
       for (final region in ['SE', 'US']) {
@@ -372,7 +368,6 @@ void main() {
           screen: fixture.ref,
           resolver: RestageScreenResolver(
             apiKey: _apiKey,
-            environment: RestageEnvironment.values.first,
             rpcClientProvider: () => client,
           ),
           fallbackBuilder: (_) => const Text('unavailable'),

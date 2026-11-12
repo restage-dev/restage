@@ -19,7 +19,7 @@ dependencies:
 
 dev_dependencies:
   http: ^1.6.0
-  package_info_plus: ^9.0.1
+  package_info_plus: ^10.2.2
   restage_measurement_schema:
     path: ../../restage_measurement_schema
   restage_shared:

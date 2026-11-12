@@ -256,7 +256,6 @@ abstract final class Restage {
   static bool _configured = false;
   static bool _reportedUnconfigured = false;
   static String? _baseUrl;
-  static RestageEnvironment _environment = RestageEnvironment.production;
   static VariantResolver _defaultResolver = const AssetVariantResolver();
   static FlowResolver _defaultFlowResolver = const AssetFlowResolver();
   static SurfaceScreenResolver _defaultSurfaceScreenResolver =
@@ -307,7 +306,7 @@ abstract final class Restage {
   // it is torn down; there is no host-facing way to install one. Keeping it a
   // registration rather than a hard call in [fireEvent] is what lets the event
   // stream and the recording path be reasoned about — and retired — separately.
-  static ({String apiKey, RestageEnvironment environment})? _analyticsAuthority;
+  static String? _analyticsAuthority;
 
   /// Configures the SDK at app startup.
   ///
@@ -367,7 +366,9 @@ abstract final class Restage {
   /// them. Delivered content that is unsigned, signed by another key, or
   /// authorized by the server before the newest content already shown never
   /// renders; the saved copy or the compiled widget renders instead. List the
-  /// next key here before the server rotates to it.
+  /// next key here before the server rotates to it. Without it, the keys
+  /// build.yaml lists under `delivery_keys` are used; `restage init` writes
+  /// them.
   ///
   /// [showSourceBadges] labels each mounted surface in debug builds with what
   /// it shows: `compiled` for content built into the app, or `delivered rN`
@@ -429,7 +430,6 @@ abstract final class Restage {
     bool includeMaterial = true,
     bool includeCupertino = true,
     RestageWidgetRegistration? registerWidgets,
-    RestageEnvironment environment = RestageEnvironment.production,
     void Function(SurfaceResolutionReport report)? onSurfaceResolution,
     VariantResolver? resolver,
     FlowResolver? flowResolver,
@@ -460,7 +460,6 @@ abstract final class Restage {
       channel: channel,
       analyticsEnabled: analyticsEnabled,
       measurementEnabled: measurementEnabled,
-      environment: environment,
       onSurfaceResolution: onSurfaceResolution,
       resolver: resolver,
       flowResolver: flowResolver,
@@ -514,7 +513,6 @@ abstract final class Restage {
     String? channel,
     bool? analyticsEnabled,
     bool measurementEnabled = true,
-    RestageEnvironment environment = RestageEnvironment.production,
     void Function(SurfaceResolutionReport report)? onSurfaceResolution,
     VariantResolver? resolver,
     FlowResolver? flowResolver,
@@ -543,7 +541,6 @@ abstract final class Restage {
         channel: channel,
         analyticsEnabled: analyticsEnabled,
         measurementEnabled: measurementEnabled,
-        environment: environment,
         onSurfaceResolution: onSurfaceResolution,
         resolver: resolver,
         flowResolver: flowResolver,
@@ -576,7 +573,6 @@ abstract final class Restage {
     String? channel,
     bool? analyticsEnabled,
     bool measurementEnabled = true,
-    RestageEnvironment environment = RestageEnvironment.production,
     void Function(SurfaceResolutionReport report)? onSurfaceResolution,
     VariantResolver? resolver,
     FlowResolver? flowResolver,
@@ -597,6 +593,11 @@ abstract final class Restage {
     bool showSourceBadges = false,
     List<String> deliveryKeys = const <String>[],
   }) {
+    if (deliveryKeys.isEmpty) {
+      if (registerWidgets case final RestageBuildDeliveryKeys built) {
+        deliveryKeys = built.deliveryKeys;
+      }
+    }
     final List<DeliveryPublicKey> parsedDeliveryKeys;
     try {
       parsedDeliveryKeys = [
@@ -664,7 +665,6 @@ abstract final class Restage {
     ));
     _configurationGeneration += 1;
     DeliveryTrust.configure(parsedDeliveryKeys);
-    _environment = environment;
     _placementPaywallsEnabled = resolver == null;
     _placementScreensEnabled = surfaceScreenResolver == null;
     _placementFlowsEnabled = flowResolver == null;
@@ -737,7 +737,6 @@ abstract final class Restage {
             ? const AssetVariantResolver()
             : RestageVariantResolver(
                 apiKey: apiKey,
-                environment: environment,
                 baseUrl: baseUrl,
               ));
     _defaultFlowResolver = flowResolver ??
@@ -745,7 +744,6 @@ abstract final class Restage {
             ? ServerFlowResolver(
                 apiKey: apiKey,
                 baseUrl: baseUrl,
-                environment: environment,
                 active: true,
                 rpcClientProvider: _requireRpcClient,
               )
@@ -755,7 +753,6 @@ abstract final class Restage {
             ? const AssetSurfaceScreenResolver()
             : RestageScreenResolver(
                 apiKey: apiKey,
-                environment: environment,
                 baseUrl: baseUrl,
                 rpcClientProvider: _requireRpcClient,
               ));
@@ -793,7 +790,6 @@ abstract final class Restage {
       baseUrl: baseUrl,
       locale: locale,
       enabled: analytics,
-      environment: environment,
     );
     _configureSurfaceAssignmentKeyProvider(
       baseUrl: baseUrl,
@@ -935,10 +931,7 @@ abstract final class Restage {
         if (gate != null && !gate.isCompleted) gate.complete();
       }));
     }
-    final scope = SurfaceStoreKey.scopeFor(
-      apiKey: apiKey,
-      environment: _environment.name,
-    );
+    final scope = SurfaceStoreKey.scopeFor(apiKey: apiKey);
     // Registers every listed reference with its resolver before revalidating.
     final listed = <SurfaceStoreKey>{
       for (final ref
@@ -1016,12 +1009,8 @@ abstract final class Restage {
       {Object? resolver}) {
     if (resolver is PlacementBoundResolver) return resolver.storeKey;
     final apiKey = _apiKey;
-    final scope = apiKey == null
-        ? ''
-        : SurfaceStoreKey.scopeFor(
-            apiKey: apiKey,
-            environment: _environment.name,
-          );
+    final scope =
+        apiKey == null ? '' : SurfaceStoreKey.scopeFor(apiKey: apiKey);
     return _storeKeyFor(scope, ref, resolver: resolver);
   }
 
@@ -1113,9 +1102,9 @@ abstract final class Restage {
   static void reportUnconfiguredMount(String surface) {
     if (!kDebugMode || _configured || _reportedUnconfigured) return;
     _reportedUnconfigured = true;
-    debugPrint('[restage] `$surface` shows only the designs bundled with the '
-        "app because Restage isn't configured. Try calling "
-        '`Restage.configure` in `main()` to receive published designs.');
+    debugPrint("[restage] `$surface` can't receive published designs because "
+        "Restage isn't configured. Try calling `Restage.configure` in "
+        '`main()`.');
   }
 
   /// Resolves the effective live-refresh trigger set for [surfaceSlug].
@@ -1151,7 +1140,6 @@ abstract final class Restage {
     String? baseUrl,
     Locale? locale,
     bool enabled = true,
-    required RestageEnvironment environment,
   }) {
     if (!enabled || apiKey == null || baseUrl == null || baseUrl.isEmpty) {
       if (_analyticsAuthority != null) {
@@ -1161,7 +1149,7 @@ abstract final class Restage {
       SurfaceAnalyticsIdentityProvider.clear();
       return;
     }
-    final authority = (apiKey: apiKey, environment: environment);
+    final authority = apiKey;
     final previousAuthority = _analyticsAuthority;
     if (previousAuthority != null && previousAuthority != authority) {
       _retireAnalyticsAuthority();
@@ -1207,7 +1195,7 @@ abstract final class Restage {
       SurfaceAssignmentKeyProvider.clear();
       return;
     }
-    final namespace = '$baseUrl|$_apiKey|${_environment.name}';
+    final namespace = '$baseUrl|$_apiKey';
     final configurationGeneration = _configurationGeneration;
     final credentialStore = SurfaceAssignmentCredentialStore(
       namespace: namespace,
@@ -1768,10 +1756,9 @@ abstract final class Restage {
     if (apiKey == null || origin == null) return null;
     final generation = _configurationGeneration;
     return _placementRegistry ??= PlacementRegistry(
-      scope: SurfaceStoreKey.scopeFor(
-          apiKey: apiKey, environment: _environment.name, baseUrl: origin),
+      scope: SurfaceStoreKey.scopeFor(apiKey: apiKey, baseUrl: origin),
       configurationFingerprint: SurfaceStoreKey.configurationFingerprintFor(
-          apiKey: apiKey, environment: _environment.name, baseUrl: origin),
+          apiKey: apiKey, baseUrl: origin),
       client: () => _requireRpcClient()!,
       onBuildInputs: (platform, ordinal) => placementDiscovery
           ?.updateBuildInputs(platform: platform, buildOrdinal: ordinal),
@@ -1895,10 +1882,6 @@ abstract final class Restage {
   @internal
   static String? get debugBaseUrl => _baseUrl;
 
-  /// The environment passed to [configure].
-  @internal
-  static RestageEnvironment get configuredEnvironment => _environment;
-
   /// Test-only — exposes the resolver `RestagePaywall` will use by default.
   @internal
   static VariantResolver get debugDefaultResolver => _defaultResolver;
@@ -1945,7 +1928,6 @@ abstract final class Restage {
     _configured = false;
     _reportedUnconfigured = false;
     _baseUrl = null;
-    _environment = RestageEnvironment.production;
     configureSurfaceDeliveryObservations(initializeFirstLaunch: false);
     _defaultResolver = const AssetVariantResolver();
     _defaultFlowResolver = const AssetFlowResolver();

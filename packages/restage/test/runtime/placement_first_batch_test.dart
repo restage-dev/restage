@@ -63,13 +63,9 @@ void main() {
     addTearDown(client.close);
     final registry = PlacementRegistry(
         scope: SurfaceStoreKey.scopeFor(
-            apiKey: 'test_key',
-            environment: 'production',
-            baseUrl: 'https://example.com'),
+            apiKey: 'test_key', baseUrl: 'https://example.com'),
         configurationFingerprint: SurfaceStoreKey.configurationFingerprintFor(
-            apiKey: 'test_key',
-            environment: 'production',
-            baseUrl: 'https://example.com'),
+            apiKey: 'test_key', baseUrl: 'https://example.com'),
         client: () => client,
         isCurrent: () => true,
         now: () => DateTime.utc(2026, 10, 4, 12));

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/delivery/delivery_trust.dart';
 import 'package:restage/src/early/early_request.dart';
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -34,6 +35,21 @@ final class _SlashedSetup
 
   @override
   bool get analyticsEnabled => true;
+
+  @override
+  void call({required bool includeMaterial, required bool includeCupertino}) {}
+}
+
+final _deliveryKey = '7:${base64Url.encode(List<int>.filled(32, 1))}';
+final _otherKey = '7:${base64Url.encode(List<int>.filled(32, 2))}';
+
+/// A generated setup whose build.yaml lists `delivery_keys`.
+final class _KeyedSetup
+    implements RestageWidgetRegistration, RestageBuildDeliveryKeys {
+  const _KeyedSetup();
+
+  @override
+  List<String> get deliveryKeys => [_deliveryKey];
 
   @override
   void call({required bool includeMaterial, required bool includeCupertino}) {}
@@ -76,6 +92,7 @@ void _configure({
   RestageWidgetRegistration? registerWidgets,
   bool installedCatalog = false,
   List<RestageSurfaceRef> surfaces = const [],
+  List<String> deliveryKeys = const [],
 }) {
   if (installedCatalog) {
     Restage.configureWithInstalledCatalog(
@@ -86,6 +103,7 @@ void _configure({
       analyticsEnabled: false,
       measurementEnabled: false,
       deliveryReceiptsEnabled: false,
+      deliveryKeys: deliveryKeys,
     );
   } else {
     Restage.configure(
@@ -96,6 +114,7 @@ void _configure({
       analyticsEnabled: false,
       measurementEnabled: false,
       deliveryReceiptsEnabled: false,
+      deliveryKeys: deliveryKeys,
     );
   }
 }
@@ -126,6 +145,26 @@ void main() {
       expect(Restage.debugBaseUrl, _buildUrl);
       expect(inMemorySurfaceDeliveryObservations().$1.channel, 'beta');
       expect(InstalledWidgetLibraries.hasSelection, isTrue);
+    });
+
+    test('$entry uses the delivery keys the build lists unless given', () {
+      List<String> keys() => [
+            for (final key in DeliveryTrust.keyring.keys) '$key',
+          ];
+      _configure(
+        registerWidgets: const _KeyedSetup(),
+        installedCatalog: installedCatalog,
+      );
+      expect(keys(), contains(_deliveryKey));
+      expect(keys(), isNot(contains(_otherKey)));
+      Restage.debugReset();
+      _configure(
+        registerWidgets: const _KeyedSetup(),
+        installedCatalog: installedCatalog,
+        deliveryKeys: [_otherKey],
+      );
+      expect(keys(), contains(_otherKey));
+      expect(keys(), isNot(contains(_deliveryKey)));
     });
 
     test('$entry prefers an explicit key and URL', () {
