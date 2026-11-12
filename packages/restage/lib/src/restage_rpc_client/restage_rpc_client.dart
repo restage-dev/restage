@@ -2100,6 +2100,42 @@ class RestageRpcClient {
     );
   }
 
+  /// Reads one package-boundary page without fetching further pages.
+  @internal
+  Future<CommerceOfferingsPage?> fetchCommerceOfferings({
+    String? offerId,
+    String? cursor,
+    int limit = 100,
+  }) async {
+    try {
+      final uri = Uri.parse('$_baseUrl/sdk/v1/commerce/offerings').replace(
+        queryParameters: {
+          if (offerId != null) 'offerId': offerId,
+          if (cursor != null) 'cursor': cursor,
+          'limit': '$limit',
+        },
+      );
+      final response =
+          await _client.get(uri, headers: {'Authorization': 'Bearer $_apiKey'});
+      if (response.statusCode < 200 || response.statusCode >= 300) return null;
+      return CommerceOfferingsPage.fromJson(
+          jsonDecode(response.body) as Map<String, dynamic>);
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Mints promotional material bound only to the resolved purchase intent.
+  @internal
+  Future<OfferSignatureResponse?> fetchCommerceOfferSignature(
+    IntentBoundOfferSignatureRequest request,
+  ) =>
+      _postCommerceResponse(
+        path: '/sdk/v1/commerce/offer-signature',
+        body: request.toJson(),
+        decode: OfferSignatureResponse.fromJson,
+      );
+
   /// Resolves one logical offer before the store can present it.
   @internal
   Future<CommerceIntentResponse?> createCommerceIntent(
@@ -2139,6 +2175,11 @@ class RestageRpcClient {
     required T Function(Map<String, dynamic>) decode,
   }) async {
     final response = await _postJsonObjectAnyStatus(path: path, body: body);
+    if (path == '/sdk/v1/commerce/intents' &&
+        response?.statusCode == 400 &&
+        response?.json?['error'] == 'package_selection_required') {
+      throw const CommercePackageSelectionRequired();
+    }
     if (response == null ||
         response.statusCode < 200 ||
         response.statusCode >= 300) {
@@ -2205,6 +2246,13 @@ class RestageRpcClient {
       bodyBytes: response.bodyBytes,
     );
   }
+}
+
+/// The authority requires an exact package selection for this offering.
+@internal
+final class CommercePackageSelectionRequired implements Exception {
+  /// Creates the named package-selection refusal.
+  const CommercePackageSelectionRequired();
 }
 
 final class _JsonObjectHttpResponse {

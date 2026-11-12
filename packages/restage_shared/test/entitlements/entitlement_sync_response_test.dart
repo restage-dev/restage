@@ -72,6 +72,7 @@ void main() {
         () {
       final json = <String, dynamic>{
         'status': 'current',
+        'catalogRevision': 0,
         'entitlements': <dynamic>[],
         'retrievedAt': '2026-10-17T00:00:00.000Z'
       };
@@ -122,6 +123,7 @@ void main() {
       final response = CommercePurchaserStateResponse.fromJson(
         const <String, dynamic>{
           'status': 'delayed',
+          'catalogRevision': 0,
           'entitlements': <dynamic>[],
           'retrievedAt': '2026-09-05T12:00:00.000Z',
         },

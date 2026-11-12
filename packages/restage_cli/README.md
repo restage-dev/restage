@@ -83,7 +83,14 @@ restage app-config set --ios-bundle-id <id>
 restage products list
 restage products import --store appStore
 restage slots list
-restage slots set <name> --entitlement <e> --ios-product-id <id> --android-product-id none
+restage slots set <name> --entitlement-keys '["premium","pro"]'
+restage slots set <name> --slot-id <id> --entitlement-keys '["pro"]' --catalog-revision <n> \
+  --add '[{"productId":<id>,"basePlanId":"monthly"}]'
+restage offerings list --env staging --plane sandbox --json
+restage offerings current --env staging --plane sandbox --offering-id <id>
+restage offerings save --offering '{"id":4,"offerId":"default"}' --packages '[]' --retired-package-ids '[17]'
+restage offerings retire --offering-id 4
+restage offerings retire --offering-id 4 --revive
 restage stores list
 restage keys list
 restage keys mint --public
@@ -174,6 +181,11 @@ organization, app, or environment target, it saves the matching numeric IDs in
 tracked config untouched so its source stays clean for the receipt. Each later
 command checks the saved IDs against what you can access at that moment;
 editing a slug or plane can require selecting and saving a new target.
+
+Offering saves upsert the supplied package rows and leave omitted rows unchanged.
+`--retired-package-ids` retires only the named persisted numeric store-child row IDs;
+omitting it retires none. `--revive` reactivates the offering and packages retired with
+it; earlier individual retirements remain unless that package is explicitly upserted.
 
 ## Pushing and publishing
 

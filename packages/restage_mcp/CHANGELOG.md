@@ -2,6 +2,9 @@
 
 ## 0.1.0 — unreleased
 
+`restage_upsert_product_slot` maps products with `add`, `remove` and `move` at a
+`catalogRevision`; `restage_set_product_slot` is removed.
+
 Initial release: an MCP server over stdio that wraps the Restage backend,
 reusing the CLI's authenticated session.
 
@@ -57,8 +60,8 @@ exists on both planes; it is refused rather than sent to either.
   `restage_list_apps`, `restage_list_environments`,
   `restage_list_environment_targets`.
 - **Products & store:** `restage_list_products`, `restage_import_products`,
-  `restage_list_product_slots`, `restage_upsert_product_slot` (full replace —
-  both store ids required, pass null to unmap), `restage_list_store_connections`
+  `restage_list_product_slots`, `restage_upsert_product_slot` (a patch of keys
+  and product mappings), `restage_list_store_connections`
   (summaries only).
 - **App configuration:** `restage_get_app_config`, `restage_update_app_config`
   (omit a field to leave it; empty string to clear it).

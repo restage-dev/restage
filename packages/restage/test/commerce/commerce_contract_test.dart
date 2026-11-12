@@ -42,6 +42,50 @@ void main() {
       );
     });
 
+    test('offering requests and responses have public value semantics',
+        () async {
+      final request = commerce.CommerceOfferingsRequest(
+          offerId: commerce.CommerceOfferId('default'),
+          cursor: 'next',
+          limit: 3);
+      final equal = commerce.CommerceOfferingsRequest(
+          offerId: commerce.CommerceOfferId('default'),
+          cursor: 'next',
+          limit: 3);
+      expect(equal, request);
+      expect(equal.hashCode, request.hashCode);
+      for (final different in [
+        commerce.CommerceOfferingsRequest(cursor: 'next', limit: 3),
+        commerce.CommerceOfferingsRequest(
+            offerId: commerce.CommerceOfferId('default'), limit: 3),
+        commerce.CommerceOfferingsRequest(
+            offerId: commerce.CommerceOfferId('default'),
+            cursor: 'next',
+            limit: 4),
+      ]) {
+        expect(different, isNot(request));
+      }
+      final first = await Restage.commerce.perform(request);
+      final second = await Restage.commerce.perform(equal);
+      expect(first, second);
+      expect(first.hashCode, second.hashCode);
+      const signature = commerce.OfferSignatureResponse(
+          scheme: commerce.OfferSignatureScheme.legacy,
+          keyIdentifier: 'key',
+          nonce: 'nonce',
+          timestampMs: 1,
+          signatureBase64: 'signature');
+      expect(
+          commerce.CommerceStorePurchasable(
+                  product: _TestStoreProduct(),
+                  applicationAccountToken: 'account',
+                  promotionalOffer: signature)
+              .promotionalOffer,
+          signature);
+      expect(commerce.CommerceFailureCode('package_selection_required'),
+          same(commerce.CommerceFailureCode.packageSelectionRequired));
+    });
+
     test('store SPI codes preserve unknown values', () {
       final store = commerce.CommerceStore('future.store');
       final productKind = commerce.CommerceStoreProductKind('future_kind');

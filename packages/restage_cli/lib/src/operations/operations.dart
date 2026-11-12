@@ -448,8 +448,8 @@ final List<Operation> sharedOperations = [
     mcpName: 'restage_list_product_slots',
     description: "List an app's product slots.",
     mcpDescription:
-        'List the product slots for an app. A slot holds the entitlement a '
-        'mapped subscription grants. (To see which store products '
+        'List the product slots for an app. A slot holds the entitlement keys a '
+        'mapped purchase grants. (To see which store products '
         'map to which slot, list products and read each product\'s product '
         'slot.)',
     scope: OperationScope.app,
@@ -465,15 +465,9 @@ final List<Operation> sharedOperations = [
     cliPath: 'slots set',
     mcpName: 'restage_upsert_product_slot',
     description:
-        'Create or replace a slot and its complete product mapping (admin).',
+        'Save a slot, its entitlement keys and product changes (admin).',
     mcpDescription:
-        'Create or update a product slot and its store-product mapping. '
-        "Requires an admin role. WARNING — this sets the slot's COMPLETE "
-        'product mapping (full replace): any store id you omit or pass as '
-        'null is UNMAPPED from this slot. To keep an existing mapping you '
-        'MUST pass its current product id — call restage_list_product_slots '
-        'and restage_list_products first to read the current mappings. '
-        'Only an auto-renewable subscription can be mapped.',
+        'Create a slot, or change one by slotId: its entitlement keys and the products it maps. A slot keeps its name: send the existing name with slotId, and create a new slot to use another name. Creating a slot with a name in use is refused; pass the slotId of that slot to edit it. add, remove and move are JSON arrays of {"productId", "basePlanId"}; a Google subscription needs its exact basePlanId. Mappings not listed stay unchanged. An add of a product another slot maps is refused naming that slot; list it under move to take it. Any product change needs catalogRevision from offerings list, and a stale revision is refused. Keys must belong to the project.',
     scope: OperationScope.app,
     params: const [
       OperationParam(
@@ -481,62 +475,312 @@ final List<Operation> sharedOperations = [
         cli: 'slot <name>',
         positional: true,
         required: true,
-        help: 'The slot name (the name surfaces reference).',
+        help: 'The slot name. An existing slot keeps its name.',
       ),
       OperationParam(
-        'entitlement',
-        cli: 'entitlement',
-        required: true,
-        help: 'Entitlement a mapped subscription grants (required).',
-        mcpHelp: 'The entitlement string a mapped subscription grants.',
-      ),
-      OperationParam(
-        'iosProductId',
-        cli: 'ios-product-id',
-        type: ParamType.clearable,
+        'entitlementKeys',
+        cli: 'entitlement-keys',
         required: true,
         help:
-            'App Store product id for this slot, or `$unmappedProductId` to '
-            'unmap it (required).',
-        mcpHelp:
-            'The App Store (iOS) store product id to map to this slot, or '
-            'null to UNMAP App Store (iOS) from it. Required every call (full '
-            'replace): pass the CURRENT id to keep an existing mapping.',
+            'A JSON array of entitlement keys. An empty array detaches all keys.',
       ),
       OperationParam(
-        'androidProductId',
-        cli: 'android-product-id',
-        type: ParamType.clearable,
-        required: true,
+        'slotId',
+        cli: 'slot-id',
+        type: ParamType.integer,
         help:
-            'Play Store product id for this slot, or `$unmappedProductId` to '
-            'unmap it (required).',
-        mcpHelp:
-            'The Play Store (Android) store product id to map to this slot, '
-            'or null to UNMAP Play Store (Android) from it. Required every '
-            'call (full replace): pass the CURRENT id to keep an existing '
-            'mapping.',
+            'Existing slot row ID when editing; needed to edit a slot by name.',
+      ),
+      OperationParam(
+        'add',
+        cli: 'add',
+        help: 'JSON array of {"productId", "basePlanId"} to map to the slot.',
+      ),
+      OperationParam(
+        'remove',
+        cli: 'remove',
+        help:
+            'JSON array of {"productId", "basePlanId"} to unmap from the slot.',
+      ),
+      OperationParam(
+        'move',
+        cli: 'move',
+        help:
+            'JSON array of {"productId", "basePlanId"} to take from another slot.',
+      ),
+      OperationParam(
+        'catalogRevision',
+        cli: 'catalog-revision',
+        type: ParamType.integer,
+        help: 'The catalog revision the change was made against.',
       ),
     ],
-    validate: (args, name) =>
-        args.has('entitlement') &&
-            args.has('iosProductId') &&
-            args.has('androidProductId')
-        ? null
-        : 'Required: ${name('entitlement')}, ${name('iosProductId')} and '
-              '${name('androidProductId')}. The mapping is replaced whole; '
-              'pass `$unmappedProductId` to unmap a store.',
     resultKey: 'productSlot',
     columns: _slotColumns,
     call: (target, args) => AppAdminApi(target.api).upsertProductSlot(
       project: target.project!,
       app: target.app!,
       name: args.str('name'),
-      entitlement: args.str('entitlement'),
-      iosProductId: args.optStr('iosProductId'),
-      androidProductId: args.optStr('androidProductId'),
+      entitlementKeys: _stringList(args.str('entitlementKeys')),
+      slotId: args.optInt('slotId'),
+      expectedCatalogRevision: args.optInt('catalogRevision'),
+      add: _slotBindings(args.optStr('add')),
+      remove: _slotBindings(args.optStr('remove')),
+      move: _slotBindings(args.optStr('move')),
       organizationId: target.organizationId,
     ),
+  ),
+  Operation(
+    cliPath: 'offerings list',
+    mcpName: 'restage_read_commerce_catalog',
+    description: 'Read one page of offerings and their exact product mappings.',
+    mcpDescription:
+        'Read a catalog page for an explicit app environment target. Includes native and source metadata, entitlement keys, exact provider mappings, the current offering and a continuation cursor. Pass appId and environmentTargetId from the existing app targets.',
+    scope: OperationScope.target,
+    params: const [
+      _catalogAppParam,
+      OperationParam(
+        'section',
+        cli: 'section',
+        allowed: [
+          'offerings',
+          'products',
+          'slots',
+          'entitlements',
+          'revenueCat',
+        ],
+        help:
+            'Catalog section. Each page contains at most 100 identities; continue with its cursor.',
+      ),
+      OperationParam(
+        'cursor',
+        cli: 'cursor',
+        help: 'Continuation cursor from the previous page.',
+      ),
+      OperationParam(
+        'limit',
+        cli: 'limit',
+        type: ParamType.integer,
+        help: 'Package identities per page, at most 100.',
+      ),
+    ],
+    call: (target, args) async =>
+        target.api.call('commerceCatalog', 'readCatalog', {
+          'organizationId': await target.organization(),
+          'appId': _catalogAppId(target, args),
+          'environmentId': _catalogEnvironmentId(target),
+          'cursor': ?args.optStr('cursor'),
+          'section': args.optStr('section') ?? 'offerings',
+          'limit': args.optInt('limit') ?? 100,
+        }),
+    render: (out, value, _, _) =>
+        out.writeln(const JsonEncoder.withIndent('  ').convert(value)),
+  ),
+  Operation(
+    cliPath: 'offerings save',
+    mcpName: 'restage_save_commerce_offering',
+    description: 'Save an offering and upsert the supplied packages (admin).',
+    mcpDescription:
+        'Save an offering and upsert supplied package/store children. Omitted packages remain unchanged; retire only explicit numeric retiredPackageIds. Products and purchases remain. The offering ID is immutable.',
+    render: _writeCatalogJson,
+    scope: OperationScope.app,
+    params: const [
+      _catalogAppParam,
+      OperationParam(
+        'offering',
+        cli: 'offering',
+        required: true,
+        help:
+            'Offering JSON object: offerId, optional id, displayName, position, metadataJson and sourceRcOfferingId.',
+      ),
+      OperationParam(
+        'packages',
+        cli: 'packages',
+        required: true,
+        help:
+            'JSON array of package/store rows to upsert: packageId, store, productId, position, basePlanId, storeOfferIdentifier and sourceRcPackageId.',
+      ),
+      OperationParam(
+        'retiredPackageIds',
+        cli: 'retired-package-ids',
+        help:
+            'JSON array of persisted numeric package store-child IDs to retire; omitted means none.',
+      ),
+    ],
+    resultKey: 'offering',
+    call: (target, args) async {
+      final offering = _jsonObject(args.str('offering'));
+      final packages = _jsonList(args.str('packages'));
+      final retiredPackageIds = _integerList(
+        args.optStr('retiredPackageIds') ?? '[]',
+      );
+      final org = await target.organization();
+      final app = _catalogAppId(target, args);
+      return target.api.call('commerceCatalog', 'saveOffering', {
+        ..._catalogSlugs(target),
+        'retiredPackageIds': retiredPackageIds,
+        'offering': {
+          '__className__': 'CommerceOffering',
+          'organizationId': org,
+          'appId': app,
+          ...offering,
+        },
+        'packages': [
+          for (final package in packages)
+            {
+              '__className__': 'CommerceOfferingPackage',
+              'organizationId': org,
+              'appId': app,
+              'commerceOfferingId': offering['id'] ?? 0,
+              ...package,
+            },
+        ],
+      });
+    },
+  ),
+  Operation(
+    cliPath: 'offerings current',
+    mcpName: 'restage_set_current_commerce_offering',
+    description:
+        'Set or clear the current offering for an explicit environment (admin).',
+    mcpDescription:
+        'Set the native current offering for this environment target, or pass null to clear it. The source provider current flag is evidence only.',
+    render: _writeCatalogJson,
+    scope: OperationScope.target,
+    params: const [
+      OperationParam(
+        'offeringId',
+        cli: 'offering-id',
+        type: ParamType.clearableInteger,
+        required: true,
+        help: 'Native offering row ID, or none to clear it.',
+      ),
+    ],
+    call: (target, args) async {
+      await target.api.call('commerceCatalog', 'setCurrent', {
+        ..._catalogSlugs(target),
+        'environmentId': _catalogEnvironmentId(target),
+        'commerceOfferingId': args.optInt('offeringId'),
+      });
+      return {'currentOfferingId': args.optInt('offeringId')};
+    },
+  ),
+  Operation(
+    cliPath: 'offerings retire',
+    mcpName: 'restage_retire_commerce_offering',
+    description: 'Retire an offering and clear its current pointers (admin).',
+    mcpDescription:
+        'Retire an offering and its live packages, clearing its current pointers. Pass revive to reactivate the offering and packages retired with it; earlier individual retirements remain unless that package is explicitly upserted. Products and purchases remain.',
+    render: _writeCatalogJson,
+    scope: OperationScope.app,
+    params: const [
+      OperationParam(
+        'offeringId',
+        cli: 'offering-id',
+        type: ParamType.integer,
+        required: true,
+        help: 'Native offering row ID.',
+      ),
+      OperationParam(
+        'revive',
+        cli: 'revive',
+        type: ParamType.boolean,
+        help:
+            'Revive the offering and packages retired with it; earlier individual retirements remain unless that package is explicitly upserted.',
+      ),
+    ],
+    call: (target, args) async {
+      await target.api.call('commerceCatalog', 'retireOffering', {
+        ..._catalogSlugs(target),
+        'commerceOfferingId': args.integer('offeringId'),
+        'retired': !(args.optBool('revive') ?? false),
+      });
+      return {
+        (args.optBool('revive') ?? false)
+            ? 'revivedOfferingId'
+            : 'retiredOfferingId': args.integer(
+          'offeringId',
+        ),
+      };
+    },
+  ),
+  Operation(
+    cliPath: 'entitlements set',
+    mcpName: 'restage_save_entitlement_definition',
+    description: 'Create, retire, revive or detach an entitlement key (admin).',
+    mcpDescription:
+        'Save a project entitlement definition. Keys are immutable. Retiring hides authoring and retains associations; detach removes the key from current slot associations without rewriting purchase evidence.',
+    render: _writeCatalogJson,
+    scope: OperationScope.app,
+    params: const [
+      OperationParam(
+        'key',
+        cli: 'key <key>',
+        positional: true,
+        required: true,
+        help: 'Entitlement key.',
+      ),
+      OperationParam('displayName', cli: 'display-name', help: 'Display name.'),
+      OperationParam(
+        'retired',
+        cli: 'retired',
+        type: ParamType.boolean,
+        help: 'Retire the key.',
+      ),
+      OperationParam(
+        'detach',
+        cli: 'detach',
+        type: ParamType.boolean,
+        help: 'Detach the key from current slots.',
+      ),
+    ],
+    resultKey: 'entitlement',
+    call: (target, args) =>
+        target.api.call('commerceCatalog', 'saveEntitlement', {
+          ..._catalogSlugs(target),
+          'key': args.str('key'),
+          'displayName': args.optStr('displayName'),
+          'retired': args.optBool('retired') ?? false,
+          'detach': args.optBool('detach') ?? false,
+        }),
+  ),
+  Operation(
+    cliPath: 'products fulfillment',
+    mcpName: 'restage_configure_product_fulfillment',
+    description: 'Configure fulfillment for a one-time product (admin).',
+    mcpDescription:
+        'Configure a one-time Product fulfillment form and a duration for non-renewing subscriptions.',
+    render: _writeCatalogJson,
+    scope: OperationScope.app,
+    params: const [
+      OperationParam(
+        'productId',
+        cli: 'product-id',
+        type: ParamType.integer,
+        required: true,
+        help: 'Product row ID.',
+      ),
+      OperationParam(
+        'fulfillmentForm',
+        cli: 'form',
+        type: ParamType.clearable,
+        required: true,
+        help: 'consumable, nonConsumable, nonRenewingSubscription, or none.',
+      ),
+      OperationParam(
+        'nonRenewingDurationSeconds',
+        cli: 'duration-seconds',
+        type: ParamType.integer,
+        help: 'Positive duration for a non-renewing subscription.',
+      ),
+    ],
+    resultKey: 'product',
+    call: (target, args) => target.api.call('product', 'configureFulfillment', {
+      ..._catalogSlugs(target),
+      'productId': args.integer('productId'),
+      'fulfillmentForm': args.optStr('fulfillmentForm'),
+      'nonRenewingDurationSeconds': args.optInt('nonRenewingDurationSeconds'),
+    }),
   ),
   Operation(
     cliPath: 'stores list',
@@ -1444,7 +1688,7 @@ const _productColumns = <OperationColumn>[
 const _slotColumns = <OperationColumn>[
   (header: 'ID', key: 'id'),
   (header: 'NAME', key: 'name'),
-  (header: 'ENTITLEMENT', key: 'entitlement'),
+  (header: 'ENTITLEMENT KEYS', key: 'entitlementKeys'),
 ];
 
 const _componentColumns = <OperationColumn>[
@@ -1479,3 +1723,103 @@ Object? _componentRowsJson(Object? value) => [
 
 Object? _componentDetailJson(Object? value) =>
     _withoutDerived(value! as Map<String, Object?>);
+
+const _catalogAppParam = OperationParam(
+  'appId',
+  type: ParamType.integer,
+  mcpOnly: true,
+  required: true,
+  help: 'Existing app ID returned by list apps.',
+);
+
+int _catalogAppId(OperationTarget target, OperationArgs args) =>
+    args.optInt('appId') ??
+    target.appId ??
+    (throw const TargetSelectionException('Select an existing app ID.'));
+
+int _catalogEnvironmentId(OperationTarget target) =>
+    target.environmentTargetId ??
+    (throw const TargetSelectionException(
+      'Select an explicit environment target ID.',
+    ));
+
+Map<String, Object?> _catalogSlugs(OperationTarget target) => {
+  'projectSlug': target.project!,
+  'appSlug': target.app!,
+  'organizationId': ?target.organizationId,
+};
+
+Object? _jsonValue(String value) {
+  if (utf8.encode(value).length > 512 * 1024) {
+    throw const TargetSelectionException('JSON input exceeds 512 KB.');
+  }
+  try {
+    return jsonDecode(value);
+  } on FormatException {
+    throw const TargetSelectionException('Expected valid JSON input.');
+  }
+}
+
+Map<String, dynamic> _jsonObject(String value) {
+  final decoded = _jsonValue(value);
+  if (decoded is! Map<String, dynamic>) {
+    throw const TargetSelectionException('Expected a JSON object.');
+  }
+  return decoded;
+}
+
+List<Map<String, dynamic>> _jsonList(String value) {
+  final decoded = _jsonValue(value);
+  if (decoded is! List || decoded.any((row) => row is! Map<String, dynamic>)) {
+    throw const TargetSelectionException('Expected a JSON array of objects.');
+  }
+  return decoded.cast<Map<String, dynamic>>();
+}
+
+List<String> _stringList(String value) {
+  final decoded = _jsonValue(value);
+  if (decoded is! List || decoded.any((key) => key is! String)) {
+    throw const TargetSelectionException(
+      'Expected a JSON array of entitlement keys.',
+    );
+  }
+  return decoded.cast<String>();
+}
+
+List<Map<String, Object?>> _slotBindings(String? value) {
+  if (value == null) return const [];
+  final decoded = _jsonValue(value);
+  if (decoded is! List ||
+      decoded.any(
+        (b) =>
+            b is! Map ||
+            b['productId'] is! int ||
+            (b['basePlanId'] != null && b['basePlanId'] is! String) ||
+            b.keys.any((k) => k != 'productId' && k != 'basePlanId'),
+      )) {
+    throw const TargetSelectionException(
+      'Expected a JSON array of {"productId", "basePlanId"} objects.',
+    );
+  }
+  return [
+    for (final b in decoded.cast<Map<dynamic, dynamic>>())
+      {'productId': b['productId'], 'basePlanId': b['basePlanId']},
+  ];
+}
+
+List<int> _integerList(String value) {
+  final decoded = _jsonValue(value);
+  if (decoded is! List || decoded.any((id) => id is! int || id <= 0)) {
+    throw const TargetSelectionException(
+      'Expected a JSON array of positive integer IDs.',
+    );
+  }
+  return decoded.cast<int>();
+}
+
+void _writeCatalogJson(
+  StringSink out,
+  Object? value,
+  OperationArgs arguments,
+  OperationTarget target,
+) => out.writeln(const JsonEncoder.withIndent('  ').convert(value));

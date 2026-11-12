@@ -16,6 +16,29 @@ void main() {
       expect(EntitlementSummary.fromJson(summary.toJson()), summary);
     });
 
+    test('grant decoding preserves exact Unicode key identity', () {
+      final json = EntitlementSummary(
+              entitlementId: 'Pro.access',
+              status: 'active',
+              productId: 'sku',
+              source: 'clientReport',
+              providerEnvironment: 'production')
+          .toJson();
+      for (final (key, valid) in [
+        (' Pro.access ', true),
+        ('\u{1f680}' * 200, true),
+        ('pro\u0000', false),
+        ('a' * 201, false),
+      ]) {
+        final input = {...json, 'entitlementId': key};
+        if (valid) {
+          expect(EntitlementSummary.fromJson(input).entitlementId, key);
+        } else {
+          expect(() => EntitlementSummary.fromJson(input), throwsArgumentError);
+        }
+      }
+    });
+
     test('JSON round-trips nullable expiry', () {
       final summary = EntitlementSummary(
         entitlementId: 'lifetime',
@@ -46,31 +69,23 @@ void main() {
       expect(summary.isEntitled, isFalse);
     });
 
-    test('constructor throws ArgumentError on an unknown status', () {
-      expect(
-        () => EntitlementSummary(
-          entitlementId: 'pro',
-          status: 'bogus',
-          productId: 'premium.monthly',
-          source: 'clientReport',
-          providerEnvironment: 'production',
-        ),
-        throwsArgumentError,
-      );
-    });
-
-    test('constructor throws ArgumentError on an unknown source', () {
-      expect(
-        () => EntitlementSummary(
-          entitlementId: 'pro',
-          status: 'active',
-          productId: 'premium.monthly',
-          source: 'bogus',
-          providerEnvironment: 'production',
-        ),
-        throwsArgumentError,
-      );
-    });
+    for (final (field, status, source) in [
+      ('status', 'bogus', 'clientReport'),
+      ('source', 'active', 'bogus'),
+    ]) {
+      test('constructor throws ArgumentError on an unknown $field', () {
+        expect(
+          () => EntitlementSummary(
+            entitlementId: 'pro',
+            status: status,
+            productId: 'premium.monthly',
+            source: source,
+            providerEnvironment: 'production',
+          ),
+          throwsArgumentError,
+        );
+      });
+    }
 
     test('fromJson stays graceful on an unknown status (does not throw)', () {
       // The wire/decode path must keep degrading an unknown future status to

@@ -1,3 +1,5 @@
+import 'package:restage_shared/commerce.dart' show OfferSignatureResponse;
+
 final RegExp _commerceStoreCodePattern = RegExp(r'^[a-z][a-z0-9._]{0,63}$');
 
 String _requireCommerceStoreCode(String value) {
@@ -176,7 +178,8 @@ final class CommerceStorePurchasable {
   CommerceStorePurchasable({
     required this.product,
     required String applicationAccountToken,
-    this.offerSignature,
+    this.promotionalOffer,
+    this.storeOfferIdentifier,
     this.fulfillmentForm,
   }) : applicationAccountToken = _requireApplicationAccountToken(
           applicationAccountToken,
@@ -190,8 +193,11 @@ final class CommerceStorePurchasable {
   /// The store account token or obfuscated account identifier.
   final String applicationAccountToken;
 
-  /// An opaque server-issued offer signature, when the store requires one.
-  final String? offerSignature;
+  /// Typed signature material for the exact server-selected promotion.
+  final OfferSignatureResponse? promotionalOffer;
+
+  /// The server-selected promotional identifier.
+  final String? storeOfferIdentifier;
 }
 
 String _requireApplicationAccountToken(String value) {

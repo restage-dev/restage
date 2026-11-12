@@ -4,6 +4,37 @@ const commercePlayStoreValue = 'play_store';
 const commerceStoreValues = {commerceAppStoreValue, commercePlayStoreValue};
 final _commerceOfferIdPattern = RegExp(r'^[a-z][a-z0-9._-]{0,127}$');
 
+/// Maximum UTF-8 bytes in one offering's JSON metadata.
+const commerceMetadataMaxBytes = 65536;
+
+/// Maximum Unicode code points in one entitlement key.
+const commerceEntitlementKeyMaxCodePoints = 200;
+
+/// Maximum distinct entitlement keys associated with one product slot.
+const commerceSlotEntitlementKeyMaxCount = 64;
+
+/// Whether [value] contains one to 200 persistable Unicode scalars.
+bool isCanonicalCommerceEntitlementKey(String value) {
+  var length = 0;
+  for (final scalar in value.runes) {
+    if (scalar == 0 ||
+        (scalar >= 0xd800 && scalar <= 0xdfff) ||
+        ++length > commerceEntitlementKeyMaxCodePoints) {
+      return false;
+    }
+  }
+  return length > 0;
+}
+
+/// Validates an entitlement key without changing its spelling.
+String normalizeCommerceEntitlementKey(String value) {
+  if (!isCanonicalCommerceEntitlementKey(value)) {
+    throw ArgumentError.value(
+        value, 'key', 'Expected one to 200 persistable Unicode scalars');
+  }
+  return value;
+}
+
 /// Rejects fields outside a request's wire shape.
 void rejectUnknownCommerceFields(
   Map<String, dynamic> json,
@@ -128,4 +159,11 @@ bool _isUuidV4(String value) {
       variant == 0x42 ||
       variant == 0x61 ||
       variant == 0x62;
+}
+
+/// Reads a nonnegative catalog revision.
+int commerceCatalogRevision(Object? value) {
+  if (value is int && value >= 0) return value;
+  throw ArgumentError.value(
+      value, 'catalogRevision', 'Expected a nonnegative int');
 }

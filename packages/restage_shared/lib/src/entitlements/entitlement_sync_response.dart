@@ -14,12 +14,14 @@ final class CommercePurchaserStateResponse {
     required DateTime retrievedAt,
     List<CommerceFulfillmentSummary> fulfillments = const [],
     bool? hasProductionPurchaseHistory,
+    int catalogRevision = 0,
   }) {
     if (!_purchaserStateStatuses.contains(status)) {
       throw ArgumentError.value(status, 'status', 'Unsupported status');
     }
     return CommercePurchaserStateResponse._(
       status: status,
+      catalogRevision: commerceCatalogRevision(catalogRevision),
       entitlements: List.unmodifiable(entitlements),
       fulfillments: List.unmodifiable(fulfillments),
       retrievedAt: retrievedAt.toUtc(),
@@ -29,6 +31,7 @@ final class CommercePurchaserStateResponse {
 
   const CommercePurchaserStateResponse._({
     required this.status,
+    required this.catalogRevision,
     required this.entitlements,
     required this.fulfillments,
     required this.retrievedAt,
@@ -66,11 +69,15 @@ final class CommercePurchaserStateResponse {
       fulfillments: _fulfillmentsFromJson(json),
       retrievedAt: requiredCommerceDateTime(json, 'retrievedAt'),
       hasProductionPurchaseHistory: _optionalHistory(json),
+      catalogRevision: commerceCatalogRevision(json['catalogRevision']),
     );
   }
 
   /// Freshness of the returned entitlement state.
   final String status;
+
+  /// Current association revision, independent of provider outcome order.
+  final int catalogRevision;
 
   /// Entitlements derived by the server.
   final List<EntitlementSummary> entitlements;
@@ -89,6 +96,7 @@ final class CommercePurchaserStateResponse {
   /// Converts this response to its wire representation.
   Map<String, dynamic> toJson() => {
         'status': status,
+        'catalogRevision': catalogRevision,
         'entitlements': [
           for (final entitlement in entitlements) entitlement.toJson(),
         ],
@@ -105,6 +113,7 @@ final class CommercePurchaserStateResponse {
     if (identical(this, other)) return true;
     if (other is! CommercePurchaserStateResponse ||
         other.status != status ||
+        other.catalogRevision != catalogRevision ||
         other.retrievedAt != retrievedAt ||
         other.hasProductionPurchaseHistory != hasProductionPurchaseHistory ||
         other.entitlements.length != entitlements.length ||
@@ -123,6 +132,7 @@ final class CommercePurchaserStateResponse {
   @override
   int get hashCode => Object.hash(
         status,
+        catalogRevision,
         Object.hashAll(entitlements),
         Object.hashAll(fulfillments),
         retrievedAt,

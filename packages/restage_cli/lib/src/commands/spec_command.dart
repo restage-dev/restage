@@ -21,6 +21,8 @@ const _groupDescriptions = <String, String>{
   'components': "List or show a project's shared components.",
   'products': 'List or import the store products for an app.',
   'slots': "List or set an app's product slots.",
+  'offerings': 'Read and manage offerings and current selection.',
+  'entitlements': 'Manage project entitlement definitions.',
   'stores': "List an app's store connections.",
   'keys':
       "List or revoke an environment's API keys, mint a public key, or find "
@@ -159,6 +161,19 @@ class SpecCommand extends Command<int> {
             return 1;
           }
           values[param.key] = parsed;
+        case ParamType.clearableInteger:
+          if (raw == unmappedProductId) {
+            values[param.key] = null;
+          } else {
+            final value = int.tryParse(raw);
+            if (value == null || value <= 0) {
+              stderr.writeln(
+                'Expected a positive ID or none for --${param.cli}.',
+              );
+              return 1;
+            }
+            values[param.key] = value;
+          }
         case ParamType.clearable:
           values[param.key] = raw == unmappedProductId ? null : raw;
         case ParamType.string || ParamType.boolean:

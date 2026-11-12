@@ -46,6 +46,9 @@ enum ParamType {
 
   /// A string that must be stated, where null (`none` on the CLI) clears it.
   clearable,
+
+  /// An integer row ID, where null (`none` on the CLI) clears it.
+  clearableInteger,
 }
 
 /// One parameter an operation accepts on the CLI and over MCP.

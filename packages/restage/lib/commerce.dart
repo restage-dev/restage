@@ -9,6 +9,8 @@ export 'src/commerce/restage_commerce.dart'
         CommercePurchaserStateStatusCode,
         CommerceFailureCode,
         CommerceOfferId,
+        CommerceOfferingsRequest,
+        CommerceOfferingsResponse,
         CommercePurchaseRequest,
         CommerceRefreshRequest,
         CommerceRequest,
@@ -25,4 +27,12 @@ export 'src/commerce/commerce_store_adapter.dart'
         CommerceStoreTransaction,
         CommerceStoreTransactionStatus;
 export 'package:restage_shared/commerce.dart'
-    show EntitlementSummary, CommerceFulfillmentSummary;
+    show
+        EntitlementSummary,
+        CommerceFulfillmentSummary,
+        CommerceOfferingsPage,
+        CommerceOfferingSummary,
+        CommercePackageSummary,
+        CommercePackageProduct,
+        OfferSignatureResponse,
+        OfferSignatureScheme;

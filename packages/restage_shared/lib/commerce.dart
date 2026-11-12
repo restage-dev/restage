@@ -1,6 +1,7 @@
 /// Wire contracts for Restage commerce.
 library;
 
+export 'src/entitlements/commerce_offerings.dart';
 export 'src/entitlements/entitlement_summary.dart';
 export 'src/entitlements/entitlement_sync_request.dart';
 export 'src/entitlements/entitlement_sync_response.dart';
@@ -10,3 +11,4 @@ export 'src/entitlements/report_transaction_request.dart';
 export 'src/entitlements/report_transaction_response.dart'
     show CommerceReportResponse, CommerceVerifiedPurchase;
 export 'src/offers/offer_signature_response.dart';
+export 'src/offers/intent_bound_offer_signature_request.dart';

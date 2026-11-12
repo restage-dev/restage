@@ -131,7 +131,7 @@ final class CommerceReportResponse {
   /// store transaction; omitting a sibling does not revoke that sibling.
   final List<CommerceVerifiedPurchase>? verifiedPurchases;
 
-  /// Whether an explicit restore reached its history page cap.
+  /// Whether Apple restore history or returned signed proofs are incomplete.
   /// Verified entries remain usable; omitted siblings carry no removal authority.
   final bool restoreHistoryTruncated;
 
@@ -182,15 +182,23 @@ final class CommerceVerifiedPurchase {
     required this.kind,
     required this.outcome,
     this.outcomeOrder,
+    int catalogRevision = 0,
+    this.includedInPurchaserState = false,
+    this.requiresHistoryRecovery = false,
+    this.storeVerificationData,
     required List<EntitlementSummary> entitlements,
     List<CommerceFulfillmentSummary> fulfillments = const [],
     this.expiresAtMs,
-  })  : entitlements = List.unmodifiable(entitlements),
+  })  : catalogRevision = commerceCatalogRevision(catalogRevision),
+        entitlements = List.unmodifiable(entitlements),
         fulfillments = List.unmodifiable(fulfillments) {
     if (storeTransactionId.isEmpty) {
       throw ArgumentError.value(storeTransactionId, 'storeTransactionId');
     }
     if (productId.isEmpty) throw ArgumentError.value(productId, 'productId');
+    if (storeVerificationData != null && storeVerificationData!.isEmpty) {
+      throw ArgumentError.value(storeVerificationData, 'storeVerificationData');
+    }
     if (providerEnvironment != 'production' &&
         providerEnvironment != 'sandbox') {
       throw ArgumentError.value(providerEnvironment, 'providerEnvironment');
@@ -239,6 +247,14 @@ final class CommerceVerifiedPurchase {
         kind: requiredCommerceString(json, 'kind'),
         outcome: requiredCommerceString(json, 'outcome'),
         outcomeOrder: optionalCommerceInt(json, 'outcomeOrder'),
+        catalogRevision: commerceCatalogRevision(json['catalogRevision']),
+        includedInPurchaserState:
+            _requiredBool(json, 'includedInPurchaserState'),
+        storeVerificationData:
+            optionalCommerceString(json, 'storeVerificationData'),
+        requiresHistoryRecovery: json.containsKey('requiresHistoryRecovery')
+            ? _requiredBool(json, 'requiresHistoryRecovery')
+            : false,
         entitlements: _purchaseEntries(
           json,
           'entitlements',
@@ -273,13 +289,26 @@ final class CommerceVerifiedPurchase {
   /// purchases; null for subscriptions.
   final int? outcomeOrder;
 
+  /// Current association revision, independent of the signed outcome order.
+  final int catalogRevision;
+
+  /// Whether this purchase contributes to state for the report subject and configuration.
+  final bool includedInPurchaserState;
+
+  /// Provider-signed evidence retained for this exact accepted transaction.
+  final String? storeVerificationData;
+
+  /// Whether refreshing this purchase may require signed transaction history.
+  final bool requiresHistoryRecovery;
+
   /// Existing effective entitlement summaries proved by this purchase.
   final List<EntitlementSummary> entitlements;
 
   /// Current fulfillment lines; each retains its own purchased quantity.
   final List<CommerceFulfillmentSummary> fulfillments;
 
-  /// Accepted access-window end, including without an entitlement mapping.
+  /// Verified access-window end, including a verified subscription grace end.
+  /// Null supplies no verified deadline.
   final int? expiresAtMs;
 
   /// Converts this purchase to its wire representation.
@@ -290,6 +319,11 @@ final class CommerceVerifiedPurchase {
         'kind': kind,
         'outcome': outcome,
         if (outcomeOrder != null) 'outcomeOrder': outcomeOrder,
+        'catalogRevision': catalogRevision,
+        'includedInPurchaserState': includedInPurchaserState,
+        if (storeVerificationData != null)
+          'storeVerificationData': storeVerificationData,
+        if (requiresHistoryRecovery) 'requiresHistoryRecovery': true,
         'entitlements': [for (final entry in entitlements) entry.toJson()],
         'fulfillments': [for (final entry in fulfillments) entry.toJson()],
         if (expiresAtMs != null) 'expiresAtMs': expiresAtMs,
@@ -305,6 +339,10 @@ final class CommerceVerifiedPurchase {
           other.kind == kind &&
           other.outcome == outcome &&
           other.outcomeOrder == outcomeOrder &&
+          other.catalogRevision == catalogRevision &&
+          other.includedInPurchaserState == includedInPurchaserState &&
+          other.storeVerificationData == storeVerificationData &&
+          other.requiresHistoryRecovery == requiresHistoryRecovery &&
           other.expiresAtMs == expiresAtMs &&
           _sameList(other.entitlements, entitlements) &&
           _sameList(other.fulfillments, fulfillments);
@@ -317,10 +355,20 @@ final class CommerceVerifiedPurchase {
         kind,
         outcome,
         outcomeOrder,
+        catalogRevision,
+        includedInPurchaserState,
+        storeVerificationData,
+        requiresHistoryRecovery,
         expiresAtMs,
         Object.hashAll(entitlements),
         Object.hashAll(fulfillments),
       );
+}
+
+bool _requiredBool(Map<String, dynamic> json, String key) {
+  final value = json[key];
+  if (value is bool) return value;
+  throw ArgumentError.value(value, key, 'Expected a bool');
 }
 
 List<CommerceVerifiedPurchase>? _verifiedPurchasesFromJson(

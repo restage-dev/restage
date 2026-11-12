@@ -278,12 +278,14 @@ command that fixes it.
 | `restage_list_products` | Store products (SKUs) for an app, optionally filtered by store. |
 | `restage_import_products` | Re-fetch a store's catalog and update products (admin). |
 | `restage_list_product_slots` | Product slots: the handles surfaces use to refer to products. |
-| `restage_upsert_product_slot` | Create or update a slot **and its complete product mapping** (admin). See the note below. |
+| `restage_upsert_product_slot` | Create a slot, or change one's keys and the products it maps (admin). See the note below. |
 | `restage_list_store_connections` | Store connections (non-secret details only). |
 
-> **`restage_upsert_product_slot` replaces the whole mapping.** A store id you
-> pass as `null` is unmapped. To keep an existing mapping, pass its current
-> product id. List the slots and products first to read the current mapping.
+> **`restage_upsert_product_slot` changes only the products you list.** `add`,
+> `remove` and `move` are JSON arrays of `{"productId", "basePlanId"}`. An add of
+> a product another slot maps is refused with that slot's name; list it under
+> `move` to take it. Any product change needs `catalogRevision` from
+> `restage_read_commerce_catalog`, and a stale revision is refused.
 
 **App configuration**
 

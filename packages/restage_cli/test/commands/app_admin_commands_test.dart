@@ -285,44 +285,198 @@ void main() {
     expect(calls.last['store'], 'playStore');
   });
 
-  test('slots set replaces the whole mapping and `none` unmaps', () async {
-    final code = await run(
-      [
-        'slots',
-        'set',
-        'pro',
-        '--entitlement',
-        'premium',
-        '--ios-product-id',
-        'pro_month',
-        '--android-product-id',
-        'none',
-      ],
-      (_) => http.Response(
-        jsonEncode({'id': 3, 'name': 'pro', 'entitlement': 'premium'}),
-        200,
-      ),
-    );
+  test(
+    'slots set decodes the full key set without changing products',
+    () async {
+      final code = await run(
+        ['slots', 'set', 'pro', '--entitlement-keys', '["premium","pro"]'],
+        (_) => http.Response(
+          jsonEncode({
+            'id': 3,
+            'name': 'pro',
+            'entitlementKeys': ['premium', 'pro'],
+          }),
+          200,
+        ),
+      );
+      expect(code, 0, reason: err.toString());
+      expect(calls.single['method'], 'saveSlot');
+      expect(calls.single['retired'], isFalse);
+      expect(calls.single['entitlementKeys'], ['premium', 'pro']);
+      expect(calls.single.containsKey('iosProductId'), isFalse);
+      expect(out.toString(), contains('entitlementKeys: [premium, pro]'));
+    },
+  );
 
-    expect(code, 0, reason: err.toString());
-    final upsert = calls.single;
-    expect(upsert['method'], 'upsert');
-    expect(upsert['iosProductId'], 'pro_month');
-    expect(upsert.containsKey('androidProductId'), isFalse);
-    expect(out.toString(), 'id: 3\nname: pro\nentitlement: premium\n');
-  });
-
-  test('slots set without every store is refused locally', () async {
+  test('slots set requires the key set before calling the service', () async {
     final code = await run([
       'slots',
       'set',
       'pro',
-      '--entitlement',
-      'premium',
-    ], (_) => fail('no backend call expected'));
-
+    ], (_) => fail('no call expected'));
     expect(code, 1);
-    expect(err.toString(), contains('pass `none` to unmap a store'));
+    expect(err.toString(), contains('--entitlement-keys'));
+  });
+
+  test(
+    'catalog read uses selected app and environment IDs in one call',
+    () async {
+      final code = await run(
+        ['offerings', 'list', '--env', 'staging', '--json'],
+        (_) => http.Response(
+          '{"currentOfferingId":4,"catalogRevision":2,"nextCursor":null}',
+          200,
+        ),
+      );
+      expect(code, 0, reason: err.toString());
+      expect(calls.single['method'], 'readCatalog');
+      expect(calls.single['appId'], 5);
+      expect(calls.single['environmentId'], 12);
+      expect(calls.single['limit'], 100);
+      expect(calls.single['section'], 'offerings');
+    },
+  );
+
+  test('offering save decodes nested metadata and packages once', () async {
+    final code = await run([
+      'offerings',
+      'save',
+      '--offering',
+      jsonEncode({
+        'offerId': 'default',
+        'metadataJson': jsonEncode({
+          'nested': [true, null],
+        }),
+      }),
+      '--packages',
+      '[{"packageId":"monthly","store":"playStore","productId":9,"position":0,"basePlanId":"monthly"}]',
+      '--json',
+    ], (_) => http.Response('{"id":4,"offerId":"default"}', 200));
+    expect(code, 0, reason: err.toString());
+    expect(calls.single['method'], 'saveOffering');
+    expect(calls.single['offering']['__className__'], 'CommerceOffering');
+    expect(calls.single['offering']['appId'], 5);
+    expect(calls.single['packages'].single['basePlanId'], 'monthly');
+    expect(jsonDecode(calls.single['offering']['metadataJson'] as String), {
+      'nested': [true, null],
+    });
+  });
+
+  test(
+    'offering patch sends only explicit retirement IDs and revival',
+    () async {
+      for (final ids in [null, '[17,19]']) {
+        calls.clear();
+        final code = await run([
+          'offerings',
+          'save',
+          '--offering',
+          '{"id":4,"offerId":"default"}',
+          '--packages',
+          '[]',
+          if (ids != null) ...['--retired-package-ids', ids],
+        ], (_) => http.Response('{"id":4}', 200));
+        expect(code, 0, reason: err.toString());
+        expect(
+          calls.single['retiredPackageIds'],
+          ids == null ? <int>[] : [17, 19],
+        );
+        expect(calls.single['packages'], isEmpty);
+      }
+      for (final invalid in ['["17"]', '[1.5]', '[-1]', '{}']) {
+        calls.clear();
+        expect(
+          await run([
+            'offerings',
+            'save',
+            '--offering',
+            '{"offerId":"default"}',
+            '--packages',
+            '[]',
+            '--retired-package-ids',
+            invalid,
+          ], (_) => fail('no call expected')),
+          1,
+        );
+        expect(calls, isEmpty);
+      }
+      for (final revive in [false, true]) {
+        calls.clear();
+        expect(
+          await run([
+            'offerings',
+            'retire',
+            '--offering-id',
+            '4',
+            if (revive) '--revive',
+          ], (_) => http.Response('null', 200)),
+          0,
+        );
+        expect(calls.single['method'], 'retireOffering');
+        expect(calls.single['retired'], !revive);
+      }
+    },
+  );
+
+  test('current clear and an exact slot patch preserve siblings', () async {
+    var code = await run([
+      'offerings',
+      'current',
+      '--env',
+      'staging',
+      '--offering-id',
+      'none',
+    ], (_) => http.Response('null', 200));
+    expect(code, 0, reason: err.toString());
+    expect(calls.single['commerceOfferingId'], isNull);
+    calls.clear();
+    code = await run([
+      'slots',
+      'set',
+      'pro',
+      '--slot-id',
+      '3',
+      '--entitlement-keys',
+      '["pro"]',
+      '--catalog-revision',
+      '4',
+      '--remove',
+      '[{"productId":9,"basePlanId":"annual"}]',
+    ], (_) => http.Response(jsonEncode({'id': 3, 'name': 'pro'}), 200));
+    expect(code, 0, reason: err.toString());
+    expect(calls.single['method'], 'saveSlot');
+    expect(calls.single['expectedCatalogRevision'], 4);
+    expect(calls.single['remove'], [
+      {'productId': 9, 'basePlanId': 'annual'},
+    ]);
+    expect(calls.single['add'], isEmpty);
+    expect(calls.single['move'], isEmpty);
+    calls.clear();
+    // One mapping writer: the per-product command is gone.
+    code = await run([
+      'products',
+      'map',
+      '--product-id',
+      '9',
+      '--slot-id',
+      'none',
+    ], (_) => fail('no call expected'));
+    expect(code, isNot(0));
+    expect(calls, isEmpty);
+  });
+
+  test('slots set refuses a malformed binding before calling', () async {
+    final code = await run([
+      'slots',
+      'set',
+      'pro',
+      '--entitlement-keys',
+      '["pro"]',
+      '--add',
+      '[{"productId":"9"}]',
+    ], (_) => fail('no call expected'));
+    expect(code, 1);
+    expect(err.toString(), contains('productId'));
   });
 
   test('stores list never prints a credential', () async {

@@ -19,6 +19,18 @@ lists.
 A `mount` placement batch may name `inlineMounts`, so its mounts receive their
 content with the answer. A `refresh` batch may not.
 
+Verified purchases add optional `requiresHistoryRecovery` metadata; omitted
+signed proof does not remove verified access.
+
+Verified purchases include exact purchaser-state membership and optional signed
+transaction evidence for receipt refresh. Catalog values have structural equality;
+entitlement keys preserve exact Unicode spelling, with one to 200 scalar values.
+
+**Wire format:** `CommercePurchaserStateResponse.fromJson` and
+`CommerceVerifiedPurchase.fromJson` require explicit nonnegative `catalogRevision`.
+Each verified entry also requires `includedInPurchaserState`. Constructor defaults
+do not apply to JSON readers.
+
 `startupTemplateJson` takes `analytics`, the build's default, and every
 template carries `analyticsOff`: the request as the SDK sends it with analytics
 off. Add `PlacementBatchRequestV1.withoutAnalytics`.
