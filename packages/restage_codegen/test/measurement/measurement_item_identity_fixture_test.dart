@@ -187,7 +187,7 @@ void main() {
     );
   });
 
-  test('a completing event flags only its own route', () {
+  test('a tap firing a completing event flags no route as completing', () {
     final routes = compiled.output.publications
         .singleWhere(
           (publication) => publication.selector.slug == 'completing_offer',
@@ -199,7 +199,7 @@ void main() {
     expect(routes, hasLength(2));
     expect(
       routes.where((route) => route.orderedCaptureV1!.completesSurfaceV1),
-      hasLength(1),
+      isEmpty,
     );
   });
 

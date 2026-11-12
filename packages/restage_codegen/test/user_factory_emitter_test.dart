@@ -237,6 +237,46 @@ void main() {
       }
     });
 
+    test("build delivery keys become the registration's", () {
+      const keys = ['7:AQEB', "7:it's"];
+      for (final source in [
+        emitUserFactoriesDart([
+          _widgetEntry(name: 'AcmeBadge'),
+        ], deliveryKeys: keys)!,
+        emitEmptyUserFactoriesDart(
+          delivery: (apiKey: 'k', baseUrl: 'u', channel: null, analytics: true),
+          deliveryKeys: keys,
+        ),
+      ]) {
+        expect(
+          source,
+          _containsCode(
+            "const List<String> _restageDeliveryKeys = <String>['7:AQEB', "
+            r"'7:it\'s',];",
+          ),
+        );
+        expect(source, contains('RestageBuildDeliveryKeys {'));
+        expect(
+          source,
+          _containsCode(
+            'List<String> get deliveryKeys => _restageDeliveryKeys;',
+          ),
+        );
+      }
+      expect(
+        emitUserFactoriesDart([
+          _widgetEntry(name: 'AcmeBadge', properties: const []),
+        ], deliveryKeys: keys)!,
+        _containsCode(
+          'implements RestageWidgetRegistration, RestageBuildDeliveryKeys {',
+        ),
+      );
+      expect(
+        emitEmptyUserFactoriesDart(),
+        isNot(contains('RestageBuildDeliveryKeys')),
+      );
+    });
+
     test('a build with no key still carries analytics: false', () {
       for (final source in [
         emitUserFactoriesDart(

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/render_bundles/render_bundle_project.dart'
+    show writeSurfaceCaptureProject;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -117,6 +119,8 @@ targets:
           base_url: https://api.example.com/
           channel: beta
           analytics: false
+          delivery_keys:
+            - 7:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
 ''');
       final keyed = await _build(app);
       expect(keyed.exitCode, 0, reason: _output(keyed));
@@ -138,6 +142,11 @@ targets:
         contains("const String _restageBaseUrl = 'https://api.example.com';"),
       );
       expect(generated, contains("const String? _restageChannel = 'beta';"));
+      expect(generated, contains('RestageBuildDeliveryKeys'));
+      expect(
+        generated,
+        contains('List<String> get deliveryKeys => _restageDeliveryKeys;'),
+      );
       expect(generated, contains('const bool _restageAnalytics = false;'));
       for (final file in [template, iosTemplate]) {
         final json =
@@ -294,6 +303,96 @@ targets:
       final narrowOffline = await _build(app);
       expect(narrowOffline.exitCode, 0, reason: _output(narrowOffline));
       expect(iosTemplate.readAsStringSync(), '{}\n');
+    },
+  );
+
+  test(
+    "repeated builds keep the generated parts once a push's surface capture "
+    'project exists, even under a `.restage/**` build input',
+    () async {
+      final packages = p.normalize(p.join(Directory.current.path, '..'));
+      final root = await Directory.systemTemp.createTemp('state_inputs_');
+      addTearDown(() => root.delete(recursive: true));
+      final overrides = _workspaceClosure(
+        p.normalize(p.join(packages, '..')),
+        const ['restage', 'restage_codegen'],
+      );
+      final app = p.join(root.path, 'app');
+      _write(app, 'pubspec.yaml', """
+name: app
+publish_to: none
+environment:
+  sdk: ^3.9.0
+dependencies:
+  flutter:
+    sdk: flutter
+  restage:
+    path: ${p.join(packages, 'restage')}
+dev_dependencies:
+  build_runner: any
+  restage_codegen:
+    path: ${p.join(packages, 'restage_codegen')}
+dependency_overrides:
+${[for (final MapEntry(key: name, value: path) in overrides.entries) '  $name:\n    path: $path'].join('\n')}
+""");
+      _write(app, 'lib/paywalls/offer.dart', """
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/offer.restage.g.dart';
+
+@Paywall()
+class OfferPaywall extends StatelessWidget {
+  const OfferPaywall({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('Welcome');
+}
+""");
+      // The broad state input older projects still list.
+      _write(app, 'build.yaml', 'additional_public_assets:\n  - .restage/**\n');
+
+      final get = await Process.run('flutter', [
+        'pub',
+        'get',
+        '--offline',
+      ], workingDirectory: app);
+      expect(get.exitCode, 0, reason: '${get.stdout}\n${get.stderr}');
+
+      final part = File(
+        p.join(app, 'lib/paywalls/restage.generated/offer.restage.g.dart'),
+      );
+      // Build, push (which writes the capture project), then unchanged
+      // rebuilds and rebuilds after an edit to the surface.
+      final surface = File(p.join(app, 'lib/paywalls/offer.dart'));
+      for (var run = 1; run <= 5; run++) {
+        if (run == 2) {
+          final capture = await writeSurfaceCaptureProject(
+            projectRoot: Directory(app),
+            files: const {},
+          );
+          expect(
+            capture.path,
+            p.join(app, '.dart_tool', 'restage', 'surface_capture'),
+          );
+          expect(
+            Link(p.join(capture.path, 'lib')).existsSync() ||
+                Directory(p.join(capture.path, 'lib')).existsSync(),
+            isTrue,
+          );
+        }
+        if (run.isEven) {
+          surface.writeAsStringSync(
+            surface.readAsStringSync().replaceFirst(
+              RegExp(r"Text\('[^']*'\)"),
+              "Text('Welcome $run')",
+            ),
+          );
+        }
+        final build = await _build(app);
+        expect(build.exitCode, 0, reason: 'build $run: ${_output(build)}');
+        expect(part.existsSync(), isTrue, reason: 'build $run');
+      }
     },
   );
 }

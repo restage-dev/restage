@@ -1,4 +1,4 @@
-// A paywall's completing event must be fired by one of its taps.
+// A paywall's completing event must be fired by a tap or by its own code.
 
 import 'dart:io';
 
@@ -6,6 +6,7 @@ import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
@@ -15,53 +16,89 @@ const _fixtureRoot = 'test/fixtures/completes_on_unknown';
 const _package = 'apps_examples';
 
 void main() {
-  test('completesOn naming an event no tap fires is a build error', () async {
-    final compiled = await _compileFixture('lib/paywalls/stray_offer.dart');
-    expect(compiled.succeeded, isFalse);
-    expect(
-      compiled.log,
-      allOf(
-        contains(
-          "completesOn names the event 'subscribe', which no tap on "
-          'this paywall fires.',
-        ),
-        contains('context.surfaceEvent(<the declared event constant>)'),
-      ),
-    );
-  });
-
-  test('a conditional tap fires its completing event', () async {
-    final compiled = await _compileFixture(
-      'lib/paywalls/conditional_offer.dart',
-    );
-    expect(compiled.succeeded, isTrue, reason: compiled.log);
-    final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-      compiled.readerWriter.testing.readBytes(
-        AssetId(_package, kRestageMeasurementCompilerOutputPath),
-      ),
-    );
-    final routes = output.publications.single.routePlan.routes.where(
-      (route) => route.orderedCaptureV1?.lifecycleChannel == null,
-    );
-    expect(routes, hasLength(1));
-    expect(routes.single.orderedCaptureV1!.completesSurfaceV1, isTrue);
-  });
-
   test(
-    'a tap whose branches disagree about completing is a build error',
+    'completesOn naming an event the paywall never fires is a build error',
     () async {
-      final compiled = await _compileFixture('lib/paywalls/split_offer.dart');
+      final compiled = await _compileFixture('lib/paywalls/stray_offer.dart');
       expect(compiled.succeeded, isFalse);
       expect(
         compiled.log,
-        contains(
-          'This tap fires `start_trial` or `later`, and only '
-          '`start_trial` completes the surface.',
+        allOf(
+          contains(
+            "completesOn names the event 'subscribe', which this paywall's "
+            'own file never fires. Fire it from app code in '
+            'package:apps_examples/paywalls/stray_offer.dart',
+          ),
+          contains('A call in another file is not seen'),
+          contains('context.surfaceEvent(<the declared event constant>)'),
         ),
       );
     },
   );
+
+  for (final fixture in ['conditional_offer']) {
+    test('a tap firing a completing event builds with a warning, and its '
+        'route never completes the surface: $fixture', () async {
+      final compiled = await _compileFixture('lib/paywalls/$fixture.dart');
+      expect(compiled.succeeded, isTrue, reason: compiled.log);
+      expect(
+        compiled.log,
+        contains(
+          'which only a tap fires, and a tap never '
+          'completes the paywall',
+        ),
+      );
+      final routes = _routes(compiled);
+      expect(
+        routes.where(
+          (route) => route.orderedCaptureV1?.completesSurfaceV1 ?? false,
+        ),
+        isEmpty,
+      );
+    });
+  }
+
+  for (final (fixture, label) in [
+    ('app_fired_offer', 'in the build'),
+    ('child_fired_offer', 'in a private child widget'),
+  ]) {
+    test(
+      'app code that fires the completing event $label declares the '
+      'completion route, marks no tap as completing, and warns nothing',
+      () async {
+        final compiled = await _compileFixture('lib/paywalls/$fixture.dart');
+        expect(compiled.succeeded, isTrue, reason: compiled.log);
+        expect(compiled.log, isNot(contains('only a tap fires')));
+        final routes = _routes(compiled);
+        expect(
+          routes.map((route) => route.orderedCaptureV1?.lifecycleChannel),
+          contains(MeasurementOccurrenceChannelV1.completion),
+        );
+        expect(
+          routes.where(
+            (route) => route.orderedCaptureV1?.completesSurfaceV1 ?? false,
+          ),
+          isEmpty,
+        );
+        final generated = compiled.readerWriter.testing.readString(
+          AssetId(
+            _package,
+            'lib/paywalls/restage.generated/$fixture.restage.g.dart',
+          ),
+        );
+        expect(generated, contains("completesOn: const <String>{'purchased'}"));
+      },
+    );
+  }
 }
+
+List<MeasurementPublicationDraftRouteV1> _routes(
+  ({bool succeeded, String log, TestReaderWriter readerWriter}) compiled,
+) => RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+  compiled.readerWriter.testing.readBytes(
+    AssetId(_package, kRestageMeasurementCompilerOutputPath),
+  ),
+).publications.single.routePlan.routes;
 
 Future<({bool succeeded, String log, TestReaderWriter readerWriter})>
 _compileFixture(String path) async {

@@ -64,6 +64,7 @@ String? emitUserFactoriesDart(
   bool declaresSurfaces = false,
   BuildDelivery? delivery,
   bool analytics = true,
+  List<String> deliveryKeys = const [],
 }) {
   validateCustomPreviewReservations(widgets);
   final plannedUris = referencedAppWidgetLibraryUris(
@@ -183,6 +184,7 @@ String? emitUserFactoriesDart(
     buf,
     delivery,
     analytics: delivery?.analytics ?? analytics,
+    deliveryKeys: deliveryKeys,
   );
   buf
     ..writeln('/// Registers every emittable @RestageWidget-annotated class')
@@ -195,6 +197,7 @@ String? emitUserFactoriesDart(
     buf,
     delivery,
     analytics: delivery?.analytics ?? analytics,
+    deliveryKeys: deliveryKeys,
   );
   _writeWholeCatalogInstall(buf, installWholeCatalog);
   if (dependencyFactories != null) {
@@ -252,6 +255,7 @@ String emitEmptyUserFactoriesDart({
   bool declaresSurfaces = false,
   BuildDelivery? delivery,
   bool analytics = true,
+  List<String> deliveryKeys = const [],
 }) {
   final buf = StringBuffer();
   writeGeneratedHeader(buf);
@@ -268,6 +272,7 @@ String emitEmptyUserFactoriesDart({
     buf,
     delivery,
     analytics: delivery?.analytics ?? analytics,
+    deliveryKeys: deliveryKeys,
   );
   buf.writeln('/// Registers the currently enabled RFW widgets.');
   _writeCatalogConfigurationDoc(buf, installWholeCatalog);
@@ -275,6 +280,7 @@ String emitEmptyUserFactoriesDart({
     buf,
     delivery,
     analytics: delivery?.analytics ?? analytics,
+    deliveryKeys: deliveryKeys,
   );
   _writeWholeCatalogInstall(buf, installWholeCatalog);
   if (dependencyFactories != null) {
@@ -322,7 +328,19 @@ void _writeRegistrationConstant(
   StringBuffer buf,
   BuildDelivery? delivery, {
   required bool analytics,
+  required List<String> deliveryKeys,
 }) {
+  if (deliveryKeys.isNotEmpty) {
+    buf
+      ..writeln('const List<String> $kBuildDeliveryKeysName = <String>[')
+      ..writeln(
+        [
+          for (final key in deliveryKeys) '  ${dartStringLiteral(key)},',
+        ].join('\n'),
+      )
+      ..writeln('];')
+      ..writeln();
+  }
   if (delivery == null) {
     if (!analytics) {
       buf
@@ -368,7 +386,16 @@ void _writeRegistrationStart(
   StringBuffer buf,
   BuildDelivery? delivery, {
   required bool analytics,
+  required List<String> deliveryKeys,
 }) {
+  final interfaces = [
+    'RestageWidgetRegistration',
+    if (delivery != null)
+      'RestageBuildDelivery'
+    else if (!analytics)
+      'RestageBuildAnalytics',
+    if (deliveryKeys.isNotEmpty) 'RestageBuildDeliveryKeys',
+  ];
   buf
     ..writeln('void registerRestageWidgets({')
     ..writeln('  bool includeMaterial = true,')
@@ -381,13 +408,7 @@ void _writeRegistrationStart(
     ..writeln('}')
     ..writeln()
     ..writeln('final class _RestageWidgetRegistration')
-    ..writeln(
-      delivery != null
-          ? '    implements RestageWidgetRegistration, RestageBuildDelivery {'
-          : analytics
-          ? '    implements RestageWidgetRegistration {'
-          : '    implements RestageWidgetRegistration, RestageBuildAnalytics {',
-    )
+    ..writeln('    implements ${interfaces.join(', ')} {')
     ..writeln('  const _RestageWidgetRegistration();')
     ..writeln();
   if (delivery == null && !analytics) {
@@ -409,6 +430,12 @@ void _writeRegistrationStart(
       ..writeln()
       ..writeln('  @override')
       ..writeln('  bool get analyticsEnabled => $kBuildAnalyticsName;')
+      ..writeln();
+  }
+  if (deliveryKeys.isNotEmpty) {
+    buf
+      ..writeln('  @override')
+      ..writeln('  List<String> get deliveryKeys => $kBuildDeliveryKeysName;')
       ..writeln();
   }
   buf

@@ -26,8 +26,8 @@ const _fixtureDartPaths = <String>[
 ];
 
 void main() {
-  test('taps inside an opaque custom wrapper are measured and complete the '
-      'paywall', () async {
+  test('taps inside an opaque custom wrapper are measured, and none completes '
+      'the paywall', () async {
     final compiled = await _compileFixture();
     expect(compiled.succeeded, isTrue, reason: compiled.log);
     expect(compiled.log, isNot(contains('Measurement is unavailable')));
@@ -38,9 +38,10 @@ void main() {
         .where((route) => route.orderedCaptureV1?.lifecycleChannel == null)
         .toList();
     expect(taps, hasLength(2), reason: 'AppButton.onPressed and the close tap');
+    // A tap never completes a paywall, even one firing a completesOn event.
     expect(
       taps.where((route) => route.orderedCaptureV1!.completesSurfaceV1),
-      hasLength(1),
+      isEmpty,
     );
     final blob = compiled.handoff!.manifest!.publications
         .singleWhere((entry) => entry.publication.slug == 'grounded_offer')

@@ -3,6 +3,7 @@
 
 import 'dart:collection';
 
+import 'package:build/build.dart' show log;
 import 'package:collection/collection.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_rfw_presentation_discovery.dart';
@@ -1048,27 +1049,34 @@ MeasurementPublicationRoutePlanV1 _routePlan(
                   MeasurementOccurrenceChannelV1.interaction,
                 ],
                 interactionItemsV1: emission.tapItem != null,
-                completesSurfaceV1: _completesSurface(
-                  discoveredEvent.authoredEventNames,
-                  discovery.completionEventNames,
-                ),
               ),
             ),
           );
         }
       }
     }
-    final measuredNames = {
+    final tapNames = {
       for (final event in discovery.events) ...event.authoredEventNames,
     };
     for (final name in discovery.completionEventNames) {
-      if (!measuredNames.contains(name)) {
+      if (discovery.appFiredEventNames.contains(name)) continue;
+      if (!tapNames.contains(name)) {
+        final file =
+            discovery.sourceProvenance?.sourceLibraryUri ??
+            "the paywall's file";
         throw ArgumentError(
-          "completesOn names the event '$name', which no tap on this "
-          'paywall fires. A tap fires it with '
-          'context.surfaceEvent(<the declared event constant>).',
+          "completesOn names the event '$name', which this paywall's own file "
+          'never fires. Fire it from app code in $file once the purchase '
+          'succeeds: context.surfaceEvent(<the declared event constant>)(). '
+          'A call in another file is not seen; move it into $file.',
         );
       }
+      log.warning(
+        "completesOn names the event '$name', which only a tap fires, and a "
+        'tap never completes the paywall. Fire it from app code once the '
+        'purchase succeeds: context.surfaceEvent(<the declared event '
+        'constant>)().',
+      );
     }
   }
 
@@ -1446,6 +1454,12 @@ List<
 >
 _lifecycleNodes(MeasurementPublicationPlanningInput input) {
   final flow = input.entry.publication.payloadKind == SurfacePayloadKind.flow;
+  // A single-screen paywall that declares completesOn can complete too.
+  final completes =
+      flow ||
+      input.sourceArtifacts.any(
+        (artifact) => artifact.discovery.completionEventNames.isNotEmpty,
+      );
   final reachability = input.flowDocument == null
       ? null
       : FlowScreenLifecycleReachability.analyze(input.flowDocument!);
@@ -1470,7 +1484,7 @@ _lifecycleNodes(MeasurementPublicationPlanningInput input) {
       artifact: root,
       channels: [
         MeasurementOccurrenceChannelV1.presentation,
-        if (flow) MeasurementOccurrenceChannelV1.completion,
+        if (completes) MeasurementOccurrenceChannelV1.completion,
         MeasurementOccurrenceChannelV1.dismiss,
       ],
     ),
@@ -1730,20 +1744,3 @@ String _answerLocator(
   MeasurementPublicationPlanningInput input,
   String questionId,
 ) => 'compiler.publication-answer:${input.selector.key}:$questionId';
-
-/// Whether a tap firing [names] completes its surface. One tap carries one
-/// route, so its branches must agree.
-bool _completesSurface(Set<String> names, Set<String> completionNames) {
-  final completing = names.where(completionNames.contains).toList()..sort();
-  if (completing.isNotEmpty && completing.length != names.length) {
-    final others =
-        names.where((name) => !completionNames.contains(name)).toList()..sort();
-    final x = completing.map((name) => '`$name`').join(' or ');
-    final y = others.map((name) => '`$name`').join(' or ');
-    throw ArgumentError(
-      'This tap fires $x or $y, and only $x completes the surface. Give $x '
-      'its own tap so its completions can be counted.',
-    );
-  }
-  return completing.isNotEmpty;
-}

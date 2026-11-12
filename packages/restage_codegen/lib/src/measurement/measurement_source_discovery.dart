@@ -207,12 +207,14 @@ final class MeasurementSourceDiscoveryResult {
     required List<MeasurementDiscoveredEvent> events,
     Set<String> sharedBodies = const {},
     Set<String> completionEventNames = const {},
+    Set<String> appFiredEventNames = const {},
   }) : disposition = MeasurementSourceDiscoveryDisposition.accepted,
        rejectionReason = null,
        nodes = List.unmodifiable(nodes),
        events = List.unmodifiable(events),
        sharedBodies = Set.unmodifiable(sharedBodies),
-       completionEventNames = Set.unmodifiable(completionEventNames);
+       completionEventNames = Set.unmodifiable(completionEventNames),
+       appFiredEventNames = Set.unmodifiable(appFiredEventNames);
 
   MeasurementSourceDiscoveryResult._rejected({required String reason})
     : disposition = MeasurementSourceDiscoveryDisposition.rejected,
@@ -221,7 +223,8 @@ final class MeasurementSourceDiscoveryResult {
       nodes = const [],
       events = const [],
       sharedBodies = const {},
-      completionEventNames = const {};
+      completionEventNames = const {},
+      appFiredEventNames = const {};
 
   /// Whether the complete static source closure was available.
   final MeasurementSourceDiscoveryDisposition disposition;
@@ -237,6 +240,10 @@ final class MeasurementSourceDiscoveryResult {
 
   /// Event names that complete a paywall rather than dismiss it.
   final Set<String> completionEventNames;
+
+  /// Event names app code in the paywall's library fires by calling
+  /// `context.surfaceEvent(event)()`.
+  final Set<String> appFiredEventNames;
 
   /// The inlined widgets, by class identity, whose body every placement
   /// shares, keyed by its definition.
@@ -511,6 +518,11 @@ final class _MeasurementSourceDiscovery {
           input.authority == MeasurementSourceAuthority.paywall
           ? measurement_completion.paywallCompletionEvents(
               input.sourceClass,
+            )
+          : const {},
+      appFiredEventNames: input.authority == MeasurementSourceAuthority.paywall
+          ? measurement_completion.appFiredEventNamesIn(
+              input.rootExpression.thisOrAncestorOfType<CompilationUnit>(),
             )
           : const {},
     );

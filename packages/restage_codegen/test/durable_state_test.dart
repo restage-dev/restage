@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/durable_state.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show restageBuildStateInputs;
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -35,10 +37,7 @@ void main() {
         errors.join('\n'),
         allOf(
           contains(path),
-          contains('`additional_public_assets: [.restage/**]`'),
-          contains(
-            'If the target restricts sources, include `.restage/**` there too.',
-          ),
+          contains(kUntrackedDurableStateAdvice),
         ),
       );
       List<int>? tracked;
@@ -238,6 +237,13 @@ additional_public_assets:
 
     test('a state file admitted as a build input is tracked', () async {
       expect(await untracked({'.restage/measurement-state.json'}), isEmpty);
+    });
+
+    test('the advice names every state input and not .restage/build', () {
+      for (final input in restageBuildStateInputs) {
+        expect(kUntrackedDurableStateAdvice, contains(input));
+      }
+      expect(kUntrackedDurableStateAdvice, isNot(contains('.restage/**')));
     });
 
     test('an untracked refusal gains the build.yaml advice', () {
