@@ -65,6 +65,7 @@ typedef _Built = ({
   String rfwtxt,
   String mount,
   String capabilities,
+  String navplan,
 });
 
 Future<_Built> _build(String source) async {
@@ -103,6 +104,7 @@ Future<_Built> _build(String source) async {
     rfwtxt: output((path) => path.endsWith('.rfwtxt')),
     mount: output((path) => path.endsWith('.dart')),
     capabilities: output((path) => path.endsWith('.capability.json')),
+    navplan: output((path) => path.endsWith('.navplan.json')),
   );
 }
 
@@ -1368,32 +1370,218 @@ void configureApp() {
     },
   );
 
-  // A generator body runs only when its result is iterated, so a tap never
-  // runs it; the app's own closure is bound, as Flutter would call it.
+  // A split callback copies the closure's source into the mount, so a
+  // generator closure stays one there: a tap runs nothing, as in Flutter.
   for (final keyword in ['sync*', 'async*']) {
-    for (final (what, body) in [
-      ('callback', call),
-      ('setState', 'setState(() => annualSelected = false)'),
+    for (final (where, annotation) in [
+      ('a paywall', '@rs.Paywall()'),
+      (
+        'a general screen',
+        "@rs.Screen(id: 'plan_picker', surface: rs.Surface.general)",
+      ),
     ]) {
-      test('a $keyword $what closure stays in the app', () async {
-        final built = await _build(_source('() $keyword { $body; }'));
+      test('a $keyword callback closure on $where keeps its keyword', () async {
+        final built = await _build(
+          _source('() $keyword { $call; }', annotation: annotation),
+        );
         expect(built.errors, isEmpty);
         expect(built.succeeded, isTrue);
-        expect(_program.hasMatch(built.rfwtxt), isFalse, reason: built.rfwtxt);
-        expect(built.rfwtxt, isNot(contains('native.call')));
+        expect(_program.hasMatch(built.rfwtxt), isTrue, reason: built.rfwtxt);
         expect(
-          built.rfwtxt,
-          matches(
-            RegExp(
-              r'GestureDetector\(onTap: \{nativeEvent: '
-              r'data\.context\._h[0-9a-f]{10}, '
-              '${RegExp.escape(tap)}\\}, child: Text\\(text: "Continue"\\)\\)',
-            ),
-          ),
+          built.mount,
+          contains('() $keyword {\n'),
+          reason: built.mount,
         );
       });
     }
+
+    // Guards: these fall back to the app on other grounds too.
+    test('a $keyword setState closure stays in the app', () async {
+      final built = await _build(
+        _source('() $keyword { setState(() => annualSelected = false); }'),
+      );
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      expect(
+        built.rfwtxt,
+        matches(
+          RegExp(
+            r'GestureDetector\(onTap: \{nativeEvent: '
+            r'data\.context\._h[0-9a-f]{10}, '
+            '${RegExp.escape(tap)}\\}, child: Text\\(text: "Continue"\\)\\)',
+          ),
+        ),
+      );
+    });
   }
+
+  test('a setState writer that is a generator stays in the app', () async {
+    final built = await _build(
+      _source(
+        '_pick',
+        extraMembers:
+            'void _pick() => setState(() sync* { annualSelected = false; });',
+      ),
+    );
+    expect(built.errors, isEmpty);
+    expect(built.rfwtxt, isNot(contains('set state.annualSelected = false')));
+    expect(
+      built.warnings.single,
+      allOf(
+        contains(
+          'the closure `_pick` passes to setState is a `sync*` generator, '
+          'so setState never runs it',
+        ),
+        contains('Try removing `sync*` from the closure `_pick` passes'),
+      ),
+    );
+  });
+
+  test(
+    'a value callback whose setState writer is a generator stays in the app',
+    () async {
+      final built = await _build(
+        _source(
+          'null',
+          library: 'material',
+          extraChildren:
+              'Switch(value: annualSelected, '
+              'onChanged: (v) => setState(() sync* { annualSelected = v; })),',
+        ),
+      );
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      expect(built.rfwtxt, isNot(contains('restage.local.set')));
+      expect(
+        built.rfwtxt,
+        matches(
+          RegExp(
+            r'onChanged: \{nativeEvent: data\.context\._h[0-9a-f]{10}, '
+            '${RegExp.escape(tap)}\\}',
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'a generator the build iterates gets the same advice',
+    () async {
+      final built = await _build(
+        _source(
+          'null',
+          extraMembers:
+              'Iterable<Widget> _rows() sync* '
+              "{ yield Text(annualSelected ? 'A' : 'M'); }",
+          extraChildren: '..._rows(),',
+        ),
+      );
+      expect(built.errors, isEmpty);
+      expect(
+        built.warnings.single,
+        allOf(
+          contains(
+            "`_rows` is a `sync*` generator method, which a design can't run",
+          ),
+          contains(
+            'Try writing a plain method that does the work or returns '
+            'the values.',
+          ),
+        ),
+      );
+    },
+  );
+
+  test('a generator a value callback calls gets the same advice', () async {
+    final built = await _build(
+      _source(
+        'null',
+        library: 'material',
+        extraMembers:
+            'Iterable<void> _go() sync* { widget.onChoose?.call(true); }',
+        extraChildren:
+            'Switch(value: annualSelected, onChanged: (v) { _go(); }),',
+      ),
+    );
+    expect(built.errors, isEmpty);
+    expect(
+      built.warnings.single,
+      allOf(
+        contains(
+          "`_go` is a `sync*` generator method, which a design can't run",
+        ),
+        contains(
+          'Try writing a plain method that does the work or returns '
+          'the values.',
+        ),
+        isNot(contains('tap')),
+      ),
+    );
+  });
+
+  test('a generator setState writer on a general screen says why', () async {
+    final built = await _build(
+      _source(
+        'null',
+        library: 'material',
+        annotation:
+            "@rs.Screen(id: 'plan_picker', surface: rs.Surface.general)",
+        extraChildren:
+            'Switch(value: annualSelected, '
+            'onChanged: (v) => setState(() sync* { annualSelected = v; })),',
+      ),
+    );
+    expect(
+      built.errors.first,
+      allOf(
+        contains(
+          'the closure passed to setState is a `sync*` generator, so setState '
+          'never runs it',
+        ),
+        contains('Try removing `sync*` from the closure passed to setState.'),
+        isNot(contains("screen's build method")),
+      ),
+    );
+  });
+
+  test('a generator callback on a general screen says why', () async {
+    final built = await _build(
+      _source(
+        'null',
+        library: 'material',
+        annotation:
+            "@rs.Screen(id: 'plan_picker', surface: rs.Surface.general)",
+        extraChildren:
+            'Switch(value: annualSelected, '
+            'onChanged: (v) sync* { setState(() => annualSelected = v); }),',
+      ),
+    );
+    expect(
+      built.errors.first,
+      allOf(
+        contains(
+          'the callback is a `sync*` generator, so calling it never runs its '
+          'body',
+        ),
+        contains('Try removing `sync*` from the callback.'),
+        isNot(contains("screen's build method")),
+      ),
+    );
+  });
+
+  test('an async* generator method is named with its article', () async {
+    final built = await _build(
+      _source(
+        '_go',
+        extraMembers: 'Stream<void> _go() async* { $call; }',
+      ),
+    );
+    expect(built.errors, isEmpty);
+    expect(
+      built.warnings.single,
+      contains("`_go` is an `async*` generator method, which a design can't"),
+    );
+  });
 
   test('a sync* value callback stays in the app', () async {
     final built = await _build(
@@ -1416,6 +1604,481 @@ void configureApp() {
         ),
       ),
     );
-    expect(built.rfwtxt, isNot(contains('set state.annualSelected = v')));
+    expect(built.rfwtxt, isNot(contains('restage.local.set')));
+  });
+
+  const sheet =
+      'showModalBottomSheet<void>(context: context, builder: (_) => '
+      'TextButton(onPressed: () => widget.onClose?.call(), '
+      "child: const Text('InSheet')))";
+
+  for (final keyword in ['sync*', 'async*']) {
+    test('a $keyword sheet trigger stays in the app', () async {
+      final built = await _build(
+        _source('() $keyword { $sheet; }', library: 'material'),
+      );
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      expect(built.rfwtxt, isNot(contains('_restageSheet')));
+      expect(built.rfwtxt, isNot(contains('InSheet')));
+      expect(
+        built.rfwtxt,
+        matches(
+          RegExp(
+            r'GestureDetector\(onTap: \{nativeEvent: '
+            r'data\.context\._h[0-9a-f]{10}, '
+            '${RegExp.escape(tap)}\\}, child: Text\\(text: "Continue"\\)\\)',
+          ),
+        ),
+      );
+    });
+  }
+
+  test('a generator method says the generator is why', () async {
+    final built = await _build(
+      _source(
+        '_go',
+        extraMembers: 'Iterable<void> _go() sync* { $call; }',
+      ),
+    );
+    expect(built.errors, isEmpty);
+    expect(
+      built.warnings.single,
+      allOf(
+        contains(
+          "`_go` is a `sync*` generator method, which a design can't run",
+        ),
+        contains(
+          'Try writing a plain method that does the work or returns '
+          'the values.',
+        ),
+        isNot(contains('setState(() => field = value)')),
+      ),
+    );
+  });
+
+  // A sheet lowers into the design only from a trigger slot; from any other
+  // slot the app opens it, so the taps inside it are the app's.
+  for (final (name, widget, slot, lowers) in [
+    ('onLongPress', 'GestureDetector', 'onLongPress', false),
+    ('onDoubleTap', 'GestureDetector', 'onDoubleTap', false),
+    ('a button onLongPress', 'TextButton', 'onLongPress', false),
+    ('onTap', 'GestureDetector', 'onTap', true),
+  ]) {
+    test('a sheet opened from $name builds and is measured', () async {
+      final built = await _build(
+        _source(
+          'null',
+          library: 'material',
+          extraChildren:
+              '$widget($slot: () { $sheet; }, '
+              '${widget == 'TextButton' ? 'onPressed: null, ' : ''}'
+              "child: const Text('Open')),",
+        ),
+      );
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      expect(built.rfwtxt.contains('InSheet'), lowers, reason: built.rfwtxt);
+      if (lowers) {
+        expect(
+          built.rfwtxt,
+          matches(
+            RegExp(
+              r'TextButton\(onPressed: \{nativeEvent: '
+              r'data\.context\._h[0-9a-f]{10}, '
+              '${RegExp.escape(tap)}\\}, child: Text\\(text: "InSheet"\\)\\)',
+            ),
+          ),
+        );
+      }
+      expect(
+        built.rfwtxt,
+        lowers
+            ? contains(
+                '$slot: [set state._restageSheet0Open = true, '
+                'event "__restage_measurement_tap_v1" {}]',
+              )
+            : matches(
+                RegExp(
+                  '$slot: '
+                  r'\{nativeEvent: data\.context\._h[0-9a-f]{10}, '
+                  '${RegExp.escape(tap)}\\}',
+                ),
+              ),
+      );
+    });
+  }
+
+  for (final (name, children) in [
+    (
+      'two sheets',
+      "GestureDetector(onTap: () { $sheet; }, child: const Text('Open')), "
+          "GestureDetector(onTap: () { $sheet; }, child: const Text('Open')),",
+    ),
+    (
+      'an awaited sheet',
+      'GestureDetector(onTap: () async { await $sheet; }, '
+          "child: const Text('Open')),",
+    ),
+  ]) {
+    test('$name the app opens builds and is measured', () async {
+      final built = await _build(
+        _source('null', library: 'material', extraChildren: children),
+      );
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      expect(built.rfwtxt, isNot(contains('InSheet')));
+      expect(
+        RegExp(
+          r'onTap: \{nativeEvent: data\.context\._h[0-9a-f]{10}, '
+          '${RegExp.escape(tap)}\\}, child: Text\\(text: "Open"\\)\\)',
+        ).allMatches(built.rfwtxt),
+        hasLength(children.split('Open').length - 1),
+      );
+    });
+  }
+
+  const openSheet =
+      "GestureDetector(onTap: () { $sheet; }, child: const Text('Open')),";
+  const opens =
+      'GestureDetector(onTap: [set state._restageSheet0Open = true, '
+      'event "__restage_measurement_tap_v1" {}], child: Text(text: "Open"))';
+  final measuredInSheet = RegExp(
+    r'TextButton\(onPressed: \{nativeEvent: data\.context\._h[0-9a-f]{10}, '
+    '${RegExp.escape(tap)}\\}, child: Text\\(text: "InSheet"\\)\\)',
+  );
+  RegExp measuredApp(String label) => RegExp(
+    r'onTap: \{nativeEvent: data\.context\._h[0-9a-f]{10}, '
+    '${RegExp.escape(tap)}\\}, child: Text\\(text: "$label"\\)\\)',
+  );
+
+  test('a sheet still lowers when screen navigation does not', () async {
+    const details = '''
+@rs.Paywall(id: 'details')
+class Details extends StatelessWidget {
+  const Details({super.key});
+  @override
+  Widget build(BuildContext context) => const Text('Details');
+}
+''';
+    final source = _source(
+      'null',
+      library: 'material',
+      extraChildren:
+          '$openSheet '
+          'GestureDetector(onTap: () => Navigator.push<void>(context, '
+          'MaterialPageRoute<void>(builder: (_) => const Details())), '
+          "child: const Text('More')),",
+    );
+    final built = await _build('$source$details');
+    expect(built.errors, isEmpty);
+    expect(built.succeeded, isTrue);
+    expect(built.rfwtxt, contains(opens));
+    expect(built.rfwtxt, matches(measuredInSheet));
+    expect(built.rfwtxt, matches(measuredApp('More')));
+  });
+
+  // Only the return the design scans lowers its sheet; the other is opened by
+  // the app. Either way the plan and the design agree.
+  String branched(String source, {required bool sheetLast}) => sheetLast
+      ? source
+            .replaceFirst(
+              '  @override\n  Widget build(BuildContext context) => Column(',
+              '  @override\n  Widget build(BuildContext context) {\n'
+                  "    if (!annualSelected) return const Text('Monthly');\n"
+                  '    return Column(',
+            )
+            .replaceFirst('      ]);\n}', '      ]);\n  }\n}')
+      : source
+            .replaceFirst(
+              '  @override\n  Widget build(BuildContext context) => Column(',
+              '  @override\n  Widget build(BuildContext context) {\n'
+                  '    if (annualSelected) return Column(',
+            )
+            .replaceFirst(
+              '      ]);\n}',
+              "      ]);\n    return const Text('Monthly');\n  }\n}",
+            );
+
+  test(
+    'a sheet in the last return of a build lowers and is measured',
+    () async {
+      final built = await _build(
+        branched(
+          _source('null', library: 'material', extraChildren: openSheet),
+          sheetLast: true,
+        ),
+      );
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      expect(built.rfwtxt, contains(opens));
+      expect(built.rfwtxt, matches(measuredInSheet));
+    },
+  );
+
+  test('a sheet in an earlier return of a build is opened by the app and '
+      'measured', () async {
+    final built = await _build(
+      branched(
+        _source('null', library: 'material', extraChildren: openSheet),
+        sheetLast: false,
+      ),
+    );
+    expect(built.errors, isEmpty);
+    expect(built.succeeded, isTrue);
+    expect(built.rfwtxt, isNot(contains('InSheet')));
+    expect(built.rfwtxt, matches(measuredApp('Open')));
+  });
+
+  // A build that returns a switch delivers every arm; the plan scans what the
+  // design scans, so a sheet in any arm is planned the way it is emitted.
+  String sheetIn(String label) =>
+      'GestureDetector(onTap: () { showModalBottomSheet<void>(context: '
+      'context, builder: (_) => TextButton(onPressed: () => '
+      "widget.onClose?.call(), child: const Text('$label'))); }, "
+      "child: const Text('Open$label')),";
+  String switched(
+    String source, {
+    required String firstArm,
+    required String lastArm,
+  }) => source
+      .replaceFirst(
+        '  @override\n  Widget build(BuildContext context) => '
+            'Column(children: [',
+        '  @override\n  Widget build(BuildContext context) => '
+            'switch (widget.onClose == null) {\n'
+            '    true => Column(children: [$firstArm',
+      )
+      .replaceFirst(
+        '      ]);\n}',
+        '      ]),\n    false => Column(children: [$lastArm]),\n  };\n}',
+      );
+  RegExp measuredTap(String label) => RegExp(
+    r'\{nativeEvent: data\.context\._h[0-9a-f]{10}, '
+    '${RegExp.escape(tap)}\\}, child: Text\\(text: "$label"\\)\\)',
+  );
+
+  for (final (surface, annotation) in [
+    ('paywall', '@rs.Paywall()'),
+    (
+      'general screen',
+      "@rs.Screen(id: 'plan_picker', surface: rs.Surface.general)",
+    ),
+  ]) {
+    test(
+      'a sheet in an earlier switch arm of a $surface is measured inside',
+      () async {
+        final built = await _build(
+          switched(
+            _source('null', library: 'material', annotation: annotation),
+            firstArm: sheetIn('InSheetA'),
+            lastArm: "const Text('Plain')",
+          ),
+        );
+        expect(built.errors, isEmpty);
+        expect(built.succeeded, isTrue);
+        expect(built.rfwtxt, contains('_restageSheet0Open = true'));
+        expect(built.rfwtxt, matches(measuredTap('InSheetA')));
+      },
+    );
+
+    test(
+      'a sheet in each switch arm of a $surface is opened by the app',
+      () async {
+        final built = await _build(
+          switched(
+            _source('null', library: 'material', annotation: annotation),
+            firstArm: sheetIn('InSheetA'),
+            lastArm: sheetIn('InSheetB'),
+          ),
+        );
+        expect(built.errors, isEmpty);
+        expect(built.succeeded, isTrue);
+        expect(built.rfwtxt, isNot(contains('_restageSheet')));
+        expect(built.rfwtxt, matches(measuredTap('OpenInSheetA')));
+        expect(built.rfwtxt, matches(measuredTap('OpenInSheetB')));
+      },
+    );
+
+    test('an awaited sheet and a sheet in two switch arms of a $surface '
+        'are opened by the app', () async {
+      final awaited = sheetIn('InSheetA').replaceFirst(
+        'onTap: () { showModalBottomSheet',
+        'onTap: () async { await showModalBottomSheet',
+      );
+      final built = await _build(
+        switched(
+          _source('null', library: 'material', annotation: annotation),
+          firstArm: awaited,
+          lastArm: sheetIn('InSheetB'),
+        ),
+      );
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      expect(built.rfwtxt, isNot(contains('_restageSheet')));
+      expect(built.rfwtxt, matches(measuredTap('OpenInSheetA')));
+      expect(built.rfwtxt, matches(measuredTap('OpenInSheetB')));
+    });
+
+    test('a switch build of a $surface with no sheet builds', () async {
+      final built = await _build(
+        switched(
+          _source('null', library: 'material', annotation: annotation),
+          firstArm: "const Text('A'),",
+          lastArm: "const Text('B')",
+        ),
+      );
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      expect(built.rfwtxt, isNot(contains('_restageSheet')));
+    });
+  }
+
+  // No plan, the entry paywall delivered on its own, and its taps measured.
+  void expectStandaloneMeasured(_Built built, {String? measured}) {
+    expect(built.navplan.trim(), isEmpty);
+    expect(built.rfwtxt, isNot(contains('restageNav')));
+    expect(built.rfwtxt, contains('Text(text: "Skip")'));
+    expect(built.rfwtxt, contains(_toggles));
+    if (measured != null) expect(built.rfwtxt, matches(measuredApp(measured)));
+  }
+
+  // A navigation plan holds only transitions the design fires.
+  void expectEveryTransitionFired(_Built built) {
+    if (built.navplan.trim().isEmpty) return;
+    final events = <String>[];
+    void collect(Object? node) {
+      if (node is Map) {
+        for (final MapEntry(:key, :value) in node.entries) {
+          if (key == 'event' && value is String) events.add(value);
+          collect(value);
+        }
+      } else if (node is List) {
+        node.forEach(collect);
+      }
+    }
+
+    collect(jsonDecode(built.navplan));
+    for (final event in events) {
+      if (event == 'skip') continue;
+      expect(built.rfwtxt, contains('event "$event"'), reason: built.navplan);
+    }
+  }
+
+  const details = '''
+@rs.Paywall(id: 'details')
+class Details extends StatelessWidget {
+  const Details({super.key});
+  @override
+  Widget build(BuildContext context) => const Text('Details');
+}
+''';
+  const push =
+      '() => Navigator.push<void>(context, '
+      'MaterialPageRoute<void>(builder: (_) => const Details()))';
+  const skip =
+      'GestureDetector(onTap: context.surfaceEvent(rs.PaywallEvents.skip), '
+      "child: const Text('Skip')),";
+  const appButton = '''
+class AppButton extends StatefulWidget {
+  const AppButton({super.key, required this.onPressed});
+  final VoidCallback onPressed;
+  @override
+  State<AppButton> createState() => _AppButtonState();
+}
+class _AppButtonState extends State<AppButton> {
+  late final FocusNode focus;
+  @override
+  void initState() {
+    super.initState();
+    focus = FocusNode();
+  }
+  @override
+  Widget build(BuildContext context) => TextButton(
+    focusNode: focus,
+    onPressed: widget.onPressed,
+    child: const Text('More'),
+  );
+}
+''';
+  for (final (name, child, classes) in [
+    (
+      'an awaited sheet whose body pushes',
+      'GestureDetector(onTap: () async { await '
+          'showModalBottomSheet<void>(context: context, builder: (_) => '
+          'TextButton(onPressed: $push, '
+          "child: const Text('More'))); }, child: const Text('Open')),",
+      '',
+    ),
+    (
+      'a sync* sheet trigger whose builder pushes',
+      'GestureDetector(onTap: () sync* { showModalBottomSheet<void>(context: '
+          'context, builder: (_) => TextButton(onPressed: $push, '
+          "child: const Text('More'))); }, child: const Text('Open')),",
+      '',
+    ),
+    (
+      'a push passed to an app-rendered widget',
+      'AppButton(onPressed: $push),',
+      appButton,
+    ),
+  ]) {
+    test('$name leaves no transition the design cannot fire', () async {
+      final source = _source(
+        'null',
+        library: 'material',
+        extraChildren: '$child $skip',
+      );
+      final built = await _build('$source$details$classes');
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      expectStandaloneMeasured(
+        built,
+        measured: classes.isEmpty ? 'Open' : null,
+      );
+      expectEveryTransitionFired(built);
+    });
+  }
+
+  // A refused sheet leaves screen navigation to the app too, so a push at
+  // the root is the app's and the paywall stays standalone and measured.
+  for (final (name, sheets) in [
+    (
+      'an awaited sheet',
+      'GestureDetector(onTap: () async { await '
+          'showModalBottomSheet<void>(context: context, builder: (_) => '
+          "const Text('InSheet')); }, child: const Text('Open')),",
+    ),
+    ('two sheets', '${sheetIn('InSheetA')} ${sheetIn('InSheetB')}'),
+  ]) {
+    test('$name the app opens leaves a root push to the app', () async {
+      final source = _source(
+        'null',
+        library: 'material',
+        extraChildren:
+            "$sheets GestureDetector(onTap: $push, child: const Text('More')), "
+            '$skip',
+      );
+      final built = await _build('$source$details');
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      expect(built.rfwtxt, isNot(contains('_restageSheet')));
+      expectStandaloneMeasured(built, measured: 'More');
+    });
+  }
+
+  test('a push the design fires keeps its transition', () async {
+    final source = _source(
+      'null',
+      library: 'material',
+      extraChildren:
+          "GestureDetector(onTap: $push, child: const Text('More')), "
+          '$skip',
+    );
+    final built = await _build('$source$details');
+    expect(built.errors, isEmpty);
+    expect(built.navplan, contains('restageNav0'));
+    expect(built.rfwtxt, contains('event "restageNav0"'));
+    expectEveryTransitionFired(built);
   });
 }

@@ -487,6 +487,64 @@ void main() {
       );
     });
 
+    test('with a generator handler stays in the app and says why', () async {
+      final out = await _compile(
+        _surface(
+          "Tile(label: 'a')",
+          classes: _tile(
+            handlers:
+                'Iterable<void> flip() sync* { setState(() => on = !on); }',
+          ),
+        ),
+      );
+      expect(out.errors, isEmpty);
+      final island = out.island('Tile');
+      expect(island.reasonCode, 'nestedStateIsland');
+      expect(
+        island.reason,
+        allOf(
+          contains(
+            "'Tile' keeps its state in the app: `flip` is a `sync*` generator "
+            "method, which a design can't run",
+          ),
+          contains(
+            'Try writing a plain method that does the work or returns '
+            'the values.',
+          ),
+        ),
+      );
+    });
+
+    test(
+      'with a generator setState writer stays in the app and says why',
+      () async {
+        final out = await _compile(
+          _surface(
+            "Tile(label: 'a')",
+            classes: _tile(
+              handlers: 'void flip() => setState(() sync* { on = !on; });',
+            ),
+          ),
+        );
+        expect(out.errors, isEmpty);
+        final island = out.island('Tile');
+        expect(island.reasonCode, 'nestedStateIsland');
+        expect(
+          island.reason,
+          allOf(
+            contains(
+              "'Tile' keeps its state in the app: the closure `flip` passes to "
+              'setState is a `sync*` generator, so setState never runs it',
+            ),
+            contains(
+              'Try removing `sync*` from the closure `flip` passes to '
+              'setState.',
+            ),
+          ),
+        );
+      },
+    );
+
     test('in a loop over host data stays in the app', () async {
       final out = await _compile(
         _surface('for (final p in plans) Tile(label: p)', classes: _tile()),

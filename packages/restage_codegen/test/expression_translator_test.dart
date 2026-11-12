@@ -4389,6 +4389,62 @@ Object x() => Column(
       );
     });
 
+    test('names a generator root handler as the reason', () async {
+      final expr = await parseExpressionForTest(
+        'GestureDetector(onTap: toggle)',
+      );
+
+      final result = stateTranslator.translate(
+        expr,
+        rootState: [
+          const CustomWidgetStateField(
+            name: 'annual',
+            isNumeric: false,
+            initialValue: false,
+          ),
+        ],
+        rootEventHandlers: {
+          'toggle': const SetStateGenerator(keyword: 'sync*'),
+        },
+      );
+
+      expect(result.issues.single.code, IssueCode.stateShapeUnsupported);
+      expect(
+        result.issues.single.message,
+        'State method "toggle" is referenced as an event handler, but '
+        "`toggle` is a `sync*` generator method, which a design can't run. "
+        'Try writing a plain method that does the work or returns the values.',
+      );
+    });
+
+    test('names an async* generator setState writer as the reason', () async {
+      final expr = await parseExpressionForTest(
+        'GestureDetector(onTap: toggle)',
+      );
+
+      final result = stateTranslator.translate(
+        expr,
+        rootState: [
+          const CustomWidgetStateField(
+            name: 'annual',
+            isNumeric: false,
+            initialValue: false,
+          ),
+        ],
+        rootEventHandlers: {
+          'toggle': const SetStateGenerator(keyword: 'async*', writer: true),
+        },
+      );
+
+      expect(
+        result.issues.single.message,
+        'State method "toggle" is referenced as an event handler, but the '
+        'closure `toggle` passes to setState is an `async*` generator, so '
+        'setState never runs it. Try removing `async*` from the closure '
+        '`toggle` passes to setState.',
+      );
+    });
+
     test(
       'rejects root widget field reads instead of lowering to args',
       () async {

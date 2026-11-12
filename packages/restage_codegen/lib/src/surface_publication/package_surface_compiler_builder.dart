@@ -1684,6 +1684,8 @@ _discoverMeasurementSources(
         input: MeasurementSourceDiscoveryInput(
           authority: MeasurementSourceAuthority.screen,
           sourceClass: screen.declaration,
+          designExpression:
+              mounts[screen.declarationIdentity]?.split?.designExpression,
           rootExpression:
               mounts[screen.declarationIdentity]?.split?.designRoot ??
               screen.build.rootExpression,
@@ -1757,6 +1759,7 @@ _discoverMeasurementSources(
         input: MeasurementSourceDiscoveryInput(
           authority: MeasurementSourceAuthority.paywall,
           sourceClass: declaration,
+          designExpression: mounts[identity]?.split?.designExpression,
           rootExpression:
               mounts[identity]?.split?.designRoot ??
               entry.source.rootExpression,

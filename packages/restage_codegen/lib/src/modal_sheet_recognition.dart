@@ -2,6 +2,7 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/token.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:restage_codegen/src/callback_body.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 
 /// Flutter sheet functions recognised as declarative modal-sheet triggers.
@@ -189,6 +190,79 @@ const String kModalSheetNavigatorPopResultReason =
 const String kModalSheetTriggerSlotUnsupportedReason =
     'modal sheets can only be lowered from an onPressed or onTap callback';
 
+/// Whether a build root lowers a modal sheet into the design.
+sealed class RootModalSheetScan {
+  const RootModalSheetScan();
+}
+
+/// The root lowers [sheet] into the design.
+final class RootModalSheetLowers extends RootModalSheetScan {
+  /// Creates the lowering verdict for [sheet].
+  const RootModalSheetLowers(this.sheet);
+
+  /// The one sheet the root lowers.
+  final RecognisedModalSheet sheet;
+}
+
+/// The root opens no sheet the design could lower.
+final class RootModalSheetNone extends RootModalSheetScan {
+  /// Creates the no-sheet verdict.
+  const RootModalSheetNone();
+}
+
+/// The root opens a sheet the design cannot lower, for [reason]; the app
+/// opens it.
+final class RootModalSheetRefused extends RootModalSheetScan {
+  /// Creates the refusal verdict.
+  const RootModalSheetRefused(this.reason);
+
+  /// Why no sheet lowers.
+  final String reason;
+}
+
+/// Whether [root] lowers a modal sheet: one recognised trigger, in a trigger
+/// slot, and no other sheet call. Every pass that lowers or measures a sheet
+/// body decides from this.
+RootModalSheetScan scanRootModalSheet(Expression root) {
+  final scanner = _RootModalSheetTriggerScanner();
+  root.accept(scanner);
+  if (scanner.resultDrop case final reason?) {
+    return RootModalSheetRefused(reason);
+  }
+  return switch (scanner.recognised) {
+    [] => const RootModalSheetNone(),
+    [final sheet] => RootModalSheetLowers(sheet),
+    _ => const RootModalSheetRefused(
+      'only one modal sheet trigger can be lowered in a paywall root',
+    ),
+  };
+}
+
+final class _RootModalSheetTriggerScanner extends RecursiveAstVisitor<void> {
+  final List<RecognisedModalSheet> recognised = [];
+  String? resultDrop;
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {
+    final outcome = recogniseModalSheetTrigger(node);
+    final parent = node.parent;
+    final triggerSlot =
+        parent is NamedArgument &&
+        isModalSheetTriggerSlotName(parent.name.lexeme);
+    switch (outcome) {
+      case ModalSheetRecognised(:final sheet) when triggerSlot:
+        recognised.add(sheet);
+      case ModalSheetRecognised():
+        resultDrop ??= kModalSheetTriggerSlotUnsupportedReason;
+      case ModalSheetResultDropped(:final reason):
+        resultDrop ??= reason;
+      case ModalSheetNotRecognised():
+        break;
+    }
+    super.visitFunctionExpression(node);
+  }
+}
+
 /// Whether a catalog event slot can host a declarative modal-sheet trigger.
 bool isModalSheetTriggerSlotName(String name) =>
     name == 'onPressed' || name == 'onTap';
@@ -196,10 +270,9 @@ bool isModalSheetTriggerSlotName(String name) =>
 /// Recognises the only modal-sheet trigger form that can be lowered without
 /// dropping the sheet result: `() => show*Sheet(...)` or
 /// `() { show*Sheet(...); }`.
-ModalSheetTriggerOutcome recogniseModalSheetTrigger(Expression slotValue) {
-  if (slotValue is! FunctionExpression) {
-    return const ModalSheetNotRecognised();
-  }
+ModalSheetTriggerOutcome recogniseModalSheetTrigger(Expression handler) {
+  final slotValue = runnableClosure(handler);
+  if (slotValue == null) return const ModalSheetNotRecognised();
 
   final sheetCallCount = _countModalSheetCalls(slotValue.body);
   if (sheetCallCount == 0) return const ModalSheetNotRecognised();
@@ -359,10 +432,9 @@ ModalSheetBuilderOutcome recogniseStaticModalSheetBuilder(Expression builder) {
 
 /// Recognises the only in-sheet close form that can lower without dropping a
 /// result: `() => Navigator.pop(context)` or the block equivalent.
-ModalSheetCloseOutcome recogniseModalSheetCloseHandler(Expression slotValue) {
-  if (slotValue is! FunctionExpression) {
-    return const ModalSheetCloseNotRecognised();
-  }
+ModalSheetCloseOutcome recogniseModalSheetCloseHandler(Expression handler) {
+  final slotValue = runnableClosure(handler);
+  if (slotValue == null) return const ModalSheetCloseNotRecognised();
 
   final popCount = _countNavigatorPopCalls(slotValue.body);
   if (popCount == 0) return const ModalSheetCloseNotRecognised();

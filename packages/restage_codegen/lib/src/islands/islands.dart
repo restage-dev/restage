@@ -728,17 +728,23 @@ final class MountSplit {
     required this.shell,
     required this.kept,
     required this.designRoot,
+    Expression? designExpression,
     this.state,
     this.recorded,
     this.recordProblem,
     this.recordedBuild,
-  });
+  }) : designExpression = designExpression ?? designRoot;
 
   /// The chain nodes the mount keeps, each with the child it wraps.
   final List<({Expression node, Expression next})> kept;
 
   /// The top of the delivered design.
   final Expression designRoot;
+
+  /// What the design is translated from: [designRoot], or the whole build's
+  /// switch when the design switches over its returns. A sheet lowers only
+  /// from here, so planning scans the same expression.
+  final Expression designExpression;
 
   /// This split with [recorded] as its build, written from [recordedBuild],
   /// or [problem] when the build can't be recorded.
@@ -750,6 +756,7 @@ final class MountSplit {
     shell: shell,
     kept: kept,
     designRoot: designRoot,
+    designExpression: designExpression,
     state: state,
     recorded: recorded,
     recordProblem: problem,
