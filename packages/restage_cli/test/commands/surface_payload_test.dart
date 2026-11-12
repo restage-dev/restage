@@ -28,41 +28,6 @@ void main() {
     });
   });
 
-  group('publishCapabilityWarning', () {
-    test('does not warn for baseline capabilities', () {
-      expect(
-        publishCapabilityWarning(
-          CapabilityManifest(
-            builtInFloor: kBaselineCatalogVersion,
-            requiredLibraries: const [],
-          ),
-        ),
-        isNull,
-      );
-    });
-
-    test('names elevated catalog and library requirements', () {
-      final warning = publishCapabilityWarning(
-        CapabilityManifest(
-          builtInFloor: kBaselineCatalogVersion + 1,
-          requiredLibraries: const [
-            LibraryRequirement(namespace: 'example.widgets', minVersion: 2),
-          ],
-        ),
-      );
-
-      expect(
-        warning,
-        'Note for devices: this publication renders only in app builds that '
-        'register the built-in widget catalog at content version '
-        '${kBaselineCatalogVersion + 1} or later and the app widget library '
-        '"example.widgets" at version 2 or later. Installs of older app '
-        'builds show their configured fallback. This is about device '
-        'delivery; dashboard previews depend on a build push instead.',
-      );
-    });
-  });
-
   test('SurfacePayloadException remains a publication assembly failure', () {
     const error = SurfacePayloadException('payload failed');
     expect(error.message, 'payload failed');

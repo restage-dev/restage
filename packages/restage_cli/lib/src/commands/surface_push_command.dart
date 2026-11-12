@@ -280,9 +280,6 @@ class SurfacePushCommand extends Command<int> {
     }
 
     for (final publication in assembled) {
-      if (publication.capabilityWarning != null) {
-        _stderr.writeln(publication.capabilityWarning);
-      }
       if (publication.unhandledEventsWarning != null) {
         _stderr.writeln(publication.unhandledEventsWarning);
       }
@@ -527,6 +524,11 @@ class SurfacePushCommand extends Command<int> {
       final captured = await images;
       final imageOf = _reportImages(captured, assembled);
       var recordFailed = false;
+      // The first receipt a project gets is pointed out once.
+      final firstReceipts = !Directory(
+        p.join(packageRoot.path, receiptsDirectory),
+      ).existsSync();
+      var wroteReceipt = false;
       final recordedPushes = <String>[];
       final pushCode = await runPush(
         api: api,
@@ -628,6 +630,7 @@ class SurfacePushCommand extends Command<int> {
                   stderr: _stderr,
                 ) !=
                 null;
+            wroteReceipt |= written;
           } else {
             recordedPushes.add(
               '${result.family.surfaceSlug} r${result.storedRevision}',
@@ -656,6 +659,12 @@ class SurfacePushCommand extends Command<int> {
         );
       }
       if (recorder == null) {
+        if (firstReceipts && wroteReceipt) {
+          _stdout.writeln(
+            'Recorded the push in $receiptsDirectory/. Commit it with your '
+            'code: builds read it to tell which surfaces were pushed.',
+          );
+        }
         return pushCode != 0 || !recordFailed ? pushCode : 2;
       }
 
@@ -804,7 +813,10 @@ class SurfacePushCommand extends Command<int> {
         }
       }
       if (shown.isEmpty) {
-        _stdout.writeln('  No placement shows this surface yet.');
+        _stdout.writeln(
+          '  Nothing to check yet: no app has shown this surface. Once an '
+          'app build that shows it runs, its fit appears here.',
+        );
       }
     } on Exception {
       unavailable();

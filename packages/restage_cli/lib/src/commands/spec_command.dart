@@ -244,21 +244,23 @@ class SpecCommand extends Command<int> {
         final live = target.snapshot
             ?.targets(projectSlug: target.project!, appSlug: target.app!)
             .any((at) => at.runtimePlane == RuntimePlane.live);
-        if (!await confirmLiveChange(
-          command: this,
-          interactive: _io.interactive,
-          stdout: _io.stdout,
-          stderr: _io.stderr,
-          live: live ?? true,
-          impactLine:
-              'This archives "${identity!.slug}" across every target of "${target.app}".',
-        )) {
+        final reviewOnly = args.optBool('reviewOnly') ?? false;
+        if (!reviewOnly &&
+            !await confirmLiveChange(
+              command: this,
+              interactive: _io.interactive,
+              stdout: _io.stdout,
+              stderr: _io.stderr,
+              live: live ?? true,
+              impactLine:
+                  'This archives "${identity!.slug}" across every target of "${target.app}".',
+            )) {
           return 1;
         }
         try {
           final review = await reviewImpact(target);
-          if (args.optBool('reviewOnly') ?? false) {
-            _io.stdout.writeln(formatDeliveryMeasurementMutationReview(review));
+          if (reviewOnly) {
+            _io.stdout.writeln(measurementReviewDocument(review));
             return review.refusalCodes.isEmpty ? 0 : 1;
           }
           final proceed = await confirmDeliveryMeasurementProceed(

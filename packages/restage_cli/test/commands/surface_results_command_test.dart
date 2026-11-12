@@ -309,6 +309,36 @@ void main() {
       expect(sent.single['surfaceRevisionIds'], [_revisionId]);
     });
 
+    test('takes a version number, like --revision and --to-version', () async {
+      for (final number in ['3', 'v3']) {
+        sent.clear();
+        final result = await run([_surfaceId, '--version', number]);
+        expect(result.code, 0, reason: result.err);
+        expect(sent.single.containsKey('surfaceRevisionIds'), isFalse);
+        expect(result.out, contains('  v3 $_revisionId [available]'));
+      }
+
+      final unserved = await run([_surfaceId, '--version', '2']);
+      expect(unserved.code, 0, reason: unserved.err);
+      expect(unserved.out, isNot(contains(_revisionId)));
+      expect(
+        unserved.out,
+        contains('No version of this surface was served in this window.'),
+      );
+
+      // A number beside an identity reads every version and keeps both.
+      sent.clear();
+      final mixed = await run([
+        _surfaceId,
+        '--version',
+        '2',
+        '--version',
+        _revisionId,
+      ]);
+      expect(sent.single.containsKey('surfaceRevisionIds'), isFalse);
+      expect(mixed.out, contains('  v3 $_revisionId'));
+    });
+
     test('names exactly one surface', () async {
       final result = await run([
         _surfaceId,
@@ -375,6 +405,36 @@ void main() {
       );
 
       expect(result.out, contains('Funnel for $_surfaceId (onboarding)'));
+    });
+
+    test('takes --type like the other surface commands, as a check', () async {
+      final client = route(
+        (body) => http.Response(
+          jsonEncode(_wire(_view(surfaceType: 'onboarding').canonicalBytes)),
+          200,
+        ),
+      );
+      final matching = await run([
+        _surfaceId,
+        '--type',
+        'onboarding',
+      ], client: client);
+      expect(matching.code, 0, reason: matching.err);
+      expect(matching.out, contains('Funnel for $_surfaceId (onboarding)'));
+
+      final other = await run([
+        _surfaceId,
+        '--type',
+        'paywall',
+      ], client: client);
+      expect(other.code, 1);
+      expect(
+        other.err,
+        contains(
+          '"$_surfaceId" has the type onboarding, not paywall. Try leaving the '
+          'type out, or naming onboarding.',
+        ),
+      );
     });
 
     test(

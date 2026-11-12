@@ -14,17 +14,16 @@ subprocess and talks to it over standard input and output.
 
 ## Install
 
-The package is not on pub.dev yet. From a source checkout, resolve the
-workspace and compile the executable:
+Install it from the `main` branch of the repository:
 
 ```sh
-flutter pub get
-mkdir -p "$HOME/.pub-cache/bin"
-dart compile exe packages/restage_mcp/bin/restage_mcp.dart -o "$HOME/.pub-cache/bin/restage_mcp"
+dart pub global activate --source git https://github.com/restage-dev/restage.git \
+  --git-path packages/restage_mcp
 ```
 
-This puts the `restage_mcp` executable in `~/.pub-cache/bin`. Make sure that
-directory is on your `PATH`.
+This puts `restage_mcp` in `~/.pub-cache/bin`. Make sure that directory is on
+your `PATH`. From a clone, after `flutter pub get`, `dart compile exe packages/restage_mcp/bin/restage_mcp.dart -o "$HOME/.pub-cache/bin/restage_mcp"`
+builds a native executable to the same place instead.
 
 ## Configure your MCP host
 

@@ -34,7 +34,9 @@ final _initTool = Tool(
   description:
       'Set up a Flutter project for Restage, the same as `restage init`: '
       'writes restage_config.yaml, a starter surface, pubspec dependencies, '
-      'and build-output ignores. Pass dryRun to see the plan first.',
+      'build-output ignores, and the publishable key and delivery keys in '
+      'build.yaml, minting a public key when build.yaml has none. Pass '
+      'dryRun to see the plan first.',
   inputSchema: Schema.object(
     properties: {
       'projectDirectory': Schema.string(
@@ -65,8 +67,9 @@ final _initTool = Tool(
         description:
             "The app's publishable key (rs_pk_...), written to build.yaml with "
             'the service URL, so Restage.configure uses them and the app sends '
-            'its first request before Dart starts. Without it the app builds '
-            'and runs offline.',
+            'its first request before Dart starts. Omit it to keep the key '
+            'build.yaml has, or to mint a public key for the environment when '
+            'build.yaml has none.',
       ),
       'previewWrapper': Schema.string(
         description:

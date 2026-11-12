@@ -1,7 +1,7 @@
 name: restage_cli
 description: >-
-  The Restage command-line interface. Sign in, bootstrap projects, and publish your surfaces
-  over the air. Publishing targets the hosted Restage service (coming soon).
+  The Restage command-line interface. Sign in, set up a Flutter project, push and publish
+  surfaces to Restage Cloud, and read their delivery and analytics.
 version: 0.1.0
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
@@ -38,5 +38,6 @@ dependencies:
   yaml_edit: ^2.2.0
 
 dev_dependencies:
+  glob: ^2.1.2
   lints: ^6.0.0
   test: ^1.25.0

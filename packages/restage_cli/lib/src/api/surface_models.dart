@@ -264,6 +264,7 @@ class SurfaceContractFamilyRevisionResult {
     required this.minClient,
     required this.payloadKind,
     required this.isActive,
+    this.label,
   });
 
   /// Immutable revision number.
@@ -283,6 +284,9 @@ class SurfaceContractFamilyRevisionResult {
 
   /// Whether this revision is selected by the family active pointer.
   final bool isActive;
+
+  /// The name `surface rename-version` gave this revision, if any.
+  final String? label;
 
   /// Decode the generated `SurfaceContractPublishedRevisionView` wire shape.
   factory SurfaceContractFamilyRevisionResult.fromJson(Object? raw) {
@@ -316,6 +320,7 @@ class SurfaceContractFamilyRevisionResult {
       minClient: minClient,
       payloadKind: payloadKind,
       isActive: isActive,
+      label: raw['label'] is String ? raw['label']! as String : null,
     );
   }
 
@@ -328,6 +333,7 @@ class SurfaceContractFamilyRevisionResult {
     'minClient': minClient,
     'payloadKind': payloadKind,
     'isActive': isActive,
+    if (label != null) 'label': label,
   };
 }
 
@@ -620,6 +626,7 @@ class SurfaceVersionResult {
     this.publishedRevision,
     this.contractVersion,
     this.mountName,
+    this.label,
   });
 
   /// Monotonically increasing version number.
@@ -647,6 +654,9 @@ class SurfaceVersionResult {
   /// The generated widget an app mounts to show this version, when named.
   final String? mountName;
 
+  /// The name `surface rename-version` gave this version, if any.
+  final String? label;
+
   /// Decode from the backend's JSON-shaped wire payload.
   factory SurfaceVersionResult.fromJson(Map<String, dynamic> json) =>
       SurfaceVersionResult(
@@ -658,6 +668,7 @@ class SurfaceVersionResult {
         publishedRevision: _asInt(json['publishedRevision'] ?? json['version']),
         contractVersion: _asInt(json['contractVersion']),
         mountName: json['mountName'] as String?,
+        label: json['label'] as String?,
       );
 
   /// Encode for JSON-shaped consumer output (CLI `--json`, tool results).
@@ -670,6 +681,7 @@ class SurfaceVersionResult {
     if (publishedRevision != null) 'publishedRevision': publishedRevision,
     if (contractVersion != null) 'contractVersion': contractVersion,
     if (mountName != null) 'mountName': mountName,
+    if (label != null) 'label': label,
   };
 }
 

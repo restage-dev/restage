@@ -257,8 +257,9 @@ final _rollbackSurfaceTool = Tool(
       'Roll a surface back to a previous published version by re-pointing '
       'its active-version pointer. Requires an admin role and a reason for '
       'the audit trail. Call restage_rollback_preflight first to see the '
-      'expected compatibility impact. Set freeze to also lock the surface against '
-      'future publishes after the re-point.',
+      'expected compatibility impact. A rollback unfreezes a frozen surface; '
+      'set freeze to lock the surface against future publishes after the '
+      're-point.',
   inputSchema: Schema.object(
     properties: {
       ...surfaceTargetProperties(family: true),
@@ -270,8 +271,8 @@ final _rollbackSurfaceTool = Tool(
       'reason': _reasonProperty,
       'freeze': Schema.bool(
         description:
-            'Also lock the surface against future publishes after '
-            'rolling back (default false).',
+            'Lock the surface against future publishes after rolling back '
+            '(default false). Without it, a frozen surface is unfrozen.',
       ),
     },
     required: [...surfaceTargetRequired, 'toVersion', 'reason'],
@@ -547,14 +548,16 @@ Future<CallToolResult> _publishSurface(
         ),
       'result': publication.result.toJson(),
       ..._experimentNotices(publication.result.runningExperiments, impact.at),
-      'showInApp': mountGuide(
-        publication.result.sourceKind == null
-            ? publication.family.sourceKind
-            : SurfaceSourceKind.fromWireName(publication.result.sourceKind!),
-        publication.family.slug,
-        backend: api.endpoint,
-        mountName: publication.result.mountName,
-      ),
+      // A project already set up for delivery needs no guide.
+      if (directory == null || !appConfiguresDelivery(Directory(directory)))
+        'showInApp': mountGuide(
+          publication.result.sourceKind == null
+              ? publication.family.sourceKind
+              : SurfaceSourceKind.fromWireName(publication.result.sourceKind!),
+          publication.family.slug,
+          backend: api.endpoint,
+          mountName: publication.result.mountName,
+        ),
       if (recorded != null)
         'receipt': {'recorded': recorded, 'output': output.toString().trim()},
     });

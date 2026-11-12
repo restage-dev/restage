@@ -674,6 +674,65 @@ void main() {
   });
 
   group('human output', () {
+    test('lists each surface that needs a look as the dashboard does', () async {
+      Map<String, Object?> row(
+        String id,
+        List<String> reasons, {
+        String label = 'Welcome',
+        String nameState = 'present',
+        String? type = 'onboarding',
+      }) => {
+        'id': id,
+        'label': label,
+        'nameState': nameState,
+        'surfaceType': ?type,
+        'attentionReasons': reasons,
+      };
+      final result = await run(
+        readOf('analytics overview'),
+        const [],
+        reply: _served({
+          'attention': {
+            'attentionCount': 9,
+            'totalMatches': 9,
+            'rows': [
+              row('a', ['unpublished']),
+              row('b', ['noBoundMetrics'], type: null),
+              row('c', ['noData'], label: 'Pro', type: 'paywall'),
+              row('d', ['multipleBoundMetrics']),
+              row('e', ['sourceUnavailable'], nameState: 'deleted'),
+              row('f', ['staleEpoch'], label: ' '),
+              row('g', ['incomparable'], nameState: 'missing'),
+              row('h', ['somethingNew']),
+            ],
+          },
+        }),
+      );
+
+      expect(result.code, 0, reason: result.err);
+      expect(
+        result.out,
+        contains(
+          'Needs a look: 9\n'
+          '  Welcome (onboarding): Never published.\n'
+          '  Welcome: No metric yet.\n'
+          '  Pro (paywall): No data. Its metric has no result for this '
+          'period.\n'
+          '  Welcome (onboarding): No rate metric. This surface’s metrics are '
+          'all counts or steps. A rate metric gives it a headline figure.\n'
+          '  Deleted surface (onboarding): Couldn’t load its result. The data '
+          'source didn’t respond. Try again.\n'
+          '  Unnamed surface (onboarding): Result out of date. A newer result '
+          'replaced this one. Run the command again to see it.\n'
+          '  Unnamed surface (onboarding): Result can’t be compared. The '
+          'results in this period can’t be compared with each other.\n'
+          '  Welcome (onboarding): No result.\n'
+          '  and 1 more\n'
+          'Experiments: ',
+        ),
+      );
+    });
+
     test('a held count reads the floor the reply states', () async {
       final result = await run(
         readOf('analytics overview'),
@@ -961,12 +1020,52 @@ void main() {
               },
             },
             {'displayLabel': 'Other'},
+            for (final (label, counts) in [
+              ('Tapped', {'observedZero': '3'}),
+              ('Pending', {'latePending': '3'}),
+              ('Unreported', {'sourceUnavailable': '3'}),
+              ('Unsupported', {'structurallyInapplicable': '3'}),
+              ('Absent', <String, String>{}),
+            ])
+              {
+                'displayLabel': label,
+                'history': {
+                  'current': {
+                    'summary': {'counts': counts},
+                  },
+                },
+              },
           ],
         }),
       );
 
-      expect(result.out, contains('Purchase: 10.5%'));
-      expect(result.out, contains('Other: Not available'));
+      expect(result.out, contains('Purchase: 10.5% (21 of 200 views)\n'));
+      expect(result.out, contains('Other: Not available\n'));
+      expect(result.out, contains('Tapped: 0.0% (0 of 3 views)\n'));
+      expect(
+        result.out,
+        contains(
+          'Pending: Not available yet: the sessions that showed it are still '
+          'open.\n',
+        ),
+      );
+      expect(
+        result.out,
+        contains(
+          'Unreported: Not available: the app did not report these views in '
+          'full.\n',
+        ),
+      );
+      expect(
+        result.out,
+        contains(
+          'Unsupported: Not available: the app build cannot record this.',
+        ),
+      );
+      expect(
+        result.out,
+        contains('Absent: Not available: no view in this period recorded it.'),
+      );
       expect(result.out, contains('Version comparisons: 0'));
     });
 

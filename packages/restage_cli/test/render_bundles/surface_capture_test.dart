@@ -80,7 +80,7 @@ void main() {
         ..writeAsStringSync(text);
 
   String imagesDirectory() =>
-      p.join(app.path, '.restage', 'build', 'surface_capture', 'images');
+      p.join(app.path, '.dart_tool', 'restage', 'surface_capture', 'images');
 
   setUp(() async {
     root = Directory.systemTemp.createTempSync('surface_capture_test_');
@@ -282,7 +282,7 @@ dependencies:
       result.skipped['paywall.pro_upgrade'],
       'it did not render; run `flutter test '
       'test/paywall.pro_upgrade_test.dart` in '
-      '${p.join('.restage', 'build', 'surface_capture')} to see why',
+      '${p.join('.dart_tool', 'restage', 'surface_capture')} to see why',
     );
   });
 
@@ -310,7 +310,7 @@ dependencies:
       'restage_config.yaml and define `Widget wrapPreview(Widget child)` in '
       "that file to return your app's scope around `child`. "
       '`flutter test test/paywall.pro_upgrade_test.dart` '
-      'in ${p.join('.restage', 'build', 'surface_capture')} shows the whole '
+      'in ${p.join('.dart_tool', 'restage', 'surface_capture')} shows the whole '
       'error',
     );
   });

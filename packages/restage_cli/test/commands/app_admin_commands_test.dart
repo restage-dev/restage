@@ -527,6 +527,22 @@ void main() {
     expect(code, 1);
   });
 
+  test('keys delivery names the organization the keys belong to', () async {
+    final code = await run([
+      'keys',
+      'delivery',
+    ], (_) => http.Response(jsonEncode(['25:AQEB', '25:AgIC']), 200));
+    expect(code, 0, reason: err.toString());
+    expect(
+      out.toString(),
+      'Delivery keys for organization 25, as <organizationId>:<public key>, '
+      'the signing key first. restage init writes them to build.yaml as '
+      'delivery_keys.\n'
+      '25:AQEB\n'
+      '25:AgIC\n',
+    );
+  });
+
   test('keys mint --public mints a public key and prints it plainly', () async {
     var code = await run(
       ['keys', 'mint', '--public'],
@@ -537,7 +553,13 @@ void main() {
             'kind': 'public',
             'keyPrefix': 'rs_pk_sandbox_ab',
             'environmentSlug': 'staging',
-            'runtimePlane': 'sandbox',
+            'target': {
+              '__className__': 'EnvironmentTargetRef',
+              'environmentTargetId': 12,
+              'namedEnvironmentId': 9,
+              'environmentSlug': 'staging',
+              'runtimePlane': 'sandbox',
+            },
           },
           'plaintext': 'rs_pk_sandbox_staging_0123456789abcdef',
         }),

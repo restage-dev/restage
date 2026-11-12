@@ -240,7 +240,7 @@ void main() {
     expect(h.archiveCalls.single['surfaceType'], 'onboarding');
   });
 
-  test('a review with nothing to acknowledge prints one line', () async {
+  test('a review with nothing to acknowledge prints nothing', () async {
     final h = await ArchiveHarness.create();
     addTearDown(h.dispose);
     h.review = archiveReview(warned: false);
@@ -252,7 +252,6 @@ void main() {
     );
     expect(h.archiveCalls, hasLength(1));
     expect(h.stdout.toString().trim().split('\n'), [
-      'Measurement impact surfaceArchive; review ${h.review.digest.hex}.',
       'Operation $operationId.',
       'Surface archived.',
     ]);
@@ -345,7 +344,15 @@ void main() {
       addTearDown(h.dispose);
       expect(await h.run(['--review-measurement']), 0);
       expect(h.archiveCalls, isEmpty);
-      expect(h.stdout.toString(), contains(h.review.digest.hex));
+      final document = jsonDecode(h.stdout.toString()) as Map<String, Object?>;
+      expect(document.keys, ['digest', 'review']);
+      expect(document['digest'], h.review.digest.hex);
+      expect(
+        DeliveryMeasurementMutationReviewV1.fromJson(
+          document['review']! as Map<String, Object?>,
+        ).digest,
+        h.review.digest,
+      );
       final old = h.review.digest.hex;
       h.review = archiveReview(changed: true);
       expect(await h.run(['--reviewed-digest', old]), 1);

@@ -177,14 +177,67 @@ void main() {
     expect(publishBody!.containsKey('contractVersion'), isFalse);
     expect(publishBody!['reason'], 'restore known good revision');
     expect(out.toString(), contains('Published "pro" at r3'));
-    expect(out.toString(), contains('Reach: No version is live.'));
+    expect(
+      out.toString(),
+      contains('Reach at publish time: No version is live.'),
+    );
     expect(
       out.toString(),
       contains(
-        'Watch it climb: restage surface status pro --type paywall --watch',
+        'It rises as devices fetch the new version. Watch it with: '
+        'restage surface status pro --type paywall --watch',
       ),
     );
     expect(err.toString(), isEmpty);
+  });
+
+  test('the setup guide is left out once the app is set up', () async {
+    final app = Directory(p.join(tempDir.path, 'app'))..createSync();
+    File(p.join(app.path, 'pubspec.yaml')).writeAsStringSync('name: app\n');
+    Future<String> publishFrom() async {
+      out.clear();
+      final code = await runPublish([
+        'pro',
+        '--revision',
+        '3',
+        '-C',
+        app.path,
+      ], history: const <int>[]);
+      expect(code, 0, reason: err.toString());
+      return out.toString();
+    }
+
+    expect(await publishFrom(), contains('In your app, run'));
+
+    File(p.join(app.path, 'lib/main.dart'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync(
+        'void main() => Restage.configure(registerWidgets: r);\n',
+      );
+    expect(await publishFrom(), contains('In your app, run'));
+
+    File(p.join(app.path, 'build.yaml')).writeAsStringSync('''
+targets:
+  \$default:
+    builders:
+      restage_codegen:user_factories:
+        options:
+          api_key: rs_pk_sandbox_dev_abc
+''');
+    // Without delivery keys, delivered versions never render: still not set up.
+    expect(await publishFrom(), contains('In your app, run'));
+
+    File(p.join(app.path, 'build.yaml')).writeAsStringSync('''
+targets:
+  \$default:
+    builders:
+      restage_codegen:user_factories:
+        options:
+          api_key: rs_pk_sandbox_dev_abc
+          delivery_keys:
+            - 7:AQEB
+''');
+    expect(await publishFrom(), isNot(contains('In your app, run')));
   });
 
   test('a running experiment is named with how to end it', () async {

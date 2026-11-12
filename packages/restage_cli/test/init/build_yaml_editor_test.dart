@@ -1,3 +1,4 @@
+import 'package:glob/glob.dart';
 import 'package:restage_cli/src/init/build_yaml_editor.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
@@ -17,7 +18,14 @@ void main() {
       final plan = planBuildYaml(null);
 
       expect(plan.action, StateBuildInputsAction.create);
-      expect(plan.source, 'additional_public_assets:\n  - .restage/**\n');
+      expect(
+        plan.source,
+        'additional_public_assets:\n'
+        '  - .restage/measurement-state.json\n'
+        '  - .restage/wire-ids.events.jsonl\n'
+        '  - .restage/receipts/**\n'
+        '  - .restage/library-contracts/**\n',
+      );
       expect(plan.written, ['state file tracking']);
       expect(plan.hasApiKey, isFalse);
     });
@@ -47,26 +55,60 @@ targets:
       expect(plan.source, contains('# App builders.'));
     });
 
-    test('replaces the entries .restage/** covers and keeps the rest', () {
+    test('replaces .restage/**, which admits push output, and keeps the '
+        'rest', () {
       const source = '''
 additional_public_assets:
   - tool/fixture.json
-  - .restage/measurement-state.json
-  - .restage/wire-ids.events.jsonl
+  - .restage/**
   - .restage/receipts/**
 ''';
 
       final plan = planBuildYaml(source);
 
       expect(plan.action, StateBuildInputsAction.update);
-      expect(_listed(plan.source), ['tool/fixture.json', '.restage/**']);
+      expect(_listed(plan.source), [
+        'tool/fixture.json',
+        '.restage/receipts/**',
+        '.restage/measurement-state.json',
+        '.restage/wire-ids.events.jsonl',
+        '.restage/library-contracts/**',
+      ]);
+    });
+
+    test('no entry admits what builds and pushes write', () {
+      for (final path in const [
+        '.restage/build/surface_capture/lib/main.dart',
+        '.restage/build/surface_capture/pubspec.yaml',
+        '.restage/build/metadata/restage.publication.json',
+        '.restage/build/library-contracts/app/v1.json',
+      ]) {
+        for (final entry in restageStateBuildInputs) {
+          expect(Glob(entry).matches(path), isFalse, reason: '$entry, $path');
+        }
+      }
+      for (final path in const [
+        '.restage/measurement-state.json',
+        '.restage/wire-ids.events.jsonl',
+        '.restage/receipts/surface/paywall/pro/push-r1.json',
+        '.restage/library-contracts/app/v1.json',
+      ]) {
+        expect(
+          restageStateBuildInputs.any((entry) => Glob(entry).matches(path)),
+          isTrue,
+          reason: path,
+        );
+      }
     });
 
     test('keeps a file that already lists every entry', () {
       const source = '''
 additional_public_assets:
   - tool/fixture.json
-  - .restage/**
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+  - .restage/receipts/**
+  - .restage/library-contracts/**
 ''';
 
       final plan = planBuildYaml(source);
@@ -91,6 +133,47 @@ additional_public_assets:
   });
 
   group('delivery options', () {
+    test('adds missing delivery keys and keeps the listed ones', () {
+      final first = planBuildYaml(null, deliveryKeys: const ['7:a', '7:b']);
+      expect(
+        _builder(
+          first.source,
+          deliveryOptionsBuilderKey,
+        )!['options']['delivery_keys'],
+        ['7:a', '7:b'],
+      );
+      expect(first.written, contains('the delivery keys'));
+
+      final again = planBuildYaml(
+        first.source,
+        deliveryKeys: const ['7:c', '7:a'],
+      );
+      expect(
+        _builder(
+          again.source,
+          deliveryOptionsBuilderKey,
+        )!['options']['delivery_keys'],
+        ['7:a', '7:b', '7:c'],
+      );
+      expect(
+        planBuildYaml(again.source, deliveryKeys: const ['7:a']).written,
+        isEmpty,
+      );
+
+      final scalar = planBuildYaml(
+        '''
+targets:
+  \$default:
+    builders:
+      restage_codegen:user_factories:
+        options:
+          delivery_keys: 7:a
+''',
+        deliveryKeys: const ['7:b'],
+      );
+      expect(scalar.kept, ['delivery_keys']);
+    });
+
     test('writes the canonical service URL and the key', () {
       final plan = planBuildYaml(
         null,
@@ -111,7 +194,10 @@ additional_public_assets:
     test('keeps values already set and reports a different one', () {
       const source = '''
 additional_public_assets:
-  - .restage/**
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+  - .restage/receipts/**
+  - .restage/library-contracts/**
 targets:
   \$default:
     builders:
@@ -138,7 +224,10 @@ targets:
     test('a file with a key reports it with no key given', () {
       const source = '''
 additional_public_assets:
-  - .restage/**
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+  - .restage/receipts/**
+  - .restage/library-contracts/**
 targets:
   \$default:
     builders:
@@ -154,7 +243,10 @@ targets:
     test('moves options from the old builder and drops early_request', () {
       const source = '''
 additional_public_assets:
-  - .restage/**
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+  - .restage/receipts/**
+  - .restage/library-contracts/**
 targets:
   \$default:
     builders:
@@ -193,7 +285,10 @@ targets:
     test('a value already in the new place wins over the old one', () {
       const source = '''
 additional_public_assets:
-  - .restage/**
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+  - .restage/receipts/**
+  - .restage/library-contracts/**
 targets:
   \$default:
     builders:
@@ -215,7 +310,10 @@ targets:
     test('a blank old value is dropped and a URL moves canonically', () {
       const source = '''
 additional_public_assets:
-  - .restage/**
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+  - .restage/receipts/**
+  - .restage/library-contracts/**
 targets:
   \$default:
     builders:
@@ -252,7 +350,10 @@ targets:
     test('an opt-out alone is removed with its empty levels', () {
       const source = '''
 additional_public_assets:
-  - .restage/**
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+  - .restage/receipts/**
+  - .restage/library-contracts/**
 targets:
   \$default:
     builders:

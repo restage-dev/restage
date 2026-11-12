@@ -40,7 +40,7 @@ class SurfaceResultsCommand extends Command<int> {
        _now = now ?? DateTime.now {
     addLifecycleOptions(
       argParser,
-      withType: false,
+      withType: true,
       withReason: false,
       withContractVersion: false,
       withSourceKind: false,
@@ -62,8 +62,9 @@ class SurfaceResultsCommand extends Command<int> {
       ..addMultiOption(
         'version',
         help:
-            'Read only this published version. Repeat to name several; '
-            'omit for every version served in the window.',
+            'Read only this published version, by its number (2) or its '
+            'version identity. Repeat to name several; omit for every version '
+            'served in the window.',
       )
       ..addFlag(
         'json',
@@ -114,13 +115,21 @@ class SurfaceResultsCommand extends Command<int> {
     // Built before the read opens, so a value the caller supplied is reported
     // as the caller's with the field named.
     final SurfaceFunnelSelectionV1 selection;
+    ({Set<int> ordinals, List<String> ids})? picked;
     try {
-      final versions = argResults?['version'] as List<String>? ?? const [];
+      final versions = parseFunnelVersions(
+        argResults?['version'] as List<String>? ?? const [],
+      );
+      picked = versions;
       selection = SurfaceFunnelSelectionV1(
         surfaceId: rest.single,
         windowStartMicros: from.microsecondsSinceEpoch,
         windowEndExclusiveMicros: until.microsecondsSinceEpoch,
-        surfaceRevisionIds: versions.isEmpty ? null : versions,
+        // Numbers are matched against the reading, which carries each
+        // version's number; identities alone narrow the read itself.
+        surfaceRevisionIds: versions.ordinals.isEmpty && versions.ids.isNotEmpty
+            ? versions.ids
+            : null,
       );
     } on CanonicalFormatException catch (error) {
       _io.stderr.writeln(error.message);
@@ -130,7 +139,7 @@ class SurfaceResultsCommand extends Command<int> {
     return runAuthed(_io, argResults, OperationScope.target, (ctx) async {
       final context = ctx.target!;
       try {
-        final view = await SurfaceFunnelApi(ctx.api).read(
+        final read = await SurfaceFunnelApi(ctx.api).read(
           target: TargetCoordinate(
             organizationId: OrganizationId(context.organizationId),
             appId: ApplicationId(context.appId),
@@ -145,6 +154,18 @@ class SurfaceResultsCommand extends Command<int> {
           ),
           selection: selection,
         );
+        final view = picked!.ordinals.isEmpty
+            ? read
+            : onlyFunnelVersions(
+                read,
+                ordinals: picked.ordinals,
+                ids: picked.ids,
+              );
+        if (surfaceFunnelTypeMismatch(view, argResults?['type'] as String?)
+            case final mismatch?) {
+          _io.stderr.writeln(mismatch);
+          return 1;
+        }
         _io.stdout.writeln(
           asJson ? jsonEncode(view.toJson()) : renderSurfaceFunnel(view),
         );

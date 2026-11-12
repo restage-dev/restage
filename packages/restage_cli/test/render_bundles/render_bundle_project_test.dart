@@ -146,13 +146,13 @@ flutter:
           as YamlMap;
 
   test(
-    'writes a project under .restage/build that stands in for the app',
+    'writes a project under .dart_tool that stands in for the app',
     () async {
       final project = await writeProject();
 
       expect(
         project.path,
-        p.join(app.path, '.restage', 'build', 'render_bundle'),
+        p.join(app.path, '.dart_tool', 'restage', 'render_bundle'),
       );
       final pubspec = pubspecOf(project);
       expect(pubspec['name'], 'habit');
@@ -356,23 +356,22 @@ flutter:
     );
   });
 
-  test('honors a configured output_root', () async {
-    write('app/build.yaml', '''
+  test('stays under .dart_tool whatever output_root names', () async {
+    for (final root in ['generated/restage', '../outside']) {
+      write('app/build.yaml', '''
 global_options:
   restage_codegen:outputs:
     options:
-      output_root: generated/restage
+      output_root: $root
 ''');
-    final project = await writeProject();
+      final project = await writeProject();
 
-    expect(
-      project.path,
-      p.join(app.path, 'generated', 'restage', 'render_bundle'),
-    );
-    expect(
-      File(p.join(project.path, 'lib', 'user_factories.g.dart')).existsSync(),
-      isTrue,
-    );
+      expect(
+        project.path,
+        p.join(app.path, '.dart_tool', 'restage', 'render_bundle'),
+        reason: root,
+      );
+    }
   });
 
   test(
@@ -382,8 +381,8 @@ global_options:
       final pubspec = File(p.join(project.path, 'pubspec.yaml'));
       final written = DateTime.utc(2001);
       pubspec.setLastModifiedSync(written);
-      write('app/.restage/build/render_bundle/.dart_tool/cache', 'kept');
-      write('app/.restage/build/render_bundle/stale/file.txt', 'stale');
+      write('app/.dart_tool/restage/render_bundle/.dart_tool/cache', 'kept');
+      write('app/.dart_tool/restage/render_bundle/stale/file.txt', 'stale');
       File(p.join(app.path, 'assets', 'extra.json')).deleteSync();
 
       await writeProject();
@@ -420,7 +419,7 @@ global_options:
       final project = await writeProject();
       expect(isRenderBundleProjectResolved(project, flutterRoot: sdk), isFalse);
       write(
-        'app/.restage/build/render_bundle/.dart_tool/package_config.json',
+        'app/.dart_tool/restage/render_bundle/.dart_tool/package_config.json',
         '{}',
       );
       await markRenderBundleProjectResolved(project, flutterRoot: sdk);
@@ -592,16 +591,6 @@ global_options:
       },
     );
     await expectLater(writeProject(), _refusedWith('render_host_missing'));
-  });
-
-  test('an unreadable output_root is refused', () async {
-    write('app/build.yaml', '''
-global_options:
-  restage_codegen:outputs:
-    options:
-      output_root: ../outside
-''');
-    await expectLater(writeProject(), _refusedWith('output_root'));
   });
 }
 

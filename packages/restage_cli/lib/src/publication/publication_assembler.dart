@@ -26,7 +26,6 @@ final class AssembledSurfacePublication {
     required Map<String, Uint8List> artifactBytes,
     required Map<String, File> selectedBundleFilesByAssetPath,
     this.measurementUpload,
-    this.capabilityWarning,
     this.unhandledEventsWarning,
     this.unmeasuredWarning,
   }) : artifactBytes = Map.unmodifiable({
@@ -84,9 +83,6 @@ final class AssembledSurfacePublication {
 
   /// Optional additive target-neutral Measurement upload.
   final MeasurementBoundSurfacePublicationUploadWire? measurementUpload;
-
-  /// Optional capability note suitable for command output.
-  final String? capabilityWarning;
 
   /// Events the selected flows' screens emit that their states drop, as a
   /// note for command output.
@@ -222,7 +218,6 @@ final class SurfacePublicationAssembler {
       artifactBytes: bytes,
       selectedBundleFilesByAssetPath: bundleFiles,
       measurementUpload: measurementUpload,
-      capabilityWarning: root.capabilityWarning,
       unhandledEventsWarning: _joinedWarnings([
         for (final assembled in selected) assembled.unhandledEventsWarning,
       ]),
@@ -302,7 +297,6 @@ final class SurfacePublicationAssembler {
       }
 
       final SurfacePayload payload;
-      late final CapabilityManifest capabilityManifest;
       String? unhandledEventsWarning;
       switch (publication.payloadKind) {
         case SurfacePayloadKind.blob:
@@ -313,7 +307,6 @@ final class SurfacePublicationAssembler {
               'The generated blob closure is incomplete.',
             );
           }
-          capabilityManifest = sidecar.manifest;
           payload = BlobSurfacePayload(
             minClient: sidecar.manifest.builtInFloor,
             blob: blob,
@@ -343,10 +336,6 @@ final class SurfacePublicationAssembler {
             perScreenLibraries.add(sidecar.manifest.requiredLibraries);
           }
           final requiredLibraries = unionRequiredLibraries(perScreenLibraries);
-          capabilityManifest = CapabilityManifest(
-            builtInFloor: flowDocument.minClient,
-            requiredLibraries: requiredLibraries,
-          );
           final flowPayload = FlowSurfacePayload(
             flowDocument: flowDocument,
             screenBlobs: screenBlobs,
@@ -377,7 +366,6 @@ final class SurfacePublicationAssembler {
         request: request,
         artifactBytes: bytesByPath,
         selectedBundleFilesByAssetPath: bundleFilesByAssetPath,
-        capabilityWarning: publishCapabilityWarning(capabilityManifest),
         unhandledEventsWarning: unhandledEventsWarning,
       );
     } on PublicationException {

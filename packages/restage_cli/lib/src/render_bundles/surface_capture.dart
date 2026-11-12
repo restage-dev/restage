@@ -595,8 +595,6 @@ String _testFailure(
 String _buildFailure(RenderBundleBuildFailure reason) => switch (reason) {
   RenderBundleBuildFailure.projectIdentity =>
     'pubspec.yaml does not name the app',
-  RenderBundleBuildFailure.outputRoot =>
-    'restage_config.yaml names an output root that is not usable',
   RenderBundleBuildFailure.dependenciesUnresolved =>
     "the app's dependencies are not resolved; run `flutter pub get`",
   _ => 'the image project could not be written (${reason.code})',

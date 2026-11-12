@@ -218,11 +218,15 @@ final class BuildPushCommand extends Command<int> {
       );
     } on EndpointMismatchException catch (error) {
       _stderr.writeln(
-        withKey
+        !withKey
+            ? error.toString()
+            : isTrustedProjectBackend(error.configEndpoint)
             ? 'restage_config.yaml names ${error.configEndpoint}, but a key is '
                   'sent only to ${error.credentialEndpoint}. Set '
                   '$backendUrlVariable to push to that server with a key.'
-            : error.toString(),
+            : 'restage_config.yaml names ${error.configEndpoint.origin}, '
+                  'which is not a Restage server, so the key was not sent '
+                  'there. Try correcting `endpoint` in restage_config.yaml.',
       );
       return 1;
     } on EndpointConfigurationException catch (error) {
@@ -622,9 +626,6 @@ String _buildFailureMessage(RenderBundleBuildException error) {
     RenderBundleBuildFailure.factoriesMissing =>
       'lib/user_factories.g.dart is missing. Run '
           '`dart run build_runner build`, or ${_letPushGenerate()}.',
-    RenderBundleBuildFailure.outputRoot =>
-      'the output_root in build.yaml is not a package-relative path. Fix it '
-          'and push again.',
     RenderBundleBuildFailure.dependenciesUnresolved =>
       'this app\'s dependencies are not resolved. Run `flutter pub get` and '
           'push again.',

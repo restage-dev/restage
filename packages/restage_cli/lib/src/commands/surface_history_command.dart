@@ -52,6 +52,10 @@ class SurfaceHistoryCommand extends Command<int> {
   String get name => 'history';
 
   @override
+  String get invocation =>
+      super.invocation.replaceFirst(' [arguments]', ' <id> [arguments]');
+
+  @override
   String get description => 'Show pushed revisions for a surface family.';
 
   @override
@@ -102,14 +106,14 @@ class SurfaceHistoryCommand extends Command<int> {
       'active: $active  payload: ${history.payloadKind ?? '—'}',
     );
     stdout.writeln(
-      'REVISION\tACTIVE\tPUSHED AT\tCONTENT HASH\tMIN CLIENT\tPAYLOAD',
+      'REVISION\tACTIVE\tPUSHED AT\tCONTENT HASH\tMIN CLIENT\tPAYLOAD\tNAME',
     );
     for (final revision in history.revisions) {
       stdout.writeln(
         'r${revision.publishedRevision}\t${revision.isActive}\t'
         '${revision.publishedAt.toUtc().toIso8601String()}\t'
         '${revision.contentHash}\t${revision.minClient}\t'
-        '${revision.payloadKind}',
+        '${revision.payloadKind}\t${revision.label ?? ''}',
       );
     }
   }

@@ -135,7 +135,8 @@ so this example works offline without surface assets.
 
 Commit generated Dart, `.restage/measurement-state.json` and
 `.restage/wire-ids.events.jsonl`. The latter two preserve identifiers across
-builds. `.restage/build/` is build output and does not belong in the app's
+builds. The build writes `wire-ids.events.jsonl` only once the package has a
+`@RestageWidget` class. `.restage/build/` is build output and does not belong in the app's
 asset list.
 
 Bundling is optional when you want to ship RFW artifacts for offline loading.

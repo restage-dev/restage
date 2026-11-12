@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:restage_cli/src/cli.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/selector_syntax.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
@@ -205,9 +207,9 @@ void main() {
         expect(
           stdout.toString(),
           contains(
-            "No publishable key yet, so the first-launch request isn't built "
-            'into the app. Try `restage init --sdk-key rs_pk_...` when you '
-            'set up hosted delivery.',
+            "No publishable key, so the first-launch request isn't built "
+            'into the app. Try `restage login`, then run `restage init` again '
+            'to mint one, or `restage init --sdk-key rs_pk_...`.',
           ),
         );
 
@@ -610,7 +612,11 @@ flutter:
         expect(await _runInit(stdout, stderr, store, tempDir), 0);
         expect(
           buildYaml().readAsStringSync(),
-          'additional_public_assets:\n  - .restage/**\n',
+          'additional_public_assets:\n'
+          '  - .restage/measurement-state.json\n'
+          '  - .restage/wire-ids.events.jsonl\n'
+          '  - .restage/receipts/**\n'
+          '  - .restage/library-contracts/**\n',
         );
         expect(
           stdout.toString(),
@@ -631,7 +637,10 @@ flutter:
         buildYaml().writeAsStringSync('targets:\n  \$default: {}\n');
 
         expect(await _runInit(stdout, stderr, store, tempDir), 0);
-        expect(buildYaml().readAsStringSync(), contains('  - .restage/**\n'));
+        expect(
+          buildYaml().readAsStringSync(),
+          contains('  - .restage/library-contracts/**\n'),
+        );
         expect(
           stdout.toString(),
           contains('Updated build.yaml: state file tracking.\n'),
@@ -739,7 +748,7 @@ targets:
         expect(await _runInit(stdout, stderr, store, tempDir), 0);
         final source = buildYaml().readAsStringSync();
         expect(source, isNot(contains('restage_early_template')));
-        expect(source, isNot(contains('measurement-state.json')));
+        expect(source, contains('  - .restage/measurement-state.json\n'));
         expect(deliveryOptions()['api_key'], 'rs_pk_sandbox_dev_old');
         expect(
           stdout.toString(),
@@ -749,6 +758,34 @@ targets:
           ),
         );
         expect(stdout.toString(), isNot(contains('No publishable key')));
+      });
+
+      test('.restage/** is replaced, and --force does not bring it back, '
+          'so push output under .restage/build is no build input', () async {
+        buildYaml().writeAsStringSync(
+          'additional_public_assets:\n  - .restage/**\n',
+        );
+        for (final extra in const [
+          <String>[],
+          <String>['--force'],
+        ]) {
+          stdout.clear();
+          expect(
+            await _runInit(stdout, stderr, store, tempDir, extra: extra),
+            0,
+          );
+          final listed =
+              (loadYaml(buildYaml().readAsStringSync())
+                      as YamlMap)['additional_public_assets']
+                  as YamlList;
+          expect(listed, isNot(contains('.restage/**')), reason: '$extra');
+          expect(listed, [
+            '.restage/measurement-state.json',
+            '.restage/wire-ids.events.jsonl',
+            '.restage/receipts/**',
+            '.restage/library-contracts/**',
+          ]);
+        }
       });
 
       test('that cannot be edited names the entries to add', () async {
@@ -761,10 +798,524 @@ targets:
           contains(
             'Could not update build.yaml safely. Add these entries to its '
             'additional_public_assets list:\n'
-            '  - .restage/**\n',
+            '  - .restage/measurement-state.json\n'
+            '  - .restage/wire-ids.events.jsonl\n'
+            '  - .restage/receipts/**\n'
+            '  - .restage/library-contracts/**\n',
           ),
         );
       });
+    });
+
+    group('the publishable key', () {
+      late List<Map<String, dynamic>> mints;
+
+      setUp(() async {
+        mints = [];
+        await _writePubspec(tempDir);
+      });
+
+      File buildYaml() => File(p.join(tempDir.path, 'build.yaml'));
+
+      Map<Object?, Object?>? deliveryOptions() {
+        if (!buildYaml().existsSync()) return null;
+        final doc = loadYaml(buildYaml().readAsStringSync()) as YamlMap?;
+        final options =
+            doc?['targets']?[r'$default']?['builders']?['restage_codegen:user_factories']?['options'];
+        return options is YamlMap ? Map.of(options) : null;
+      }
+
+      Future<int?> init({
+        List<String> extra = const [],
+        http.Response Function(Map<String, dynamic> body)? onMint,
+        List<(String, String)> grid = const [('staging', 'sandbox')],
+      }) =>
+          RestageCli(
+            stdout: stdout,
+            stderr: stderr,
+            credentialStore: store,
+            httpClient: _discoveryClient(
+              grid: grid,
+              onMint: (body) {
+                mints.add(body);
+                return (onMint ?? _mintResponse)(body);
+              },
+            ),
+          ).run([
+            '--non-interactive',
+            'init',
+            '--directory',
+            tempDir.path,
+            '--no-starter',
+            '--no-add-deps',
+            ...extra,
+          ]);
+
+      test(
+        'signed in, init mints one and writes it; a rerun keeps it',
+        () async {
+          await seedCredential(store, endpoint: 'https://api.example.com/');
+
+          expect(await init(), 0, reason: stderr.toString());
+          expect(mints, hasLength(1));
+          expect(mints.single, containsPair('kind', 'public'));
+          expect(mints.single, containsPair('projectSlug', 'default-project'));
+          expect(mints.single, containsPair('appSlug', 'default-app'));
+          expect(mints.single, containsPair('environmentSlug', 'staging'));
+          expect(mints.single, containsPair('environmentTargetId', 11));
+          expect(mints.single, containsPair('runtimePlane', 'sandbox'));
+          expect(mints.single, containsPair('organizationId', 7));
+          expect(deliveryOptions(), {
+            'api_key': _mintedKey,
+            'base_url': 'https://api.example.com',
+            'delivery_keys': [_deliveryKey],
+          });
+          expect(
+            stdout.toString(),
+            contains(
+              '  mint a public key for `staging` (sandbox) and write it to '
+              'build.yaml\n',
+            ),
+          );
+          expect(
+            stdout.toString(),
+            contains(
+              'Minted public key 13 for `staging` (sandbox) and wrote it to '
+              'build.yaml.\n',
+            ),
+          );
+          expect(stdout.toString(), isNot(contains('No publishable key')));
+          expect(stdout.toString(), isNot(contains('no delivery keys')));
+
+          stdout.clear();
+          expect(await init(), 0, reason: stderr.toString());
+          expect(mints, hasLength(1));
+          expect(deliveryOptions()!['api_key'], _mintedKey);
+          expect(stdout.toString(), isNot(contains('mint a public key')));
+          expect(stdout.toString(), isNot(contains('No publishable key')));
+        },
+      );
+
+      test('a rerun adds a delivery key the server now lists', () async {
+        await seedCredential(store);
+        expect(await init(), 0, reason: stderr.toString());
+        const next = '7:AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=';
+
+        expect(
+          await RestageCli(
+            stdout: stdout,
+            stderr: stderr,
+            credentialStore: store,
+            httpClient: _discoveryClient(
+              onDeliveryKeys: (body) {
+                expect(body['projectSlug'], 'default-project');
+                expect(body['appSlug'], 'default-app');
+                expect(body['organizationId'], 7);
+                return http.Response(jsonEncode([next, _deliveryKey]), 200);
+              },
+            ),
+          ).run([
+            '--non-interactive',
+            'init',
+            '--directory',
+            tempDir.path,
+            '--no-starter',
+            '--no-add-deps',
+          ]),
+          0,
+          reason: stderr.toString(),
+        );
+        expect(deliveryOptions()!['delivery_keys'], [_deliveryKey, next]);
+      });
+
+      test('a failed key read finishes init and says so', () async {
+        await seedCredential(store);
+        expect(
+          await RestageCli(
+            stdout: stdout,
+            stderr: stderr,
+            credentialStore: store,
+            httpClient: _discoveryClient(
+              onMint: _mintResponse,
+              onDeliveryKeys: (_) =>
+                  throw const SocketException('connection refused'),
+            ),
+          ).run([
+            '--non-interactive',
+            'init',
+            '--directory',
+            tempDir.path,
+            '--no-starter',
+            '--no-add-deps',
+          ]),
+          0,
+        );
+        expect(deliveryOptions()!['api_key'], _mintedKey);
+        expect(deliveryOptions()!.containsKey('delivery_keys'), isFalse);
+        expect(
+          stdout.toString(),
+          contains(
+            "Could not read the app's delivery keys, so build.yaml lists none. "
+            'Could not reach the backend at http://localhost:8080',
+          ),
+        );
+        expect(
+          stdout.toString(),
+          contains('\nTry running `restage init` again.\n'),
+        );
+      });
+
+      test('no key, no delivery keys', () async {
+        await seedCredential(store);
+        expect(await init(onMint: (_) => http.Response('', 503)), 0);
+        expect(deliveryOptions(), isNull);
+      });
+
+      test('after `restage login --endpoint`, init uses only that server, '
+          'with no RESTAGE_BACKEND_URL', () async {
+        await seedCredential(store, endpoint: 'https://api.signed-in.example/');
+        final hosts = <String>{};
+        final inner = _discoveryClient();
+        final client = MockClient((request) async {
+          hosts.add(request.url.host);
+          final copy = http.Request(request.method, request.url)
+            ..headers.addAll(request.headers)
+            ..bodyBytes = request.bodyBytes;
+          return http.Response.fromStream(await inner.send(copy));
+        });
+
+        expect(
+          await RestageCli(
+            stdout: stdout,
+            stderr: stderr,
+            credentialStore: store,
+            httpClient: client,
+            environment: const {},
+          ).run([
+            '--non-interactive',
+            'init',
+            '--directory',
+            tempDir.path,
+            '--no-starter',
+            '--no-add-deps',
+          ]),
+          0,
+          reason: stderr.toString(),
+        );
+        expect(hosts, {'api.signed-in.example'});
+        final config = (await loadRestageConfig(from: tempDir))!.config;
+        expect(config.endpoint, 'https://api.signed-in.example/');
+        expect(deliveryOptions(), {
+          'api_key': _mintedKey,
+          'base_url': 'https://api.signed-in.example',
+          'delivery_keys': [_deliveryKey],
+        });
+        // No ios/ folder, so no iOS first-launch asset either.
+        expect(
+          File(p.join(tempDir.path, 'pubspec.yaml')).readAsStringSync(),
+          isNot(contains('restage_early.json')),
+        );
+      });
+
+      test('signed out, --sdk-key says how to add the delivery keys', () async {
+        expect(
+          await _runInit(
+            stdout,
+            stderr,
+            store,
+            tempDir,
+            extra: const ['--sdk-key', 'rs_pk_sandbox_dev_abc'],
+          ),
+          0,
+          reason: stderr.toString(),
+        );
+        expect(deliveryOptions()!['api_key'], 'rs_pk_sandbox_dev_abc');
+        expect(deliveryOptions()!.containsKey('delivery_keys'), isFalse);
+        expect(
+          stdout.toString(),
+          contains(
+            'build.yaml has a publishable key but no delivery keys, so the app '
+            'refuses every delivered version and shows its compiled widgets. '
+            'Try `restage login`, then run `restage init` again, or list each '
+            '`<organizationId>:<key>` line `restage keys delivery` prints, '
+            'after its first line, under delivery_keys in build.yaml.\n',
+          ),
+        );
+      });
+
+      test('--sdk-key is written and nothing is minted', () async {
+        await seedCredential(store);
+
+        expect(
+          await init(extra: const ['--sdk-key', 'rs_pk_sandbox_dev_abc']),
+          0,
+          reason: stderr.toString(),
+        );
+        expect(mints, isEmpty);
+        expect(deliveryOptions()!['api_key'], 'rs_pk_sandbox_dev_abc');
+      });
+
+      test('--dry-run lists the mint and mints nothing', () async {
+        await seedCredential(store);
+
+        expect(await init(extra: const ['--dry-run']), 0);
+        expect(mints, isEmpty);
+        expect(buildYaml().existsSync(), isFalse);
+        expect(
+          stdout.toString(),
+          contains(
+            'state file tracking, the service URL, the publishable key and the '
+            'delivery keys)\n'
+            '  mint a public key for `staging` (sandbox) and write it to '
+            'build.yaml\n',
+          ),
+        );
+      });
+
+      http.Response refused(String reason) => http.Response(
+        jsonEncode({
+          'className': 'UnauthorizedException',
+          'data': {
+            '__className__': 'UnauthorizedException',
+            'resource': 'app:default-app',
+            'reason': reason,
+          },
+        }),
+        400,
+      );
+
+      test('a non-admin finishes init without a key and is told whom to '
+          'ask', () async {
+        await seedCredential(store);
+
+        expect(
+          await init(onMint: (_) => refused('roleMissing')),
+          0,
+          reason: stderr.toString(),
+        );
+        expect(mints, hasLength(1));
+        expect(await loadRestageConfig(from: tempDir), isNotNull);
+        expect(deliveryOptions(), isNull);
+        expect(
+          stdout.toString(),
+          contains(
+            'Wrote build.yaml: state file tracking.\n'
+            'Could not mint a publishable key: only an organization admin can '
+            "mint one, so the first-launch request isn't built into the app. "
+            "Try asking an admin for the app's publishable key, then run "
+            '`restage init --sdk-key rs_pk_...`.\n',
+          ),
+        );
+      });
+
+      test('another refusal names it and how to add a key', () async {
+        await seedCredential(store);
+
+        expect(
+          await init(onMint: (_) => refused('sampleWorkspaceReadOnly')),
+          0,
+        );
+        expect(deliveryOptions(), isNull);
+        expect(
+          stdout.toString(),
+          contains(
+            'Could not mint a publishable key, so the first-launch request '
+            "isn't built into the app. The demo workspace is read-only. Use "
+            'your own organization to make changes.\n'
+            'Try running `restage init` again, or `restage init --sdk-key '
+            "rs_pk_...` with your app's publishable key.\n",
+          ),
+        );
+      });
+
+      test('an unreachable mint finishes init without a key', () async {
+        await seedCredential(store);
+
+        expect(
+          await init(
+            onMint: (_) => throw const SocketException('connection refused'),
+          ),
+          0,
+          reason: stderr.toString(),
+        );
+        expect(deliveryOptions(), isNull);
+        expect(
+          stdout.toString(),
+          contains(
+            'Could not mint a publishable key, so the first-launch request '
+            "isn't built into the app. Could not reach the backend at "
+            'http://localhost:8080: SocketException: connection refused\n'
+            'To use another server, run `restage login --endpoint <url>`.\n'
+            'Try running `restage init` again, or `restage init --sdk-key '
+            "rs_pk_...` with your app's publishable key.\n",
+          ),
+        );
+      });
+
+      test('a pubspec init refuses mints nothing', () async {
+        await seedCredential(store);
+        await _writePubspec(tempDir, 'name: app\ndependencies: [a]\n');
+
+        expect(await init(extra: const ['--add-deps']), 1);
+        expect(mints, isEmpty);
+        expect(buildYaml().existsSync(), isFalse);
+      });
+
+      test('a minted key lists the iOS first-launch request', () async {
+        await seedCredential(store);
+        Directory(
+          p.join(tempDir.path, 'ios', 'Runner'),
+        ).createSync(recursive: true);
+
+        expect(await init(), 0, reason: stderr.toString());
+        final pubspec = File(
+          p.join(tempDir.path, 'pubspec.yaml'),
+        ).readAsStringSync();
+        expect(pubspec, contains('ios/Runner/restage_early.json'));
+        expect(
+          File(
+            p.join(tempDir.path, 'ios', 'Runner', 'restage_early.json'),
+          ).existsSync(),
+          isTrue,
+        );
+      });
+
+      test('a refused mint leaves the iOS request unlisted', () async {
+        await seedCredential(store);
+        Directory(
+          p.join(tempDir.path, 'ios', 'Runner'),
+        ).createSync(recursive: true);
+
+        expect(await init(onMint: (_) => refused('roleMissing')), 0);
+        final pubspec = File(
+          p.join(tempDir.path, 'pubspec.yaml'),
+        ).readAsStringSync();
+        expect(pubspec, isNot(contains('restage_early.json')));
+        expect(
+          File(
+            p.join(tempDir.path, 'ios', 'Runner', 'restage_early.json'),
+          ).existsSync(),
+          isFalse,
+        );
+      });
+
+      test(
+        'over MCP, every slug given, init mints and names its tools',
+        () async {
+          await seedCredential(store);
+          Future<int?> mcpInit(
+            http.Response Function(Map<String, dynamic>) mint,
+          ) =>
+              RestageCli(
+                stdout: stdout,
+                stderr: stderr,
+                credentialStore: store,
+                hasTerminal: () => false,
+                interactiveFactory: (_) => const NonInteractive(),
+                selectorSyntax: SelectorSyntax.mcp,
+                httpClient: _discoveryClient(
+                  onMint: (body) {
+                    mints.add(body);
+                    return mint(body);
+                  },
+                ),
+              ).run([
+                'init',
+                '-C',
+                tempDir.path,
+                '--project',
+                'default-project',
+                '--app',
+                'default-app',
+                '--env',
+                'staging',
+                '--no-starter',
+                '--no-add-deps',
+              ]);
+
+          expect(await mcpInit((_) => refused('sampleWorkspaceReadOnly')), 0);
+          expect(
+            stdout.toString(),
+            contains(
+              '\nTry running restage_init again, or restage_init with sdkKey: '
+              "rs_pk_... with your app's publishable key.\n",
+            ),
+          );
+
+          stdout.clear();
+          expect(await mcpInit(_mintResponse), 0, reason: stderr.toString());
+          expect(mints, hasLength(2));
+          expect(deliveryOptions()!['api_key'], _mintedKey);
+        },
+      );
+
+      test('a kept config naming another environment mints nothing, and '
+          '--env mints for it without changing the config', () async {
+        await seedCredential(store);
+        const kept =
+            'project: default-project\napp: default-app\n'
+            'defaultEnvironment: production\nplane: sandbox\n';
+        final config = File(p.join(tempDir.path, 'restage_config.yaml'))
+          ..writeAsStringSync(kept);
+        const grid = [('staging', 'sandbox'), ('production', 'sandbox')];
+
+        expect(await init(grid: grid), 0, reason: stderr.toString());
+        expect(mints, isEmpty);
+        expect(deliveryOptions(), isNull);
+        expect(
+          stdout.toString(),
+          contains(
+            'restage_config.yaml was kept and does not name the `staging` '
+            'environment init found, so init minted no publishable key and '
+            "the first-launch request isn't built into the app. Try "
+            '`restage init --env production` to mint a key for the '
+            'environment in restage_config.yaml.\n',
+          ),
+        );
+
+        stdout.clear();
+        expect(
+          await init(grid: grid, extra: const ['--env', 'production']),
+          0,
+          reason: stderr.toString(),
+        );
+        expect(mints, hasLength(1));
+        expect(mints.single, containsPair('environmentSlug', 'production'));
+        expect(deliveryOptions()!['api_key'], _mintedKey);
+        expect(config.readAsStringSync(), kept);
+      });
+
+      test('a kept config naming the found environment gets a key', () async {
+        await seedCredential(store);
+        await File(p.join(tempDir.path, 'restage_config.yaml')).writeAsString(
+          'project: default-project\napp: default-app\n'
+          'defaultEnvironment: staging\nplane: sandbox\n',
+        );
+
+        expect(await init(), 0, reason: stderr.toString());
+        expect(mints, hasLength(1));
+        expect(deliveryOptions()!['api_key'], _mintedKey);
+      });
+
+      test(
+        'signed out, nothing is minted and init says how to get one',
+        () async {
+          expect(
+            await _runInit(stdout, stderr, store, tempDir),
+            0,
+            reason: stderr.toString(),
+          );
+          expect(deliveryOptions(), isNull);
+          expect(
+            stdout.toString(),
+            contains(
+              "No publishable key, so the first-launch request isn't built into "
+              'the app. Try `restage login`, then run `restage init` again to '
+              'mint one, or `restage init --sdk-key rs_pk_...`.\n',
+            ),
+          );
+        },
+      );
     });
 
     group('an existing restage_config.yaml', () {
@@ -1159,6 +1710,14 @@ targets:
         stderr.toString(),
         contains(
           'Continuing with the slugs you passed; they were not checked.',
+        ),
+      );
+      expect(
+        stdout.toString(),
+        contains(
+          "No publishable key, so the first-launch request isn't built into "
+          'the app. Try running `restage init` again once Restage is '
+          'reachable, or `restage init --sdk-key rs_pk_...`.\n',
         ),
       );
     });
@@ -1759,9 +2318,20 @@ Widget wrapPreview(Widget child) => child;
 http.Client _discoveryClient({
   void Function()? onRead,
   List<(String, String)> grid = const [('staging', 'sandbox')],
+  http.Response Function(Map<String, dynamic> body)? onMint,
+  http.Response Function(Map<String, dynamic> body)? onDeliveryKeys,
 }) => mockHttpClient((request) {
-  onRead?.call();
   final body = jsonDecode(request.body) as Map<String, dynamic>;
+  if (request.url.path == '/deliveryKeys') {
+    expect(body['method'], 'list');
+    return (onDeliveryKeys ??
+        (_) => http.Response(jsonEncode([_deliveryKey]), 200))(body);
+  }
+  if (request.url.path == '/apiKey') {
+    expect(body['method'], 'mintKey');
+    return (onMint ?? _mintResponse)(body);
+  }
+  onRead?.call();
   expect(request.url.path, '/scope');
   expect(body['method'], 'read');
   return http.Response(
@@ -1811,6 +2381,29 @@ http.Client _discoveryClient({
     200,
   );
 }, withDefaultTargetDiscovery: false);
+
+const _mintedKey = 'rs_pk_sandbox_staging_0123456789abcdef';
+const _deliveryKey = '7:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=';
+
+http.Response _mintResponse(Map<String, dynamic> body) => http.Response(
+  jsonEncode({
+    'view': {
+      'id': 13,
+      'kind': 'public',
+      'keyPrefix': 'rs_pk_sandbox_st',
+      'environmentSlug': body['environmentSlug'],
+      'target': {
+        '__className__': 'EnvironmentTargetRef',
+        'environmentTargetId': body['environmentTargetId'],
+        'namedEnvironmentId': 9,
+        'environmentSlug': body['environmentSlug'],
+        'runtimePlane': body['runtimePlane'],
+      },
+    },
+    'plaintext': _mintedKey,
+  }),
+  200,
+);
 
 List<String> _initArgs(Directory dir, [List<String> extra = const []]) => [
   'init',

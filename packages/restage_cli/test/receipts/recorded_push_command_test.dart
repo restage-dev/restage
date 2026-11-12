@@ -310,6 +310,18 @@ void main() {
       _out(await _git(root, ['log', '--oneline'])).split('\n'),
       hasLength(1),
     );
+    expect(
+      out.toString(),
+      contains(
+        'Recorded the push in .restage/receipts/. Commit it with your code: '
+        'builds read it to tell which surfaces were pushed.\n',
+      ),
+    );
+
+    // Said once: a later push into the existing folder stays quiet.
+    out.clear();
+    expect(await push(['pro_upgrade']), 0, reason: err.toString());
+    expect(out.toString(), isNot(contains('Recorded the push')));
   });
 
   group('library contracts', () {

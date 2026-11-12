@@ -518,7 +518,10 @@ void main() {
     expect(keyed, isEmpty);
     expect(
       (result.content.single as TextContent).text,
-      contains('is sent only to $defaultRestageEndpoint.'),
+      contains(
+        'restage_config.yaml names https://api.attacker.example, which is not '
+        'a Restage server',
+      ),
     );
   });
 

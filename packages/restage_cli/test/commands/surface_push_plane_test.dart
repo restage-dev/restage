@@ -197,6 +197,13 @@ void main() {
       expect(scopeReads, 1);
       expect(fitReads, 1);
       expect(out.toString(), contains('Placement fit for stored revision 1'));
+      expect(
+        out.toString(),
+        contains(
+          '  Nothing to check yet: no app has shown this surface. Once an app '
+          'build that shows it runs, its fit appears here.\n',
+        ),
+      );
     },
   );
 

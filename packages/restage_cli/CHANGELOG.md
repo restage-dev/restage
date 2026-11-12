@@ -11,6 +11,37 @@ earlier individual retirements remain unless that package is explicitly upserted
 
 Initial release of the `restage` command-line interface.
 
+`restage surface push` no longer prints a note about the built-in catalog or
+widget library versions a pushed version needs. Its placement fit report names
+each reported app build that falls short of them. `restage surface publish`
+says when a version does not fit and asks before publishing it; `--yes`
+publishes it anyway.
+
+`restage surface results --version` takes a version number (`--version 2`),
+like `--revision` and `--to-version`, as well as a version identity.
+
+`--review-measurement` on `restage surface publish`, `rollback`, `kill`,
+`freeze`, `unfreeze` and `archive` prints one JSON document and nothing else:
+`digest`, to pass as `--reviewed-digest`, and the complete `review`. A
+review-only run changes nothing and asks no confirmation.
+
+`restage surface rollback` on a frozen surface says the rollback unfreezes it
+and to add `--freeze` to keep it frozen, in the preview and the confirmation.
+
+The help for `restage surface freeze`, `unfreeze`, `history`, `kill`,
+`publish`, `rollback` and `status` shows the `<id>` argument each takes.
+
+`restage surface history` and `restage surface status` show the name
+`restage surface rename-version` gave a version.
+
+`restage surface push` and `restage build push` render in projects under
+`.dart_tool/restage/`, which no build reads, instead of under `.restage/build/`.
+Those projects link the app's `lib/`, so a build that saw them generated the
+app's parts twice and every other build deleted them.
+
+`restage --version` prints the CLI version, and the commit a git install
+resolved.
+
 `restage build push` names each live version that shows the app's compiled
 screen on the pushed build, because widget app code it draws is gone or
 changed, until it is republished. Render bundles build each surface's
@@ -23,6 +54,17 @@ lookup. When the service refuses the lookup, the error gives its reason; when
 the list changes during the lookup, the error asks you to run the command
 again.
 
+Signed in, `restage init` without `--sdk-key` mints a public key for the
+environment it sets up and writes it to `build.yaml` with the service URL, so
+one run configures hosted delivery. It also lists the app's delivery keys
+under `delivery_keys`, adding any the server lists that are missing, so
+`Restage.configure` needs no `deliveryKeys`. A key already in `build.yaml` is
+kept. When `build.yaml` ends up with a publishable key but no delivery keys, as
+after a signed-out `restage init --sdk-key`, init says how to add them, and
+`restage surface publish` keeps showing the setup guide until they are there.
+`--dry-run` lists the mint without making it. When the mint is refused or the
+service can't be reached, init finishes without a key and says how to add one.
+
 `restage init` adds `restage`, `restage_material` and `rfw_catalog_schema` as
 dependency overrides from the main branch, so packages added later that ask
 for them by version resolve to the same commit. With `--sdk-key` in an app
@@ -31,15 +73,30 @@ with an `ios/Runner` folder, it lists `ios/Runner/restage_early.json` under
 
 After a publish, `restage surface publish` says how to show the surface in an
 app: put the environment's publishable key in `build.yaml` with
-`restage init --sdk-key`, call
+`restage init`, call
 `Restage.configure(registerWidgets: kRestageWidgetRegistration)` once at
 startup, and mount the generated widget.
 
 `restage keys delivery` prints the public keys an app passes to
 `Restage.configure(deliveryKeys: ...)`.
 
-`restage login` signs in to Restage Cloud (`https://api.restage.dev/`) unless
-`--endpoint` or `RESTAGE_BACKEND_URL` names another backend.
+`restage login` signs in to the backend `--endpoint` or `RESTAGE_BACKEND_URL`
+names, else the one the project's `restage_config.yaml` (`endpoint`) or
+`build.yaml` (`base_url`) names, else Restage Cloud (`https://api.restage.dev/`).
+It says which file named the backend. A project file can send sign-in only to
+Restage's own servers or this machine; login refuses any other server a project
+file names and says to pass it with `--endpoint`.
+
+When `restage_config.yaml` names a server other than the one you signed in to,
+commands suggest signing in to it only if it is one of Restage's own servers or
+this machine; otherwise they say it is not a Restage server and suggest
+correcting `endpoint`. `restage build push` with a key does the same.
+
+`restage keys list` lists only active keys; a revoked key no longer appears.
+`restage keys delivery` says the keys are `<organizationId>:<public key>` and
+names the organization. `restage surface results` takes `--type` like the other
+surface commands, and refuses a surface of another type.
+`restage keys mint --public` prints the key's runtime plane.
 
 `restage surface draft push --accept-unhandled-events` pushes a flow draft whose
 screens emit events the flow does not handle. Without the flag the push is
@@ -99,9 +156,12 @@ supplies it. `restage init --force` updates an existing config without asking.
 
 `restage init` adds `restage`, `restage_material` and `restage_codegen` from the
 `main` branch of the public repository, with the two overrides that keep every
-Restage package on that commit, and lists `.restage/**` under
-`additional_public_assets` in `build.yaml`, in place of the older
-`.restage/...` entries it covers. A Restage package the pubspec already takes
+Restage package on that commit, and lists the state files builds read under
+`additional_public_assets` in `build.yaml`: `.restage/measurement-state.json`,
+`.restage/wire-ids.events.jsonl`, `.restage/receipts/**` and
+`.restage/library-contracts/**`. It replaces a `.restage/**` entry, which also
+admitted the output a push leaves under `.restage/build/` and made every other
+build delete the generated surface parts. A Restage package the pubspec already takes
 from pub.dev moves to the same `main`, so `flutter pub get` resolves. It says
 what it wrote to `build.yaml`. Without a key, builds work offline.
 

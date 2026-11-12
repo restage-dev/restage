@@ -14,22 +14,19 @@ Pre-release. The commands and the on-disk credential format can still change.
 
 ## Install
 
-The package is not on pub.dev yet. Until it is, build the native binary from
-the repo:
+Install it from the `main` branch of the repository:
 
 ```sh
-git clone https://github.com/restage-dev/restage.git
-cd restage
-flutter pub get
-dart run melos run cli:install
+dart pub global activate --source git https://github.com/restage-dev/restage.git \
+  --git-path packages/restage_cli
 ```
 
-That compiles the CLI and installs it at `$PUB_CACHE/bin/restage`. Make sure
-`$HOME/.pub-cache/bin` is on your `PATH`.
+That installs `restage` in `$HOME/.pub-cache/bin` (or `$PUB_CACHE/bin`). Make
+sure that directory is on your `PATH`.
 
-Once published, `dart pub global activate restage_cli` installs a shell
-wrapper at the same location. You can use either one. The native binary starts
-faster because it skips the wrapper's snapshot rebuild on each run.
+From a clone of the repository, `dart run melos run cli:install` compiles a
+native binary to the same place instead. It starts faster, because it skips the
+snapshot check `pub global` runs on each start.
 
 ## Usage
 
@@ -42,7 +39,8 @@ restage whoami
 restage logout
 restage status
 
-# Set up a Flutter project for Restage.
+# Set up a Flutter project for Restage. Signed in, this also mints the
+# app's public key and writes it to build.yaml.
 restage init
 
 # See what you have access to.
@@ -491,7 +489,8 @@ commands do not need it.
 
 `restage init` adds `.restage/build/` to your ignore rules. Commit
 `.restage/measurement-state.json` and `.restage/wire-ids.events.jsonl`: they
-keep analytics IDs and catalog IDs stable across clean builds.
+keep analytics IDs and catalog IDs stable across clean builds. The build writes
+`wire-ids.events.jsonl` only once the package has a `@RestageWidget` class.
 
 ## License
 

@@ -27,11 +27,18 @@ void main() {
   test('the key comes from build.yaml, not the configure call', () {
     for (final kind in [null, ...SurfaceSourceKind.values]) {
       final guide = mountGuide(kind, 'pro', backend: _cloud);
-      expect(guide, contains('`restage init --sdk-key rs_pk_...`'));
       expect(
         guide,
         contains(
-          'Restage.configure(registerWidgets: kRestageWidgetRegistration)',
+          "run `restage init` to put this environment's publishable key and "
+          'delivery keys in build.yaml',
+        ),
+      );
+      expect(
+        guide,
+        contains(
+          'Restage.configure(registerWidgets: kRestageWidgetRegistration, '
+          'liveRefresh: {SurfaceRefreshTrigger.updateChannel})',
         ),
       );
       expect(guide, isNot(contains('apiKey')));
@@ -63,10 +70,13 @@ void main() {
       expect(
         guide,
         contains(
-          "In your app, put this environment's publishable key in "
-          'build.yaml using `restage init --sdk-key rs_pk_...` and call '
-          'Restage.configure(registerWidgets: kRestageWidgetRegistration) '
-          'once at startup, then add LumenOnboardingFlowSurface(...) where '
+          "In your app, run `restage init` to put this environment's "
+          'publishable key and delivery keys in build.yaml, and call '
+          'Restage.configure(registerWidgets: kRestageWidgetRegistration, '
+          'liveRefresh: {SurfaceRefreshTrigger.updateChannel}) once at '
+          'startup (liveRefresh is optional: it swaps a surface already on '
+          'screen to a new version), then add LumenOnboardingFlowSurface(...) '
+          'where '
           'it should appear. New '
           'versions reach app builds made from the same surface code. '
           'Guide: https://docs.restage.dev/delivery/'

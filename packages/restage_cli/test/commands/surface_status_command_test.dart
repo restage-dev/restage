@@ -148,6 +148,64 @@ void main() {
       expect(out.toString(), contains('blob'));
     });
 
+    test('names a version a rename gave it', () async {
+      final out = StringBuffer();
+      final runner = CommandRunner<int>('restage', '')
+        ..addCommand(
+          SurfaceStatusCommand(
+            stdout: out,
+            stderr: StringBuffer(),
+            interactive: const NonInteractive(),
+            credentialStore: fakeStore,
+            httpClient: mockHttpClient(
+              (_) => http.Response(
+                jsonEncode({
+                  'surfaceType': 'paywall',
+                  'surfaceSlug': 'pro',
+                  'environmentSlug': 'production',
+                  'liveVersion': 2,
+                  'locked': false,
+                  'deliveryShape': 'blob',
+                  'draftOrigin': 'code',
+                  'versions': [
+                    {
+                      'version': 2,
+                      'publishedAt': '2026-06-01T10:00:00.000Z',
+                      'contentHash': 'abc',
+                      'isActive': true,
+                      'label': 'Summer copy',
+                    },
+                    {
+                      'version': 1,
+                      'publishedAt': '2026-05-01T08:00:00.000Z',
+                      'contentHash': 'def',
+                      'isActive': false,
+                    },
+                  ],
+                }),
+                200,
+              ),
+            ),
+          ),
+        );
+      final code = await runner.run([
+        'status',
+        'pro',
+        '--type',
+        'paywall',
+        '--project',
+        'p',
+        '--app',
+        'a',
+        '--env',
+        'production',
+      ]);
+      expect(code, 0);
+      expect(out.toString(), contains('live: v2 "Summer copy"  locked: false'));
+      expect(out.toString(), contains('  v2 "Summer copy" (active)  '));
+      expect(out.toString(), contains('  v1  2026-05-01T08:00:00.000Z  def'));
+    });
+
     test('says when the draft was edited after publishing from code', () async {
       Future<String> run(Map<String, Object?> fields) async {
         final out = StringBuffer();
