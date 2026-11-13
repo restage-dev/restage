@@ -48,6 +48,7 @@ Future<void> Function(RestageEvent) inAppPurchaseEventHandler({
 ///
 /// Selection, event filtering, map snapshots and [onError] follow
 /// [inAppPurchaseEventHandler]. Choose one store lifecycle owner per app.
+/// [purchase] must buy the offer `inAppPurchaseOfferingData` displayed.
 Future<void> Function(RestageEvent) inAppPurchaseCustomEventHandler({
   required Map<String, ProductDetails> packages,
   required Future<PurchaseDetails?> Function(ProductDetails) purchase,

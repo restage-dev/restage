@@ -16,6 +16,10 @@ part 'in_app_purchase_scope.dart';
 /// transaction identity; retained processing stages last only until disposal.
 class InAppPurchaseController {
   /// Subscribes immediately to the store's purchase stream.
+  ///
+  /// [purchaseParamBuilder] must keep the selected product and its Google Play
+  /// offer token. `Sk2PurchaseParam` offer fields buy a different offer from
+  /// the one `inAppPurchaseOfferingData` displays.
   InAppPurchaseController({
     required Future<bool> Function(PurchaseDetails) verifyPurchase,
     required Future<void> Function(PurchaseDetails) deliverPurchase,
@@ -68,7 +72,12 @@ class InAppPurchaseController {
     final param =
         _purchaseParamBuilder?.call(product) ??
         PurchaseParam(productDetails: product);
-    if (!identical(param.productDetails, product)) {
+    final token = param is GooglePlayPurchaseParam ? param.offerToken : null;
+    final productToken = product is GooglePlayProductDetails
+        ? product.offerToken
+        : null;
+    if (!identical(param.productDetails, product) ||
+        (token != null && token != productToken)) {
       throw ArgumentError(
         'Purchase parameters must retain the selected product.',
       );

@@ -78,42 +78,39 @@ void main() {
     onError: onError,
   );
 
-  test(
-    'display preserves ordered offers and literal free price without terms',
-    () {
-      final data = inAppPurchaseOfferingData(
-        identifier: 'holiday',
-        packages: packages,
-      );
-      expect(data, {
-        'identifier': 'holiday',
-        'packages': [
-          {
-            'identifier': 'first',
-            'productIdentifier': 'pro',
-            'priceString': r'$0.00',
-            'currencyCode': 'USD',
-          },
-          {
-            'identifier': 'second',
-            'productIdentifier': 'pro',
-            'priceString': r'$9.99',
-            'currencyCode': 'USD',
-          },
-        ],
-      });
-      packages.clear();
-      expect((data['packages']! as List), hasLength(2));
-      expect(jsonDecode(jsonEncode(data)), isA<Map<String, dynamic>>());
-      expect(
-        inAppPurchaseOfferingData(
-          identifier: 'empty',
-          packages: {},
-        )['packages'],
-        isEmpty,
-      );
-    },
-  );
+  test('plain product details keep order and their literal price', () async {
+    final data = await inAppPurchaseOfferingData(
+      identifier: 'holiday',
+      packages: packages,
+    );
+    expect(data, {
+      'identifier': 'holiday',
+      'packages': [
+        {
+          'identifier': 'first',
+          'productIdentifier': 'pro',
+          'priceString': r'$0.00',
+          'currencyCode': 'USD',
+        },
+        {
+          'identifier': 'second',
+          'productIdentifier': 'pro',
+          'priceString': r'$9.99',
+          'currencyCode': 'USD',
+        },
+      ],
+    });
+    packages.clear();
+    expect((data['packages']! as List), hasLength(2));
+    expect(jsonDecode(jsonEncode(data)), isA<Map<String, dynamic>>());
+    expect(
+      (await inAppPurchaseOfferingData(
+        identifier: 'empty',
+        packages: {},
+      ))['packages'],
+      isEmpty,
+    );
+  });
 
   test(
     'custom snapshots map and selects exact object for same SKU offers',

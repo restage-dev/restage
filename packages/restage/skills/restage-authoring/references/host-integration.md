@@ -77,9 +77,10 @@ mapping for display and dispatch. The events are `in_app_purchase.purchase` with
 
 Pass localized display data through generated mount parameters. The adapters'
 `revenueCatOfferingData` and `inAppPurchaseOfferingData` helpers are context-map
-alternatives for direct mounts. Store catalog offer data does not establish a
-particular user's trial eligibility. Handle loading, missing products, errors,
-pending transactions and restore in the host integration.
+alternatives for direct mounts; both are asynchronous and include trial and
+introductory terms only for offers this user is eligible for. Handle loading,
+missing products, errors, pending transactions and restore in the host
+integration.
 
 RevenueCat's successful purchase handler reports the originating exposure when
 available. The default native controller handler does not automatically attribute

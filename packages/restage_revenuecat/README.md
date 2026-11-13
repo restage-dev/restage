@@ -93,7 +93,7 @@ TextButton(
 
 `package` is one typed entry from the paywall's `packages` input.
 
-When mounting `RestagePaywall` directly by ID, `revenueCatOfferingData(offering)`
+When mounting `RestagePaywall` directly by ID, `await revenueCatOfferingData(offering)`
 provides its `context` in this shape:
 
 ```text
@@ -112,9 +112,15 @@ Generated mounts serialize their typed inputs instead. Direct mounts also need
 generated widget registration and a chosen `fallbackBuilder`; the generated
 mount supplies both automatically.
 
-The helper preserves package order. Offer phases come from RevenueCat’s default
-subscription option or introductory price; the store determines eligibility during
-purchase. Offering metadata and customer information are excluded. Host data stays
+The helper preserves package order. `freeTrial` and `introductoryPrice` appear
+only when this user can redeem the offer. On Google Play they come from
+RevenueCat’s default subscription option. Play omits offers the user is ineligible for under
+Play-determined eligibility, returns developer-determined offers to every user,
+and the purchase grants the displayed offer.
+On the App Store they come from the introductory price and appear only when
+`Purchases.checkTrialOrIntroductoryPriceEligibility` reports the user eligible
+within 3 seconds; an unknown status, a timeout or a failed check leaves them
+out. Offering metadata and customer information are excluded. Host data stays
 on the device.
 
 Change which packages a published paywall displays to introduce a price point or

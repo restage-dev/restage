@@ -23,11 +23,13 @@ or widget registration is needed.
    transaction identity across restarts. The example functions throw until
    connected and never grant access.
 3. Replace `pro_monthly` and `pro_annual` with your native store product IDs and
-   supply accurate localized trial, billing-period and renewal terms. If a SKU
-   has several native offers, select the intended returned `ProductDetails`
-   object. Build the typed display packages from that same immutable native map.
-   The paywall displays literal plugin prices; Google Play may return a free or
-   introductory price, so your terms must also explain subsequent billing.
+   supply accurate localized trial, billing-period and renewal terms, or build
+   them from `inAppPurchaseOfferingData`, which includes only offers this user
+   can redeem. If a SKU has several native offers, select the intended returned
+   `ProductDetails` object. Build the typed display packages from that same
+   immutable native map. `ProductDetails.price` is a literal plugin price;
+   Google Play may return a free or introductory price, so your terms must also
+   explain subsequent billing.
 4. Copy the authored paywall and generate its mount and publication output. Push
    and publish it to your Restage project:
 
