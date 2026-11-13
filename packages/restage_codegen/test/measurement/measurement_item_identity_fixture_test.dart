@@ -197,10 +197,6 @@ void main() {
         .where((route) => route.orderedCaptureV1?.lifecycleChannel == null)
         .toList();
     expect(routes, hasLength(2));
-    expect(
-      routes.where((route) => route.orderedCaptureV1!.completesSurfaceV1),
-      isEmpty,
-    );
   });
 
   for (final (slug, path) in [

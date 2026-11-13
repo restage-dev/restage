@@ -37,25 +37,20 @@ void main() {
   );
 
   for (final fixture in ['conditional_offer']) {
-    test('a tap firing a completing event builds with a warning, and its '
-        'route never completes the surface: $fixture', () async {
-      final compiled = await _compileFixture('lib/paywalls/$fixture.dart');
-      expect(compiled.succeeded, isTrue, reason: compiled.log);
-      expect(
-        compiled.log,
-        contains(
-          'which only a tap fires, and a tap never '
-          'completes the paywall',
-        ),
-      );
-      final routes = _routes(compiled);
-      expect(
-        routes.where(
-          (route) => route.orderedCaptureV1?.completesSurfaceV1 ?? false,
-        ),
-        isEmpty,
-      );
-    });
+    test(
+      'a tap firing a completing event builds with a warning: $fixture',
+      () async {
+        final compiled = await _compileFixture('lib/paywalls/$fixture.dart');
+        expect(compiled.succeeded, isTrue, reason: compiled.log);
+        expect(
+          compiled.log,
+          contains(
+            'which only a tap fires, and a tap never '
+            'completes the paywall',
+          ),
+        );
+      },
+    );
   }
 
   for (final (fixture, label) in [
@@ -64,7 +59,7 @@ void main() {
   ]) {
     test(
       'app code that fires the completing event $label declares the '
-      'completion route, marks no tap as completing, and warns nothing',
+      'completion route and warns nothing',
       () async {
         final compiled = await _compileFixture('lib/paywalls/$fixture.dart');
         expect(compiled.succeeded, isTrue, reason: compiled.log);
@@ -73,12 +68,6 @@ void main() {
         expect(
           routes.map((route) => route.orderedCaptureV1?.lifecycleChannel),
           contains(MeasurementOccurrenceChannelV1.completion),
-        );
-        expect(
-          routes.where(
-            (route) => route.orderedCaptureV1?.completesSurfaceV1 ?? false,
-          ),
-          isEmpty,
         );
         final generated = compiled.readerWriter.testing.readString(
           AssetId(

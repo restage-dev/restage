@@ -74,7 +74,7 @@ void main() {
     Future<void> Function(WidgetTester tester)? before,
   }) async {
     final fixture = AdmittedBundledPublicationFixture.build(
-      completingTap: true,
+      childTap: true,
       lifecycleEnds: true,
       artifact: _paywallBlob,
     );
@@ -132,7 +132,7 @@ void main() {
     ];
   }
 
-  testWidgets('a tap on a route marked as completing still dismisses',
+  testWidgets('a tap on a paywall without completesOn still dismisses',
       (tester) async {
     expect(
       await endAfterTap(tester, 'Buy'),

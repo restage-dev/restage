@@ -14,13 +14,13 @@ final class AdmittedBundledPublicationFixture {
   /// The one authored screen mounted under the fixture's root.
   static const childScreenId = 'child_screen';
 
-  /// With [completingTap], the child route is a tap that completes the
-  /// surface. With [lifecycleEnds], the root also declares completion and
-  /// dismiss routes. [artifact] replaces the default artifact bytes.
+  /// With [childTap], the child route is a tap. With [lifecycleEnds], the
+  /// root also declares completion and dismiss routes. [artifact] replaces
+  /// the default artifact bytes.
   /// [extraArtifacts] adds declared publication artifacts beside the root
   /// blob, each also present in the verified bundle.
   factory AdmittedBundledPublicationFixture.build({
-    bool completingTap = false,
+    bool childTap = false,
     bool lifecycleEnds = false,
     bool includeOrderedCapture = true,
     List<int> artifact = artifactBytes,
@@ -454,7 +454,7 @@ final class AdmittedBundledPublicationFixture {
           channel: MeasurementOccurrenceChannelV1.presentation,
         ),
       ),
-      if (completingTap)
+      if (childTap)
         MeasurementOrderedCaptureRouteV1(
           occurrenceId: rightOccurrence.occurrenceId,
           lineageId: rightOccurrence.lineageId,
@@ -462,7 +462,6 @@ final class AdmittedBundledPublicationFixture {
             MeasurementOccurrenceChannelV1.presentation,
             MeasurementOccurrenceChannelV1.interaction,
           ],
-          completesSurfaceV1: true,
         )
       else
         MeasurementOrderedCaptureRouteV1(

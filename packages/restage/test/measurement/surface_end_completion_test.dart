@@ -16,15 +16,14 @@ import '../support/pump_until.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('a tap never completes the surface, even on a completing route',
-      (tester) async {
+  testWidgets('a tap never completes the surface', (tester) async {
     final attempt = _Attempt();
     addTearDown(attempt.close);
     final session = attempt.openDeferred();
     await tester.pumpWidget(_host(session));
     await attempt.release(tester);
 
-    session.sanitizeAndRecordEvent(_tap(completing: true));
+    session.sanitizeAndRecordEvent(_tap(child: true));
     expect(session.debugCompleted, isFalse);
 
     await tester.runAsync(() => session.teardown());
@@ -45,7 +44,7 @@ void main() {
     expect(session.debugState, MeasurementHostSessionDebugState.active);
     expect(session.debugCompleted, isTrue);
 
-    session.sanitizeAndRecordEvent(_tap(completing: false));
+    session.sanitizeAndRecordEvent(_tap(child: false));
     session.sanitizeAndRecordEvent('SAVE10');
     expect(session.debugCompleted, isTrue);
 
@@ -54,12 +53,13 @@ void main() {
   });
 }
 
-Map<String, Object?> _tap({required bool completing}) {
+/// A tap on the child route, or on the root's own route.
+Map<String, Object?> _tap({required bool child}) {
   final edge =
       base64UrlEncode(utf8.encode('edge.bundled-root')).replaceAll('=', '');
   return <String, Object?>{
     kMeasurementPublicationRouteArgumentKeyV1:
-        'mrv1.$edge.${(completing ? 'B' : 'A') * 32}',
+        'mrv1.$edge.${(child ? 'B' : 'A') * 32}',
   };
 }
 
@@ -77,7 +77,7 @@ final class _Attempt {
     );
   }
 
-  final fixture = AdmittedBundledPublicationFixture.build(completingTap: true);
+  final fixture = AdmittedBundledPublicationFixture.build(childTap: true);
   final _profile = Completer<BundledMeasurementTargetProfileLoadResult>();
   late final AdmittedConstructionOwnerHostTestHarness harness;
 
