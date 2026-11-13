@@ -2,6 +2,9 @@
 
 [![pub package](https://img.shields.io/pub/v/rfw_catalog_compiler.svg)](https://pub.dev/packages/rfw_catalog_compiler) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-FSL--1.1--ALv2-blue.svg)](LICENSE)
 
+[Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
+change any screen of a shipped Flutter app without a release.
+
 A compiler that turns annotated Dart widget libraries into a
 [Remote Flutter Widgets (RFW)](https://pub.dev/packages/rfw) widget catalog.
 It reads your `@RestageLibrary` and `@RestageWidget` source with the Dart
@@ -9,8 +12,6 @@ analyzer, assigns each widget and property a stable catalog ID, and writes the
 result in the
 [`rfw_catalog_schema`](https://pub.dev/packages/rfw_catalog_schema) format
 that editors, SDK runtimes, and servers read.
-
-Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
 A catalog describes the widgets any surface can use, whichever surface is
 being rendered.

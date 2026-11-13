@@ -2,7 +2,8 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_material.svg)](https://pub.dev/packages/restage_material) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
-Part of [Restage](https://restage.dev), server-driven UI for Flutter.
+[Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
+change any screen of a shipped Flutter app without a release.
 
 The `restage.material` widget catalog for [Remote Flutter Widgets](https://pub.dev/packages/rfw):
 46 Material Design widgets, including buttons, Scaffold, AppBar, Card,

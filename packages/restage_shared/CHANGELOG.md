@@ -18,7 +18,7 @@ declared input with no fact, or a value inside a fact that is absent or has the
 wrong shape, gives `valueMissing`. Record and list results are plain maps and
 lists.
 
-A `mount` placement batch may name `inlineMounts`, so its mounts receive their
+A `mount` placement batch may name `inlineMounts`. Those mounts receive their
 content with the answer. A `refresh` batch may not.
 
 Verified purchases add optional `requiresHistoryRecovery` metadata; omitted

@@ -2,11 +2,12 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_cli.svg)](https://pub.dev/packages/restage_cli) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
+[Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
+change any screen of a shipped Flutter app without a release.
+
 The `restage` command line. Use it to set up a project, push surfaces, and
 manage what is live. It works the same for a developer at a terminal, a CI job,
 and a coding agent.
-
-Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
 ## Status
 

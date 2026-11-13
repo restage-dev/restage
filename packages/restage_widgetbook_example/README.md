@@ -1,10 +1,11 @@
 # Restage + Widgetbook v4 example
 
+[Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
+change any screen of a shipped Flutter app without a release.
+
 One set of annotated Flutter widgets and one annotated screen, built into three
 outputs: a Restage catalog, an A2UI catalog, and a Widgetbook workbench. This
 package is an example you run from source; it is not published to pub.dev.
-
-Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
 ## What each example shows
 
