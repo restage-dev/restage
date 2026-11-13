@@ -997,7 +997,9 @@ widget OnboardingScreen = SizedBox(
     );
     expect(harness.worker.activeSessionIds, isEmpty);
     expect(harness.worker.finalizationCalls, 0);
-    expect(harness.worker.discardCalls, 1);
+    // The reset lands before the worker registers, so nothing is opened.
+    expect(harness.worker.registrations, isEmpty);
+    expect(harness.worker.discardCalls, 0);
     await tester.pumpWidget(const SizedBox());
   });
 

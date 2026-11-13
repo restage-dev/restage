@@ -1,14 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/src/early/early_request.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/analytics/analytics_identity.dart';
+import 'package:restage/src/measurement/bundled_measurement_publication_binding_read_port.dart';
 import 'package:restage/src/measurement/governed_measurement_transport.dart';
+import 'package:restage/src/measurement/measurement_host_session.dart';
 import 'package:restage/src/runtime/native_facts.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_assignment_persistence.dart';
@@ -16,6 +19,9 @@ import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
+
+import 'admitted_bundled_publication_fixture.dart';
+import 'measurement_host_construction_test_support.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -441,6 +447,74 @@ void main() {
     );
     expect(other.requests, isEmpty);
     expect(pendingRecords(), [original]);
+  });
+
+  testWidgets(
+      'a presentation painted before an erasure is not filed under the new '
+      'identity when its session opens after it', (tester) async {
+    await tester.runAsync(confirm);
+    final fixture = AdmittedBundledPublicationFixture.build();
+    final profile = Completer<BundledMeasurementTargetProfileLoadResult>();
+    final harness = AdmittedConstructionOwnerHostTestHarness.install(
+      publicationContext: fixture.publicationContextRef,
+      bundledTargetProfileLoader: () => profile.future,
+      presentationMetadataAdmitted: true,
+    );
+    addTearDown(harness.close);
+    final bytes =
+        Uint8List.fromList(AdmittedBundledPublicationFixture.artifactBytes);
+    final session = MeasurementHostSessionController.openDeferred(
+      attachMeasurementBundledGeneratedSourceCarrier(
+        ResolvedVariant(
+          bytes: bytes,
+          paywallId: 'fixture-artifact',
+          surfaceVersion: FlowContentHash.compute(bytes).value,
+        ),
+        MeasurementBundledGeneratedSourceCarrier(
+          measurementPublicationDraftDigest: fixture
+              .entry.candidateProof.measurementPublicationDraft.canonicalDigest,
+        ),
+      ),
+    );
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: session.wrapRootSubtree(const SizedBox(width: 10, height: 10)),
+    ));
+    await tester.pump();
+    expect(session.debugState, MeasurementHostSessionDebugState.pending);
+
+    final erased = await tester.runAsync(Restage.privacy.request);
+    expect(erased!.status, RestagePrivacyCoordinatorStatus.completed);
+
+    final logs = <String?>[];
+    final previous = debugPrint;
+    debugPrint = (message, {wrapWidth}) => logs.add(message);
+    try {
+      profile.complete(BundledMeasurementTargetProfileLoadResult(
+        target: fixture.target,
+        bindingReadPort: fixture.port,
+      ));
+      for (var i = 0; i < 20; i += 1) {
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        await tester.pump();
+      }
+    } finally {
+      debugPrint = previous;
+    }
+
+    expect(session.debugState, MeasurementHostSessionDebugState.disabled);
+    expect(harness.worker.registrations, isEmpty);
+    expect(harness.worker.deliveries, isEmpty);
+    expect(logs.where((m) => m?.startsWith('[restage]') ?? false), [
+      '[restage] measurement session did not open; this presentation is not '
+          'measured',
+    ]);
+    expect(
+      await tester.runAsync(
+          () => session.teardown().timeout(const Duration(seconds: 5))),
+      isNull,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   test('no handle does not register', () async {

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,8 +9,9 @@ import 'package:http/testing.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
+import 'package:restage/src/measurement/measurement_host_session.dart';
 import 'package:restage/src/measurement/restage_measurement.dart'
-    show attachPurchaseExposure;
+    show attachPurchaseExposure, purchaseExposureWait;
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -220,6 +222,130 @@ void main() {
     expect(reports, isEmpty);
   });
 
+  group('a purchase reported while its session is still opening', () {
+    late _HeldBindingReadPort port;
+    late AdmittedConstructionOwnerHostTestHarness harness;
+
+    MeasurementHostSessionController openPending() {
+      port = _HeldBindingReadPort(fixture);
+      harness = AdmittedConstructionOwnerHostTestHarness.install(
+        publicationContext: fixture.publicationContextRef,
+        hostedBindingReadPortLookup: () => port,
+      );
+      addTearDown(harness.close);
+      final resolved = ResolvedVariant(
+          bytes: Uint8List.fromList(
+              AdmittedBundledPublicationFixture.artifactBytes),
+          paywallId: 'upgrade',
+          surfaceVersion: 'selected');
+      attachMeasurementPublicationBindingReference(
+          resolved, fixture.binding.reference);
+      return MeasurementHostSessionController.openDeferred(resolved);
+    }
+
+    PaywallCustomEvent purchaseFor(MeasurementHostSessionController session) {
+      final purchase = PaywallCustomEvent(
+          paywallId: 'upgrade',
+          eventName: 'revenuecat.purchase',
+          args: const {});
+      attachPurchaseExposure(purchase,
+          prepare: session.preparePurchaseExposure);
+      return purchase;
+    }
+
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 20; i++) {
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        await tester.pump();
+      }
+    }
+
+    Future<bool?> reportedAfterWait(
+        WidgetTester tester, RestageEvent purchase) async {
+      bool? returned;
+      unawaited(report(purchase).then((value) => returned = value));
+      await tester.pump(purchaseExposureWait - const Duration(milliseconds: 1));
+      expect(returned, isNull);
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      return returned;
+    }
+
+    testWidgets('returns false after the wait instead of waiting for the open',
+        (tester) async {
+      final session = openPending();
+      await tester.pumpWidget(Directionality(
+        textDirection: TextDirection.ltr,
+        child: session.wrapRootSubtree(const SizedBox(width: 1, height: 1)),
+      ));
+      final purchase = purchaseFor(session);
+      expect(await reportedAfterWait(tester, purchase), isFalse);
+      expect(session.debugState, MeasurementHostSessionDebugState.pending);
+      expect(await reportedAfterWait(tester, purchase), isFalse,
+          reason: 'a later call while held also waits, then returns false');
+      expect(reports, isEmpty);
+      port.read.complete(true);
+      await settle(tester);
+      await tester.runAsync(() => session.teardown());
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'is delivered with the opened session after a late open, and a '
+        'later call returns true', (tester) async {
+      final session = openPending();
+      await tester.pumpWidget(Directionality(
+        textDirection: TextDirection.ltr,
+        child: session.wrapRootSubtree(const SizedBox(width: 1, height: 1)),
+      ));
+      final purchase = purchaseFor(session);
+      expect(await reportedAfterWait(tester, purchase), isFalse);
+      await tester.pump(const Duration(seconds: 10));
+
+      port.read.complete(true);
+      await settle(tester);
+
+      expect(session.debugState, MeasurementHostSessionDebugState.active);
+      expect(reports, hasLength(1));
+      expect(reports.single['exposure'], {
+        'captureSessionNonce':
+            harness.worker.registrations.single.captureSessionNonce,
+        'publicationBindingReference': fixture.binding.reference.toJson(),
+      });
+      expect(harness.worker.checkpointCalls, 1,
+          reason: 'the presentation frame is sent before the purchase');
+      expect(await report(purchase), isTrue,
+          reason: 'a later call returns the held report\'s result');
+      expect(reports, hasLength(1), reason: 'reported once');
+      await tester.runAsync(() => session.teardown());
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('is dropped with the log line when the open fails',
+        (tester) async {
+      final session = openPending();
+      expect(await reportedAfterWait(tester, purchaseFor(session)), isFalse);
+
+      final logs = <String?>[];
+      final previous = debugPrint;
+      debugPrint = (message, {wrapWidth}) => logs.add(message);
+      try {
+        port.read.complete(false);
+        await settle(tester);
+      } finally {
+        debugPrint = previous;
+      }
+
+      expect(session.debugState, MeasurementHostSessionDebugState.disabled);
+      expect(reports, isEmpty);
+      expect(harness.worker.registrations, isEmpty);
+      expect(logs.where((m) => m?.startsWith('[restage]') ?? false), [
+        '[restage] measurement session did not open; this presentation is '
+            'not measured',
+      ]);
+    });
+  });
+
   testWidgets('a raw rendered paywall retains its session after unmount',
       (tester) async {
     final bytes = encodeLibraryBlob(parseLibraryFile('''
@@ -278,6 +404,22 @@ widget Paywall = TextButton(
         harness.worker.registrations.single.captureSessionNonce);
     expect(harness.worker.checkpointCalls, 1);
   });
+}
+
+final class _HeldBindingReadPort
+    implements MeasurementPublicationBindingReadPort {
+  _HeldBindingReadPort(this.fixture);
+  final AdmittedBundledPublicationFixture fixture;
+  final read = Completer<bool>();
+
+  @override
+  Future<MeasurementPublicationBindingReadResult> readExact(
+      MeasurementPublicationBindingReferenceV1 reference) async {
+    if (!await read.future) {
+      return const MeasurementPublicationBindingTransportUnavailable();
+    }
+    return _BindingReadPort(fixture).readExact(reference);
+  }
 }
 
 final class _Resolver extends VariantResolver {

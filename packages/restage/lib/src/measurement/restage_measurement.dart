@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:meta/meta.dart';
@@ -22,8 +23,13 @@ final class RestageMeasurement {
   ///
   /// Call after the store confirms success. The event retains its original
   /// exposure through paywall changes or dismissal, including events received
-  /// through the app-wide stream. Each event is reported at most once.
-  /// Returns false when the exposure or delivery is unavailable or refused.
+  /// through the app-wide stream. Each event is reported at most once; later
+  /// calls return that report's result.
+  /// Returns true when the report was delivered and accepted. Returns false
+  /// when the exposure or delivery is unavailable or refused, or when the
+  /// paywall's measurement session is still opening after a few seconds; such
+  /// a report is held, delivered if the session opens, and a later call
+  /// returns true once it is accepted.
   /// Package and product identifiers are retained; no paid amount is inferred.
   Future<bool> reportPurchase(
     RestageEvent event, {
@@ -38,12 +44,13 @@ final class RestageMeasurement {
         !_validIdentifier(productIdentifier)) {
       return Future.value(false);
     }
-    return exposure._report ??= exposure._send({
-      'eventId': generateUuidV4(),
-      'packageIdentifier': packageIdentifier,
-      'productIdentifier': productIdentifier,
-      'reportedOccurredAtMicros': DateTime.now().toUtc().microsecondsSinceEpoch,
-    });
+    return exposure._send(() => {
+          'eventId': generateUuidV4(),
+          'packageIdentifier': packageIdentifier,
+          'productIdentifier': productIdentifier,
+          'reportedOccurredAtMicros':
+              DateTime.now().toUtc().microsecondsSinceEpoch,
+        });
   }
 
   /// Issues one exact direct host/IDP link challenge.
@@ -110,11 +117,42 @@ final class _PurchaseExposure {
   final Future<_ExposureCoordinates?> Function() _prepare;
   final RestageRpcClient _client;
   final bool Function() _isCurrent;
-  Future<bool>? _report;
+  Future<_ExposureCoordinates?>? _exposure;
+  Future<bool>? _delivery;
 
-  Future<bool> _send(Map<String, Object> report) async {
+  // Starts the one delivery, then waits at most [purchaseExposureWait] for
+  // its exposure; a report still waiting stays held until the session opens.
+  Future<bool> _send(Map<String, Object> Function() report) {
+    var exposure = _exposure;
+    var delivery = _delivery;
+    if (exposure == null || delivery == null) {
+      try {
+        exposure = _prepare();
+      } on Object {
+        exposure = Future.value(null);
+      }
+      _exposure = exposure;
+      delivery = _delivery = _deliver(report(), exposure);
+    }
+    final result = Completer<bool>();
+    final wait = Timer(purchaseExposureWait, () {
+      if (!result.isCompleted) result.complete(false);
+    });
+    void ready([Object? _]) {
+      wait.cancel();
+      if (!result.isCompleted) result.complete(delivery);
+    }
+
+    exposure.then(ready, onError: ready);
+    return result.future;
+  }
+
+  Future<bool> _deliver(
+    Map<String, Object> report,
+    Future<_ExposureCoordinates?> preparing,
+  ) async {
     try {
-      final exposure = await _prepare();
+      final exposure = await preparing;
       if (exposure == null) return false;
       return await _client.reportPurchase({
         ...report,
@@ -129,6 +167,11 @@ final class _PurchaseExposure {
     }
   }
 }
+
+/// How long [RestageMeasurement.reportPurchase] waits for its presentation's
+/// measurement session before returning.
+@internal
+const Duration purchaseExposureWait = Duration(seconds: 3);
 
 typedef _ExposureCoordinates = ({
   String captureSessionNonce,
