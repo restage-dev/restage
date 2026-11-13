@@ -132,11 +132,13 @@ import 'package:restage/restage.dart';
 void configureRestage({
   required String apiKey,
   required String baseUrl,
+  required List<String> deliveryKeys,
   required List<RestageSurfaceRef> surfaces,
 }) {
   Restage.configure(
     apiKey: apiKey,
     baseUrl: baseUrl,
+    deliveryKeys: deliveryKeys,
     surfaces: surfaces,
     channel: 'stable',
     liveRefresh: {SurfaceRefreshTrigger.appResume},

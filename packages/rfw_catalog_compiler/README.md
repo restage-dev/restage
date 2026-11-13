@@ -5,6 +5,8 @@
 [Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
 change any screen of a shipped Flutter app without a release.
 
+This README describes the `main` branch. For a released version, see its page on pub.dev.
+
 A compiler that turns annotated Dart widget libraries into a
 [Remote Flutter Widgets (RFW)](https://pub.dev/packages/rfw) widget catalog.
 It reads your `@RestageLibrary` and `@RestageWidget` source with the Dart

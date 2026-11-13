@@ -5,12 +5,12 @@ import 'package:restage_store_bridge/restage_store_bridge.dart';
 
 import 'store_upgrade.dart';
 import 'restage_surfaces.g.dart';
+import 'user_factories.g.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   Restage.configureWithInstalledCatalog(
-    apiKey: const String.fromEnvironment('RESTAGE_API_KEY'),
-    baseUrl: const String.fromEnvironment('RESTAGE_BASE_URL'),
+    registerWidgets: kRestageWidgetRegistration,
     surfaces: restageSurfaces,
   );
   runApp(

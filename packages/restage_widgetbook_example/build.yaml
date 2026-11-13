@@ -1,5 +1,8 @@
 additional_public_assets:
-  - .restage/**
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+  - .restage/receipts/**
+  - .restage/library-contracts/**
 
 targets:
   $default:

@@ -167,18 +167,51 @@ and [delivery commands](packages/restage_cli/README.md#placements-and-delivery-p
 
 ## Install
 
-This README describes the current source. Source updates can precede pub.dev
-releases; use a release tag’s documentation when working with that release.
+This README describes the source on `main`. Restage needs Flutter 3.44 or
+newer. Add the packages from `main`, with overrides so every Restage package
+resolves to the same copy:
 
 ```yaml
 dependencies:
-  restage: ^2.0.0
-  restage_material: ^2.0.0
+  restage:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage
+  restage_material:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_material
 
 dev_dependencies:
-  restage_codegen: ^2.0.0
-  build_runner: ">=2.4.0 <3.0.0"
+  build_runner: ">=2.15.1 <3.0.0"
+  restage_codegen:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_codegen
+
+dependency_overrides:
+  restage:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage
+  restage_material:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_material
+  rfw_catalog_schema:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/rfw_catalog_schema
 ```
+
+`restage init` writes the same entries. The [Quickstart](QUICKSTART.md) walks
+through the rest.
 
 Release builds need no special flags. The build step records which widgets
 and icons your app uses, and Flutter's icon tree-shaking works as usual.
@@ -200,6 +233,7 @@ That puts `restage` in `~/.pub-cache/bin`, which needs to be on your `PATH`.
 | [`restage_core`](packages/restage_core) | Cross-platform widget catalog | BSD-3 |
 | [`restage_material`](packages/restage_material) | Material widget catalog | BSD-3 |
 | [`restage_cupertino`](packages/restage_cupertino) | Cupertino widget catalog | BSD-3 |
+| [`restage_svg`](packages/restage_svg) | Optional native SVG catalog for `SvgPicture` | BSD-3 |
 | [`restage_shared`](packages/restage_shared) | Surface format, schemas, and validation shared by the SDK and the toolchain | BSD-3 |
 | [`rfw_catalog_schema`](packages/rfw_catalog_schema) | Catalog format and the `@RestageWidget` annotations | BSD-3 |
 | [`restage_measurement_schema`](packages/restage_measurement_schema) | Shared data types for measurement and experiments | BSD-3 |

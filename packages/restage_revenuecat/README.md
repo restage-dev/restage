@@ -5,7 +5,17 @@
 Use RevenueCat offerings and purchases with [Restage](https://restage.dev) paywalls.
 The app keeps its existing RevenueCat configuration and entitlement checks.
 
-This package is available from source and is not yet published to pub.dev.
+Add it from the repository's `main` branch, next to the `restage` entries and
+overrides from the [quickstart](https://docs.restage.dev/quickstart#1-add-the-packages):
+
+```yaml
+dependencies:
+  restage_revenuecat:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_revenuecat
+```
 
 ## Connect a delivered Restage paywall
 
@@ -22,7 +32,8 @@ import 'revenuecat_upgrade.dart';
 import 'restage_surfaces.g.dart';
 import 'user_factories.g.dart';
 
-// Reads the key and service URL from build.yaml.
+// Reads api_key, base_url and delivery_keys from the
+// restage_codegen:user_factories options in build.yaml.
 Restage.configure(
   registerWidgets: kRestageWidgetRegistration,
   surfaces: restageSurfaces,
@@ -52,6 +63,12 @@ final paywall = RevenueCatPaywallSurface(
   ),
 );
 ```
+
+Delivered content renders only when it's signed with one of the app's
+delivery keys. A signed-in `restage init` writes them to `build.yaml`, and
+`restage keys delivery` prints them. An app that builds with `catalog: derived`,
+like the example, calls `Restage.configureWithInstalledCatalog` with the same
+arguments.
 
 `RevenueCatPaywallSurface` is generated from `@Paywall()` in
 `revenuecat_upgrade.dart`; the file name supplies the paywall id. It passes its
@@ -129,8 +146,7 @@ the handler needs no package-name mapping in app code.
 
 ## Purchase reports
 
-Publish a paywall version to enable its **Purchase conversion** metric. Older
-versions published before purchase reporting was supported retain their tap metrics.
+Publish a paywall version to enable its **Purchase conversion** metric.
 
 After RevenueCat confirms a purchase, the handler reports one conversion against
 the paywall view (the exposure) that led to it, using

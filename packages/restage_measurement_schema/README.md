@@ -5,6 +5,8 @@
 [Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
 change any screen of a shipped Flutter app without a release.
 
+This README describes the `main` branch. For a released version, see its page on pub.dev.
+
 Shared pure-Dart data types for measurement: manifests, observations, metric
 results, and experiment and policy descriptions. Each type has a stable byte
 encoding and hash, so every program that reads it agrees on the same value.
@@ -46,8 +48,8 @@ measurement point's `occurrenceId`.
 
 JSON integers stay within JavaScript's exact range, `-9007199254740991` to
 `9007199254740991`, so the Dart VM, Wasm, and JavaScript all hash the same
-bytes. Larger exact values are decimal strings of up to 78 digits, with an
-optional scale from 0 to 18. Leading zeros, `+` signs, and negative zero are
+bytes. Larger exact values are decimal strings of up to 128 characters, with
+an optional scale from 0 to 18. Leading zeros, `+` signs, and negative zero are
 rejected.
 
 ## License

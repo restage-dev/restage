@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- **Breaking:** `IssueCode` adds `surfaceDoesNotFitPlacement`,
+  `islandNarrowPlacement`, `nestedStateIsland`, `stateKeptInApp`,
+  `stateRestartsWhenMoved`, `measurementRoutesDisagree` and
+  `islandSpotsIndistinct`. A `switch` over `IssueCode` needs a case for each.
+- On a surface whose generated mount runs a copy of its `build()`, the
+  published design keeps the `State` it changes, like a selected plan. Your
+  widget's `State` serves only your compiled widget. State your app code also
+  reads stays in the app, and the build warns and says why.
+- A callback whose arguments read that state receives the values from the
+  published design, such as the plan the user picked.
+- When a paywall pushes another screen with `Navigator.push`, the generated
+  mount keeps the push. In your compiled paywall, the pushed screen shows
+  inside the paywall and its events reach it.
+- A tap inside a widget you use in several places is measured as one point.
+  A callback written in that widget no longer stops the surface from
+  publishing.
+- A `State` method the build calls that never calls `setState`, such as a
+  formatter, gets a warning that your app runs it. The warning suggests a
+  local in `build()` or a widget field instead.
+- A `sync*` or `async*` handler always runs in your app, even where an
+  ordinary handler would move into the design. Its message says what to
+  change.
+- Taps in a sheet are measured only when the published design shows the sheet
+  itself. A surface that awaits a sheet is no longer left unmeasured.
+- A custom widget's events are measured only where the build copies the
+  widget into the surface. A widget drawn by its registered factory still
+  publishes, and its taps aren't measured.
+- A top-level `const SurfaceEvent` works wherever a static const field does.
+  A `FlowDefinition` transition still needs a static field, and its refusal
+  shows the declaration to add.
+- An island's positional literal arguments are delivered as properties, and
+  the build report groups its parts by widget.
+
 - The `delivery_keys` option of `restage_codegen:user_factories` lists the
   app's delivery keys. The generated `kRestageWidgetRegistration` carries them,
   and `Restage.configure` uses them when it is passed no `deliveryKeys`.
@@ -37,13 +70,13 @@
   `RestageFlowGraph` directly must bind that step's screen builder. Without it
   the delivered step stops with `missing_screen_builder`. Generated `*Surface`
   mounts already require the builder.
-- Each build writes `restage.build.json` beside the publication manifest,
-  after its other outputs. It records `succeeded`, or `failed` with the
-  build's errors. A build that records `failed` fails.
+- Each build writes `restage.build.json` beside the publication manifest. It
+  records `succeeded`, or `failed` with the build's errors. A build that
+  records `failed` fails.
 - A failed build leaves the publication manifest, the output index, the
   widget catalog, the rest of the build metadata and every bundle as the last
-  build wrote them. That includes the bundle of a surface whose annotation the
-  failed build removed. `restage` lifecycle commands still find every surface.
+  build wrote them. That includes the bundle of a surface whose annotation was
+  removed. `restage` lifecycle commands still find every surface.
 - `restage_codegen:generated_check` resolves the Dart the build generates:
   every generated part, `user_factories.g.dart`, `restage_surfaces.g.dart` and
   `registration.g.dart`. The outputs builder fails the build when any of it

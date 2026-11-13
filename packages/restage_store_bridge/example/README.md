@@ -42,8 +42,11 @@ restage surface publish store_upgrade
 The default generator writes publication artifacts under `.restage/build` for
 push and publish. They are tooling output and need no Flutter asset declaration.
 `Restage.configureWithInstalledCatalog` uses `restageSurfaces` from the generated
-`restage_surfaces.g.dart`. With a public API key and base URL, the generated mount
-resolves hosted content. If no delivered or cached content is available, it
+`restage_surfaces.g.dart`. `lib/main.dart` passes `registerWidgets: kRestageWidgetRegistration`. It
+carries the publishable key, service URL and delivery keys that
+`restage init` writes to `build.yaml`, and with them the generated mount
+resolves hosted content. Delivered content renders only when it's signed with
+one of the delivery keys. If no delivered or cached content is available, it
 renders the original compiled Flutter paywall with the same typed inputs and
 event handler. Without credentials, this example uses that compiled fallback.
 
@@ -56,11 +59,16 @@ functions before purchasing. From this directory:
 ```sh
 flutter create --platforms=android,ios .
 flutter pub get
+restage login
+restage init --no-add-deps --no-starter
 dart run build_runner build
-flutter run \
-  --dart-define=RESTAGE_API_KEY=your_public_restage_key \
-  --dart-define=RESTAGE_BASE_URL=your_restage_api_url
+flutter run
 ```
+
+`restage init` writes your app's publishable key, service URL and delivery keys
+to `build.yaml`, next to the `catalog: derived` option already there.
+`--no-add-deps` keeps the example's own dependencies, and `--no-starter` skips
+the starter paywall.
 
 `InAppPurchaseScope` calls its controller factory once per mount, subscribes
 before the child queries products, and disposes the controller on unmount. Keep

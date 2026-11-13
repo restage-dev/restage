@@ -5,8 +5,10 @@
 [Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
 change any screen of a shipped Flutter app without a release.
 
+This README describes the `main` branch. For a released version, see its page on pub.dev.
+
 The `restage.material` widget catalog for [Remote Flutter Widgets](https://pub.dev/packages/rfw):
-46 Material Design widgets, including buttons, Scaffold, AppBar, Card,
+47 Material Design widgets, including buttons, Scaffold, AppBar, Card,
 ListTile, chips, and selection controls. It sits alongside `restage_core` and
 `restage_cupertino`. Add your own design-system widgets to the catalog with
 `@RestageWidget`.

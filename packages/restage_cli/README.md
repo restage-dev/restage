@@ -1,6 +1,6 @@
 # restage_cli
 
-[![pub package](https://img.shields.io/pub/v/restage_cli.svg)](https://pub.dev/packages/restage_cli) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
+[![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
 [Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
 change any screen of a shipped Flutter app without a release.
@@ -41,8 +41,14 @@ restage logout
 restage status
 
 # Set up a Flutter project for Restage. Signed in, this also mints the
-# app's public key and writes it to build.yaml.
+# app's public key and writes it, the service URL and the delivery keys to
+# build.yaml.
 restage init
+
+# Read what the last build delivers and what renders from the app.
+restage build report
+restage build report --check
+restage widget promote lib/paywall.dart:42
 
 # See what you have access to.
 restage orgs
@@ -95,6 +101,19 @@ restage keys list
 restage keys mint --public
 restage keys revoke <id>
 restage keys resolve <key>
+restage keys delivery
+restage entitlements set <key> --display-name "<name>"
+restage products fulfillment --product-id <id> --form consumable
+restage components list
+restage components show <name>
+
+# Rename or delete.
+restage org rename "<name>"
+restage app rename "<name>"
+restage app delete --name "<name>"
+restage surface archive <id>
+restage surface restore <id>
+restage surface delete <id> --confirm <id>
 
 # Decide which published version each request receives (beta).
 restage surface routing --help
@@ -102,6 +121,7 @@ restage surface routing --help
 # Push the widget catalog or an app build.
 restage catalog push
 restage build push
+restage build list
 
 # Read the audit log.
 restage audit log
@@ -114,6 +134,12 @@ restage console
 # Check the local toolchain.
 restage doctor
 ```
+
+`surface push` and `paywall push` refuse outputs from a build that failed
+(the build records it in `.restage/build/metadata/restage.build.json`), and
+print the build's first error. They also refuse a surface the build reported
+doesn't fit its own placement, and they check that the generated Dart compiles
+before they push.
 
 `init` works offline. `doctor` also checks `restage_config.yaml` against the
 server when you are signed in. `login` and the other commands talk to
@@ -489,8 +515,11 @@ commands do not need it.
 ## Generated files
 
 `restage init` adds `.restage/build/` to your ignore rules. Commit
-`.restage/measurement-state.json` and `.restage/wire-ids.events.jsonl`: they
-keep analytics IDs and catalog IDs stable across clean builds. The build writes
+`.restage/measurement-state.json`, `.restage/wire-ids.events.jsonl`,
+`.restage/receipts/` and `.restage/library-contracts/`. They keep analytics IDs,
+catalog IDs, release receipts and recorded library versions stable across clean
+builds. `restage init` lists all four under `additional_public_assets` in
+`build.yaml`. The build then notices when one of them changes. The build writes
 `wire-ids.events.jsonl` only once the package has a `@RestageWidget` class.
 
 ## License

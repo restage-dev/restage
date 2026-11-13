@@ -22,6 +22,8 @@ Flutter widgets with your theme.
 This package is the runtime SDK. It renders what the build produced through
 [Remote Flutter Widgets](https://pub.dev/packages/rfw).
 
+This README describes the `main` branch. For a released version, see its page on pub.dev.
+
 What ships is a description your app's widgets draw, in a small closed
 language the compiler checks. It can carry simple logic, like conditions over
 data your app supplies. Gestures, drawing, network calls and native work stay
@@ -38,6 +40,56 @@ in Dart compiled into your app. New kinds of behavior need an app release.
 - **It fails safe.** The SDK checks compatibility before rendering an update.
   A render deadline limits the wait before it shows a version it saved earlier,
   a bundled copy, or your compiled fallback.
+
+## Install
+
+Restage needs Flutter 3.44 or newer. Add the packages from the repository's
+`main` branch, with overrides so every Restage package resolves to the same copy:
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  restage:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage
+  restage_material:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_material
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  build_runner: ">=2.15.1 <3.0.0"
+  restage_codegen:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_codegen
+
+dependency_overrides:
+  restage:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage
+  restage_material:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_material
+  rfw_catalog_schema:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/rfw_catalog_schema
+```
+
+`restage init` writes the same entries.
 
 ## Quick start
 
@@ -69,7 +121,7 @@ class Welcome extends StatelessWidget {
 }
 ```
 
-Compile it with [`restage_codegen`](https://pub.dev/packages/restage_codegen):
+Compile it with [`restage_codegen`](../restage_codegen):
 
 ```sh
 dart run build_runner build
@@ -95,37 +147,6 @@ The [Quickstart](https://github.com/restage-dev/restage/blob/main/QUICKSTART.md)
 walks through a full example using the compiled-widget fallback, with no
 generated surface assets. Leave `bundled_runtime` at its default, `false`.
 
-### Use the latest source
-
-To try unreleased changes, keep the usual `^2.0.0` dependencies on `restage`,
-`restage_material` and `restage_codegen`, and add these overrides to take them from the
-repository's `main` branch. `rfw_catalog_schema` needs one too, because the code
-generator also asks for it from pub.dev:
-
-```yaml
-dependency_overrides:
-  restage:
-    git:
-      url: https://github.com/restage-dev/restage.git
-      ref: main
-      path: packages/restage
-  restage_material:
-    git:
-      url: https://github.com/restage-dev/restage.git
-      ref: main
-      path: packages/restage_material
-  restage_codegen:
-    git:
-      url: https://github.com/restage-dev/restage.git
-      ref: main
-      path: packages/restage_codegen
-  rfw_catalog_schema:
-    git:
-      url: https://github.com/restage-dev/restage.git
-      ref: main
-      path: packages/rfw_catalog_schema
-```
-
 ### Start with existing Flutter UI
 
 Keep your layout, theme, supported local state and helper widgets. Add the import,
@@ -134,9 +155,9 @@ replace its app mount with `<ClassName>Surface(...)`. Your router, services and
 state owners can stay where they are; pass their display values through the
 constructor and connect app behavior through events.
 
-Fix unsupported expressions where the compiler reports them. Keep custom native
-widgets small, so the layout and content around them can still change over the
-air. Check both
+Code the build can't deliver renders from your app, and `restage build report`
+shows each part and why. Keep those parts small. The layout and content around
+them can still change over the air. Check both
 the original-widget fallback and delivered content with the same data and
 interactions.
 
@@ -205,8 +226,8 @@ placement name. It is optional for screens, paywalls and flows.
 
 The lower-level `RestagePlacement(id: ..., fallbackBuilder: ...)` and
 `RestagePlacement.forSurface` APIs let you supply the fallback yourself.
-`RestagePlacement.flow` also requires the surface type and a
-`SurfaceHostContractV1` that describes what the placement accepts; it delivers
+`RestagePlacement.flow` also requires a `SurfaceHostContractV1` that describes
+what the placement accepts, and takes a `surfaceType` (onboarding by default); it delivers
 only compatible flow content. Placement events reach `onEvent` and
 `Restage.events`.
 
@@ -273,8 +294,8 @@ the publishable key, service URL and delivery keys in `build.yaml` (as `api_key`
 `restage init` writes all three), then call
 `Restage.configure(registerWidgets: kRestageWidgetRegistration)` at startup.
 Delivered content renders only when it is signed with one of the delivery keys.
-Hosted delivery
-covers screens, paywalls and flows by default, including each generated mount's
+Without any, every delivered version is refused and mounts show your compiled
+widgets. `restage keys delivery` prints them. Hosted delivery covers screens, paywalls and flows by default, including each generated mount's
 placement. Leave `flowResolver` unset for ordinary setup; a resolver you set
 replaces that default for flows.
 
@@ -328,8 +349,8 @@ raise its wait, and use the events to see how often the wait runs out:
 
 ```dart
 Restage.configure(
-  apiKey: 'rs_pk_...',
-  baseUrl: 'https://api.example.com',
+  // Carries the key, service URL and delivery keys from build.yaml.
+  registerWidgets: kRestageWidgetRegistration,
   firstLaunchWaits: {'home_banner': Duration(seconds: 3)},
 );
 

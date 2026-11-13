@@ -17,6 +17,8 @@ Turn surfaces on with a set of triggers. The most specific set wins: the widget'
 Restage.configure(
   apiKey: 'rs_pk_...',
   baseUrl: 'https://your-backend.example',
+  // From `restage keys delivery`.
+  deliveryKeys: const ['42:Hx3...'],
   // Connect to the update channel hosted by Restage Cloud.
   liveRefreshEdgeUrl: Uri.parse('https://your-edge.example'),
   // App-wide default: every surface takes update signals and the resume check.
@@ -61,6 +63,8 @@ class MyPushChannel implements SurfaceUpdateChannel {
 Restage.configure(
   apiKey: 'rs_pk_...',
   baseUrl: 'https://your-backend.example',
+  // From `restage keys delivery`.
+  deliveryKeys: const ['42:Hx3...'],
   updateChannel: MyPushChannel(),
   liveRefresh: const {SurfaceRefreshTrigger.updateChannel},
 );

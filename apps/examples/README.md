@@ -52,8 +52,9 @@ updates and fall back to compiled Flutter widgets, so app integrations can
 leave bundling off.
 
 `RestageFlowGraph`, `RestageFlowController`, and `RestageScreenView` remain
-available for custom hosting and resolver diagnostics. The standalone map and
-record decoder demos use these lower-level APIs to inspect bundled RFW.
+available for custom hosting and resolver diagnostics. `lib/main_plan_board_demo.dart`
+and `lib/main_section_header_demo.dart` render bundled RFW to exercise map and
+record decoding in a custom widget factory.
 
 The gallery has:
 
@@ -92,6 +93,7 @@ Prices are placeholder text.
 | `narrate_membership` | Expandable cards | The tapped plan expands with its benefits |
 | `lumen_premium` | Calm meditation | Rows with a radio button |
 | `lumen_welcome_offer`, `lumen_annual_upgrade`, `lumen_holiday_promo` | Offer variants | Plan cards or a single plan |
+| `lumen_plus_offer` | Two-screen offer | The plans, then a checkout summary (`lumen_plus_checkout`) before the trial starts |
 
 `fluent_pro`'s "View all plans" is a real `Navigator.push` to a second
 `@Paywall` (`fluent_pro_choose_plan`). The build turns it into a two-screen
@@ -152,17 +154,21 @@ one.
 Flutter does not hot-reload bundled assets. After a rebuild, hot-restart the
 app (press `R` in `flutter run`).
 
-Before pushing, point the example at your own project. `restage init` lists
-the projects and apps in your organization and writes `restage_config.yaml`
-(ignored by git here, since it names your project):
+Before pushing, sign in and point the example at your own project.
+`restage init` lists the projects and apps in your organization and writes
+`restage_config.yaml`. Git ignores that file here because it names your
+project. Signed in, it also writes the publishable key, service URL and
+delivery keys to `build.yaml`:
 
 ```sh
+restage login
 restage init --no-starter --no-add-deps
 ```
 
-Push a surface to Restage Cloud, then publish it:
+Build, then push a surface to Restage Cloud and publish it:
 
 ```sh
+dart run build_runner build
 restage surface push minimal_onboarding
 restage surface publish minimal_onboarding
 ```
@@ -178,15 +184,19 @@ clone runs without it.
 ### Render a published surface
 
 `lib/main_hosted_surface_demo.dart` renders any published paywall by slug,
-using your publishable key:
+using your publishable key and the app's delivery keys:
 
 ```sh
 flutter run -t lib/main_hosted_surface_demo.dart \
   --dart-define=RESTAGE_BASE_URL=https://your-backend.example \
   --dart-define=RESTAGE_API_KEY=rs_pk_... \
   --dart-define=RESTAGE_SURFACE=pulse_paywall \
-  --dart-define=RESTAGE_SURFACE_TYPE=paywall
+  --dart-define=RESTAGE_SURFACE_TYPE=paywall \
+  --dart-define=RESTAGE_DELIVERY_KEYS=<organizationId>:<public key>
 ```
+
+`restage keys delivery` prints the delivery keys. Content signed by any other
+key never renders.
 
 Onboarding, message, survey and general surfaces render through the generated
 `<Name>Surface` mount compiled into the app, such as `FirstRunFlowSurface` in
@@ -219,8 +229,6 @@ flow routes fires typed events. Your app runs its own purchase code. For store-c
 
 ## Authoring limits
 
-- **Don't mix plain and interpolated adjacent strings.** `'a' 'b'` compiles;
-  `'Hi ' '$name'` does not. Write one interpolated string instead.
 - **No `double.infinity`.** The build rejects it. For a full-width child, use
   `Row(children: [Expanded(child: ...)])`, or set
   `crossAxisAlignment: CrossAxisAlignment.stretch` on the column.
@@ -230,7 +238,9 @@ flow routes fires typed events. Your app runs its own purchase code. For store-c
 `.restage/wire-ids.events.jsonl` keeps the catalog IDs for your custom widgets,
 and `.restage/measurement-state.json` keeps the event IDs. Commit both so IDs
 stay stable between builds. The `additional_public_assets` entries in
-`build.yaml` make the build notice when either file changes. Everything under
+`build.yaml` make the build notice when either file changes. Each push writes a
+receipt under `.restage/receipts/`, and `restage library record` writes
+`.restage/library-contracts/`. Commit those too. Everything under
 `.restage/build/` is build output and can be deleted.
 
 ## License

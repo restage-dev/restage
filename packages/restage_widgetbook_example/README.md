@@ -3,7 +3,7 @@
 [Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
 change any screen of a shipped Flutter app without a release.
 
-One set of annotated Flutter widgets and one annotated screen, built into three
+One set of annotated Flutter widgets and two annotated screens, built into three
 outputs: a Restage catalog, an A2UI catalog, and a Widgetbook workbench. This
 package is an example you run from source; it is not published to pub.dev.
 
@@ -117,10 +117,9 @@ restage init --no-starter --no-add-deps
 
 ## Version
 
-This example uses `widgetbook` 4.0.0-beta.14 and its bundled generator.
+This example uses `widgetbook` 4.0.0-beta.14 and its bundled generator. The
+A2UI output requires `a2ui_flutter ^0.3.0` and `a2ui_core ^0.7.0`.
 
 ## License
 
 BSD-3-Clause. See [LICENSE](LICENSE).
-
-The A2UI output requires `a2ui_flutter ^0.3.0` and `a2ui_core ^0.7.0`.

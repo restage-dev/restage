@@ -5,6 +5,8 @@
 [Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
 change any screen of a shipped Flutter app without a release.
 
+This README describes the `main` branch. For a released version, see its page on pub.dev.
+
 Shared types, format schemas, validation, and catalog helpers used by the
 Restage SDK and its build tools. It is plain Dart with no Flutter dependency,
 so the same types compile in a Flutter app, in command-line tools, and on a
@@ -20,8 +22,10 @@ their codecs and validators.
 The main library re-exports the catalog types and the `@RestageWidget` /
 `@RestageProperty` annotations from `package:rfw_catalog_schema`. Import that
 package directly in new code. Custom-widget annotations for specific render
-targets are in `package:restage_shared/a2ui.dart` and
-`package:restage_shared/rfw.dart`.
+targets are in `package:restage_shared/a2ui.dart`,
+`package:restage_shared/rfw.dart` and `package:restage_shared/widgetbook.dart`.
+`package:restage_shared/catalog.dart` holds the widget catalog model that
+generated app catalogs are written against.
 
 A few catalog helpers are defined here:
 
@@ -47,6 +51,14 @@ content can render at an app location. Screen-capture records describe explicit
 samples supplied to authoring tools. These types carry data only; the SDK owns
 mounting and the CLI/MCP tools manage delivery plans.
 
+### Commerce and flow experiments
+
+- `package:restage_shared/commerce.dart` holds the wire contracts for Restage
+  commerce, such as offering and package summaries. The SDK re-exports them
+  from `package:restage/commerce.dart`.
+- `package:restage_shared/flow_experiment.dart` holds the flow-experiment
+  contract and eligibility checks the SDK and the tools share.
+
 ### Theme contract
 
 - **`kThemeContractPaths`**: the `data.theme.*` paths a delivered surface may
@@ -59,15 +71,17 @@ mounting and the CLI/MCP tools manage delivery plans.
 
 ## `lib/src/rfw_formats/`
 
-`lib/src/rfw_formats/` contains copies of a pure-Dart formats library derived
-from [`package:rfw`](https://pub.dev/packages/rfw) 2.0.0 (its `lib/src/dart/`),
-kept identical to their source. It lets pure-Dart programs parse `.rfwtxt` and
-read and write `.rfw` blobs. The Flutter package that holds the source can't be
+`lib/src/rfw_formats/` contains a pure-Dart formats library derived from
+[`package:rfw`](https://pub.dev/packages/rfw) 2.0.0 (its `lib/src/dart/`). It
+adds the nodes Restage surfaces use, such as `Program`, `Effects`, `Guard` and
+`NativeReference`, with their text and binary encodings. It lets pure-Dart
+programs parse `.rfwtxt` and read and write `.rfw` blobs. The Flutter package that holds the source can't be
 used there: its pubspec depends on the Flutter SDK, even though the formats code
 uses only `dart:convert`, `dart:typed_data`, and `package:meta`.
 
-Import it from `package:restage_shared/rfw_formats.dart`, which mirrors
-`package:rfw/formats.dart`. It is kept out of the main library so it doesn't
+Import it from `package:restage_shared/rfw_formats.dart`. Besides the formats
+library, that file exports helpers Restage's tools use, such as icon code points
+and catalog occurrences. It is kept out of the main library so it doesn't
 clash with `package:rfw/rfw.dart` when you import both.
 
 ## License

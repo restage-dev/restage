@@ -41,9 +41,27 @@ In debug builds, a live refresh that swaps what a mounted surface shows prints
 `[restage] live refresh: <surface type> "<id>" now shows r<version>.`, and
 `onSurfaceResolution` reports the swap for a generated placement.
 
-A surface whose Measurement session takes more than 3 s to open keeps its first
-paint and replays it when the session opens, up to 60 s, so a cold first launch
-still counts the view. Outcome reports stop waiting for the session at 3 s.
+A surface whose Measurement session hasn't opened yet holds its first paint and
+up to 256 recorded entries, and replays them when the session opens. A cold
+first launch still counts the view. An open that hasn't finished within 30 s
+fails and drops what it held.
+
+`Restage.measurement.reportPurchase` no longer returns `false` after a fixed
+wait while the paywall's session is opening. Its future completes with `true`
+once the report is delivered and accepted, and with `false` when it can't be
+delivered or is refused. The wait is bounded by the session's 30 s open limit
+and then by the request timeouts.
+
+**Breaking:** `RestageRecording.unrolledKey` returns `String?`, and the
+`RestageRecording` methods that record under a key take a `String?` key. Run
+`dart run build_runner build` to regenerate the code that calls them.
+
+**Breaking:** a host that mounts a flow through `RestageFlowGraph` directly
+binds a screen builder, in `screenBuilders:` or with
+`SurfaceFlowRef.withScreenBuilders`, for each step whose screen class needs
+constructor arguments. Without it, a step that renders app code stops with
+`missing_screen_builder`. Generated `*Surface` mounts ask for these builders
+as required parameters.
 
 A paywall counts as completed only when app code fires one of its `completesOn`
 events, typically after a purchase succeeds (`context.surfaceEvent(event)()`); a
@@ -261,8 +279,8 @@ each decision. A decision that did not depend on install age survives the day
 changing, and a decision the startup prefetch saved serves the first mount.
 This needs a service that names the facts; a response without them is refused.
 
-`surfaceEvent` fires a standalone paywall's custom event, with a value under
-`args['value']`. Flows evaluate `always` and `matches` host-action result
+`context.surfaceEvent` fires a standalone paywall's custom event, with a value
+under `args['value']`. Flows evaluate `always` and `matches` host-action result
 predicates.
 
 `FlowOutboundPolicy.customEvents` hands named screen events to the app with the
@@ -303,11 +321,12 @@ preview hosts share with the SDK. Apps don't import either directly. The render
 host that `restage build push` bundles is a separate package,
 `restage_render_host`.
 
-The package ships an agent skill, `restage-authoring`, for coding agents such as
-Claude Code, Cursor, and Codex. It covers annotations, events, host data,
+The package ships two agent skills for coding agents such as Claude Code,
+Cursor, and Codex. `restage-authoring` covers annotations, events, host data,
 generated mounts, flows, custom widgets, what an update can change without an app
 release, and fixes for build errors, with examples that compile against this
-version. Install or update it with `dart run skills@ get --package restage`.
+version. `restage-operations` covers inspecting, publishing, rolling back,
+routing and measuring surfaces through the CLI, TUI or MCP server. Install or update it with `dart run skills@ get --package restage`.
 
 **Breaking:** `Restage.configure` no longer installs every built-in icon; it
 still includes the complete built-in widget catalog. Generated registration
@@ -400,9 +419,8 @@ and measurement flags. With analytics off, a hosted request carries no
 analytics identifier and no assignment credential; the metering token is
 separate and unaffected.
 
-Reading the operating-system version uses `device_info_plus`. A project that
-resolves its 12.x or 13.x line needs Kotlin 2.2; a project on 11.x needs
-nothing new. It requests no runtime permission on any platform. Both it and the
+Reading the operating-system version uses `device_info_plus` 13.x, and Android
+builds need Kotlin 2.2. It requests no runtime permission on any platform. Both it and the
 existing `package_info_plus` are now reached only from platform-selected files
 a web build does not compile, which is why a web build reports neither fact.
 

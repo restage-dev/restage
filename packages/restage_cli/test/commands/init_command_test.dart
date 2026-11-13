@@ -191,7 +191,7 @@ void main() {
           'restage_material': git('packages/restage_material'),
         });
         expect(written['dev_dependencies'], {
-          'build_runner': '>=2.7.0 <3.0.0',
+          'build_runner': '>=2.15.1 <3.0.0',
           'restage_codegen': git('packages/restage_codegen'),
         });
         expect(written['dependency_overrides'], {

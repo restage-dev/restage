@@ -1,6 +1,6 @@
 # restage_mcp
 
-[![pub package](https://img.shields.io/pub/v/restage_mcp.svg)](https://pub.dev/packages/restage_mcp) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
+[![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
 [Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
 change any screen of a shipped Flutter app without a release.
@@ -85,9 +85,14 @@ session token. Use `restage_whoami` to check who you're signed in as, and
 
 ### Choosing the backend to sign in against
 
-With no session yet, the in-agent login signs in to Restage Cloud
-(`https://api.restage.dev/`). To sign in to another backend, such as a local
-one, set `RESTAGE_BACKEND_URL` in the host config:
+With no session yet, the in-agent login signs in to the backend
+`RESTAGE_BACKEND_URL` names. Without it, `restage_login` reads the project's
+`restage_config.yaml` (`endpoint`) or `build.yaml` (`base_url`), from
+`projectDirectory` or the server's working directory, and otherwise signs in to
+Restage Cloud (`https://api.restage.dev/`). A project file can name only
+Restage's own servers or this machine, and any other server it names is
+refused. To sign in to another backend, such as a local one, set
+`RESTAGE_BACKEND_URL` in the host config:
 
 ```json
 {
@@ -128,14 +133,24 @@ command it matches.
 Tools that act on an environment take `environmentSlug`, plus `runtimePlane`
 (`sandbox` or `live`) when that environment exists on both planes. A call
 that leaves the plane out for such an environment is refused, so it never
-reaches the wrong plane. `environmentTargetId` names a target exactly. `organizationId` is
-needed only when you belong to more than one organization.
+reaches the wrong plane. `environmentTargetId` names a target exactly. For
+most tools, `organizationId` is needed only when you belong to more than one
+organization.
+
+Some tools read or change one exact target and name every part of it:
+`organizationId`, `projectSlug`, `appSlug`, `environmentSlug` and
+`runtimePlane`, and most also need `environmentTargetId`. Each tool's schema
+lists what it requires. These tools take no `projectDirectory`. They are the analytics reads, `restage_read_surface_funnel`,
+`restage_experiment_apply`, the `restage_placement_*` and
+`restage_delivery_policy_*` tools and `restage_apply_canonical_mutation`.
+`restage_list_environment_targets` returns the `environmentTargetId`, and a
+call whose parts don't name one target you can access is refused.
 
 The list tools read what you can access right now and filter it by project,
 app, environment, target, and surface. A target ID is checked against what you
 can access on each call.
 
-Every tool that names a project also takes `projectDirectory`. The
+The other tools that name a project also take `projectDirectory`. The
 `restage_config.yaml` there supplies the project, app, environment,
 organization, and plane the call leaves out. An argument you pass wins over
 the config.
@@ -151,8 +166,10 @@ Ordinary reads and sandbox targets do not need `confirmLive`.
 The tools that change what a target serves are `restage_publish_surface`,
 `restage_rollback_surface`, `restage_kill_surface`,
 `restage_freeze_surface`, `restage_unfreeze_surface`,
-`restage_publish_routing`, `restage_rollback_route`,
-`restage_apply_canonical_mutation`, and `restage_activate_experiment`.
+`restage_review_routing`, `restage_review_route_rollback`,
+`restage_publish_routing`, `restage_rollback_route`, the placement sample tools
+that change a stored sample, `restage_apply_canonical_mutation`, and
+`restage_activate_experiment`.
 `restage_experiment_apply` asks only for `activateDraft`, `pauseExperiment`,
 `resumeExperiment`, and `concludeExperiment`. The CLI asks for the same changes. Most accept
 `--yes` after approval; live surface kill and rollback require an interactive
@@ -219,6 +236,7 @@ Routing decides which published version each request receives.
 | --- | --- |
 | `restage_rename_surface_version` | Set or clear a version label. |
 | `restage_archive_surface` / `restage_restore_surface` | Archive a surface across environments, or restore it to the list for publication. |
+| `restage_delete_surface` | Delete an archived surface and its versions for good (admin). `confirm` repeats the surface id. It's refused while a running experiment, a delivery rule or requests in the last 30 days still use it. |
 | `restage_check_libraries` | List live versions, delivery rules and experiment arms that the local build would stop rendering, based on its recorded library versions. |
 | `restage_record_libraries` | Record a package's widget library versions from its last build, before the package is published. |
 
@@ -260,14 +278,20 @@ command that fixes it.
 | `restage_list_builds` | List an app's builds (one per environment and one per user), with the version, the commit it was built from, and the widget libraries it includes. |
 | `restage_push_build` | Build the app's widgets and push the build: to an environment with `environmentSlug`, or to your own build without it. Runs a Flutter web build, so it can take minutes. |
 | `restage_push_catalog` | Upload the app's generated widget catalog, which lists your own widgets in the dashboard editor's palette. Devices and previews do not need it. |
+| `restage_build_report` | Report what the last local build delivers and what renders from the app, like `restage build report --json`. `accept` records it as the baseline, and `generatedErrors` lists any generated part that doesn't compile. |
+| `restage_widget_promote` | Move a widget that renders from the app into a widget class of your own, like `restage widget promote`. |
 
 **Discovery**
 
 | Tool | What it does |
 | --- | --- |
 | `restage_list_organizations` | The organizations you belong to, with your role. |
+| `restage_rename_organization` | Rename an organization (admin). Its slug stays. |
 | `restage_list_projects` | Projects under an organization. |
 | `restage_list_apps` | Apps under a project. |
+| `restage_rename_app` | Rename an app (admin). Its slug, SDK configuration and keys stay. |
+| `restage_delete_app` | Delete an app nothing uses (admin). It takes the app's exact name, and it's refused while the app has serving surfaces, active API keys, running experiments or delivery rules. |
+| `restage_list_components` / `restage_get_component` | List the shared components a project can use, or read one with its imports, entry widget and slots. |
 | `restage_list_environments` | Environments under a project. |
 | `restage_list_environment_targets` | Environment targets under an app. |
 
@@ -280,6 +304,12 @@ command that fixes it.
 | `restage_list_product_slots` | Product slots: the handles surfaces use to refer to products. |
 | `restage_upsert_product_slot` | Create a slot, or change one's keys and the products it maps (admin). See the note below. |
 | `restage_list_store_connections` | Store connections (non-secret details only). |
+| `restage_read_commerce_catalog` | Read one page of an environment target's offerings, products, slots, entitlements or RevenueCat imports, with the current offering and a continuation cursor. |
+| `restage_save_commerce_offering` | Save an offering and upsert the packages you pass (admin). Packages you leave out stay unchanged. |
+| `restage_set_current_commerce_offering` | Set or clear the current offering of an environment target (admin). |
+| `restage_retire_commerce_offering` | Retire an offering and its live packages, or revive them with `revive` (admin). |
+| `restage_save_entitlement_definition` | Create, retire, revive or detach an entitlement key (admin). Keys can't be renamed. |
+| `restage_configure_product_fulfillment` | Set how a one-time product is fulfilled, and the duration of a non-renewing subscription (admin). |
 
 > **`restage_upsert_product_slot` changes only the products you list.** `add`,
 > `remove` and `move` are JSON arrays of `{"productId", "basePlanId"}`. An add of
@@ -293,6 +323,7 @@ command that fixes it.
 | --- | --- |
 | `restage_get_app_config` | An app's iOS bundle id, Android package, and web domain. |
 | `restage_update_app_config` | Update them (admin). Omit a field to leave it; pass an empty string to clear it. |
+| `restage_read_platforms` | For iOS, Android and web in each environment: whether the SDK has been seen, its latest presentation, app build and SDK version, and presentations and fallbacks over the last seven days. Use it to check that an app is connected. |
 
 **API keys**
 
@@ -302,6 +333,7 @@ command that fixes it.
 | `restage_mint_api_key` | Mint a public key for an environment and plane (admin). The key is returned in full. |
 | `restage_revoke_api_key` | Revoke a key by id (admin). |
 | `restage_resolve_api_key` | Find the organization, project, app, environment, and plane a key belongs to. The key is matched locally against key prefixes and never sent. |
+| `restage_delivery_keys` | The public keys the app's delivered content is signed with, the signing key first. `restage_init` writes them to `build.yaml`, and content signed by any other key never renders. |
 
 > This server and the CLI mint public keys only, which ship inside your app.
 > Secret keys are shown once, so create them in the dashboard.
@@ -354,7 +386,7 @@ an operation that changes state. A service refusal returns its code.
 The `readExperimentResults` operation returns unrounded decimal results and their
 supporting counts. It requires `experimentId`, `activationOrdinal` and
 `resultDigest`; take the latter two from the `readExperiment` response's
-`summary.activationOrdinal` and `inferenceReference.resultDigest`. This is separate
+`summary.activationOrdinal` and `summary.inferenceReference.resultDigest`. This is separate
 from the `restage_read_experiment` analytics page.
 
 An agent can work in a loop: read results with
@@ -368,7 +400,9 @@ Activation, pause, resume and conclusion at a live target require
 
 The low-level `restage_apply_canonical_mutation` and `restage_activate_experiment`
 tools still need `RESTAGE_EXPERIMENTAL=1`. The first accepts requests that are
-already encoded; the second also needs an activation API supplied by the host.
+already encoded. The second also needs an activation API that a host embedding
+the server supplies. The `restage_mcp` executable supplies none and never
+registers it.
 Normal experiment work uses `restage_experiment_apply` instead.
 
 ## Security

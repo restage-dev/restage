@@ -54,7 +54,7 @@ final Map<String, Object> initRuntimeDeps = {
 
 /// The dev dependencies init adds.
 final Map<String, Object> initDevDeps = {
-  'build_runner': '>=2.7.0 <3.0.0',
+  'build_runner': '>=2.15.1 <3.0.0',
   'restage_codegen': restageGitSource('packages/restage_codegen'),
 };
 

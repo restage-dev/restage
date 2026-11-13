@@ -61,6 +61,8 @@ Recommendations:
 Restage.configure(
   apiKey: 'rs_pk_...',
   baseUrl: 'https://api.example.com',
+  // From `restage keys delivery`.
+  deliveryKeys: const ['42:Hx3...'],
   // The default; shown here for clarity.
   firstLaunchWait: const Duration(seconds: 3),
   // A surface whose compiled original is a fine first impression.
