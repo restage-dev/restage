@@ -183,20 +183,21 @@ final class RestageRecording {
   }
 
   /// Records [value] under [key] in the map of [items]' current item, or at
-  /// the top when [items] is null, and returns it.
-  T value<T>(String key, T value, [String? items]) {
-    _frame(items)[key] = restageHostValue(value);
+  /// the top when [items] is null, and returns it. A null [key] is an
+  /// iteration the design reads nothing from.
+  T value<T>(String? key, T value, [String? items]) {
+    if (key != null) _frame(items)[key] = restageHostValue(value);
     return value;
   }
 
   /// Records that a condition held as [held] and returns [elements].
-  List<T> mark<T>(String key, bool held, List<T> elements, [String? items]) {
+  List<T> mark<T>(String? key, bool held, List<T> elements, [String? items]) {
     value(key, held, items);
     return elements;
   }
 
   /// Records that a condition held as [held] and returns [result].
-  T taken<T>(String key, bool held, T result, [String? items]) {
+  T taken<T>(String? key, bool held, T result, [String? items]) {
     value(key, held, items);
     return result;
   }
@@ -221,25 +222,26 @@ final class RestageRecording {
   final Map<String, TextScaler?> scalers = {};
 
   /// Records the text scaler [value] under [key] and returns it.
-  T scaler<T extends TextScaler?>(String key, T value) {
-    scalers[key] = value;
+  T scaler<T extends TextScaler?>(String? key, T value) {
+    if (key != null) scalers[key] = value;
     return value;
   }
 
   /// Records which return the build took and returns [value].
-  T branch<T>(String key, int index, T value) {
-    values[key] = index;
+  T branch<T>(String? key, int index, T value) {
+    if (key != null) values[key] = index;
     return value;
   }
 
   /// Records [value] as a native object and returns it.
   T native<T>(
-    String key,
+    String? key,
     T value, {
     String? items,
     required String type,
     required bool nullable,
   }) {
+    if (key == null) return value;
     if (items == null) {
       natives[key] = value;
       return value;
@@ -336,9 +338,10 @@ final class RestageRecording {
   }
 
   /// The key of the value the current iteration of [loops] records, from
-  /// [keys] by position.
-  String unrolledKey(Map<String, String> keys, List<int> loops) =>
-      keys[loops.map((loop) => _positions[loop]).join('.')]!;
+  /// [keys] by position, or null for an iteration the design reads nothing
+  /// from there.
+  String? unrolledKey(Map<String, String> keys, List<int> loops) =>
+      keys[loops.map((loop) => _positions[loop]).join('.')];
 
   /// The map [items]' current item records into.
   Map<String, Object?> _frame(String? items) =>

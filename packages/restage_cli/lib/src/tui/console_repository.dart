@@ -526,6 +526,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
     try {
       final loaded = await SurfacePublicationManifestLoader().load(
         projectRoot: projectRoot,
+        built: false,
       );
       return {
         for (final entry in loaded.manifest.publications)

@@ -1,0 +1,900 @@
+// Stand-ins for the app's design system, state and models, with the
+// signatures its pages use. App widgets paint or lay out from app code, so a
+// design places them as islands, as the app's own do.
+
+import 'package:flutter/widgets.dart';
+
+// Tokens.
+
+abstract final class KitSpace {
+  static const double xs = 6;
+  static const double s = 8;
+  static const double m = 14;
+  static const double l = 20;
+  static const double xl = 28;
+  static const double x3 = 40;
+  static const double gridGap = 10;
+}
+
+abstract final class KitRadius {
+  static const double xl = 28;
+}
+
+abstract final class KitSize {
+  static const double minTap = 44;
+}
+
+abstract final class KitIconSize {
+  static const double small = 18;
+}
+
+abstract final class KitType {
+  static const display = TextStyle(fontSize: 34, fontWeight: FontWeight.w700);
+  static const headline = TextStyle(fontSize: 24, fontWeight: FontWeight.w600);
+  static const title = TextStyle(fontSize: 28, fontWeight: FontWeight.w600);
+  static const lede = TextStyle(fontSize: 17);
+  static const body = TextStyle(fontSize: 16);
+  static const secondary = TextStyle(fontSize: 15);
+  static const captionLarge = TextStyle(fontSize: 13);
+  static const overline = TextStyle(fontSize: 11, letterSpacing: 1.2);
+  static const sceneName = TextStyle(fontSize: 12, fontWeight: FontWeight.w600);
+}
+
+final class KitColors {
+  const KitColors._();
+  Color get ink => const Color(0xFF15211B);
+  Color get ink2 => const Color(0xFF51605A);
+  Color get ground => const Color(0xFFF6F3EC);
+  Color get fade => const Color(0x00F6F3EC);
+  Color get primary => const Color(0xFF2F6B4F);
+  Color get lilac => const Color(0xFFE7E0F5);
+  Color get lilacInk => const Color(0xFF5B4A86);
+  static KitColors of(BuildContext context) => const KitColors._();
+}
+
+final class KitIconData {
+  const KitIconData(this.codePoint);
+  final int codePoint;
+}
+
+abstract final class KitIcons {
+  static const sun = KitIconData(1);
+  static const clock = KitIconData(2);
+  static const home = KitIconData(3);
+  static const moon = KitIconData(4);
+  static const cup = KitIconData(5);
+  static const drop = KitIconData(6);
+  static const dropFilled = KitIconData(7);
+  static const bell = KitIconData(8);
+  static const star = KitIconData(9);
+  static const chart = KitIconData(10);
+  static const book = KitIconData(11);
+  static const camera = KitIconData(12);
+}
+
+abstract final class KitMotion {
+  static bool reduceMotionOf(BuildContext context) => false;
+}
+
+// A painter for the stand-ins: painting is app code a design can't express.
+final class _Paint extends CustomPainter {
+  const _Paint();
+  @override
+  void paint(Canvas canvas, Size size) {}
+  @override
+  bool shouldRepaint(_Paint oldDelegate) => false;
+}
+
+Widget _painted(Widget child) =>
+    CustomPaint(painter: const _Paint(), child: child);
+
+// Widgets.
+
+class KitBalancedText extends StatelessWidget {
+  const KitBalancedText(this.text, {super.key, this.style, this.textAlign});
+  final String text;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) =>
+            Text(text, style: style, textAlign: textAlign),
+      );
+}
+
+class KitIcon extends StatelessWidget {
+  const KitIcon(this.icon, {super.key, this.size = 24, this.color});
+  final KitIconData icon;
+  final double size;
+  final Color? color;
+  @override
+  Widget build(BuildContext context) =>
+      _painted(SizedBox(width: size, height: size));
+}
+
+class KitTopBar extends StatelessWidget {
+  const KitTopBar({
+    super.key,
+    this.onBack,
+    this.onClose,
+    this.center,
+    this.trailingLabel,
+    this.onTrailing,
+    this.trailingSpace = false,
+  });
+  final VoidCallback? onBack;
+  final VoidCallback? onClose;
+  final Widget? center;
+  final String? trailingLabel;
+  final VoidCallback? onTrailing;
+  final bool trailingSpace;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: 56,
+        child: Row(
+          children: [
+            GestureDetector(onTap: onBack ?? onClose, child: const Text('<')),
+            Expanded(child: Center(child: center)),
+            if (trailingLabel != null)
+              GestureDetector(onTap: onTrailing, child: Text(trailingLabel!)),
+          ],
+        ),
+      );
+}
+
+class KitProgressDots extends StatelessWidget {
+  const KitProgressDots({super.key, required this.step, required this.count});
+  final int step;
+  final int count;
+  @override
+  Widget build(BuildContext context) => _painted(SizedBox(width: count * 12));
+}
+
+enum KitButtonVariant { primary, ghost }
+
+class KitButton extends StatelessWidget {
+  // Not const: building one runs the app's code, as the app's own does.
+  KitButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.loading = false,
+    this.done = false,
+    this.variant = KitButtonVariant.primary,
+  });
+  final String label;
+  final VoidCallback? onPressed;
+  final KitIconData? icon;
+  final bool loading;
+  final bool done;
+  final KitButtonVariant variant;
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: loading ? null : onPressed,
+        child: _painted(SizedBox(height: 52, child: Center(child: Text(label)))),
+      );
+}
+
+enum KitOptionTone { peach, surface, dew, lilac }
+
+class KitOptionCard extends StatelessWidget {
+  const KitOptionCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.tone,
+    required this.selected,
+    required this.onTap,
+  });
+  final KitIconData icon;
+  final String title;
+  final String description;
+  final KitOptionTone tone;
+  final bool selected;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: _painted(Column(children: [Text(title), Text(description)])),
+      );
+}
+
+class KitModeArt extends StatelessWidget {
+  const KitModeArt({super.key, required this.level});
+  final int level;
+  @override
+  Widget build(BuildContext context) => _painted(const SizedBox.expand());
+}
+
+class KitWelcomeArt extends StatelessWidget {
+  const KitWelcomeArt({super.key, required this.waveTick});
+  final int waveTick;
+  @override
+  Widget build(BuildContext context) => _painted(const SizedBox.expand());
+}
+
+class KitBadgeArt extends StatelessWidget {
+  const KitBadgeArt({super.key, required this.celebrateTick, this.open = false});
+  final int celebrateTick;
+  final bool open;
+  @override
+  Widget build(BuildContext context) => _painted(const SizedBox(width: 80));
+}
+
+class KitRivePanel extends StatefulWidget {
+  const KitRivePanel({
+    super.key,
+    required this.clipBelow,
+    required this.repaintOn,
+    required this.child,
+  });
+  final GlobalKey clipBelow;
+  final Listenable repaintOn;
+  final Widget child;
+  @override
+  State<KitRivePanel> createState() => _KitRivePanelState();
+}
+
+class _KitRivePanelState extends State<KitRivePanel> {
+  @override
+  Widget build(BuildContext context) => _painted(widget.child);
+}
+
+class KitItemTile extends StatelessWidget {
+  const KitItemTile({
+    super.key,
+    required this.name,
+    required this.selected,
+    required this.onTap,
+    required this.art,
+  });
+  final String name;
+  final bool selected;
+  final VoidCallback onTap;
+  final Widget art;
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: _painted(Column(children: [Expanded(child: art), Text(name)])),
+      );
+}
+
+class KitSectionHeader extends StatelessWidget {
+  const KitSectionHeader(this.title, {super.key, this.meta});
+  final String title;
+  final String? meta;
+  @override
+  Widget build(BuildContext context) =>
+      Row(children: [Text(title), if (meta != null) Text(meta!)]);
+}
+
+class KitInput extends StatelessWidget {
+  const KitInput.search({
+    super.key,
+    required this.controller,
+    required this.hint,
+    required this.onChanged,
+  });
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String> onChanged;
+  @override
+  Widget build(BuildContext context) => EditableText(
+        controller: controller,
+        focusNode: FocusNode(),
+        style: KitType.body,
+        cursorColor: const Color(0xFF000000),
+        backgroundCursorColor: const Color(0xFF000000),
+        onChanged: onChanged,
+      );
+}
+
+class KitFilterChip extends StatelessWidget {
+  const KitFilterChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) =>
+      GestureDetector(onTap: onTap, child: _painted(Text(label)));
+}
+
+class KitPresetCard extends StatelessWidget {
+  const KitPresetCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.selected,
+    required this.onTap,
+  });
+  final KitIconData icon;
+  final String title;
+  final String value;
+  final bool selected;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: _painted(Column(children: [Text(title), Text(value)])),
+      );
+}
+
+typedef KitTimeChanged = void Function(int hour, int minute, {required bool pm});
+
+class KitTimeWheel extends StatefulWidget {
+  const KitTimeWheel({
+    super.key,
+    required this.hour,
+    required this.minute,
+    required this.pm,
+    required this.onChanged,
+  });
+  final int hour;
+  final int minute;
+  final bool pm;
+  final KitTimeChanged onChanged;
+  @override
+  State<KitTimeWheel> createState() => _KitTimeWheelState();
+}
+
+class _KitTimeWheelState extends State<KitTimeWheel> {
+  @override
+  Widget build(BuildContext context) =>
+      _painted(Text('${widget.hour}:${widget.minute}'));
+}
+
+class KitBanner extends StatelessWidget {
+  const KitBanner.info({super.key, required this.icon, required this.rich});
+  final KitIconData icon;
+  final Widget rich;
+  @override
+  Widget build(BuildContext context) =>
+      _painted(Row(children: [KitIcon(icon), Expanded(child: rich)]));
+}
+
+class KitNotificationPreview extends StatelessWidget {
+  const KitNotificationPreview({
+    super.key,
+    required this.appName,
+    required this.time,
+    required this.title,
+    required this.body,
+  });
+  final String appName;
+  final String time;
+  final String title;
+  final String body;
+  @override
+  Widget build(BuildContext context) =>
+      _painted(Column(children: [Text(appName), Text(title), Text(body)]));
+}
+
+class KitBoardItem {
+  const KitBoardItem({
+    required this.asset,
+    required this.artboard,
+    required this.label,
+  });
+  final String asset;
+  final String artboard;
+  final Widget label;
+}
+
+class KitBoardScene extends StatefulWidget {
+  const KitBoardScene({
+    super.key,
+    required this.items,
+    required this.onItemLanded,
+  });
+  final List<KitBoardItem> items;
+  final ValueChanged<int> onItemLanded;
+  @override
+  State<KitBoardScene> createState() => _KitBoardSceneState();
+}
+
+class _KitBoardSceneState extends State<KitBoardScene> {
+  @override
+  Widget build(BuildContext context) => _painted(
+        Row(children: [for (final item in widget.items) item.label]),
+      );
+}
+
+class KitPressable extends StatelessWidget {
+  const KitPressable({
+    super.key,
+    required this.onTap,
+    required this.builder,
+    this.semanticLabel,
+  });
+  final VoidCallback onTap;
+  final String? semanticLabel;
+  final Widget Function(BuildContext context, bool pressed) builder;
+  @override
+  Widget build(BuildContext context) =>
+      GestureDetector(onTap: onTap, child: builder(context, false));
+}
+
+enum KitStatusTone { neutral, good }
+
+class KitStatusChip extends StatelessWidget {
+  const KitStatusChip({super.key, required this.label, required this.tone});
+  final String label;
+  final KitStatusTone tone;
+  @override
+  Widget build(BuildContext context) => _painted(Text(label));
+}
+
+enum KitFeatureTone { sage, dew, peach, lilac }
+
+class KitFeatureRow extends StatelessWidget {
+  const KitFeatureRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.detail,
+    required this.tone,
+    this.chipLabel,
+  });
+  final KitIconData icon;
+  final String title;
+  final String detail;
+  final KitFeatureTone tone;
+  final String? chipLabel;
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          KitIcon(icon),
+          Expanded(child: Column(children: [Text(title), Text(detail)])),
+          if (chipLabel != null) Text(chipLabel!),
+        ],
+      );
+}
+
+class KitPlanCard extends StatelessWidget {
+  const KitPlanCard({
+    super.key,
+    required this.product,
+    required this.period,
+    required this.price,
+    required this.priceUnit,
+    required this.detail,
+    required this.badge,
+    required this.current,
+    required this.selected,
+    required this.onTap,
+  });
+  final String product;
+  final String period;
+  final String price;
+  final String priceUnit;
+  final String detail;
+  final String? badge;
+  final bool current;
+  final bool selected;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: _painted(Column(children: [Text(period), Text(price)])),
+      );
+}
+
+class KitTimelineStep {
+  const KitTimelineStep({required this.title, required this.detail});
+  final String title;
+  final String detail;
+}
+
+class KitTrialTimeline extends StatelessWidget {
+  const KitTrialTimeline({super.key, required this.steps});
+  final List<KitTimelineStep> steps;
+  @override
+  Widget build(BuildContext context) =>
+      _painted(Column(children: [for (final s in steps) Text(s.title)]));
+}
+
+class KitLegalText extends StatelessWidget {
+  const KitLegalText({super.key, required this.heading, required this.paragraphs});
+  final String heading;
+  final List<String> paragraphs;
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [Text(heading), for (final p in paragraphs) Text(p)]);
+}
+
+class KitLink {
+  const KitLink({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+}
+
+class KitLinkRow extends StatelessWidget {
+  const KitLinkRow({super.key, required this.links});
+  final List<KitLink> links;
+  @override
+  Widget build(BuildContext context) => Wrap(
+        children: [
+          for (final link in links)
+            GestureDetector(onTap: link.onTap, child: Text(link.label)),
+        ],
+      );
+}
+
+class PinnedBottomColumn extends StatelessWidget {
+  const PinnedBottomColumn({
+    super.key,
+    required this.bottom,
+    required this.children,
+    this.padding = EdgeInsets.zero,
+  });
+  final EdgeInsets padding;
+  final Widget bottom;
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: padding,
+            sliver: SliverList(delegate: SliverChildListDelegate(children)),
+          ),
+          SliverFillRemaining(hasScrollBody: false, child: bottom),
+        ],
+      );
+}
+
+class ToastLayer extends StatelessWidget {
+  const ToastLayer({super.key, required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => _painted(child);
+}
+
+// State management.
+
+abstract class Bloc<E, S> extends ChangeNotifier {
+  Bloc(this._state);
+  S _state;
+  S get state => _state;
+  void emit(S state) {
+    _state = state;
+    notifyListeners();
+  }
+
+  void add(E event) {}
+}
+
+final _blocs = <Type, Object>{};
+
+extension BlocRead on BuildContext {
+  T read<T>() => _blocs[T]! as T;
+  V value<T, V>() => (_blocs[T]! as Bloc<Object?, V>).state;
+}
+
+class BlocSignalBuilder<B extends Bloc<Object?, S>, S> extends StatefulWidget {
+  const BlocSignalBuilder({super.key, required this.builder});
+  final Widget Function(BuildContext context, S state) builder;
+  @override
+  State<BlocSignalBuilder<B, S>> createState() => _BlocSignalBuilderState<B, S>();
+}
+
+class _BlocSignalBuilderState<B extends Bloc<Object?, S>, S>
+    extends State<BlocSignalBuilder<B, S>> {
+  late final B _bloc = context.read<B>();
+
+  @override
+  void initState() {
+    super.initState();
+    _bloc.addListener(_changed);
+  }
+
+  void _changed() => setState(() {});
+
+  @override
+  void dispose() {
+    _bloc.removeListener(_changed);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, _bloc.state);
+}
+
+class BlocSignalListener<B extends Bloc<Object?, S>, S>
+    extends StatelessWidget {
+  const BlocSignalListener({
+    super.key,
+    required this.listener,
+    required this.child,
+  });
+  final void Function(BuildContext context, S state) listener;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => child;
+}
+
+// Models.
+
+enum HomeMode { vivid, bright, medium, low }
+
+enum ItemFilter { popular, easy, lowMode, shared }
+
+enum AmountUnit { cups, ml }
+
+final class TimeOfDayValue {
+  const TimeOfDayValue(this.hour, this.minute);
+  final int hour;
+  final int minute;
+  int get hour12 => hour % 12 == 0 ? 12 : hour % 12;
+  bool get pm => hour >= 12;
+}
+
+enum ReminderPreset {
+  morning(TimeOfDayValue(8, 0)),
+  lunch(TimeOfDayValue(12, 30)),
+  evening(TimeOfDayValue(19, 0));
+
+  const ReminderPreset(this.time);
+  final TimeOfDayValue time;
+}
+
+final class ItemKind {
+  const ItemKind(
+    this.id,
+    this.commonName, {
+    this.difficulty = 'easy',
+    this.lowModeOk = false,
+    this.shared = false,
+    this.riveFile = 'item.riv',
+    this.riveArtboard = 'item',
+  });
+  final String id;
+  final String commonName;
+  final String difficulty;
+  final bool lowModeOk;
+  final bool shared;
+  final String riveFile;
+  final String riveArtboard;
+}
+
+final class ItemCatalog {
+  const ItemCatalog(this.kind);
+  final List<ItemKind> kind;
+  ItemKind byId(String id) => kind.firstWhere((s) => s.id == id);
+  List<ItemKind> search(String query) => [
+        for (final s in kind)
+          if (s.commonName.toLowerCase().contains(query.toLowerCase())) s,
+      ];
+}
+
+final class OnboardingState {
+  const OnboardingState({
+    this.selected = const [],
+    this.names = const {},
+    this.cheerTicks = const {},
+    this.query = '',
+    this.filter = ItemFilter.popular,
+    this.mode = HomeMode.medium,
+    this.time = const TimeOfDayValue(8, 0),
+    this.preset,
+    this.busy = false,
+    this.waveTick = 0,
+    this.grantedTick = 0,
+  });
+  final List<String> selected;
+  final Map<String, String> names;
+  final Map<String, int> cheerTicks;
+  final String query;
+  final ItemFilter filter;
+  final HomeMode mode;
+  final TimeOfDayValue time;
+  final ReminderPreset? preset;
+  final bool busy;
+  final int waveTick;
+  final int grantedTick;
+}
+
+sealed class OnboardingEvent {
+  const OnboardingEvent();
+}
+
+final class BackPressed extends OnboardingEvent {
+  const BackPressed();
+}
+
+final class SkipPressed extends OnboardingEvent {
+  const SkipPressed();
+}
+
+final class ContinuePressed extends OnboardingEvent {
+  const ContinuePressed();
+}
+
+final class GetStarted extends OnboardingEvent {
+  const GetStarted();
+}
+
+final class BoardConfirmed extends OnboardingEvent {
+  const BoardConfirmed();
+}
+
+final class RemindersAccepted extends OnboardingEvent {
+  const RemindersAccepted();
+}
+
+final class RemindersDeclined extends OnboardingEvent {
+  const RemindersDeclined();
+}
+
+final class ModeSelected extends OnboardingEvent {
+  const ModeSelected(this.mode);
+  final HomeMode mode;
+}
+
+final class KindToggled extends OnboardingEvent {
+  const KindToggled(this.id);
+  final String id;
+}
+
+final class SearchChanged extends OnboardingEvent {
+  const SearchChanged(this.query);
+  final String query;
+}
+
+final class FilterSelected extends OnboardingEvent {
+  const FilterSelected(this.filter);
+  final ItemFilter filter;
+}
+
+final class ReminderTimeChosen extends OnboardingEvent {
+  const ReminderTimeChosen(this.time);
+  final TimeOfDayValue time;
+}
+
+final class ItemRenamed extends OnboardingEvent {
+  const ItemRenamed(this.id, this.name);
+  final String id;
+  final String name;
+}
+
+final class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
+  OnboardingBloc() : super(const OnboardingState());
+}
+
+final class NowCubit extends Bloc<Object?, DateTime> {
+  NowCubit() : super(DateTime(2026));
+}
+
+enum PlusPeriod { yearly, monthly }
+
+final class PlusProduct {
+  const PlusProduct(this.period, this.priceLabel, this.breakdown, this.badge);
+  final PlusPeriod period;
+  final String priceLabel;
+  final String breakdown;
+  final String? badge;
+}
+
+final class PlusEntitlement {
+  const PlusEntitlement(this.period, this.renewsAt);
+  final PlusPeriod period;
+  final DateTime renewsAt;
+}
+
+final class PlusCubit extends Bloc<Object?, PlusEntitlement?> {
+  PlusCubit() : super(null);
+}
+
+enum PaywallStatus {
+  idle,
+  purchasing,
+  celebrating,
+  restoring,
+  closed,
+  failed,
+  nothingToRestore,
+}
+
+final class PaywallState {
+  const PaywallState({
+    this.status = PaywallStatus.idle,
+    this.selected = PlusPeriod.yearly,
+    this.celebrateTick = 0,
+  });
+  final PaywallStatus status;
+  final PlusPeriod selected;
+  final int celebrateTick;
+}
+
+final class PaywallCubit extends Bloc<Object?, PaywallState> {
+  PaywallCubit() : super(const PaywallState());
+  List<PlusProduct> get products => const [
+        PlusProduct(PlusPeriod.yearly, r'$29.99', r'$2.50 a month', 'Best'),
+        PlusProduct(PlusPeriod.monthly, r'$3.99', 'Billed monthly', null),
+      ];
+  void select(PlusPeriod period) {}
+  void purchase() {}
+  void restore() {}
+  void acknowledge() {}
+}
+
+final class ToastCubit extends Bloc<Object?, String?> {
+  ToastCubit() : super(null);
+  void show(String message) {}
+}
+
+// App services.
+
+abstract final class AppConfig {
+  static const int freeItemLimit = 3;
+  static const int trialDays = 7;
+  static const int trialReminderDay = 5;
+}
+
+enum AppLinks { terms, privacy }
+
+final class AppClock {
+  const AppClock();
+  DateTime now() => DateTime(2026);
+}
+
+final class AppHaptics {
+  const AppHaptics();
+  void medium() {}
+}
+
+final class AppLinksOpener {
+  const AppLinksOpener();
+  void open(AppLinks link) {}
+}
+
+final class AppScope {
+  const AppScope._();
+  ItemCatalog get catalog => const ItemCatalog([
+        ItemKind('alpha', 'Alpha'),
+        ItemKind('beta', 'Beta', difficulty: 'medium'),
+      ]);
+  AppClock get clock => const AppClock();
+  AppHaptics get haptics => const AppHaptics();
+  AppLinksOpener get links => const AppLinksOpener();
+  static AppScope of(BuildContext context) => const AppScope._();
+}
+
+abstract final class AppCopy {
+  static String time(TimeOfDayValue time) =>
+      '${time.hour12}:${time.minute.toString().padLeft(2, '0')} '
+      '${time.pm ? 'PM' : 'AM'}';
+  static String shortDate(DateTime date) => '${date.month}/${date.day}';
+  static String homeModeSummary(HomeMode mode) => mode.name;
+  static String reminderBody(int amount, AmountUnit unit) =>
+      'Add $amount ${unit.name}.';
+}
+
+class KindArt extends StatelessWidget {
+  const KindArt({
+    super.key,
+    required this.kind,
+    this.sway = true,
+    this.progress = 0,
+    this.cheerTick = 0,
+  });
+  final ItemKind kind;
+  final bool sway;
+  final double progress;
+  final int cheerTick;
+  @override
+  Widget build(BuildContext context) => _painted(const SizedBox.expand());
+}
+
+Future<String?> showRenameSheet(
+  BuildContext context, {
+  required String currentName,
+}) async =>
+    null;

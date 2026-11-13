@@ -17,6 +17,7 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 import '../shared_resolvers.dart';
+import 'surface_build_chain.dart';
 
 const _fixtureRoot = 'test/fixtures/explicit_authoring';
 
@@ -347,11 +348,7 @@ final _catalogBuilders = <Builder>[
   userCatalogJsonBuilder(BuilderOptions.empty),
 ];
 final _configurationBuilders = <Builder>[
-  restageSourceRosterBuilder(_bundledOptions),
-  userCatalogJsonBuilder(BuilderOptions.empty),
-  restagePackageSurfaceCompilerBuilder(_bundledOptions),
-  restageGeneratedDartBuilder(_bundledOptions),
-  restageOutputsBuilder(_bundledOptions),
+  ...surfaceBuildChain(options: (_) => _bundledOptions),
 ];
 
 void _expectPrimaryConstructorParity(

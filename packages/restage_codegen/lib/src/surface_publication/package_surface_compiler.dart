@@ -51,7 +51,7 @@ import 'package:restage_codegen/src/surface_publication/host_data_contract.dart'
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/manifest_assembler.dart';
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
-import 'package:restage_codegen/src/surface_publication/recorded_layouts.dart';
+import 'package:restage_codegen/src/surface_publication/placement_self_fit.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_compiler_core/restage_compiler_core.dart';
@@ -363,6 +363,7 @@ final class PackageSurfaceCompilationBundle {
     Iterable<SplitSite> splitSites = const [],
     Map<String, List<String>> surfaceIslands = const {},
     Map<String, List<DeliveredComponent>> surfaceComponents = const {},
+    Map<String, String> unfitPublications = const {},
     Iterable<SplitWidgetInput> splitWidgets = const [],
     Iterable<SplitRegistration> splitRegistrations = const [],
     Iterable<MeasurementCompilerPublication> measurementPublications = const [],
@@ -383,6 +384,7 @@ final class PackageSurfaceCompilationBundle {
        splitSites = List.unmodifiable(splitSites),
        surfaceIslands = Map.unmodifiable(surfaceIslands),
        surfaceComponents = Map.unmodifiable(surfaceComponents),
+       unfitPublications = Map.unmodifiable(unfitPublications),
        splitWidgets = List.unmodifiable(splitWidgets),
        splitRegistrations = List.unmodifiable(splitRegistrations),
        measurementPublications = List.unmodifiable(measurementPublications),
@@ -410,6 +412,10 @@ final class PackageSurfaceCompilationBundle {
   /// The shared components each publication's design delivers, by
   /// `<surface>/<slug>`.
   final Map<String, List<DeliveredComponent>> surfaceComponents;
+
+  /// Why each publication that doesn't fit its own placement can't be
+  /// pushed, by `<surface>/<slug>`.
+  final Map<String, String> unfitPublications;
 
   /// Every custom widget the package splits, once per class: what each one's
   /// generated wrapper records and hosts.
@@ -1048,6 +1054,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   final paywallMountNamesByIdentity = <String, String>{};
   // The islands each publication's host provides, by `<surface>/<slug>`.
   final surfaceIslands = <String, List<String>>{};
+  // Why each publication that doesn't fit its own placement can't be pushed.
+  final unfitPublications = <String, String>{};
   final surfaceComponents = <String, List<DeliveredComponent>>{};
   // The package's own split widgets, then each one a surface splits.
   final splitWidgets = <String, SplitWidgetInput>{
@@ -1274,6 +1282,18 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     return '[${spreads.join(', ')}]';
   }
 
+  // The build a flow step's generated mount records, when the step renders
+  // with the app's code.
+  ResolvedWidgetMountInput? stepMountInput(String identity) {
+    final input =
+        pendingStepMounts[identity]?.input ??
+        artifactsByIdentity[identity]
+            ?.firstOrNull
+            ?.rendered
+            .compiledScreenInput;
+    return input == null || !rendersWithAppCode(input) ? null : input;
+  }
+
   // The mounts of a flow's steps, named from the flow's library.
   // The mounts of a flow's steps and their island registrations, which the
   // flow installs before any step runs.
@@ -1296,13 +1316,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         if (pending == null) {
           // A step with its own surface gets a step mount from its own
           // compiled build.
-          final input = artifactsByIdentity[identity]
-              ?.firstOrNull
-              ?.rendered
-              .compiledScreenInput;
-          if (input == null || input.islands.isEmpty && input.hoisted.isEmpty) {
-            continue;
-          }
+          final input = stepMountInput(identity);
+          if (input == null) continue;
           // The step's own build records it, in its own part.
           final source = sourcesByIdentity[identity];
           final partPath = source == null
@@ -2639,18 +2654,30 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       );
       continue;
     }
+    final String reference;
+    try {
+      reference = contract.emitReferenceDart(
+        measurementPublicationDraftDigest: digest,
+        appWidgetLibraries: libraries,
+      );
+    } on Object catch (error) {
+      // Code that doesn't parse is a generator fault, reported as one.
+      _addIssue(
+        issues,
+        code: IssueCode.malformedTranslatorOutput,
+        message:
+            'Could not generate the code for '
+            '`${contract.screen.name}`: $error',
+        location: '${contract.input.assetId.path}#${contract.screen.name}',
+      );
+      continue;
+    }
     _addPartFragment(
       partFragments,
       path: pending.partPath,
       source: pending.source,
       library: contract.input.screen.library,
-      fragment:
-          '${_withoutPartHeader(
-            contract.emitReferenceDart(
-              measurementPublicationDraftDigest: digest,
-              appWidgetLibraries: libraries,
-            ),
-          )}\n\n',
+      fragment: '${_withoutPartHeader(reference)}\n\n',
     );
   }
   for (final pending in pendingCompatibilityScreenParts) {
@@ -2711,6 +2738,24 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       compiled,
     );
   }
+  // Each screen a flow can show, by the id flow documents name it.
+  final stepIdentitiesBySurface = {
+    for (final surface in descendantsBySurface.keys)
+      surface: {
+        for (final rendered in input.renderedSources)
+          if (sourcesByIdentity[rendered.declarationIdentity]
+              case final screenSource?)
+            if (screenSource.surface == null ||
+                screenSource.surface == surface ||
+                screenSource.kind == RestageRosterSourceKind.paywall)
+              rendered.flowScreenId ?? screenSource.effectiveId:
+                  rendered.declarationIdentity,
+        for (final pending in pendingFlowParts)
+          if (pending.flow.surface == surface)
+            for (final screen in pending.graph.screens.values)
+              screen.id: screen.declarationIdentity,
+      },
+  };
   final nativeScreensBySurface = {
     for (final surface in descendantsBySurface.keys)
       surface: {
@@ -2740,42 +2785,32 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         sdkPrefix: pending.sdkPrefix,
       ),
     );
-    // The flow hosts its step mounts' islands.
-    final flowIslands = islandHostFacet([
-      for (final identity in _graphStepIdentities(pending.graph))
-        if (stepMountsByIdentity[identity] != null)
-          ...?artifactsByIdentity[identity]
-              ?.first
-              .rendered
-              .compiledScreenInput
-              ?.islands,
-    ]);
+    // The flow passes what its step mounts pass, for it and every subflow
+    // it reaches.
+    final document = shipped(pending.flowDocumentPath, pending.document);
+    final steps = flowStepHostFacets(
+      document,
+      descendants: descendantsBySurface[pending.flow.surface]!,
+      stepMounts: {
+        for (final MapEntry(key: id, value: identity)
+            in stepIdentitiesBySurface[pending.flow.surface]!.entries)
+          if (stepMountInput(identity) case final input?) id: input,
+      },
+    );
     surfaceIslands['${pending.flow.surface.wireName}/${pending.flow.id}'] =
-        flowIslands.keys.toList();
-    // Each step's build produces its own values, by flow and step, for the
-    // flow and every subflow it reaches.
-    final screenLayouts = <String, SurfaceLayoutsV1>{};
-    final reached = {pending.document.flow};
-    for (final queue = [pending]; queue.isNotEmpty;) {
-      final part = queue.removeLast();
-      for (final identity in _graphStepIdentities(part.graph)) {
-        final step = pendingStepMounts[identity];
-        if (step == null) continue;
-        screenLayouts['${part.document.flow}/${step.id}'] = recordedLayoutsOf(
-          step.input.split?.recordedBuild,
-        );
-      }
-      for (final state
-          in part.document.states.values.whereType<SubFlowState>()) {
-        if (!reached.add(state.flow)) continue;
-        queue.addAll(
-          pendingFlowParts.where(
-            (child) =>
-                child.document.flow == state.flow &&
-                child.flow.surface == pending.flow.surface,
-          ),
-        );
-      }
+        steps.islands.keys.toList();
+    if (steps.conflicts.isNotEmpty) {
+      final issue = Issue(
+        code: IssueCode.surfaceDoesNotFitPlacement,
+        message:
+            "The ${pending.flow.surface.wireName} '${pending.flow.id}' "
+            "can't be published: ${steps.conflicts.join('; ')}. Its "
+            'placement passes one type for each name. Try renaming one of '
+            'them.',
+        location: '${pending.flow.surface.wireName}/${pending.flow.id}',
+      );
+      warnings.add(issue.toLogString());
+      unfitPublications[issue.location] = issue.message;
     }
     final reference = _emitFlowReference(
       refName: pending.refName,
@@ -2783,7 +2818,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       decoderName: pending.decoderName,
       seedName: pending.seedName,
       graph: pending.graph,
-      document: shipped(pending.flowDocumentPath, pending.document),
+      document: document,
       descendants: descendantsBySurface[pending.flow.surface]!,
       nativeScreens: {
         ...nativeScreensBySurface[pending.flow.surface]!,
@@ -2797,8 +2832,9 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       measurementPublicationDraftDigest:
           carrierDraftDigestsByPublicationKey[pending
               .measurementPublicationKey],
-      islands: flowIslands,
-      screenLayouts: screenLayouts,
+      islands: steps.islands,
+      screenLayouts: steps.layouts,
+      providedContext: steps.context,
       issues: issues,
     );
     if (reference == null) continue;
@@ -2876,6 +2912,15 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     artifactLibraryPaths[entry.key] = entry.value.libraryPath;
   }
   if (issues.isNotEmpty) return _invalidResult(issues);
+  // A publication that doesn't fit the placement its own build generates
+  // builds with a warning, and isn't pushed.
+  for (final issue in placementSelfFitIssues(
+    manifest.manifest,
+    generatedParts.values,
+  )) {
+    warnings.add(issue.toLogString());
+    unfitPublications.putIfAbsent(issue.location, () => issue.message);
+  }
 
   return PackageSurfaceCompilationResult(
     bundle: PackageSurfaceCompilationBundle(
@@ -2894,6 +2939,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       ],
       surfaceIslands: surfaceIslands,
       surfaceComponents: surfaceComponents,
+      unfitPublications: unfitPublications,
       splitWidgets: [
         for (final key in splitWidgets.keys.toList()..sort())
           splitWidgets[key]!,
@@ -4481,10 +4527,13 @@ String? _emitFlowReference({
   String? measurementPublicationDraftDigest,
   Map<String, String> islands = const {},
   Map<String, SurfaceLayoutsV1> screenLayouts = const {},
+  SurfaceScreenHostDataSchema providedContext =
+      const SurfaceScreenHostDataSchema.empty(),
 }) {
   final compiled = emitCompiledFlow(
     islands: islands,
     screenLayouts: screenLayouts,
+    providedContext: providedContext,
     document: document,
     surface: flow.surface,
     descendants: descendants,

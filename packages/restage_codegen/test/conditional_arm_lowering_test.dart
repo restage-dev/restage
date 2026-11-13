@@ -205,7 +205,7 @@ void main() {
     });
   });
 
-  group('refusals', () {
+  group('app-computed values', () {
     late TestBuilderResult result;
 
     setUpAll(() async {
@@ -214,10 +214,6 @@ void main() {
         'recursive_text': 'Text(_loop(days))',
       });
     });
-
-    String errorFor(String id, IssueCode code) => result.errors.firstWhere(
-      (e) => e.contains('[${code.name}] lib/paywalls/$id.dart'),
-    );
 
     // The app computes the interpolated string, and the payload reads it.
     test(
@@ -240,10 +236,21 @@ void main() {
       },
     );
 
-    test('a recursive String helper in Text is refused', () {
+    // The app computes the helper's value, and the payload reads it.
+    test('a recursive String helper in Text builds', () async {
       expect(
-        errorFor('recursive_text', IssueCode.buildMethodTooComplex),
-        contains('recursive helper'),
+        result.errors.where(
+          (e) => e.contains('lib/paywalls/recursive_text.dart'),
+        ),
+        isEmpty,
+      );
+      final recursive = await _build({'recursive_text': 'Text(_loop(days))'});
+      expect(recursive.errors, isEmpty, reason: recursive.errors.join('\n'));
+      expect(
+        recursive.readerWriter.testing.readString(
+          AssetId(_package, 'assets/paywalls/recursive_text.rfwtxt'),
+        ),
+        contains('Text(text: data.context._h'),
       );
     });
 

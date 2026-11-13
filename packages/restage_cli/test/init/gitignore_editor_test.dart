@@ -37,6 +37,7 @@ void main() {
       expect(plan.addedPatterns, [
         '.restage/build/',
         'restage.capture.json',
+        'restage.build.json',
         '!assets/restage/bundles/**',
       ]);
       expect(planPortableOutputIgnores(plan.source).isNoOp, isTrue);
@@ -52,6 +53,7 @@ build/
 restage.outputs.json
 restage.publication.json
 restage.capture.json
+restage.build.json
 restage_a2ui_catalog.a2ui.json
 !assets/restage/bundles/**
 ''';
@@ -125,6 +127,7 @@ restage.publication.json
         // A rule added since that header was written is still appended.
         expect(plan.addedPatterns, [
           'restage.capture.json',
+          'restage.build.json',
           '!assets/restage/bundles/**',
         ]);
         expect(plan.source, isNot(contains('restage_a2ui_catalog.a2ui.json')));

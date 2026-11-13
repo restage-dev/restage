@@ -1,0 +1,140 @@
+import 'package:state_kit/state_kit.dart';
+import 'package:flutter/widgets.dart';
+import 'package:sample_app/core/app_scope.dart';
+import 'package:sample_app/core/app_copy.dart';
+import 'package:sample_app/core/screen_layout.dart';
+import 'package:sample_app/core/kind_art.dart';
+import 'package:sample_app/data/models/app_settings.dart';
+import 'package:sample_app/features/onboarding/onboarding_bloc.dart';
+import 'package:sample_app/features/onboarding/onboarding_state.dart';
+import 'package:kit_ui/kit_ui.dart';
+
+/// Step 4: explain reminders before the system prompt.
+class PreAskPage extends StatelessWidget {
+  const PreAskPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = KitColors.of(context);
+    final bloc = context.read<OnboardingBloc>();
+    final catalog = AppScope.of(context).catalog;
+    return BlocSignalBuilder<OnboardingBloc, OnboardingState>(
+      builder: (context, state) {
+        final kindId = state.selected.isEmpty
+            ? catalog.kind.first.id
+            : state.selected.first;
+        final itemName = state.names[kindId] ?? 'Your item';
+        final time = AppCopy.time(state.time);
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: KitSpace.l),
+              child: KitTopBar(
+                onBack: () => bloc.add(const BackPressed()),
+                center: const KitProgressDots(step: 4, count: 4),
+                trailingSpace: true,
+              ),
+            ),
+            Expanded(
+              child: PinnedBottomColumn(
+                padding: const EdgeInsets.fromLTRB(
+                  KitSpace.l,
+                  14,
+                  KitSpace.l,
+                  KitSpace.xl,
+                ),
+                bottom: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Your phone will ask you to confirm next.',
+                      textAlign: TextAlign.center,
+                      style: KitType.captionLarge.copyWith(color: c.ink2),
+                    ),
+                    const SizedBox(height: KitSpace.xs),
+                    KitButton(
+                      label: 'Turn on reminders',
+                      icon: KitIcons.bell,
+                      loading: state.busy,
+                      onPressed: () => bloc.add(const RemindersAccepted()),
+                    ),
+                    const SizedBox(height: 4),
+                    KitButton(
+                      label: 'Not now',
+                      variant: KitButtonVariant.ghost,
+                      onPressed: state.busy
+                          ? null
+                          : () => bloc.add(const RemindersDeclined()),
+                    ),
+                  ],
+                ),
+                children: [
+                  SizedBox(
+                    height: 300,
+                    child: LayoutBuilder(
+                      builder: (context, box) => OverflowBox(
+                        maxWidth: box.maxWidth + 8,
+                        child: Container(
+                          width: box.maxWidth + 8,
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            color: c.lilac,
+                            borderRadius: BorderRadius.circular(KitRadius.xl),
+                          ),
+                          child: Stack(
+                            children: [
+                              Positioned(
+                                left: 12,
+                                bottom: -8,
+                                width: 168,
+                                height: 196,
+                                child: KindArt(
+                                  kind: catalog.byId(kindId),
+                                  progress: 0.5,
+                                  cheerTick: state.grantedTick,
+                                ),
+                              ),
+                              Positioned(
+                                right: 16,
+                                top: 38,
+                                width: 272,
+                                child: KitNotificationPreview(
+                                  appName: 'Sample',
+                                  time: time,
+                                  title: '$itemName needs a look',
+                                  body: AppCopy.reminderBody(
+                                    1,
+                                    AmountUnit.cups,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Semantics(
+                    header: true,
+                    child: KitBalancedText(
+                      'Want a reminder?',
+                      style: KitType.title.copyWith(color: c.ink),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'One reminder on due days at $time. No promos, and '
+                    'nothing on other days.',
+                    style: KitType.body.copyWith(color: c.ink2),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}

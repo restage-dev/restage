@@ -67,7 +67,9 @@ builders:
     auto_apply: root_package
     build_to: source
     required_inputs: ['.restage.g.dart']
-    runs_before: ['restage_codegen:restage_early_template']
+    runs_before:
+      - 'restage_codegen:restage_early_template'
+      - 'restage_codegen:generated_check'
 
   # The startup request templates the platform sends at app launch, computed
   # from the generated surface list, registration and parts, which are all
@@ -101,6 +103,19 @@ builders:
     build_to: source
     runs_before: []
 
+  # Resolves every generated part once all are written, before the outputs
+  # record the build's result, and fails the build on a compile error in one.
+  generated_check:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['restageGeneratedCheckBuilder']
+    build_extensions:
+      $package$:
+        - "lib/src/surface_publication/generated_parts.check.json"
+    auto_apply: root_package
+    build_to: cache
+    required_inputs: ['.restage.g.dart']
+    runs_before: ['restage_codegen:outputs']
+
   # The single static materialization boundary for portable output: one
   # deterministic bundle per authored library, its optional inspection
   # report, and the package-wide output index plus publication manifest.
@@ -121,6 +136,7 @@ builders:
         - ".restage/build/metadata/restage.measurement.index.json"
         - ".restage/build/metadata/restage.analytics-id.metadata.json"
         - ".restage/build/metadata/restage.capture.json"
+        - ".restage/build/metadata/restage.build.json"
         - ".restage/build/widget_catalog/catalog.json"
     auto_apply: dependents
     build_to: source
@@ -302,7 +318,7 @@ builders:
         - "lib/src/registration.g.dart"
     auto_apply: dependents
     build_to: source
-    runs_before: []
+    runs_before: ['restage_codegen:generated_check']
   # The `catalog` option chooses what the generated registerRestageWidgets()
   # installs. `full` enables complete built-in widget families by default; generated
   # helper arguments can select Material/Cupertino. `derived` installs only
@@ -320,7 +336,9 @@ builders:
         - "user_factories.g.dart"
     auto_apply: dependents
     build_to: source
-    runs_before: ['restage_codegen:restage_early_template']
+    runs_before:
+      - 'restage_codegen:restage_early_template'
+      - 'restage_codegen:generated_check'
   # The importable A2UI catalog Dart plus its producer-facing capability
   # document. build_extensions below is the default-options resolution; a
   # package configuring `dart_output_root` moves the Dart catalog, and one

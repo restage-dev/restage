@@ -20,6 +20,7 @@ import 'package:yaml/yaml.dart';
 import '../helpers.dart';
 import '../shared_resolvers.dart';
 import 'measurement_fixture_helpers.dart';
+import '../support/surface_build_chain.dart';
 
 const _fixtureRoot = 'test/fixtures/measurement_configuration';
 const _package = 'apps_examples';
@@ -238,15 +239,10 @@ Future<_FixtureCompilation> _compile(
         );
   final result = await testBuilders(
     [
-      restageSourceRosterBuilder(
-        _builderOptions('restage_codegen:restage_source_roster'),
+      ...surfaceBuildChain(
+        options: _builderOptions,
+        compiler: packageSurfaceCompiler,
       ),
-      userCatalogJsonBuilder(BuilderOptions.empty),
-      packageSurfaceCompiler,
-      restageGeneratedDartBuilder(
-        _builderOptions('restage_codegen:generated_dart'),
-      ),
-      restageOutputsBuilder(_builderOptions('restage_codegen:outputs')),
     ],
     sources,
     rootPackage: _package,

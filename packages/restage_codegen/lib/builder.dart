@@ -10,8 +10,10 @@ import 'package:restage_codegen/src/onboarding/screen_builder.dart';
 import 'package:restage_codegen/src/paywall_flow_builder.dart';
 import 'package:restage_codegen/src/render_catalog_builder.dart';
 import 'package:restage_codegen/src/restage_source_roster_builder.dart';
+import 'package:restage_codegen/src/surface_publication/generated_check_builder.dart';
 import 'package:restage_codegen/src/surface_publication/output_builder.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
+import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:restage_codegen/src/surface_publication/surface_list_builder.dart';
 import 'package:restage_codegen/src/user_catalog_builder.dart';
 import 'package:restage_codegen/src/user_catalog_json_builder.dart';
@@ -107,15 +109,25 @@ final class _InertBuilder implements Builder {
 /// builder: one deterministic bundle per authored library, its optional
 /// inspection report, and the package-wide output index/publication
 /// manifest, all resolved once from [RestageOutputsBuilder]'s placement plan.
-Builder restageOutputsBuilder(BuilderOptions options) =>
-    RestageOutputsBuilder(options);
+Builder restageOutputsBuilder(BuilderOptions options) => RestageOutputsBuilder(
+  options,
+  priorOutputReader: readPriorGeneratedOutputs,
+);
 
 /// build_runner factory entry point for the one builder that materializes
 /// per-library generated Dart. It owns the whole `<stem>.restage.g.dart`
 /// family, so a library declaring both a screen and a flow still has exactly
 /// one generated part with one claimant.
 Builder restageGeneratedDartBuilder(BuilderOptions options) =>
-    RestageGeneratedDartBuilder(options);
+    RestageGeneratedDartBuilder(
+      options,
+      priorOutputReader: readPriorGeneratedOutputs,
+    );
+
+/// build_runner factory entry point for the check that resolves the Dart the
+/// build generates and records each compile error in it for the outputs.
+Builder restageGeneratedCheckBuilder(BuilderOptions options) =>
+    _rootOnly(options, const RestageGeneratedCheckBuilder());
 
 /// build_runner factory entry point for the package-wide widget catalog
 /// emitter. Scans every `lib/**.dart` and walks the files that spell a

@@ -73,12 +73,8 @@ Future<RestageSurfacePublicationBundle?> _decodeCompilerHandoff(
     log.severe('Surface publication compiler handoff is invalid: $error');
     return null;
   }
-  if (!bundle.valid) {
-    log.severe(
-      'Surface publication compilation failed: ${bundle.errors.join('; ')}',
-    );
-    return null;
-  }
+  // The outputs builder reports why.
+  if (!bundle.valid) return null;
   return bundle;
 }
 
@@ -98,9 +94,11 @@ final class RestageSurfacePublicationBundle {
     required Iterable<SplitSite> splitSites,
     required Map<String, List<String>> surfaceIslands,
     Map<String, List<DeliveredComponent>> surfaceComponents = const {},
+    Map<String, String> unfitPublications = const {},
     List<SplitRegistration> splitRegistrations = const [],
   }) : errors = List.unmodifiable(errors),
        surfaceComponents = Map.unmodifiable(surfaceComponents),
+       unfitPublications = Map.unmodifiable(unfitPublications),
        splitRegistrations = List.unmodifiable(splitRegistrations),
        surfaceIslands = Map.unmodifiable(surfaceIslands),
        splitSites = List.unmodifiable(splitSites),
@@ -134,6 +132,7 @@ final class RestageSurfacePublicationBundle {
     Iterable<SplitSite> splitSites = const [],
     Map<String, List<String>> surfaceIslands = const {},
     Map<String, List<DeliveredComponent>> surfaceComponents = const {},
+    Map<String, String> unfitPublications = const {},
     List<SplitRegistration> splitRegistrations = const [],
   }) {
     final canonicalManifest = _canonicalizeManifest(manifest);
@@ -191,6 +190,7 @@ final class RestageSurfacePublicationBundle {
       splitSites: splitSites,
       surfaceIslands: surfaceIslands,
       surfaceComponents: surfaceComponents,
+      unfitPublications: unfitPublications,
       splitRegistrations: splitRegistrations,
     );
   }
@@ -244,6 +244,7 @@ final class RestageSurfacePublicationBundle {
         'splitSites',
         'surfaceIslands',
         'surfaceComponents',
+        'unfitPublications',
         'splitRegistrations',
       },
     );
@@ -346,6 +347,13 @@ final class RestageSurfacePublicationBundle {
               ),
           ],
       },
+      unfitPublications: {
+        for (final MapEntry(:key, :value)
+            in ((json['unfitPublications'] as Map<String, Object?>?) ??
+                    const {})
+                .entries)
+          key: value! as String,
+      },
       splitRegistrations: [
         for (final raw
             in (json['splitRegistrations'] as List<Object?>?) ?? const [])
@@ -409,6 +417,10 @@ final class RestageSurfacePublicationBundle {
   /// The registration each split widget's wrapper adds to its library.
   final List<SplitRegistration> splitRegistrations;
 
+  /// Why each publication that doesn't fit its own placement can't be
+  /// pushed, by `<surface>/<slug>`.
+  final Map<String, String> unfitPublications;
+
   /// Encodes the fixed aggregate handoff deterministically.
   String encodeCanonicalJson() {
     final value = <String, Object?>{
@@ -440,6 +452,11 @@ final class RestageSurfacePublicationBundle {
             for (final component in surfaceComponents[key]!) component.toJson(),
           ],
       },
+      if (unfitPublications.isNotEmpty)
+        'unfitPublications': {
+          for (final key in unfitPublications.keys.toList()..sort())
+            key: unfitPublications[key],
+        },
       'splitRegistrations': [
         for (final registration in splitRegistrations)
           {

@@ -5,7 +5,6 @@ import 'dart:io';
 
 import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
-import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -15,6 +14,7 @@ import 'package:yaml/yaml.dart';
 
 import 'helpers.dart';
 import 'measurement/measurement_fixture_helpers.dart';
+import 'support/surface_build_chain.dart';
 
 const _fixtureRoot = 'test/fixtures/local_values';
 const _package = 'apps_examples';
@@ -207,17 +207,7 @@ Future<_Compiled> _compileFixture() async {
   final logs = <String>[];
   final result = await testBuilders(
     [
-      restageSourceRosterBuilder(
-        _builderOptions('restage_codegen:restage_source_roster'),
-      ),
-      userCatalogJsonBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(
-        _builderOptions('restage_codegen:restage_package_surface_compiler'),
-      ),
-      restageGeneratedDartBuilder(
-        _builderOptions('restage_codegen:generated_dart'),
-      ),
-      restageOutputsBuilder(_builderOptions('restage_codegen:outputs')),
+      ...surfaceBuildChain(options: _builderOptions),
     ],
     {
       for (final path in _fixtureDartPaths)

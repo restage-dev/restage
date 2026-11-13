@@ -2564,15 +2564,20 @@ final class QuietFlow extends RestageFlow {
       publications: first.output.publications,
     );
 
-    // The builder surfaces the refusal as a build failure, so no compiler
-    // output is written and reading it back throws.
-    Object? refusal;
-    try {
-      await _compileLedgerSource(_ledgerSource(), priorOutput: overriding);
-    } on Object catch (error) {
-      refusal = error;
-    }
-    expect(refusal, isNotNull);
+    // The builder refuses the build and records why.
+    final refused = await _compileLedgerSource(
+      _ledgerSource(),
+      priorOutput: overriding,
+    );
+    expect(refused.result.succeeded, isFalse);
+    expect(refused.output.valid, isFalse);
+    expect(
+      refused.output.errors.join(),
+      allOf(
+        contains('[measurementConfigurationInvalid]'),
+        contains('introduces a node that already has an identity'),
+      ),
+    );
   });
 
   test('an introduction naming an absent node is refused', () async {
@@ -2593,15 +2598,20 @@ final class QuietFlow extends RestageFlow {
       publications: first.output.publications,
     );
 
-    // The builder surfaces the refusal as a build failure, so no compiler
-    // output is written and reading it back throws.
-    Object? refusal;
-    try {
-      await _compileLedgerSource(_ledgerSource(), priorOutput: stale);
-    } on Object catch (error) {
-      refusal = error;
-    }
-    expect(refusal, isNotNull);
+    // The builder refuses the build and records why.
+    final refused = await _compileLedgerSource(
+      _ledgerSource(),
+      priorOutput: stale,
+    );
+    expect(refused.result.succeeded, isFalse);
+    expect(refused.output.valid, isFalse);
+    expect(
+      refused.output.errors.join(),
+      allOf(
+        contains('[measurementConfigurationInvalid]'),
+        contains('introduces a node that does not exist'),
+      ),
+    );
   });
 
   test('introductions survive a canonical round trip', () async {

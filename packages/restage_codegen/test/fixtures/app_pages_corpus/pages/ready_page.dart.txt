@@ -1,0 +1,134 @@
+import 'package:state_kit/state_kit.dart';
+import 'package:flutter/widgets.dart';
+import 'package:sample_app/core/app_config.dart';
+import 'package:sample_app/core/app_scope.dart';
+import 'package:sample_app/core/app_copy.dart';
+import 'package:sample_app/core/screen_layout.dart';
+import 'package:sample_app/features/onboarding/onboarding_bloc.dart';
+import 'package:sample_app/features/onboarding/onboarding_state.dart';
+import 'package:sample_app/features/shared/rename_sheet.dart';
+import 'package:kit_ui/kit_ui.dart';
+
+/// The last screen: setup is done.
+class ReadyPage extends StatelessWidget {
+  const ReadyPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = KitColors.of(context);
+    final scope = AppScope.of(context);
+    final bloc = context.read<OnboardingBloc>();
+    return BlocSignalBuilder<OnboardingBloc, OnboardingState>(
+      builder: (context, state) {
+        final shown = state.selected.take(3).toList();
+        final first = state.selected.isEmpty
+            ? null
+            : state.names[state.selected.first];
+        final count = state.selected.length < AppConfig.freeItemLimit
+            ? state.selected.length
+            : AppConfig.freeItemLimit;
+        return PinnedBottomColumn(
+          padding: const EdgeInsets.fromLTRB(KitSpace.l, KitSpace.x3, KitSpace.l, 42),
+          bottom: KitButton(
+            label: 'Open the app',
+            onPressed: () => bloc.add(const BoardConfirmed()),
+          ),
+          children: [
+            KitBoardScene(
+              items: [
+                for (final id in shown)
+                  KitBoardItem(
+                    asset: scope.catalog.byId(id).riveFile,
+                    artboard: scope.catalog.byId(id).riveArtboard,
+                    label: _NameLabel(
+                      name: state.names[id]!,
+                      onTap: () async {
+                        final renamed = await showRenameSheet(
+                          context,
+                          currentName: state.names[id]!,
+                        );
+                        if (renamed != null) {
+                          bloc.add(ItemRenamed(id, renamed));
+                        }
+                      },
+                    ),
+                  ),
+              ],
+              onItemLanded: (_) => scope.haptics.medium(),
+            ),
+            const SizedBox(height: 28),
+            Semantics(
+              header: true,
+              child: KitBalancedText(
+                "You're all set",
+                textAlign: TextAlign.center,
+                style: KitType.display.copyWith(color: c.ink),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 300),
+                child: Text(
+                  first == null
+                      ? 'You can add more items anytime.'
+                      : 'We named them for you. Tap a name anytime to change '
+                            'it. $first is first on the list today.',
+                  textAlign: TextAlign.center,
+                  style: KitType.lede.copyWith(color: c.ink2),
+                ),
+              ),
+            ),
+            const SizedBox(height: KitSpace.m),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                KitStatusChip(
+                  label: count == 1 ? '1 item' : '$count items',
+                  tone: KitStatusTone.neutral,
+                ),
+                KitStatusChip(
+                  label: AppCopy.time(state.time),
+                  tone: KitStatusTone.neutral,
+                ),
+                KitStatusChip(
+                  label: AppCopy.homeModeSummary(state.mode),
+                  tone: KitStatusTone.neutral,
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _NameLabel extends StatelessWidget {
+  const _NameLabel({required this.name, required this.onTap});
+
+  final String name;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = KitColors.of(context);
+    return KitPressable(
+      onTap: onTap,
+      semanticLabel: 'Rename $name',
+      builder: (context, pressed) => ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: KitSize.minTap),
+        child: Center(
+          child: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: KitType.sceneName.copyWith(color: c.ink),
+          ),
+        ),
+      ),
+    );
+  }
+}

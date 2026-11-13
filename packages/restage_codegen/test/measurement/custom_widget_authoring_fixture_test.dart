@@ -6,7 +6,6 @@ import 'dart:typed_data';
 
 import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
-import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
@@ -16,6 +15,7 @@ import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 import '../helpers.dart';
+import '../support/surface_build_chain.dart';
 
 const _fixtureRoot = 'test/fixtures/custom_widget_authoring';
 const _package = 'apps_examples';
@@ -115,17 +115,7 @@ _compileFixture() async {
   final logs = <String>[];
   final result = await testBuilders(
     [
-      restageSourceRosterBuilder(
-        _builderOptions('restage_codegen:restage_source_roster'),
-      ),
-      userCatalogJsonBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(
-        _builderOptions('restage_codegen:restage_package_surface_compiler'),
-      ),
-      restageGeneratedDartBuilder(
-        _builderOptions('restage_codegen:generated_dart'),
-      ),
-      restageOutputsBuilder(_builderOptions('restage_codegen:outputs')),
+      ...surfaceBuildChain(options: _builderOptions),
     ],
     {
       for (final path in _fixtureDartPaths)

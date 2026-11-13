@@ -5,7 +5,6 @@ import 'dart:typed_data';
 
 import 'package:build/build.dart';
 import 'package:logging/logging.dart';
-import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
@@ -18,6 +17,7 @@ import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../support/surface_build_chain.dart';
 
 String _surface(
   String body, {
@@ -1677,17 +1677,7 @@ Future<_Compiled> _compile(
   final warnings = <String>[];
   final result = await testBuilders(
     [
-      restageSourceRosterBuilder(
-        const BuilderOptions({'bundled_runtime': true}, isRoot: true),
-      ),
-      userCatalogJsonBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(
-        const BuilderOptions({'bundled_runtime': true}, isRoot: true),
-      ),
-      restageGeneratedDartBuilder(
-        const BuilderOptions({'bundled_runtime': true}),
-      ),
-      restageOutputsBuilder(const BuilderOptions({'bundled_runtime': true})),
+      ...surfaceBuildChain(config: const {'bundled_runtime': true}),
     ],
     {'apps_examples|lib/mounted.dart': source, ...otherFiles},
     rootPackage: 'apps_examples',

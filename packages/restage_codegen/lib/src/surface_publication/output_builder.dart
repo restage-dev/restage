@@ -6,10 +6,12 @@ import 'dart:convert';
 
 import 'package:build/build.dart';
 import 'package:crypto/crypto.dart' as crypto;
+import 'package:glob/glob.dart';
 import 'package:restage_codegen/src/authored_library_predicate.dart';
 import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
+import 'package:restage_codegen/src/surface_publication/generated_check_builder.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_output_cleanup.dart';
 import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/output_location_registry.dart';
@@ -23,11 +25,16 @@ import 'package:restage_shared/restage_shared.dart';
 /// compiler outputs, per the resolved [RestageOutputLocationPlan].
 final class RestageOutputsBuilder implements Builder {
   /// Creates the builder, resolving and validating output location options once.
-  RestageOutputsBuilder(BuilderOptions options)
-    : plan = RestageOutputLocationPlan.fromBuilderOptions(options);
+  RestageOutputsBuilder(
+    BuilderOptions options, {
+    this.priorOutputReader = noPriorGeneratedOutputs,
+  }) : plan = RestageOutputLocationPlan.fromBuilderOptions(options);
 
   /// The resolved output location authority for this builder invocation.
   final RestageOutputLocationPlan plan;
+
+  /// Reads the outputs a failed build writes back.
+  final PriorGeneratedOutputReader priorOutputReader;
 
   @override
   Map<String, List<String>> get buildExtensions => plan.portableBuildExtensions;
@@ -45,7 +52,8 @@ final class RestageOutputsBuilder implements Builder {
       return;
     }
 
-    if (buildStep.inputId.path == r'$package$') {
+    final packageWide = buildStep.inputId.path == r'$package$';
+    if (packageWide) {
       await warnAboutUnbundledSurfaceMounts(
         buildStep,
         bundled: plan.bundledRuntime,
@@ -53,19 +61,176 @@ final class RestageOutputsBuilder implements Builder {
     }
 
     final bundle = await readRestageCompilerHandoff(buildStep);
-    if (bundle == null) {
+    // Decided before this step writes anything. A failed build then writes
+    // each prior output back exactly once.
+    final failure = await _failure(buildStep, bundle);
+    if (failure != null) {
       await _restorePriorOutputs(buildStep);
+      if (packageWide) await _failBuild(buildStep, failure);
       return;
     }
 
-    if (buildStep.inputId.path == r'$package$') {
-      await _buildPackageWide(buildStep, bundle);
+    if (packageWide) {
+      await _buildPackageWide(buildStep, bundle!);
     } else {
-      await _buildForLibrary(buildStep, bundle);
+      await _buildForLibrary(buildStep, bundle!);
     }
   }
 
-  /// Writes back what this step wrote last time, when the build refused.
+  /// Why this build failed, or `null` when every step it depends on succeeded.
+  Future<_Failure?> _failure(
+    BuildStep buildStep,
+    RestageSurfacePublicationBundle? bundle,
+  ) async {
+    if (bundle == null) {
+      final package = buildStep.inputId.package;
+      final preserved = await buildStep.fetchResource(
+        restagePreservedOutputsResource,
+      );
+      final refusal = preserved.refusalOf(package);
+      // A compiler that refused in this build logged its own errors.
+      if (refusal != null && refusal.isNotEmpty) {
+        return (errors: refusal, logged: true);
+      }
+      // Only a compiler that didn't run leaves the last build's errors current.
+      final prior = preserved.compiledIn(package)
+          ? null
+          : await _priorFailure(buildStep);
+      return (
+        errors: await _compilerErrors(buildStep) ?? prior ?? _kNoCompilation,
+        logged: false,
+      );
+    }
+    final uncompiled = await _generatedCheckErrors(buildStep);
+    if (uncompiled.isNotEmpty) return (errors: uncompiled, logged: false);
+    try {
+      final measurementOutput = await _measurementOutput(buildStep);
+      if (measurementOutput != null && !measurementOutput.valid) {
+        return (
+          errors: [
+            'Measurement compilation failed: '
+                '${measurementOutput.errors.join('; ')}',
+          ],
+          logged: false,
+        );
+      }
+    } on Object catch (error) {
+      return (
+        errors: [
+          'The package Measurement compiler output is invalid; package-wide '
+              'Restage outputs were not materialized: $error',
+        ],
+        logged: false,
+      );
+    }
+    return null;
+  }
+
+  /// Fails the build with [failure] and records why.
+  Future<void> _failBuild(BuildStep buildStep, _Failure failure) async {
+    if (!failure.logged) failure.errors.forEach(log.severe);
+    await buildStep.writeAsString(
+      AssetId(buildStep.inputId.package, plan.buildResultPath),
+      jsonEncode(<String, Object?>{
+        'schemaVersion': 1,
+        'result': 'failed',
+        'errors': failure.errors,
+      }),
+    );
+  }
+
+  /// The errors the last build recorded, when it failed.
+  Future<List<String>?> _priorFailure(BuildStep buildStep) async {
+    final bytes = await priorOutputBytes(
+      buildStep,
+      plan,
+      priorOutputReader,
+      plan.buildResultPath,
+    );
+    if (bytes == null) return null;
+    try {
+      if (jsonDecode(utf8.decode(bytes)) case {
+        'result': 'failed',
+        'errors': final List<Object?> errors,
+      } when errors.isNotEmpty) {
+        return [for (final error in errors) '$error'];
+      }
+    } on FormatException {
+      // An unreadable record says nothing about why.
+    }
+    return null;
+  }
+
+  /// This build's measurement compiler output, decoded once per package.
+  Future<RestageMeasurementCompilerOutputV1?> _measurementOutput(
+    BuildStep buildStep,
+  ) async {
+    final asset = AssetId(
+      buildStep.inputId.package,
+      kRestageMeasurementCompilerOutputPath,
+    );
+    if (!await buildStep.canRead(asset)) return null;
+    final decoded = await buildStep.fetchResource(_measurementOutputs);
+    return decoded.putIfAbsent(
+      asset.package,
+      () async => RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+        await buildStep.readAsBytes(asset),
+      ),
+    );
+  }
+
+  /// The compile errors the generated-part check found in this build.
+  Future<List<String>> _generatedCheckErrors(BuildStep buildStep) async {
+    final package = buildStep.inputId.package;
+    final asset = AssetId(package, kRestageGeneratedCheckPath);
+    if (!await buildStep.canRead(asset)) {
+      // Generated code nothing checked can't be trusted to compile.
+      final noParts = await buildStep
+          .findAssets(Glob('lib/**.restage.g.dart'))
+          .isEmpty;
+      return noParts
+          ? const []
+          : const [
+              "Restage couldn't check that the code it generated compiles, "
+                  'because `restage_codegen:generated_check` didn\'t run. '
+                  'Try enabling that builder in build.yaml.',
+            ];
+    }
+    final json = jsonDecode(await buildStep.readAsString(asset));
+    if (json case {'errors': final List<Object?> errors}) {
+      return [for (final error in errors) '$error'];
+    }
+    return const [];
+  }
+
+  /// The errors a readable compiler bundle records, if it records any.
+  Future<List<String>?> _compilerErrors(BuildStep buildStep) async {
+    final asset = AssetId(
+      buildStep.inputId.package,
+      kRestageSurfacePublicationCompilerBundlePath,
+    );
+    if (await buildStep.canRead(asset)) {
+      try {
+        final json = jsonDecode(await buildStep.readAsString(asset));
+        if (json case {
+          'errors': final List<Object?> errors,
+        } when errors.isNotEmpty) {
+          return [for (final error in errors) '$error'];
+        }
+      } on FormatException {
+        // An unreadable result is reported as no result below.
+      }
+    }
+    return null;
+  }
+
+  static const _kNoCompilation = [
+    "Restage has no result from compiling the package's surfaces. Try "
+        'running `dart run build_runner clean`, then '
+        '`dart run build_runner build`.',
+  ];
+
+  /// Writes back what this step wrote last time, when the build failed.
   Future<void> _restorePriorOutputs(BuildStep buildStep) async {
     final List<String> paths;
     if (buildStep.inputId.path == r'$package$') {
@@ -86,7 +251,7 @@ final class RestageOutputsBuilder implements Builder {
       ];
     }
     for (final path in paths) {
-      await restorePreservedOutput(buildStep, path);
+      await restorePreservedOutput(buildStep, plan, priorOutputReader, path);
     }
   }
 
@@ -160,32 +325,7 @@ final class RestageOutputsBuilder implements Builder {
         '${buildStep.inputId.package}.',
       );
     }
-    final measurementAsset = AssetId(
-      buildStep.inputId.package,
-      kRestageMeasurementCompilerOutputPath,
-    );
-    RestageMeasurementCompilerOutputV1? measurementOutput;
-    if (await buildStep.canRead(measurementAsset)) {
-      try {
-        measurementOutput =
-            RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
-              await buildStep.readAsBytes(measurementAsset),
-            );
-      } on Object catch (error) {
-        log.severe(
-          'The package Measurement compiler output is invalid; package-wide '
-          'Restage outputs were not materialized: $error',
-        );
-        return;
-      }
-      if (!measurementOutput.valid) {
-        log.severe(
-          'Measurement compilation failed: '
-          '${measurementOutput.errors.join('; ')}',
-        );
-        return;
-      }
-    }
+    final measurementOutput = await _measurementOutput(buildStep);
     final manifestJson = SurfacePublicationManifestV1Codec.encodeCanonicalJson(
       manifest,
     );
@@ -274,6 +414,20 @@ final class RestageOutputsBuilder implements Builder {
       );
     }
     await cleanLegacyRestageOutputs(buildStep.inputId.package, plan);
+    // Written last: a build that stops before here records no success.
+    await buildStep.writeAsString(
+      AssetId(buildStep.inputId.package, plan.buildResultPath),
+      jsonEncode(<String, Object?>{
+        'schemaVersion': 1,
+        'result': 'succeeded',
+        'generationFingerprint': index['generationFingerprint'],
+        if (bundle.unfitPublications.isNotEmpty)
+          'unfit': {
+            for (final key in bundle.unfitPublications.keys.toList()..sort())
+              key: bundle.unfitPublications[key],
+          },
+      }),
+    );
   }
 
   /// Every manifest-closure entry plus the library's canonical `.rfwtxt`
@@ -396,5 +550,13 @@ final class RestageOutputsBuilder implements Builder {
     return buffer.toString();
   }
 }
+
+/// Why a build failed, and whether the step that refused already logged it.
+typedef _Failure = ({List<String> errors, bool logged});
+
+final Resource<Map<String, Future<RestageMeasurementCompilerOutputV1>>>
+_measurementOutputs = Resource(
+  () => <String, Future<RestageMeasurementCompilerOutputV1>>{},
+);
 
 String _sha256Hex(List<int> bytes) => 'sha256:${crypto.sha256.convert(bytes)}';

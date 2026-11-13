@@ -520,6 +520,9 @@ Future<void> _moveGeneratedMetadata(
     'restage.publication.json',
   );
   await manifest.rename(p.join(destination.path, 'restage.publication.json'));
+  await File(
+    p.join(projectRoot.path, '.restage/build/metadata/restage.build.json'),
+  ).rename(p.join(destination.path, 'restage.build.json'));
   await index.delete();
   await File(
     p.join(destination.path, 'restage.outputs.json'),

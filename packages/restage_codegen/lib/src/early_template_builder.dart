@@ -9,6 +9,7 @@ import 'package:restage_codegen/src/build_delivery.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/measurement/measurement_configuration.dart';
 import 'package:restage_codegen/src/restage_source_prefilter.dart';
+import 'package:restage_codegen/src/surface_publication/placement_self_fit.dart';
 import 'package:restage_codegen/src/surface_publication/surface_list_builder.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
     show PlacementKeyV1;
@@ -272,7 +273,7 @@ BuildDelivery? _buildDelivery(String factories) {
       onVariable: (node) {
         final name = node.name.lexeme;
         if (!names.contains(name)) return;
-        if (_literal(node.initializer) case final Object value) {
+        if (generatedLiteralValue(node.initializer) case final Object value) {
           values[name] = value;
         }
       },
@@ -356,7 +357,7 @@ Future<List<_Definition>> _declaredDefinitions(
             Object? named(String name) {
               for (final arg in init.argumentList.arguments) {
                 if (arg is NamedArgument && arg.name.lexeme == name) {
-                  return _literal(arg.argumentExpression);
+                  return generatedLiteralValue(arg.argumentExpression);
                 }
               }
               return null;
@@ -412,7 +413,8 @@ final class _Vocabulary {
       case 'RestageWidgetLibraries.fromVocabulary':
         for (final family in ['core', 'material', 'cupertino']) {
           final map = named(family);
-          if (_literal(map) case final Map<String, Object?> entries) {
+          if (generatedLiteralValue(map)
+              case final Map<String, Object?> entries) {
             for (final widget in entries.keys) {
               widgetNames.add(
                 WidgetVocabulary.qualifiedName('restage.$family', widget),
@@ -425,13 +427,14 @@ final class _Vocabulary {
           final map = named(table);
           if (map is SetOrMapLiteral) {
             for (final family in map.elements.whereType<MapLiteralEntry>()) {
-              final key = _literal(family.key);
+              final key = generatedLiteralValue(family.key);
               final icons = family.value;
               if (key is String && icons is SetOrMapLiteral) {
                 (iconCodePoints[key] ??= <int>{}).addAll([
                   for (final icon
                       in icons.elements.whereType<MapLiteralEntry>())
-                    if (_literal(icon.key) case final int code) code,
+                    if (generatedLiteralValue(icon.key) case final int code)
+                      code,
                 ]);
               }
             }
@@ -451,7 +454,7 @@ final class _Vocabulary {
   ) {
     String? namespace;
     if (library is MethodInvocation && library.methodName.name == 'custom') {
-      final value = _literal(
+      final value = generatedLiteralValue(
         library.argumentList.arguments.first.argumentExpression,
       );
       if (value is String) namespace = value;
@@ -459,7 +462,7 @@ final class _Vocabulary {
     if (namespace == null) return;
     int? number(String key) {
       final value = named(key);
-      return value == null ? null : _literal(value) as int?;
+      return value == null ? null : generatedLiteralValue(value) as int?;
     }
 
     libraries[namespace] = InstalledLibrary(
@@ -495,26 +498,3 @@ class _Visitor extends RecursiveAstVisitor<void> {
     super.visitVariableDeclaration(node);
   }
 }
-
-/// The JSON value a generated literal spells, or null when it is not one.
-Object? _literal(Expression? node) => switch (node) {
-  null => null,
-  NullLiteral() => null,
-  BooleanLiteral(:final value) => value,
-  IntegerLiteral(:final value) => value,
-  DoubleLiteral(:final value) => value,
-  SimpleStringLiteral(:final value) => value,
-  AdjacentStrings(:final strings) =>
-    strings.map((s) => _literal(s) as String).join(),
-  PrefixExpression(operator: final op, :final operand) when op.lexeme == '-' =>
-    -(_literal(operand)! as num),
-  ListLiteral(:final elements) => [
-    for (final e in elements) _literal(e as Expression),
-  ],
-  SetOrMapLiteral(:final elements) => {
-    for (final e in elements.whereType<MapLiteralEntry>())
-      _literal(e.key)! as String: _literal(e.value),
-  },
-  ParenthesizedExpression(:final expression) => _literal(expression),
-  _ => null,
-};

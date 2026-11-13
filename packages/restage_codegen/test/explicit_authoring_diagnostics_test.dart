@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
+import 'support/surface_build_chain.dart';
 
 const _fixtureRoot = 'test/fixtures/explicit_authoring';
 
@@ -253,22 +254,18 @@ Future<TestBuilderResult> _compileSources(Map<String, String> sources) async {
   final result = await testBuilders(
     [
       restageCodegenBuilder(BuilderOptions.empty),
-      restageSourceRosterBuilder(BuilderOptions.forRoot),
-      paywallFlowBuilder(BuilderOptions.empty),
-      onboardingScreenBuilder(BuilderOptions.empty),
-      onboardingFlowBuilder(BuilderOptions.empty),
-      messageScreenBuilder(BuilderOptions.empty),
-      messageFlowBuilder(BuilderOptions.empty),
-      surveyScreenBuilder(BuilderOptions.empty),
-      surveyFlowBuilder(BuilderOptions.empty),
-      // The one owner of per-library generated Dart. Without it the
-      // scenario emits no `.restage.g.dart` at all and every descriptor
-      // assertion below passes vacuously over an empty set.
-      // Produces the compiler handoff the generated-Dart builder reads;
-      // without it that builder silently emits nothing.
-      restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-      restageOutputsBuilder(BuilderOptions.empty),
-      restageGeneratedDartBuilder(BuilderOptions.empty),
+      ...surfaceBuildChain(
+        catalog: false,
+        after: [
+          paywallFlowBuilder(BuilderOptions.empty),
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+          messageScreenBuilder(BuilderOptions.empty),
+          messageFlowBuilder(BuilderOptions.empty),
+          surveyScreenBuilder(BuilderOptions.empty),
+          surveyFlowBuilder(BuilderOptions.empty),
+        ],
+      ),
     ],
     sources,
     rootPackage: 'apps_examples',

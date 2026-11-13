@@ -176,14 +176,38 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     buildHost = stateClass;
   }
 
-  final buildMethod = buildHost.methods
+  final declared = buildHost.methods
       .where((method) => method.name == 'build')
       .firstOrNull;
+  final inherited = declared == null
+      ? buildHost.thisType.lookUpMethod('build', library, concrete: true)
+      : null;
+  // An inherited build is the surface's own when its mount can reach what
+  // it reads: a widget's build from a base class in the same library.
+  final buildMethod =
+      declared ??
+      (stateClass == null && inherited?.library == sourceClass.library
+          ? inherited
+          : null);
   if (buildMethod == null) {
+    final host = buildHost.name ?? '<unnamed>';
     issues.add(
       Issue(
         code: IssueCode.buildMethodMissing,
-        message: '${buildHost.name ?? '<unnamed>'} has no build() method.',
+        message: switch (inherited) {
+          null => '$host has no build() method.',
+          _ when stateClass != null =>
+            '`$host` inherits build() from '
+                '`${inherited.enclosingElement?.name}`. Restage generates code '
+                'only from a build() the State class declares. Try declaring '
+                'build() in `$host`.',
+          _ =>
+            '`$host` inherits build() from '
+                '`${inherited.enclosingElement?.name}` in '
+                "${inherited.library.uri}. The generated code can't read that "
+                'library. Try declaring build() in `$host`, or declaring '
+                '`${inherited.enclosingElement?.name}` in this library.',
+        },
         location: '$location.build',
       ),
     );
@@ -255,7 +279,19 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     astNodeFor: astNodeFor,
     admittedHelperPackages: artifactHelperPackages(catalog),
   );
-  if (reachable.recursive case final helper?) {
+  // An inherited build calls the surface's own override of a member, so an
+  // overridden member renders from the app instead of inlining the base's.
+  final helpers = Map<Element, HelperDef>.identity()
+    ..addEntries(
+      reachable.helpers.entries.where(
+        (entry) =>
+            identical(buildMethod, declared) ||
+            !_overrides(buildHost, entry.key, library),
+      ),
+    );
+  // A recursive helper isn't inlined; a mounted surface renders it from the
+  // app.
+  if (reachable.recursive case final helper? when !liftState) {
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
@@ -289,7 +325,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     mountConstructorProblem: constructorFacts.mountProblem,
     buildArguments: buildArguments,
     localBindings: localBindings,
-    helpers: reachable.helpers,
+    helpers: helpers,
     statements: statements,
     returns: returns,
   );
@@ -1548,3 +1584,14 @@ final class _SetStateCall extends RecursiveAstVisitor<void> {
     super.visitMethodInvocation(node);
   }
 }
+
+// Whether [host] overrides the instance method [member] a base class declares.
+bool _overrides(
+  InterfaceElement host,
+  Element member,
+  LibraryElement library,
+) =>
+    member is MethodElement &&
+    !member.isStatic &&
+    host.thisType.lookUpMethod(member.name!, library)?.baseElement !=
+        member.baseElement;

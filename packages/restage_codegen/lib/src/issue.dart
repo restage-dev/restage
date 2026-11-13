@@ -311,6 +311,14 @@ enum IssueCode {
   /// delivery has no fit to check it against.
   surfaceFitUnavailable,
 
+  /// A published surface needs something its own generated placement doesn't
+  /// pass. A device would show the placement's fallback instead.
+  surfaceDoesNotFitPlacement,
+
+  /// A widget that renders from the app is placed where only a narrower
+  /// widget type fits. A design can't place it there.
+  islandNarrowPlacement,
+
   /// A surface references a widget from a custom library whose catalog
   /// metadata declares no capability version, so the delivery-time capability
   /// floor for that library cannot be derived. The author must declare an
@@ -610,7 +618,9 @@ enum IssueCode {
     IssueCode.toggleButtonsFormUnsupported ||
     IssueCode.segmentedButtonFormUnsupported ||
     // A kept widget below a node makes that node render from the app.
-    IssueCode.optOutUnkept => true,
+    IssueCode.optOutUnkept ||
+    // So does an app-rendered widget placed where only a narrower type fits.
+    IssueCode.islandNarrowPlacement => true,
     _ => false,
   };
 
@@ -780,7 +790,9 @@ enum IssueCode {
     IssueCode.themeReadOutOfContract ||
     IssueCode.themeReadIntermediateVariable ||
     IssueCode.stateShapeUnsupported ||
-    IssueCode.surfaceFitUnavailable => false,
+    IssueCode.surfaceFitUnavailable ||
+    IssueCode.surfaceDoesNotFitPlacement ||
+    IssueCode.islandNarrowPlacement => false,
   };
 
   /// Whether this code means the author hit a Restage/codegen capability gap

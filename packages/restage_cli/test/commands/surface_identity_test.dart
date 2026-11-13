@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:args/args.dart';
-import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
@@ -61,28 +60,22 @@ void main() {
     expect(error.toString(), contains('does not match'));
   });
 
-  test(
-    'rejects the invalid-build marker instead of using an older manifest',
-    () async {
-      await seedGeneratedPaywall(tempDir, slug: 'pro');
-      final marker = File(p.join(tempDir.path, kSurfacePublicationInvalidPath));
-      await marker.create(recursive: true);
-      final error = StringBuffer();
+  // A broken local build must not block managing a surface that is live.
+  test('a failed build still names a surface from older outputs', () async {
+    await seedGeneratedPaywall(tempDir, slug: 'pro');
+    await writeBuildResult(tempDir, errors: ['[issue] lib/a.dart: broken.']);
+    final error = StringBuffer();
 
-      final identity = await resolveSurfaceLifecycleIdentity(
-        argResults: _args(tempDir, rest: ['pro']),
-        fixedSurfaceType: Surface.paywall,
-        slug: 'pro',
-        stderr: error,
-      );
+    final identity = await resolveSurfaceLifecycleIdentity(
+      argResults: _args(tempDir, rest: ['pro']),
+      fixedSurfaceType: Surface.paywall,
+      slug: 'pro',
+      stderr: error,
+    );
 
-      expect(identity, isNull);
-      expect(
-        error.toString(),
-        contains('Generated publication output is invalid'),
-      );
-    },
-  );
+    expect(error.toString(), isEmpty);
+    expect(identity?.surface, Surface.paywall);
+  });
 
   test(
     'explicit fallback uses a positive version for a standalone screen',

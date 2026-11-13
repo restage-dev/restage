@@ -1,0 +1,123 @@
+import 'package:state_kit/state_kit.dart';
+import 'package:flutter/widgets.dart';
+import 'package:sample_app/core/app_copy.dart';
+import 'package:sample_app/core/now_cubit.dart';
+import 'package:sample_app/core/screen_layout.dart';
+import 'package:sample_app/data/models/app_settings.dart';
+import 'package:sample_app/features/onboarding/onboarding_bloc.dart';
+import 'package:sample_app/features/onboarding/onboarding_state.dart';
+import 'package:kit_ui/kit_ui.dart';
+
+/// Step 3: when should we remind you.
+class TimePage extends StatelessWidget {
+  const TimePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = KitColors.of(context);
+    final bloc = context.read<OnboardingBloc>();
+    final now = context.value<NowCubit, DateTime>();
+    return BlocSignalBuilder<OnboardingBloc, OnboardingState>(
+      builder: (context, state) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: KitSpace.l),
+            child: KitTopBar(
+              onBack: () => bloc.add(const BackPressed()),
+              center: const KitProgressDots(step: 3, count: 4),
+              trailingLabel: 'Skip',
+              onTrailing: () => bloc.add(const SkipPressed()),
+            ),
+          ),
+          Expanded(
+            child: PinnedBottomColumn(
+              padding: const EdgeInsets.fromLTRB(
+                KitSpace.l,
+                6,
+                KitSpace.l,
+                KitSpace.xl,
+              ),
+              bottom: KitButton(
+                label: 'Continue',
+                onPressed: () => bloc.add(const ContinuePressed()),
+              ),
+              children: [
+                Semantics(
+                  header: true,
+                  child: KitBalancedText(
+                    'When should we remind you?',
+                    style: KitType.title.copyWith(color: c.ink),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'We only remind you on days an item is due.',
+                  style: KitType.secondary.copyWith(color: c.ink2),
+                ),
+                const SizedBox(height: KitSpace.xl),
+                Row(
+                  children: [
+                    for (final (i, preset)
+                        in ReminderPreset.values.indexed) ...[
+                      if (i > 0) const SizedBox(width: KitSpace.gridGap),
+                      Expanded(
+                        child: KitPresetCard(
+                          icon: const [KitIcons.sun, KitIcons.cup, KitIcons.moon][i],
+                          title: const ['Morning', 'Lunch', 'Evening'][i],
+                          value: AppCopy.time(preset.time),
+                          selected: state.preset == preset,
+                          onTap: () =>
+                              bloc.add(ReminderTimeChosen(preset.time)),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 28),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 10),
+                  child: Text(
+                    'OR PICK A TIME',
+                    style: KitType.overline.copyWith(color: c.ink2),
+                  ),
+                ),
+                KitTimeWheel(
+                  hour: state.time.hour12,
+                  minute: state.time.minute - state.time.minute % 5,
+                  pm: state.time.pm,
+                  onChanged: (hour, minute, {required pm}) => bloc.add(
+                    ReminderTimeChosen(
+                      TimeOfDayValue(hour % 12 + (pm ? 12 : 0), minute),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: KitSpace.m),
+                KitBanner.info(
+                  icon: KitIcons.drop,
+                  rich: Text.rich(
+                    TextSpan(
+                      text: 'First reminder: ',
+                      children: [
+                        TextSpan(
+                          text: firstReminderText(now, state.time),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "tomorrow at 8:00 AM", or "today at 7:00 PM" when that is still ahead.
+String firstReminderText(DateTime now, TimeOfDayValue time) {
+  final today = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+  final day = today.isAfter(now) ? 'today' : 'tomorrow';
+  return '$day at ${AppCopy.time(time)}';
+}

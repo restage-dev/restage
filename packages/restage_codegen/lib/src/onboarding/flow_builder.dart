@@ -33,6 +33,7 @@ import 'package:restage_codegen/src/surface_publication/generated_handle_names.d
 import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
 import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
+import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_codegen/src/surface_vocabulary.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart'
@@ -381,7 +382,11 @@ final class ResolvedClassFlowScreen {
     required List<int> blob,
     this.canonicalPaywallId,
     this.vocabulary = SurfaceVocabularyReferences.empty,
-  }) : blob = Uint8List.fromList(blob);
+    ResolvedWidgetMountInput? stepMount,
+  }) : blob = Uint8List.fromList(blob),
+       stepMount = stepMount == null || !rendersWithAppCode(stepMount)
+           ? null
+           : stepMount;
 
   /// Resolved authored declaration. The generated descriptor spelling is only
   /// a syntax bridge; this element remains the screen's authority.
@@ -402,6 +407,14 @@ final class ResolvedClassFlowScreen {
   /// The roster-owned authored paywall ID when this is a canonical paywall
   /// adapter. Ordinary screens and legacy paywalls leave this unset.
   final String? canonicalPaywallId;
+
+  /// The build the step's generated mount records, when the step renders with
+  /// the app's code.
+  final ResolvedWidgetMountInput? stepMount;
+
+  /// The id flow documents name this screen by.
+  String get flowScreenId =>
+      canonicalPaywallId == null ? id : 'paywall_$canonicalPaywallId';
 
   String get declarationIdentity =>
       '${declaration.library.identifier}#${declaration.name ?? '<unnamed>'}';
@@ -633,10 +646,12 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
             measurementPublicationDraftDigest: sourceCarrierDraftDigest,
             nativeScreens: {
               for (final screen in resolvedScreenList)
-                screen.canonicalPaywallId == null
-                        ? screen.id
-                        : 'paywall_${screen.canonicalPaywallId}':
-                    screen.declaration,
+                screen.flowScreenId: screen.declaration,
+            },
+            stepMounts: {
+              for (final screen in resolvedScreenList)
+                if (screen.stepMount case final mount?)
+                  screen.flowScreenId: mount,
             },
             descendants: {
               for (final entry in childFlowDocuments.entries)
@@ -4570,6 +4585,7 @@ String _emitFlowDescriptor(
   String? measurementPublicationDraftDigest,
   Map<String, ClassElement> nativeScreens = const {},
   Map<String, FlowDocument> descendants = const {},
+  Map<String, ResolvedWidgetMountInput> stepMounts = const {},
 }) {
   final baseName = _flowBaseName(flow.className);
   final descriptorClass = '${flow.className}Descriptor';
@@ -4577,8 +4593,16 @@ String _emitFlowDescriptor(
   // holder class below is the previous shape, kept as a deprecated alias for
   // one major so a source written against it still compiles.
   final refName = generatedHandleName(flow.className, fallback: 'surfaceFlow');
+  final steps = flowStepHostFacets(
+    lowered.document,
+    descendants: descendants,
+    stepMounts: stepMounts,
+  );
   final compiled = flow.isCanonical
       ? emitCompiledFlow(
+          providedContext: steps.context,
+          islands: steps.islands,
+          screenLayouts: steps.layouts,
           document: lowered.document,
           surface: surface,
           descendants: descendants,

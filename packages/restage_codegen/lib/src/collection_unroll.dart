@@ -1019,7 +1019,12 @@ final class CollectionRuntimeIfCandidate {
     required this.thenBranch,
     this.elseBranch,
     this.bindings = const {},
+    this.structuralPath = const [],
   });
+
+  /// The steps from the list to this condition, the loop iterations it is
+  /// unrolled in included.
+  final List<CollectionStructuralOccurrenceStep> structuralPath;
 
   /// Bindings active while resolving the condition and its branches.
   final Map<Element, Expression> bindings;
@@ -1832,6 +1837,7 @@ final class _CollectionUnroller {
         bindings: bindings,
         thenBranch: thenResult.branch!,
         elseBranch: elseBranch,
+        structuralPath: List.unmodifiable(structuralPath),
       ),
       refusal: null,
     );

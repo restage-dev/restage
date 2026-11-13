@@ -22,6 +22,34 @@ void main() {
     if (tempDir.existsSync()) await tempDir.delete(recursive: true);
   });
 
+  test('a surface that does not fit its own placement is not pushed', () async {
+    final entry = await seedGeneratedPaywall(tempDir, slug: 'checkout');
+    final fingerprint = (await SurfacePublicationManifestLoader().load(
+      projectRoot: tempDir,
+    )).outputIndex.generationFingerprint;
+    const reason =
+        "The paywall 'checkout' needs what its own placement doesn't pass.";
+    await writeBuildResult(
+      tempDir,
+      generationFingerprint: fingerprint,
+      unfit: {'paywall/checkout': reason},
+    );
+    final loaded = await SurfacePublicationManifestLoader().load(
+      projectRoot: tempDir,
+    );
+
+    await expectLater(
+      SurfacePublicationAssembler().assemble(loaded: loaded, entry: entry),
+      throwsA(
+        isA<PublicationManifestException>().having(
+          (error) => error.message,
+          'message',
+          "Restage didn't push it. $reason",
+        ),
+      ),
+    );
+  });
+
   test('assembles a blob from only the declared closure', () async {
     final entry = await seedGeneratedPaywall(tempDir, slug: 'checkout');
     final loaded = await SurfacePublicationManifestLoader().load(

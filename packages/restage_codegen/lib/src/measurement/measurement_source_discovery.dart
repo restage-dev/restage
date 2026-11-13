@@ -662,11 +662,11 @@ final class _MeasurementSourceDiscovery {
 
   void _visitAppRendered(Expression expression, _WidgetVisitContext context) {
     // A call the app renders, a helper's included, is the widget it builds.
+    // A getter the app computes, such as `badge`, is the widget its type names.
     final widgetClass = switch (expression) {
       InstanceCreationExpression(:final constructorName) =>
         constructorName.type.element,
-      MethodInvocation(:final staticType) => staticType?.element,
-      _ => null,
+      _ => expression.staticType?.element,
     };
     if (widgetClass is! InterfaceElement) {
       throw ArgumentError(
@@ -674,6 +674,11 @@ final class _MeasurementSourceDiscovery {
       );
     }
     final node = _recordNode(context: context, widgetClass: widgetClass);
+    // A getter takes no arguments, so it has no slots to visit.
+    if (expression is! InstanceCreationExpression &&
+        expression is! MethodInvocation) {
+      return;
+    }
     _visitOpaqueSlotChildren(
       [
         for (final argument in _resolvedArguments(
@@ -1613,6 +1618,8 @@ final class _MeasurementSourceDiscovery {
     _WidgetVisitContext context,
   ) {
     if (expression is! MethodInvocation) return null;
+    // A call the mount renders from the app is an island, never inlined.
+    if (input.rendersFromApp(expression)) return null;
     if (!isArtifactHelperInvocation(
       expression,
       admittedHelperPackages: _admittedHelperPackages,
@@ -1624,9 +1631,9 @@ final class _MeasurementSourceDiscovery {
     final definition = context.helperDefinitions[executable];
     if (definition == null) return null;
     final helperIdentity = _helperIdentity(executable);
-    if (context.inlinedHelperIdentities.contains(helperIdentity)) {
-      throw ArgumentError('A statically inlined helper cycle is invalid');
-    }
+    // A helper that calls itself isn't inlined; the design renders that call
+    // from the app.
+    if (context.inlinedHelperIdentities.contains(helperIdentity)) return null;
     final parameterBindings = bindHelperArguments(
       definition.params,
       expression.argumentList.arguments.toList(growable: false),

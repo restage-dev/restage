@@ -33,6 +33,11 @@ const Set<String> kRestageOutputLocationOptionNames = <String>{
 /// Fixed package-wide filenames and roots that do not depend on any single
 /// authored source.
 const String _kOutputsIndexFileName = 'restage.outputs.json';
+
+/// The file each build writes beside the manifest to record whether it
+/// compiled the package's surfaces; a failed build keeps the prior outputs.
+const String kRestageBuildResultFileName = 'restage.build.json';
+
 const String _kPublicationManifestFileName = 'restage.publication.json';
 const String _kA2uiCatalogFileName = 'restage_a2ui_catalog.a2ui.json';
 const String _kPackageGeneratedDartDefaultDir = 'lib/generated';
@@ -204,6 +209,9 @@ final class RestageOutputLocationPlan {
   String get analyticsIdMetadataPath =>
       _packageWidePath(kRestageAnalyticsIdMetadataFileName);
 
+  /// What the last build of the package's surfaces did, beside the manifest.
+  String get buildResultPath => _packageWidePath(kRestageBuildResultFileName);
+
   /// The local plan a push draws surface images from, beside the manifest.
   String get capturePlanPath =>
       _packageWidePath(kRestageSurfaceCapturePlanFileName);
@@ -253,6 +261,7 @@ final class RestageOutputLocationPlan {
       measurementOutputIndexPath,
       analyticsIdMetadataPath,
       capturePlanPath,
+      buildResultPath,
       customCatalogPath,
     ];
     return extensions;

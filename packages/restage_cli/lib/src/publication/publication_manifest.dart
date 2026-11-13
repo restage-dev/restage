@@ -13,10 +13,6 @@ import 'publication_outputs.dart';
 const String surfacePublicationManifestRelativePath =
     '.restage/build/metadata/restage.publication.json';
 
-/// The fixed code-generation failure marker consumed by the freshness gate.
-const String surfacePublicationInvalidRelativePath =
-    'assets/restage/surface-publication.invalid';
-
 /// A decoded generated publication manifest and the project root from which
 /// its package-relative artifacts are read.
 final class LoadedSurfacePublicationManifest {
@@ -25,9 +21,9 @@ final class LoadedSurfacePublicationManifest {
     required this.projectRoot,
     required this.outputsFile,
     required this.manifestFile,
-    required this.invalidMarkerFile,
     required this.manifest,
     required this.outputIndex,
+    this.unfit = const {},
   });
 
   /// The project package root used for fixed generated asset paths.
@@ -39,14 +35,15 @@ final class LoadedSurfacePublicationManifest {
   /// The fixed manifest file that was decoded.
   final File manifestFile;
 
-  /// The fixed invalid-marker location checked by the freshness gate.
-  final File invalidMarkerFile;
-
   /// The strict generated manifest.
   final SurfacePublicationManifest manifest;
 
   /// The physical locators paired with [manifest].
   final RestageOutputIndex outputIndex;
+
+  /// Why each surface that doesn't fit its own placement can't be pushed,
+  /// by `<surface>/<slug>`.
+  final Map<String, String> unfit;
 
   /// Every generated publication compiled from the Dart file at [path].
   ///
@@ -274,24 +271,16 @@ final class LoadedSurfacePublicationManifest {
 /// Loads the fixed generated publication manifest and enforces its freshness
 /// marker before a command performs any backend work.
 final class SurfacePublicationManifestLoader {
-  /// Load the manifest rooted at [projectRoot].
+  /// Load the manifest rooted at [projectRoot]. Without [built], the
+  /// outputs a later failed build left in place load too.
   Future<LoadedSurfacePublicationManifest> load({
     required Directory projectRoot,
+    bool built = true,
   }) async {
     final root = projectRoot.absolute;
-    final invalidMarkerFile = File(
-      p.join(root.path, surfacePublicationInvalidRelativePath),
-    );
-
-    if (invalidMarkerFile.existsSync()) {
-      throw const PublicationManifestException(
-        'Generated publication output is invalid. Remove the stale build '
-        'state by re-running `dart run build_runner build`, then retry.',
-      );
-    }
-
     final located = await RestagePublicationOutputsLoader().load(
       projectRoot: root,
+      built: built,
     );
     final manifestFile = located.publicationFile;
     final source = located.publicationManifestSource;
@@ -327,9 +316,9 @@ final class SurfacePublicationManifestLoader {
       projectRoot: root,
       outputsFile: located.outputsFile,
       manifestFile: manifestFile,
-      invalidMarkerFile: invalidMarkerFile,
       manifest: manifest,
       outputIndex: located.index,
+      unfit: located.unfit,
     );
   }
 }

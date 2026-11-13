@@ -234,20 +234,21 @@ class SurfacePushCommand extends Command<int> {
       recordedSource = null;
     }
 
-    // A generated part that doesn't compile would ship a build the app can't.
-    final broken = await generatedPartErrors(projectRoot, analyze: _analyze);
-    if (broken.isNotEmpty) {
-      broken.map(generatedPartErrorSentence).forEach(_stderr.writeln);
-      return 1;
-    }
-
     final List<AssembledSurfacePublication> assembled;
     final String generationFingerprint;
     final Map<String, Map<String, Object?>>? capturePlans;
     try {
+      // Loading refuses a failed build first, with the build's own error.
       final manifest = await SurfacePublicationManifestLoader().load(
         projectRoot: projectRoot,
       );
+      // A generated part that doesn't compile would ship a build the app
+      // can't.
+      final broken = await generatedPartErrors(projectRoot, analyze: _analyze);
+      if (broken.isNotEmpty) {
+        broken.map(generatedPartErrorSentence).forEach(_stderr.writeln);
+        return 1;
+      }
       generationFingerprint = manifest.outputIndex.generationFingerprint;
       capturePlans = readSurfaceCapturePlans(
         File(

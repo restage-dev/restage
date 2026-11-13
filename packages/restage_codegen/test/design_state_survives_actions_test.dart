@@ -1519,7 +1519,8 @@ void configureApp() {
     );
   });
 
-  test('a generator setState writer on a general screen says why', () async {
+  test('a generator setState writer on a general screen builds and says '
+      'why', () async {
     final built = await _build(
       _source(
         'null',
@@ -1531,8 +1532,10 @@ void configureApp() {
             'onChanged: (v) => setState(() sync* { annualSelected = v; })),',
       ),
     );
+    expect(built.errors, isEmpty);
+    expect(built.succeeded, isTrue);
     expect(
-      built.errors.first,
+      built.warnings.single,
       allOf(
         contains(
           'the closure passed to setState is a `sync*` generator, so setState '
@@ -1540,34 +1543,41 @@ void configureApp() {
         ),
         contains('Try removing `sync*` from the closure passed to setState.'),
         isNot(contains("screen's build method")),
+        isNot(contains("in the callback's arguments")),
       ),
     );
   });
 
-  test('a generator callback on a general screen says why', () async {
-    final built = await _build(
-      _source(
-        'null',
-        library: 'material',
-        annotation:
-            "@rs.Screen(id: 'plan_picker', surface: rs.Surface.general)",
-        extraChildren:
-            'Switch(value: annualSelected, '
-            'onChanged: (v) sync* { setState(() => annualSelected = v); }),',
-      ),
-    );
-    expect(
-      built.errors.first,
-      allOf(
-        contains(
-          'the callback is a `sync*` generator, so calling it never runs its '
-          'body',
+  test(
+    'a generator callback on a general screen builds and says why',
+    () async {
+      final built = await _build(
+        _source(
+          'null',
+          library: 'material',
+          annotation:
+              "@rs.Screen(id: 'plan_picker', surface: rs.Surface.general)",
+          extraChildren:
+              'Switch(value: annualSelected, '
+              'onChanged: (v) sync* { setState(() => annualSelected = v); }),',
         ),
-        contains('Try removing `sync*` from the callback.'),
-        isNot(contains("screen's build method")),
-      ),
-    );
-  });
+      );
+      expect(built.errors, isEmpty);
+      expect(built.succeeded, isTrue);
+      expect(
+        built.warnings.single,
+        allOf(
+          contains(
+            'the callback is a `sync*` generator, so calling it never runs its '
+            'body',
+          ),
+          contains('Try removing `sync*` from the callback.'),
+          isNot(contains("screen's build method")),
+          isNot(contains("in the callback's arguments")),
+        ),
+      );
+    },
+  );
 
   test('an async* generator method is named with its article', () async {
     final built = await _build(

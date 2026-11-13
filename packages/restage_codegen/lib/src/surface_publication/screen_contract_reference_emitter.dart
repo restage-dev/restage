@@ -436,6 +436,15 @@ String stepMountMissing(String step, String flow) =>
 String stepMountOwnerName(String id) =>
     '_restageStepOwner\$${_stepIdentifier(id)}';
 
+/// Whether a flow step needs its generated mount: it computes values, renders
+/// app widgets or reads its own inputs.
+bool rendersWithAppCode(ResolvedWidgetMountInput input) =>
+    input.hoisted.isNotEmpty ||
+    input.islands.isNotEmpty ||
+    input.hostDataContract.inputs.isNotEmpty ||
+    (input.split?.kept.isNotEmpty ?? false) ||
+    input.split?.state != null;
+
 /// Emits the mount of the flow step [id] when it renders with the app's code;
 /// [unstored] names a constructor input the step keeps in no field.
 ({
@@ -451,7 +460,7 @@ emitStepMount(
   required String flow,
   bool ownSurface = false,
 }) {
-  if (input.hoisted.isEmpty && input.islands.isEmpty) {
+  if (!rendersWithAppCode(input)) {
     return (
       source: null,
       omissionMessage: null,
@@ -2779,7 +2788,9 @@ void _emitScreenMount(
                         sdk: mount.sdk,
                       );
                     }
-                    return '_restageSource.${value.list ? 'childList' : 'child'}($path)';
+                    return value.list
+                        ? '${mount.sdk}RestageDecoders.widgetList(_restageSource, $path)'
+                        : '_restageSource.${value.optional ? 'optionalChild' : 'child'}($path)';
                   }
                 }
                 return decoderCallFor(
@@ -2972,7 +2983,11 @@ void _writeIslandDeclarations(
         '${sdk}RestageIslandPlaceholder(label: '
             '${dartStringLiteral(island.widget)}, children: [${[
               for (final slot in island.slots)
-                if (slot.builder == null) '${slot.list ? '...' : ''}${hole(slot.name)}',
+                if (slot.builder == null) slot.list
+                      ? '...${hole(slot.name)}'
+                      : slot.optional
+                      ? 'if (${hole(slot.name)} case final restageChild?) restageChild'
+                      : hole(slot.name),
             ].join(', ')}])';
     buffer
       ..writeln()
@@ -3025,7 +3040,9 @@ String Function(String argument) _islandHole(
           sdk: mount.sdk,
         );
       }
-      return 'restageSource.${value.list ? 'childList' : 'child'}($path)';
+      return value.list
+          ? '${mount.sdk}RestageDecoders.widgetList(restageSource, $path)'
+          : 'restageSource.${value.optional ? 'optionalChild' : 'child'}($path)';
     }
   }
   final property = island.properties.firstWhere(
@@ -4078,7 +4095,13 @@ String _splitArgument(
       '((${sdk}DataSource source) => $reconstructed)($source)',
     PropertyType.widget =>
       '$source.${nullable ? 'optionalChild' : 'child'}($path)',
-    PropertyType.widgetList => '$source.childList($path)',
+    // A nullable list the design leaves out stays null, as the catalog
+    // factories read it.
+    PropertyType.widgetList when nullable =>
+      '(${sdk}RestageDecoders.isWidgetList($source, $path) ? '
+          '${sdk}RestageDecoders.widgetList($source, $path) : null)',
+    PropertyType.widgetList =>
+      '${sdk}RestageDecoders.widgetList($source, $path)',
     _ when property != null => decoderCallFor(
       property,
       source: source,
@@ -4114,7 +4137,9 @@ String _withIslandSlots(
     final path = "const <Object>[${dartStringLiteral(argument)}]";
     for (final value in island.slots) {
       if (value.name == argument) {
-        return '_restageSource.${value.list ? 'childList' : 'child'}($path)';
+        return value.list
+            ? '${mount.sdk}RestageDecoders.widgetList(_restageSource, $path)'
+            : '_restageSource.${value.optional ? 'optionalChild' : 'child'}($path)';
       }
     }
     return decoderCallFor(

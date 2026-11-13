@@ -1051,9 +1051,25 @@ Future<TestReaderWriter> readerWriterWithFilesystemSources({
   bool? includeFlutter,
   bool includeIntl = false,
   bool includeDesignPackages = false,
+  Map<String, List<String>> entrypoints = const {},
 }) async {
   final writer = TestReaderWriter(rootPackage: rootPackage);
   _writeSources(writer, await _cachedDartOnlyWorkspaceSources());
+  if (entrypoints.isNotEmpty) {
+    _writeSources(
+      writer,
+      await (_entrypointSources[_entrypointKey(
+        entrypoints,
+      )] ??= _loadWorkspaceSources(
+        sourceEntrypoints: {
+          ..._appFixtureWorkspaceSourceEntrypoints,
+          ..._flutterWorkspaceSourceEntrypoints,
+          ...entrypoints,
+        },
+        dataEntrypoints: const {},
+      )),
+    );
+  }
   if (rootPackage == 'apps_examples') {
     _writeSources(writer, await _cachedAppFixtureWorkspaceSources());
   }
@@ -1229,8 +1245,10 @@ Future<T> resolveWorkspaceSources<T>(
   bool? includeFlutter,
   bool includeIntl = false,
   bool includeDesignPackages = false,
+  Map<String, List<String>> entrypoints = const {},
 }) async {
   final readerWriter = await readerWriterWithFilesystemSources(
+    entrypoints: entrypoints,
     rootPackage: rootPackage,
     includeFlutter:
         includeFlutter ??
@@ -1338,6 +1356,13 @@ const Map<String, List<String>> _workspaceDataEntrypoints = {
   'restage_material': ['lib/src/widget_catalog/catalog.json'],
   'restage_cupertino': ['lib/src/widget_catalog/catalog.json'],
 };
+
+final _entrypointSources = <String, Future<Map<AssetId, List<int>>>>{};
+
+String _entrypointKey(Map<String, List<String>> entrypoints) => [
+  for (final key in entrypoints.keys.toList()..sort())
+    '$key:${(entrypoints[key]!.toList()..sort()).join(',')}',
+].join(';');
 
 Future<Map<AssetId, List<int>>> _cachedDartOnlyWorkspaceSources() {
   return _dartOnlyWorkspaceSourcesFuture ??= _loadWorkspaceSources(

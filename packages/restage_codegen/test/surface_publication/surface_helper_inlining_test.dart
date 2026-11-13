@@ -194,7 +194,7 @@ final class ValueHelpers extends StatelessWidget {
     expect(text, isNot(contains('_greeting')));
   });
 
-  test('rejects a recursive helper with a named diagnostic', () async {
+  test('renders a recursive helper from the app', () async {
     final result = await _compile(
       'recursive',
       '''
@@ -209,8 +209,16 @@ final class Recursive extends StatelessWidget {
 }
 ''',
     );
-    expect(result.result.succeeded, isFalse);
-    expect(result.result.errors.join('\n'), contains('recursive helper'));
+    expect(result.result.succeeded, isTrue);
+    final handoff = jsonDecode(
+      result.readerWriter.testing.readString(
+        AssetId('apps_examples', kRestageSurfacePublicationCompilerBundlePath),
+      ),
+    );
+    expect(
+      jsonEncode(handoff['surfaceIslands']),
+      contains('recursive__nest_0'),
+    );
   });
 }
 
