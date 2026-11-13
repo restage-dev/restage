@@ -123,7 +123,7 @@ void main() {
       });
     });
 
-    test('a component with no data fields has an empty property schema', () {
+    test('a component with no data fields has a closed empty schema', () {
       final result = emitA2uiCatalog(
         catalogWith([entry(name: 'Spacer', properties: [])]),
       );
@@ -131,6 +131,7 @@ void main() {
         'type': 'object',
         'properties': <String, Object?>{},
         'required': <String>[],
+        'additionalProperties': false,
       });
     });
 

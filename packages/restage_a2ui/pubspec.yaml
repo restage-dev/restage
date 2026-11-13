@@ -22,9 +22,9 @@ dependencies:
     sdk: flutter
   restage_shared:
     path: ../restage_shared
-  a2ui_flutter: 0.0.1-wip003
-  # The A2UI 1.0 candidate protocol and validation model.
-  a2ui_core: ^0.4.0
+  a2ui_flutter: ^0.3.0
+  # The A2UI 1.0 protocol and validation model.
+  a2ui_core: ^0.7.0
 
 dev_dependencies:
   flutter_lints: ^6.0.0

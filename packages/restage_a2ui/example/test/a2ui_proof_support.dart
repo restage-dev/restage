@@ -20,7 +20,7 @@ List<Object?> sidecarMessages(
   List<Map<String, Object?>> components,
 ) => [
   {
-    'version': 'v1.0',
+    'version': '1.0',
     'createSurface': {
       'surfaceId': surfaceId,
       'catalogId': catalogId,

@@ -5,6 +5,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:restage_a2ui/restage_a2ui.dart';
 
 import 'generated/encoded_property_catalog.g.dart' as encoded;
 import 'generated/interactive_catalog.g.dart' as controls;
@@ -12,6 +13,34 @@ import 'generated/sample_a2ui_catalog.g.dart' as children;
 import 'generated/envelope_collision_catalog.g.dart' as names;
 import 'generated/rich_shape_catalog.g.dart' as rich;
 import 'generated/constraint_parity_catalog.g.dart' as constrained;
+
+// An undeclared property fails the unknown-property check, or the closed
+// schema of a component that declares none.
+Matcher _rejectsUndeclared(
+  String property, {
+  String code = 'extra_forbidden',
+}) => throwsA(
+  isA<A2uiValidationError>()
+      .having((error) => error.path, 'path', '/components/0/$property')
+      .having(
+        (error) => [
+          for (final detail in error.errors) (detail.code, detail.path),
+        ],
+        'errors',
+        contains((code, '/$property')),
+      ),
+);
+
+Map<String, Object?> _create(String catalogId, Map<String, Object?> root) => {
+  'version': '1.0',
+  'createSurface': {
+    'surfaceId': 's',
+    'catalogId': catalogId,
+    'components': [
+      {'id': 'root', ...root},
+    ],
+  },
+};
 
 void main() {
   for (final pair in [
@@ -31,6 +60,10 @@ void main() {
           .cast<String, Object?>();
       expect(Catalog.fromJson(document).toJson(), document);
       expect(pair.$2().toJson(), document);
+      expect(
+        Catalog.fromJson(document).validationSchema,
+        pair.$2().validationSchema,
+      );
     });
   }
 
@@ -60,14 +93,13 @@ void main() {
         'Content shown in the header.',
       );
       final definitions = document[r'$defs']! as Map;
-      final scoped = definitions['restage_component_CustomCard']! as Map;
-      final richRoot = (scoped[r'$defs']! as Map)['__a2ui_root__']! as Map;
+      final richRoot = definitions['CustomCard.__a2ui_root__']! as Map;
       expect(
         ((richRoot['properties']! as Map)['props_leading']!
             as Map)['description'],
         'Content shown before the rich details.',
       );
-      expect(catalog.definitions['restage_component_CustomCard'], scoped);
+      expect(catalog.definitions['CustomCard.__a2ui_root__'], richRoot);
     },
   );
 
@@ -83,7 +115,7 @@ void main() {
         );
         addTearDown(processor.dispose);
         processor.processMessages({
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {
             'surfaceId': 's',
             'catalogId': catalog.id,
@@ -160,7 +192,7 @@ void main() {
       );
       addTearDown(processor.dispose);
       processor.processMessages({
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's',
           'catalogId': catalog.id,
@@ -187,13 +219,31 @@ void main() {
               'id': 'button',
               'component': 'ActionButton',
               'props_label': 'Submit',
-              'props_onPressed': {
-                'event': {'name': 'spoofed'},
-              },
             },
           ],
         },
       });
+      // The action is compile-fixed: strict validation refuses a payload that
+      // tries to supply one.
+      expect(
+        () => processor.processMessages({
+          'version': '1.0',
+          'updateComponents': {
+            'surfaceId': 's',
+            'components': [
+              {
+                'id': 'button',
+                'component': 'ActionButton',
+                'props_label': 'Submit',
+                'props_onPressed': {
+                  'event': {'name': 'spoofed'},
+                },
+              },
+            ],
+          },
+        }),
+        _rejectsUndeclared('props_onPressed'),
+      );
       final surface = processor.model.getSurface('s')!;
       await tester.pumpWidget(
         MaterialApp(
@@ -214,4 +264,140 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+  test('strict validation refuses undeclared properties on every shape', () {
+    final cases = [
+      (
+        controls.buildRestageCatalog(),
+        <String, Object?>{
+          'component': 'TapTarget',
+          'props_onTap': {
+            'event': {'name': 'spoofed'},
+          },
+        },
+        _rejectsUndeclared('props_onTap', code: 'invalid_value'),
+      ),
+      (
+        names.buildRestageCatalog(),
+        <String, Object?>{
+          'component': 'CustomCard',
+          'props_id': 'a',
+          'props_component': 'a',
+          'props_catalogId': 'a',
+          'props_props': 'a',
+          'props_literalValue': 'a',
+          'props_pathValue': 'a',
+          'props_callValue': 'a',
+          'props_node': {'label': 'a'},
+          'props_counts': {'path': 1},
+          'props_meta': {'label': 'a', 'count': 1},
+          'props_leading': 'root',
+          'props_children': <String>[],
+          'props_enabled': true,
+          'props_undeclared': 'x',
+        },
+        _rejectsUndeclared('props_undeclared'),
+      ),
+    ];
+    for (final (catalog, root, rejects) in cases) {
+      final processor = MessageProcessor<ComponentImplementation>(
+        catalogs: [catalog],
+        defaultVersion: A2uiProtocolVersion.v1_0,
+        validationConfig: ValidationConfig.strict,
+      );
+      addTearDown(processor.dispose);
+      expect(
+        () => processor.processMessages(_create(catalog.id, root)),
+        rejects,
+      );
+    }
+  });
+
+  test('a property-less component still takes envelope fields', () {
+    final catalog = controls.buildRestageCatalog();
+    final processor = MessageProcessor<ComponentImplementation>(
+      catalogs: [catalog],
+      defaultVersion: A2uiProtocolVersion.v1_0,
+      validationConfig: ValidationConfig.strict,
+    );
+    addTearDown(processor.dispose);
+    processor.processMessages(
+      _create(catalog.id, {
+        'component': 'TapTarget',
+        'catalogId': catalog.id,
+        'accessibility': {'label': 'Tap'},
+        'metadata': {'extensions': <String, Object?>{}},
+      }),
+    );
+    expect(processor.model.getSurface('s')!.componentsModel.keys, ['root']);
+  });
+
+  test('the pre-render check refuses undeclared properties by default', () {
+    final catalog = controls.buildRestageCatalog();
+    final check = RestageA2uiPreRenderCheck(catalogs: [catalog]);
+    expect(
+      check.check(_create(catalog.id, {'component': 'TapTarget'})),
+      isA<A2uiRenderable>(),
+    );
+    for (final root in <Map<String, Object?>>[
+      {
+        'component': 'TapTarget',
+        'props_onTap': {
+          'event': {'name': 'spoofed'},
+        },
+      },
+      {
+        'component': 'ActionButton',
+        'props_label': 'Submit',
+        'props_onPressed': {
+          'event': {'name': 'spoofed'},
+        },
+      },
+    ]) {
+      expect(check.check(_create(catalog.id, root)), isA<A2uiRejected>());
+    }
+  });
+
+  testWidgets('a payload-supplied action leaves the fixed dispatch unchanged', (
+    tester,
+  ) async {
+    final actions = <A2uiRendererAction>[];
+    final catalog = controls.buildRestageCatalog();
+    final processor = MessageProcessor<ComponentImplementation>(
+      catalogs: [catalog],
+      defaultVersion: A2uiProtocolVersion.v1_0,
+      validationConfig: const ValidationConfig(allowUnknownElements: true),
+      onAction: actions.add,
+    );
+    addTearDown(processor.dispose);
+    processor.processMessages({
+      'version': '1.0',
+      'createSurface': {
+        'surfaceId': 's',
+        'catalogId': catalog.id,
+        'components': [
+          {
+            'id': 'root',
+            'component': 'ActionButton',
+            'props_label': 'Submit',
+            'props_onPressed': {
+              'event': {'name': 'spoofed'},
+            },
+          },
+        ],
+      },
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: A2uiSurface(surface: processor.model.getSurface('s')!),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('actionbutton')));
+    await tester.pump();
+    expect(actions.single.name, 'onPressed');
+    expect(actions.single.sourceComponentId, 'root');
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }

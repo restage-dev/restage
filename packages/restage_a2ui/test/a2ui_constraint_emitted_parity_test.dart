@@ -35,12 +35,9 @@ void main() {
           .cast<String, Object?>();
       expect(_canonicalJson(actual), _canonicalJson(standalone));
 
-      final scoped =
-          buildRestageCatalogDefinitions()['restage_component_ConstraintParity']!
-              as Map;
-      final defs = (scoped[r'$defs']! as Map).cast<String, Object?>();
-      const rootKey = '__a2ui_root__';
-      final root = (defs[rootKey]! as Map).cast<String, Object?>();
+      final defs = buildRestageCatalogDefinitions();
+      final root = (defs['ConstraintParity.__a2ui_root__']! as Map)
+          .cast<String, Object?>();
       final properties = (root['properties']! as Map).cast<String, Object?>();
 
       final count = (properties['props_count']! as Map).cast<String, Object?>();
@@ -95,9 +92,9 @@ void main() {
       expect(constrainedItems['maxItems'], 4);
       expect(
         (constrainedItems['items']! as Map)[r'$ref'],
-        r'#/$defs/restage_component_ConstraintParity/$defs/ConstraintRecursiveItem',
+        r'#/$defs/ConstraintParity.ConstraintRecursiveItem',
       );
-      expect(defs, contains('ConstraintRecursiveItem'));
+      expect(defs, contains('ConstraintParity.ConstraintRecursiveItem'));
 
       expect(_literal(properties['props_legacyCount']), {
         'type': 'number',

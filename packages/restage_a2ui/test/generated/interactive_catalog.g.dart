@@ -199,6 +199,22 @@ List<ComponentImplementation> buildRestageCatalogItems() {
         );
       },
     ),
+    ComponentImplementation(
+      name: 'TapTarget',
+      schema: S.object(
+        properties: {},
+        required: <String>[],
+        additionalProperties: false,
+      ),
+      builder: (context, restageNode, restageProps, restageBuildChild) {
+        final itemContext = restageNode.context!;
+        return p0.TapTargetFixture(
+          onTap: () => itemContext.dispatchAction({
+            'event': {'name': 'onTap'}
+          }),
+        );
+      },
+    ),
   ];
 }
 
@@ -207,7 +223,7 @@ Map<String, Object?> buildRestageCatalogDefinitions() => <String, Object?>{};
 
 /// Content address for exactly the generated custom-only catalog.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/852ba7959b554f93d838524d474a1907524d07dff04f02c60bbae1d6605d6aca';
+    'restage:catalog/sha256/ef0ea697d8af42a1ad07c8688b9083d9e679bb38667948fb13b27cc11b3f73c8';
 
 /// Compact identity and capability metadata for the generated catalog.
 /// The producer-facing `.a2ui.json` remains a separate portable artifact.
@@ -216,7 +232,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
   a2uiProtocolVersion: '1.0',
   catalogId: restageA2uiCatalogId,
   fingerprint:
-      'sha256/852ba7959b554f93d838524d474a1907524d07dff04f02c60bbae1d6605d6aca',
+      'sha256/ef0ea697d8af42a1ad07c8688b9083d9e679bb38667948fb13b27cc11b3f73c8',
   catalogContentVersion: 1,
   availableLibraries: <A2uiAvailableLibrary>[],
   perItemSinceVersion: <String, int>{
@@ -224,11 +240,12 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
     'MultiSelect': 1,
     'QuickCheck': 1,
     'Range': 1,
+    'TapTarget': 1,
   },
 );
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/852ba7959b554f93d838524d474a1907524d07dff04f02c60bbae1d6605d6aca".',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/ef0ea697d8af42a1ad07c8688b9083d9e679bb38667948fb13b27cc11b3f73c8".',
   'QuickCheck constructor fields: selected => props_selected.',
   'MultiSelect constructor fields: chosen => props_chosen.',
   'ActionButton constructor fields: label => props_label.',

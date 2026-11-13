@@ -25,12 +25,12 @@
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/sha256/80ea0581b4e1675c7e0222017fc2d4af5ac4f59edd9002668b635a140e6ee8f1",
+    "$id": "restage:catalog/sha256/ca2df5a68793193fdbeddbfbe628902b64f3f49f885fb43a49e1d31c246dc777",
     "protocolVersion": "1.0",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/sha256/80ea0581b4e1675c7e0222017fc2d4af5ac4f59edd9002668b635a140e6ee8f1",
-    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/80ea0581b4e1675c7e0222017fc2d4af5ac4f59edd9002668b635a140e6ee8f1\".\nCallout: Use for a short highlighted aside around optional content.\nCallout constructor fields: message => props_message, detail => props_detail.\nComparisonPanel: A headed panel with an introduction, examples, and conclusion.\nComparisonPanel constructor fields: heading => props_heading, introduction => props_introduction, examples => props_examples, conclusion => props_conclusion.\nQuizCheck: A prompt with a checkable answer bound to a boolean value.\nQuizCheck constructor fields: prompt => props_prompt, selected => props_selected.\nSectionHeader: A titled section header.\nSectionHeader constructor fields: title => props_title.\nCtaButton: A call-to-action button that dispatches a tap event.\nCtaButton constructor fields: label => props_label.\nIntegerListPicker: Adds values to a bound integer list.\nIntegerListPicker constructor fields: selected => props_selected.\nProductCard: Renders a structured product (nested price, tags, features, attributes, size).\nProductCard constructor fields: product => props_product.\nRatingPicker: A 1–5 star rating control bound to an integer value.\nRatingPicker constructor fields: rating => props_rating.\nScalarListPanel: Renders string, integer, number, and boolean lists.\nScalarListPanel constructor fields: labels => props_labels, counts => props_counts, weights => props_weights, measurements => props_measurements, flags => props_flags, maybeCounts => props_maybeCounts, fallbackCounts => props_fallbackCounts.",
+    "catalogId": "restage:catalog/sha256/ca2df5a68793193fdbeddbfbe628902b64f3f49f885fb43a49e1d31c246dc777",
+    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/ca2df5a68793193fdbeddbfbe628902b64f3f49f885fb43a49e1d31c246dc777\".\nCallout: Use for a short highlighted aside around optional content.\nCallout constructor fields: message => props_message, detail => props_detail.\nComparisonPanel: A headed panel with an introduction, examples, and conclusion.\nComparisonPanel constructor fields: heading => props_heading, introduction => props_introduction, examples => props_examples, conclusion => props_conclusion.\nQuizCheck: A prompt with a checkable answer bound to a boolean value.\nQuizCheck constructor fields: prompt => props_prompt, selected => props_selected.\nSectionHeader: A titled section header.\nSectionHeader constructor fields: title => props_title.\nCtaButton: A call-to-action button that dispatches a tap event.\nCtaButton constructor fields: label => props_label.\nIntegerListPicker: Adds values to a bound integer list.\nIntegerListPicker constructor fields: selected => props_selected.\nProductCard: Renders a structured product (nested price, tags, features, attributes, size).\nProductCard constructor fields: product => props_product.\nRatingPicker: A 1–5 star rating control bound to an integer value.\nRatingPicker constructor fields: rating => props_rating.\nScalarListPanel: Renders string, integer, number, and boolean lists.\nScalarListPanel constructor fields: labels => props_labels, counts => props_counts, weights => props_weights, measurements => props_measurements, flags => props_flags, maybeCounts => props_maybeCounts, fallbackCounts => props_fallbackCounts.",
     "components": {
       "Callout": {
         "type": "object",
@@ -175,7 +175,7 @@
       "ProductCard": {
         "allOf": [
           {
-            "$ref": "#/$defs/restage_component_ProductCard/$defs/__a2ui_root__"
+            "$ref": "#/$defs/ProductCard.__a2ui_root__"
           }
         ]
       },
@@ -411,114 +411,110 @@
       }
     },
     "$defs": {
-      "restage_component_ProductCard": {
-        "$defs": {
-          "Money": {
-            "type": "object",
-            "description": "A monetary amount in a specific currency.",
-            "properties": {
-              "amount": {
-                "type": "number",
-                "description": "The numeric amount."
-              },
-              "currency": {
-                "type": "string",
-                "description": "The ISO currency code (e.g. `'USD'`)."
-              }
-            },
-            "required": [
-              "amount",
-              "currency"
-            ]
+      "ProductCard.Money": {
+        "type": "object",
+        "description": "A monetary amount in a specific currency.",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "description": "The numeric amount."
           },
-          "Product": {
-            "type": "object",
-            "description": "A product with pricing, feature, attribute, and display metadata.",
-            "properties": {
-              "attributes": {
-                "type": "object",
-                "description": "Arbitrary attributes — a String-keyed map.",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "features": {
-                "type": "array",
-                "description": "Feature rows — a list of objects.",
-                "items": {
-                  "type": "object",
-                  "description": "One feature included in or excluded from a product.",
-                  "properties": {
-                    "included": {
-                      "type": "boolean",
-                      "description": "Whether this plan includes the feature."
-                    },
-                    "label": {
-                      "type": "string",
-                      "description": "The feature label."
-                    }
-                  },
-                  "required": [
-                    "included",
-                    "label"
-                  ]
-                }
-              },
-              "name": {
-                "type": "string",
-                "description": "The user-facing product name."
-              },
-              "price": {
-                "description": "The price — a nested data class.",
-                "$ref": "#/$defs/restage_component_ProductCard/$defs/Money"
-              },
-              "size": {
-                "type": "object",
-                "description": "The display size — a named record.",
-                "properties": {
-                  "height": {
-                    "type": "number"
-                  },
-                  "width": {
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "height",
-                  "width"
-                ]
-              },
-              "tags": {
-                "type": "array",
-                "description": "Marketing tags — a scalar list.",
-                "items": {
-                  "type": "string"
-                }
-              }
-            },
-            "required": [
-              "attributes",
-              "features",
-              "name",
-              "price",
-              "size",
-              "tags"
-            ]
-          },
-          "__a2ui_root__": {
-            "type": "object",
-            "description": "Renders a structured product (nested price, tags, features, attributes, size).",
-            "properties": {
-              "props_product": {
-                "description": "The product to display.",
-                "$ref": "#/$defs/restage_component_ProductCard/$defs/Product"
-              }
-            },
-            "required": [
-              "props_product"
-            ]
+          "currency": {
+            "type": "string",
+            "description": "The ISO currency code (e.g. `'USD'`)."
           }
-        }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ]
+      },
+      "ProductCard.Product": {
+        "type": "object",
+        "description": "A product with pricing, feature, attribute, and display metadata.",
+        "properties": {
+          "attributes": {
+            "type": "object",
+            "description": "Arbitrary attributes — a String-keyed map.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "features": {
+            "type": "array",
+            "description": "Feature rows — a list of objects.",
+            "items": {
+              "type": "object",
+              "description": "One feature included in or excluded from a product.",
+              "properties": {
+                "included": {
+                  "type": "boolean",
+                  "description": "Whether this plan includes the feature."
+                },
+                "label": {
+                  "type": "string",
+                  "description": "The feature label."
+                }
+              },
+              "required": [
+                "included",
+                "label"
+              ]
+            }
+          },
+          "name": {
+            "type": "string",
+            "description": "The user-facing product name."
+          },
+          "price": {
+            "description": "The price — a nested data class.",
+            "$ref": "#/$defs/ProductCard.Money"
+          },
+          "size": {
+            "type": "object",
+            "description": "The display size — a named record.",
+            "properties": {
+              "height": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "height",
+              "width"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "description": "Marketing tags — a scalar list.",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "attributes",
+          "features",
+          "name",
+          "price",
+          "size",
+          "tags"
+        ]
+      },
+      "ProductCard.__a2ui_root__": {
+        "type": "object",
+        "description": "Renders a structured product (nested price, tags, features, attributes, size).",
+        "properties": {
+          "props_product": {
+            "description": "The product to display.",
+            "$ref": "#/$defs/ProductCard.Product"
+          }
+        },
+        "required": [
+          "props_product"
+        ]
       },
       "anyComponent": {
         "oneOf": [

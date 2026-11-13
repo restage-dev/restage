@@ -17,10 +17,8 @@ List<ComponentImplementation> buildRestageCatalogItems() {
   return <ComponentImplementation>[
     ComponentImplementation(
       name: 'CustomCard',
-      schema: S.combined(allOf: [
-        S.combined(
-            $ref: '#/\$defs/restage_component_CustomCard/\$defs/__a2ui_root__')
-      ]),
+      schema: S.combined(
+          allOf: [S.combined($ref: '#/\$defs/CustomCard.__a2ui_root__')]),
       builder: (context, restageNode, restageProps, restageBuildChild) {
         final itemContext = restageNode.context!;
         final data = <String, Object?>{
@@ -172,10 +170,8 @@ List<ComponentImplementation> buildRestageCatalogItems() {
     ),
     ComponentImplementation(
       name: 'OtherCard',
-      schema: S.combined(allOf: [
-        S.combined(
-            $ref: '#/\$defs/restage_component_OtherCard/\$defs/__a2ui_root__')
-      ]),
+      schema: S.combined(
+          allOf: [S.combined($ref: '#/\$defs/OtherCard.__a2ui_root__')]),
       builder: (context, restageNode, restageProps, restageBuildChild) {
         final itemContext = restageNode.context!;
         final data = <String, Object?>{
@@ -281,321 +277,305 @@ List<ComponentImplementation> buildRestageCatalogItems() {
 
 /// Merge these definitions alongside [buildRestageCatalogItems] when composing catalogs.
 Map<String, Object?> buildRestageCatalogDefinitions() => <String, Object?>{
-      'restage_component_CustomCard': <String, Object?>{
-        '\$defs': <String, Object?>{
-          'CollisionNode': <String, Object?>{
-            'type': 'object',
-            'properties': <String, Object?>{
-              'label': <String, Object?>{'type': 'string'},
-              'child': <String, Object?>{
-                'anyOf': <Object?>[
-                  <String, Object?>{
-                    '\$ref':
-                        '#/\$defs/restage_component_CustomCard/\$defs/CollisionNode'
-                  },
-                  <String, Object?>{'type': 'null'}
-                ]
-              }
-            },
-            'required': <Object?>['label']
-          },
-          '__a2ui_root__': <String, Object?>{
-            'type': 'object',
-            'properties': <String, Object?>{
-              'props_id': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_component': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_catalogId': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_props': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_literalValue': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_pathValue': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_callValue': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_node': <String, Object?>{
-                '\$ref':
-                    '#/\$defs/restage_component_CustomCard/\$defs/CollisionNode'
-              },
-              'props_counts': <String, Object?>{
-                'type': 'object',
-                'additionalProperties': <String, Object?>{'type': 'integer'}
-              },
-              'props_meta': <String, Object?>{
-                'type': 'object',
-                'properties': <String, Object?>{
-                  'count': <String, Object?>{'type': 'integer'},
-                  'label': <String, Object?>{'type': 'string'}
-                },
-                'required': <Object?>['count', 'label']
-              },
-              'props_leading': <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/ComponentId',
-                'description': 'Content shown before the rich details.'
-              },
-              'props_children': <String, Object?>{
-                'type': 'array',
-                'items': <String, Object?>{
-                  '\$ref': 'common_types.json#/\$defs/ComponentId',
-                  'description': 'The unique identifier for a component.'
-                }
-              },
-              'props_enabled': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'boolean'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              }
-            },
-            'required': <Object?>[
-              'props_id',
-              'props_component',
-              'props_catalogId',
-              'props_props',
-              'props_literalValue',
-              'props_pathValue',
-              'props_callValue',
-              'props_node',
-              'props_counts',
-              'props_meta',
-              'props_leading',
-              'props_children',
-              'props_enabled'
+      'CustomCard.CollisionNode': <String, Object?>{
+        'type': 'object',
+        'properties': <String, Object?>{
+          'label': <String, Object?>{'type': 'string'},
+          'child': <String, Object?>{
+            'anyOf': <Object?>[
+              <String, Object?>{'\$ref': '#/\$defs/CustomCard.CollisionNode'},
+              <String, Object?>{'type': 'null'}
             ]
           }
-        }
+        },
+        'required': <Object?>['label']
       },
-      'restage_component_OtherCard': <String, Object?>{
-        '\$defs': <String, Object?>{
-          'CollisionNode': <String, Object?>{
-            'type': 'object',
-            'properties': <String, Object?>{
-              'label': <String, Object?>{'type': 'string'},
-              'child': <String, Object?>{
-                'anyOf': <Object?>[
-                  <String, Object?>{
-                    '\$ref':
-                        '#/\$defs/restage_component_OtherCard/\$defs/CollisionNode'
-                  },
-                  <String, Object?>{'type': 'null'}
-                ]
+      'CustomCard.__a2ui_root__': <String, Object?>{
+        'type': 'object',
+        'properties': <String, Object?>{
+          'props_id': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
               }
-            },
-            'required': <Object?>['label']
+            ]
           },
-          '__a2ui_root__': <String, Object?>{
+          'props_component': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_catalogId': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_props': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_literalValue': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_pathValue': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_callValue': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_node': <String, Object?>{
+            '\$ref': '#/\$defs/CustomCard.CollisionNode'
+          },
+          'props_counts': <String, Object?>{
+            'type': 'object',
+            'additionalProperties': <String, Object?>{'type': 'integer'}
+          },
+          'props_meta': <String, Object?>{
             'type': 'object',
             'properties': <String, Object?>{
-              'props_id': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_component': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_catalogId': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_props': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_literalValue': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_pathValue': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_callValue': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_node': <String, Object?>{
-                '\$ref':
-                    '#/\$defs/restage_component_OtherCard/\$defs/CollisionNode'
-              },
-              'props_counts': <String, Object?>{
-                'type': 'object',
-                'additionalProperties': <String, Object?>{'type': 'integer'}
-              },
-              'props_meta': <String, Object?>{
-                'type': 'object',
-                'properties': <String, Object?>{
-                  'count': <String, Object?>{'type': 'integer'},
-                  'label': <String, Object?>{'type': 'string'}
-                },
-                'required': <Object?>['count', 'label']
-              },
-              'props_leading': <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/ComponentId',
-                'description': 'Content shown before the rich details.'
-              },
-              'props_children': <String, Object?>{
-                'type': 'array',
-                'items': <String, Object?>{
-                  '\$ref': 'common_types.json#/\$defs/ComponentId',
-                  'description': 'The unique identifier for a component.'
-                }
-              },
-              'props_enabled': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'boolean'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              }
+              'count': <String, Object?>{'type': 'integer'},
+              'label': <String, Object?>{'type': 'string'}
             },
-            'required': <Object?>[
-              'props_id',
-              'props_component',
-              'props_catalogId',
-              'props_props',
-              'props_literalValue',
-              'props_pathValue',
-              'props_callValue',
-              'props_node',
-              'props_counts',
-              'props_meta',
-              'props_leading',
-              'props_children',
-              'props_enabled'
+            'required': <Object?>['count', 'label']
+          },
+          'props_leading': <String, Object?>{
+            '\$ref': 'common_types.json#/\$defs/ComponentId',
+            'description': 'Content shown before the rich details.'
+          },
+          'props_children': <String, Object?>{
+            'type': 'array',
+            'items': <String, Object?>{
+              '\$ref': 'common_types.json#/\$defs/ComponentId',
+              'description': 'The unique identifier for a component.'
+            }
+          },
+          'props_enabled': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'boolean'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
             ]
           }
-        }
+        },
+        'required': <Object?>[
+          'props_id',
+          'props_component',
+          'props_catalogId',
+          'props_props',
+          'props_literalValue',
+          'props_pathValue',
+          'props_callValue',
+          'props_node',
+          'props_counts',
+          'props_meta',
+          'props_leading',
+          'props_children',
+          'props_enabled'
+        ]
+      },
+      'OtherCard.CollisionNode': <String, Object?>{
+        'type': 'object',
+        'properties': <String, Object?>{
+          'label': <String, Object?>{'type': 'string'},
+          'child': <String, Object?>{
+            'anyOf': <Object?>[
+              <String, Object?>{'\$ref': '#/\$defs/OtherCard.CollisionNode'},
+              <String, Object?>{'type': 'null'}
+            ]
+          }
+        },
+        'required': <Object?>['label']
+      },
+      'OtherCard.__a2ui_root__': <String, Object?>{
+        'type': 'object',
+        'properties': <String, Object?>{
+          'props_id': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_component': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_catalogId': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_props': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_literalValue': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_pathValue': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_callValue': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_node': <String, Object?>{
+            '\$ref': '#/\$defs/OtherCard.CollisionNode'
+          },
+          'props_counts': <String, Object?>{
+            'type': 'object',
+            'additionalProperties': <String, Object?>{'type': 'integer'}
+          },
+          'props_meta': <String, Object?>{
+            'type': 'object',
+            'properties': <String, Object?>{
+              'count': <String, Object?>{'type': 'integer'},
+              'label': <String, Object?>{'type': 'string'}
+            },
+            'required': <Object?>['count', 'label']
+          },
+          'props_leading': <String, Object?>{
+            '\$ref': 'common_types.json#/\$defs/ComponentId',
+            'description': 'Content shown before the rich details.'
+          },
+          'props_children': <String, Object?>{
+            'type': 'array',
+            'items': <String, Object?>{
+              '\$ref': 'common_types.json#/\$defs/ComponentId',
+              'description': 'The unique identifier for a component.'
+            }
+          },
+          'props_enabled': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'boolean'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          }
+        },
+        'required': <Object?>[
+          'props_id',
+          'props_component',
+          'props_catalogId',
+          'props_props',
+          'props_literalValue',
+          'props_pathValue',
+          'props_callValue',
+          'props_node',
+          'props_counts',
+          'props_meta',
+          'props_leading',
+          'props_children',
+          'props_enabled'
+        ]
       }
     };
 
 /// Content address for exactly the generated custom-only catalog.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/48aa2728a12690839886bad83c0e7683b1aca7f662b5b47e9399e994ba8b0b33';
+    'restage:catalog/sha256/bdcf08fb3987801fa889a7aebebf2528917665b76adca839124c834865db99bb';
 
 /// Compact identity and capability metadata for the generated catalog.
 /// The producer-facing `.a2ui.json` remains a separate portable artifact.
@@ -604,7 +584,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
   a2uiProtocolVersion: '1.0',
   catalogId: restageA2uiCatalogId,
   fingerprint:
-      'sha256/48aa2728a12690839886bad83c0e7683b1aca7f662b5b47e9399e994ba8b0b33',
+      'sha256/bdcf08fb3987801fa889a7aebebf2528917665b76adca839124c834865db99bb',
   catalogContentVersion: 1,
   availableLibraries: <A2uiAvailableLibrary>[
     A2uiAvailableLibrary(namespace: 'namespace.proof', version: 1),
@@ -618,7 +598,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
 );
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/48aa2728a12690839886bad83c0e7683b1aca7f662b5b47e9399e994ba8b0b33".',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/bdcf08fb3987801fa889a7aebebf2528917665b76adca839124c834865db99bb".',
   'CustomCard constructor fields: id => props_id, component => props_component, catalogId => props_catalogId, props => props_props, literalValue => props_literalValue, pathValue => props_pathValue, callValue => props_callValue, node => props_node, counts => props_counts, meta => props_meta, leading => props_leading, children => props_children, enabled => props_enabled.',
   'InlineCard constructor fields: child => props_child.',
   'Leaf constructor fields: label => props_label.',

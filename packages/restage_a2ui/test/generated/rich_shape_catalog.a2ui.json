@@ -13,17 +13,17 @@
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/sha256/ca8f148a8b1ad4e46d46a77d8b4bfc3b2d3d861bbd39eba0b18ac8cf5753140b",
+    "$id": "restage:catalog/sha256/e5c46a5c0dbbffd28eea43078de7f193158e8859d1ba0dcf1699d372b77d3d1b",
     "protocolVersion": "1.0",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/sha256/ca8f148a8b1ad4e46d46a77d8b4bfc3b2d3d861bbd39eba0b18ac8cf5753140b",
-    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/ca8f148a8b1ad4e46d46a77d8b4bfc3b2d3d861bbd39eba0b18ac8cf5753140b\".\nPlanCard constructor fields: plan => props_plan.\nFeatureGrid: A grid of plan features with inclusion flags.\nFeatureGrid constructor fields: features => props_features.\nGlossary constructor fields: terms => props_terms.\nMetaBar constructor fields: meta => props_meta.\nLinkCard constructor fields: link => props_link.\nCommentThread constructor fields: root => props_root.",
+    "catalogId": "restage:catalog/sha256/e5c46a5c0dbbffd28eea43078de7f193158e8859d1ba0dcf1699d372b77d3d1b",
+    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/e5c46a5c0dbbffd28eea43078de7f193158e8859d1ba0dcf1699d372b77d3d1b\".\nPlanCard constructor fields: plan => props_plan.\nFeatureGrid: A grid of plan features with inclusion flags.\nFeatureGrid constructor fields: features => props_features.\nGlossary constructor fields: terms => props_terms.\nMetaBar constructor fields: meta => props_meta.\nLinkCard constructor fields: link => props_link.\nCommentThread constructor fields: root => props_root.",
     "components": {
       "CommentThread": {
         "allOf": [
           {
-            "$ref": "#/$defs/restage_component_CommentThread/$defs/__a2ui_root__"
+            "$ref": "#/$defs/CommentThread.__a2ui_root__"
           }
         ]
       },
@@ -119,108 +119,100 @@
       "PlanCard": {
         "allOf": [
           {
-            "$ref": "#/$defs/restage_component_PlanCard/$defs/__a2ui_root__"
+            "$ref": "#/$defs/PlanCard.__a2ui_root__"
           }
         ]
       }
     },
     "$defs": {
-      "restage_component_CommentThread": {
-        "$defs": {
-          "Comment": {
-            "type": "object",
-            "description": "A comment that may link to one nested reply.",
-            "properties": {
-              "reply": {
-                "description": "The next reply in the thread.",
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/restage_component_CommentThread/$defs/Comment"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
+      "CommentThread.Comment": {
+        "type": "object",
+        "description": "A comment that may link to one nested reply.",
+        "properties": {
+          "reply": {
+            "description": "The next reply in the thread.",
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CommentThread.Comment"
               },
-              "text": {
-                "type": "string",
-                "description": "The comment text."
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "text"
             ]
           },
-          "__a2ui_root__": {
-            "type": "object",
-            "properties": {
-              "props_root": {
-                "description": "The root comment of a recursive reply thread.",
-                "$ref": "#/$defs/restage_component_CommentThread/$defs/Comment"
-              }
-            },
-            "required": [
-              "props_root"
-            ]
+          "text": {
+            "type": "string",
+            "description": "The comment text."
           }
-        }
+        },
+        "required": [
+          "text"
+        ]
       },
-      "restage_component_PlanCard": {
-        "$defs": {
-          "PlanTier": {
-            "type": "object",
-            "description": "A nested data class: required scalars + a nullable enum + a nullable string.",
-            "properties": {
-              "badge": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "none",
-                      "popular",
-                      "bestValue"
-                    ]
-                  },
-                  {
-                    "type": "null"
-                  }
+      "CommentThread.__a2ui_root__": {
+        "type": "object",
+        "properties": {
+          "props_root": {
+            "description": "The root comment of a recursive reply thread.",
+            "$ref": "#/$defs/CommentThread.Comment"
+          }
+        },
+        "required": [
+          "props_root"
+        ]
+      },
+      "PlanCard.PlanTier": {
+        "type": "object",
+        "description": "A nested data class: required scalars + a nullable enum + a nullable string.",
+        "properties": {
+          "badge": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "popular",
+                  "bestValue"
                 ]
               },
-              "name": {
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number"
+          },
+          "tagline": {
+            "anyOf": [
+              {
                 "type": "string"
               },
-              "price": {
-                "type": "number"
-              },
-              "tagline": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "name",
-              "price"
-            ]
-          },
-          "__a2ui_root__": {
-            "type": "object",
-            "properties": {
-              "props_plan": {
-                "description": "The plan tier this card presents.",
-                "$ref": "#/$defs/restage_component_PlanCard/$defs/PlanTier"
-              }
-            },
-            "required": [
-              "props_plan"
             ]
           }
-        }
+        },
+        "required": [
+          "name",
+          "price"
+        ]
+      },
+      "PlanCard.__a2ui_root__": {
+        "type": "object",
+        "properties": {
+          "props_plan": {
+            "description": "The plan tier this card presents.",
+            "$ref": "#/$defs/PlanCard.PlanTier"
+          }
+        },
+        "required": [
+          "props_plan"
+        ]
       },
       "anyComponent": {
         "oneOf": [

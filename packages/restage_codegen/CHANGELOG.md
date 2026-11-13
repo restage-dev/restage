@@ -94,9 +94,9 @@
 - **Breaking:** generated event types are named `<Class>SurfaceEvent`, and
   per-field events `<Class>Surface<Field>Event`. They were `<Class>Event`, which
   could collide with your own classes. Rename references to them in your code.
-- **Breaking, unreleased A2UI 1.0 candidate migration:** generate
+- **Breaking, A2UI 1.0 migration:** generate
   `ComponentImplementation` / `CatalogImplementation` for
-  `a2ui_flutter 0.0.1-wip003` and `a2ui_core ^0.4.0` (Dart >=3.11.0,
+  `a2ui_flutter ^0.3.0` and `a2ui_core ^0.7.0` (Dart >=3.11.0,
   Flutter >=3.38.0, json_schema_builder >=0.1.7). Regenerate catalogs and
   migrate cached/producer inputs to generated top-level properties and dynamic
   `@path`/`@call`. Ordinary names retain `props_<DartName>`; names invalid under
@@ -105,15 +105,22 @@
   generated schema keys; Dart arguments and nested business-data keys stay exact,
   except that keys starting with `@` are written as `@@` on the wire.
 - Require Dart >=3.11.0 for every `restage_codegen` user (its analyzer
-  dependency already did) and depend on `a2ui_core ^0.4.0`, whether or not the
+  dependency already did) and depend on `a2ui_core ^0.7.0`, whether or not the
   A2UI builder is enabled. An app that also depends on `genui` 0.10.x, which
   needs `a2ui_core ^0.1.0`, cannot resolve this version.
 - Generated catalog IDs hash Restage's own catalog projection, so they no longer
   change with the upstream serializer. Every catalog ID changes once.
-- Use standard catalog `instructions` and catalog-level rich definitions.
+- Messages carry the A2UI 1.0 wire version `"1.0"`; `"v1.0"` is rejected.
+- Use standard catalog `instructions` and catalog-level rich definitions. Each
+  component's definitions are flat catalog `$defs` entries named
+  `<Component>.<Definition>`, such as `ProductCard.Money`.
   Manual composition must merge `buildRestageCatalogDefinitions()` with items
   and use a new ID. Invalid component type identifiers and reserved `Surface`
   fail generation with annotation guidance; native screen IDs remain exact.
+- A component with no properties, such as a widget whose only input is a
+  callback, gets a schema with `additionalProperties: false`. Validation
+  rejects any property a payload supplies for it, under every validation
+  config.
 
 - Compile native Directionality/textDirection, physical and directional geometry,
   keyboard/accessibility reads, and exact scoped TextScaler values.

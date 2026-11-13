@@ -70,7 +70,7 @@ final class _Runtime {
       );
       addTearDown(processor!.dispose);
       processor!.processMessages({
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's',
           'catalogId': composed.id,
@@ -80,7 +80,7 @@ final class _Runtime {
       });
     } else {
       processor!.processMessages({
-        'version': 'v1.0',
+        'version': '1.0',
         'updateComponents': {'surfaceId': 's', 'components': components},
       });
     }

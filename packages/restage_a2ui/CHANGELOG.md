@@ -1,8 +1,8 @@
 ## Unreleased
 
-- **Breaking, unreleased A2UI 1.0 candidate migration:** generate
+- **Breaking, A2UI 1.0 migration:** generate
   `ComponentImplementation` / `CatalogImplementation` for
-  `a2ui_flutter 0.0.1-wip003` and `a2ui_core ^0.4.0` (Dart >=3.11.0,
+  `a2ui_flutter ^0.3.0` and `a2ui_core ^0.7.0` (Dart >=3.11.0,
   Flutter >=3.38.0, json_schema_builder >=0.1.7). Regenerate catalogs and
   migrate cached/producer inputs to generated top-level properties and dynamic
   `@path`/`@call`. Ordinary names retain `props_<DartName>`; names invalid under
@@ -10,7 +10,10 @@
   `props_encoded_<hex>` (four lowercase digits per UTF-16 code unit). Use the
   generated schema keys; Dart arguments and nested business-data keys stay exact,
   except that keys starting with `@` are written as `@@` on the wire.
-- Use standard catalog `instructions` and catalog-level rich definitions.
+- Messages carry the A2UI 1.0 wire version `"1.0"`; `"v1.0"` is rejected.
+- Use standard catalog `instructions` and catalog-level rich definitions. Each
+  component's definitions are flat catalog `$defs` entries named
+  `<Component>.<Definition>`, such as `ProductCard.Money`.
   Manual composition must merge `buildRestageCatalogDefinitions()` with items
   and use a new ID. Invalid component type identifiers and reserved `Surface`
   fail generation with annotation guidance; native screen IDs remain exact.
@@ -33,8 +36,12 @@
   catalogs declare it themselves.
 - Qualify real MessageProcessor/A2uiSurface rendering, strict rejection before
   component commit, controlled write-back, rich data and arbitrary children.
-  This candidate is not in the published 0.2.0 / codegen 2.0.0 packages; release
-  versions and upstream stability are a separate release gate.
+  Strict validation rejects a component property the catalog doesn't declare.
+  A component that declares no properties refuses any property, under every
+  validation config. A payload-supplied action never replaces a compile-fixed
+  one.
+- The pre-render check rejects a component property the catalog doesn't
+  declare, also when it is given no `validationConfig`.
 
 ## 0.2.0
 

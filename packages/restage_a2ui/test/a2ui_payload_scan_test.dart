@@ -4,7 +4,7 @@ import 'package:restage_a2ui/src/a2ui_payload_scan.dart';
 
 void main() {
   const message = {
-    'version': 'v1.0',
+    'version': '1.0',
     'createSurface': {'surfaceId': 's'},
   };
   test('parses a single v1 message and a flat bundle', () {
@@ -45,7 +45,7 @@ void main() {
   });
   test('preserves arbitrary business data without recursive scanning', () {
     final parsed = parseA2uiV1Messages({
-      'version': 'v1.0',
+      'version': '1.0',
       'updateDataModel': {
         'surfaceId': 's',
         'path': '/data',

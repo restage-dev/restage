@@ -156,10 +156,8 @@ surfaces as RFW; A2UI is an extra output. The
 [A2UI walkthrough](../restage_a2ui/README.md#generate-an-a2ui-catalog-from-your-widgets)
 covers dependencies, the builder, and wiring `buildRestageCatalog()` into an
 A2UI `MessageProcessor` and `A2uiSurface`. The app supplies the model transport,
-messages and action handling. This v1 candidate migration is unreleased; use
-repository/workspace packages with `a2ui_flutter 0.0.1-wip003` and
-`a2ui_core ^0.4.0`. Published `restage_codegen 2.0.0` and
-`restage_a2ui 0.2.0` do not provide it.
+messages and action handling. The A2UI output requires `a2ui_flutter ^0.3.0`
+and `a2ui_core ^0.7.0`.
 
 Ordinary constructor names use `props_<DartName>` when that name is a valid
 upstream UAX31 identifier and the source name does not start with `encoded_`.

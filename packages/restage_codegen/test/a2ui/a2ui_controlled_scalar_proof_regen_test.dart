@@ -495,13 +495,13 @@ Map<String, Object?> _component(String type, Map<String, Object?> values, {Strin
 };
 
 Future<SurfaceModel<ComponentImplementation>> _mount(WidgetTester tester, MessageProcessor<ComponentImplementation> processor, List<Map<String, Object?>> components, {Map<String, Object?> data = const {}}) async {
-  processor.processMessages({'version': 'v1.0', 'createSurface': {'surfaceId': 's', 'catalogId': restageA2uiCatalogId, 'dataModel': data, 'components': components}});
+  processor.processMessages({'version': '1.0', 'createSurface': {'surfaceId': 's', 'catalogId': restageA2uiCatalogId, 'dataModel': data, 'components': components}});
   final surface = processor.model.getSurface('s')!;
   await tester.pumpWidget(MaterialApp(home: Scaffold(body: A2uiSurface(surface: surface))));
   return surface;
 }
 
-void _update(MessageProcessor<ComponentImplementation> processor, List<Map<String, Object?>> components) => processor.processMessages({'version': 'v1.0', 'updateComponents': {'surfaceId': 's', 'components': components}});
+void _update(MessageProcessor<ComponentImplementation> processor, List<Map<String, Object?>> components) => processor.processMessages({'version': '1.0', 'updateComponents': {'surfaceId': 's', 'components': components}});
 
 Map<String, Object?> _families(Object? Function(String, Object?) source) => {
   for (final entry in <String, Object?>{

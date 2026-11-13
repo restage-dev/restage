@@ -1249,7 +1249,7 @@ Future<SurfaceModel<ComponentImplementation>> _mount(
     List<Map<String, Object?>> components,
     {Map<String, Object?> data = const {}}) async {
   processor.processMessages({
-    'version': 'v1.0',
+    'version': '1.0',
     'createSurface': {
       'surfaceId': 's',
       'catalogId': restageA2uiCatalogId,
@@ -1266,7 +1266,7 @@ Future<SurfaceModel<ComponentImplementation>> _mount(
 void _update(MessageProcessor<ComponentImplementation> processor,
         List<Map<String, Object?>> components) =>
     processor.processMessages({
-      'version': 'v1.0',
+      'version': '1.0',
       'updateComponents': {'surfaceId': 's', 'components': components}
     });
 

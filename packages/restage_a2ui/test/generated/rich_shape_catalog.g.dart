@@ -17,11 +17,8 @@ List<ComponentImplementation> buildRestageCatalogItems() {
   return <ComponentImplementation>[
     ComponentImplementation(
       name: 'CommentThread',
-      schema: S.combined(allOf: [
-        S.combined(
-            $ref:
-                '#/\$defs/restage_component_CommentThread/\$defs/__a2ui_root__')
-      ]),
+      schema: S.combined(
+          allOf: [S.combined($ref: '#/\$defs/CommentThread.__a2ui_root__')]),
       builder: (context, restageNode, restageProps, restageBuildChild) {
         final itemContext = restageNode.context!;
         final data = <String, Object?>{
@@ -153,10 +150,8 @@ List<ComponentImplementation> buildRestageCatalogItems() {
     ),
     ComponentImplementation(
       name: 'PlanCard',
-      schema: S.combined(allOf: [
-        S.combined(
-            $ref: '#/\$defs/restage_component_PlanCard/\$defs/__a2ui_root__')
-      ]),
+      schema: S.combined(
+          allOf: [S.combined($ref: '#/\$defs/PlanCard.__a2ui_root__')]),
       builder: (context, restageNode, restageProps, restageBuildChild) {
         final itemContext = restageNode.context!;
         final data = <String, Object?>{
@@ -176,86 +171,74 @@ List<ComponentImplementation> buildRestageCatalogItems() {
 
 /// Merge these definitions alongside [buildRestageCatalogItems] when composing catalogs.
 Map<String, Object?> buildRestageCatalogDefinitions() => <String, Object?>{
-      'restage_component_CommentThread': <String, Object?>{
-        '\$defs': <String, Object?>{
-          'Comment': <String, Object?>{
-            'type': 'object',
-            'description': 'A comment that may link to one nested reply.',
-            'properties': <String, Object?>{
-              'reply': <String, Object?>{
-                'description': 'The next reply in the thread.',
-                'anyOf': <Object?>[
-                  <String, Object?>{
-                    '\$ref':
-                        '#/\$defs/restage_component_CommentThread/\$defs/Comment'
-                  },
-                  <String, Object?>{'type': 'null'}
-                ]
-              },
-              'text': <String, Object?>{
-                'type': 'string',
-                'description': 'The comment text.'
-              }
-            },
-            'required': <Object?>['text']
+      'CommentThread.Comment': <String, Object?>{
+        'type': 'object',
+        'description': 'A comment that may link to one nested reply.',
+        'properties': <String, Object?>{
+          'reply': <String, Object?>{
+            'description': 'The next reply in the thread.',
+            'anyOf': <Object?>[
+              <String, Object?>{'\$ref': '#/\$defs/CommentThread.Comment'},
+              <String, Object?>{'type': 'null'}
+            ]
           },
-          '__a2ui_root__': <String, Object?>{
-            'type': 'object',
-            'properties': <String, Object?>{
-              'props_root': <String, Object?>{
-                'description': 'The root comment of a recursive reply thread.',
-                '\$ref':
-                    '#/\$defs/restage_component_CommentThread/\$defs/Comment'
-              }
-            },
-            'required': <Object?>['props_root']
+          'text': <String, Object?>{
+            'type': 'string',
+            'description': 'The comment text.'
           }
-        }
+        },
+        'required': <Object?>['text']
       },
-      'restage_component_PlanCard': <String, Object?>{
-        '\$defs': <String, Object?>{
-          'PlanTier': <String, Object?>{
-            'type': 'object',
-            'description':
-                'A nested data class: required scalars + a nullable enum + a nullable string.',
-            'properties': <String, Object?>{
-              'badge': <String, Object?>{
-                'anyOf': <Object?>[
-                  <String, Object?>{
-                    'type': 'string',
-                    'enum': <Object?>['none', 'popular', 'bestValue']
-                  },
-                  <String, Object?>{'type': 'null'}
-                ]
-              },
-              'name': <String, Object?>{'type': 'string'},
-              'price': <String, Object?>{'type': 'number'},
-              'tagline': <String, Object?>{
-                'anyOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{'type': 'null'}
-                ]
-              }
-            },
-            'required': <Object?>['name', 'price']
-          },
-          '__a2ui_root__': <String, Object?>{
-            'type': 'object',
-            'properties': <String, Object?>{
-              'props_plan': <String, Object?>{
-                'description': 'The plan tier this card presents.',
-                '\$ref': '#/\$defs/restage_component_PlanCard/\$defs/PlanTier'
-              }
-            },
-            'required': <Object?>['props_plan']
+      'CommentThread.__a2ui_root__': <String, Object?>{
+        'type': 'object',
+        'properties': <String, Object?>{
+          'props_root': <String, Object?>{
+            'description': 'The root comment of a recursive reply thread.',
+            '\$ref': '#/\$defs/CommentThread.Comment'
           }
-        }
+        },
+        'required': <Object?>['props_root']
+      },
+      'PlanCard.PlanTier': <String, Object?>{
+        'type': 'object',
+        'description':
+            'A nested data class: required scalars + a nullable enum + a nullable string.',
+        'properties': <String, Object?>{
+          'badge': <String, Object?>{
+            'anyOf': <Object?>[
+              <String, Object?>{
+                'type': 'string',
+                'enum': <Object?>['none', 'popular', 'bestValue']
+              },
+              <String, Object?>{'type': 'null'}
+            ]
+          },
+          'name': <String, Object?>{'type': 'string'},
+          'price': <String, Object?>{'type': 'number'},
+          'tagline': <String, Object?>{
+            'anyOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{'type': 'null'}
+            ]
+          }
+        },
+        'required': <Object?>['name', 'price']
+      },
+      'PlanCard.__a2ui_root__': <String, Object?>{
+        'type': 'object',
+        'properties': <String, Object?>{
+          'props_plan': <String, Object?>{
+            'description': 'The plan tier this card presents.',
+            '\$ref': '#/\$defs/PlanCard.PlanTier'
+          }
+        },
+        'required': <Object?>['props_plan']
       }
     };
 
 /// Content address for exactly the generated custom-only catalog.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/ca8f148a8b1ad4e46d46a77d8b4bfc3b2d3d861bbd39eba0b18ac8cf5753140b';
+    'restage:catalog/sha256/e5c46a5c0dbbffd28eea43078de7f193158e8859d1ba0dcf1699d372b77d3d1b';
 
 /// Compact identity and capability metadata for the generated catalog.
 /// The producer-facing `.a2ui.json` remains a separate portable artifact.
@@ -264,7 +247,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
   a2uiProtocolVersion: '1.0',
   catalogId: restageA2uiCatalogId,
   fingerprint:
-      'sha256/ca8f148a8b1ad4e46d46a77d8b4bfc3b2d3d861bbd39eba0b18ac8cf5753140b',
+      'sha256/e5c46a5c0dbbffd28eea43078de7f193158e8859d1ba0dcf1699d372b77d3d1b',
   catalogContentVersion: 1,
   availableLibraries: <A2uiAvailableLibrary>[],
   perItemSinceVersion: <String, int>{
@@ -278,7 +261,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
 );
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/ca8f148a8b1ad4e46d46a77d8b4bfc3b2d3d861bbd39eba0b18ac8cf5753140b".',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/e5c46a5c0dbbffd28eea43078de7f193158e8859d1ba0dcf1699d372b77d3d1b".',
   'PlanCard constructor fields: plan => props_plan.',
   'FeatureGrid: A grid of plan features with inclusion flags.',
   'FeatureGrid constructor fields: features => props_features.',

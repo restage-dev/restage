@@ -2,13 +2,8 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_a2ui.svg)](https://pub.dev/packages/restage_a2ui) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
-> **Unreleased A2UI 1.0 candidate integration.** These instructions describe the
-> repository/workspace packages, not the published `restage_a2ui 0.2.0` or
-> `restage_codegen 2.0.0` releases. Use the repository example while qualifying
-> the candidate. Upstream pins are `a2ui_flutter: 0.0.1-wip003` and
-> `a2ui_core: ^0.4.0`, with Dart >=3.11.0, Flutter >=3.38.0 and
-> `json_schema_builder` >=0.1.7. Recheck upstream and reconcile hosted package
-> constraints before release; protocol 1.0 is not declared stable here.
+Requires A2UI 1.0 through `a2ui_flutter: ^0.3.0` and `a2ui_core: ^0.7.0`,
+with Dart >=3.11.0, Flutter >=3.38.0 and `json_schema_builder` >=0.1.7.
 
 Turn your own Flutter widgets into an [A2UI](https://a2ui.org)
 catalog that a generative-UI model can build screens from, and check each
@@ -38,8 +33,8 @@ your app.
 
 ```yaml
 dependencies:
-  a2ui_flutter: 0.0.1-wip003                # the renderer
-  a2ui_core: ^0.4.0           # incoming A2UI messages
+  a2ui_flutter: ^0.3.0          # the renderer
+  a2ui_core: ^0.7.0             # incoming A2UI messages
   json_schema_builder: ^0.1.7   # used by the generated data schemas
   restage_a2ui:
     path: ../restage_a2ui       # local repository package
@@ -192,7 +187,7 @@ class A2uiSession {
 }
 ```
 
-Use `version: "v1.0"` messages and the exact `restageA2uiCatalogId` in
+Use `version: "1.0"` messages and the exact `restageA2uiCatalogId` in
 `createSurface`. Create the surface before updates, or provide initial
 `components` inline on creation. Dispose the processor with its owner. Give the
 producer `catalog.toJson()` and its `instructions`; your app owns transport.
@@ -237,7 +232,7 @@ the message boundary, keeping a native fallback available.
 
 The check returns `A2uiRejected` for:
 
-- a message that is not a v1 envelope, or a version other than `v1.0`;
+- a message that is not a v1 envelope, or a version other than `1.0`;
 - a component type, catalog or function the catalogs don't declare, or a
   component that doesn't match its schema;
 - a bundle that leaves no surface, a surface with no components, a missing
@@ -351,15 +346,10 @@ The generated catalog describes widget schemas and versions. The widgets
 themselves are Dart compiled into your app; an A2UI document only composes and
 configures them.
 
-## Status
+## Requirements
 
-> **Unreleased A2UI 1.0 candidate integration.** These instructions describe the
-> repository/workspace packages, not the published `restage_a2ui 0.2.0` or
-> `restage_codegen 2.0.0` releases. Use the repository example while qualifying
-> the candidate. Upstream pins are `a2ui_flutter: 0.0.1-wip003` and
-> `a2ui_core: ^0.4.0`, with Dart >=3.11.0, Flutter >=3.38.0 and
-> `json_schema_builder` >=0.1.7. Recheck upstream and reconcile hosted package
-> constraints before release; protocol 1.0 is not declared stable here.
+Requires A2UI 1.0 through `a2ui_flutter: ^0.3.0` and `a2ui_core: ^0.7.0`,
+with Dart >=3.11.0, Flutter >=3.38.0 and `json_schema_builder` >=0.1.7.
 
 ## Migrating an existing integration
 

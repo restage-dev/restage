@@ -18,7 +18,7 @@ void main() {
         capability: _manifest(),
         perItemSinceVersion: const {'Text': 1, 'AcmeBanner': 5},
         a2ui: const {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateComponents': {
             'surfaceId': 's',
             'components': [
@@ -42,7 +42,7 @@ void main() {
         capability: _manifest(),
         perItemSinceVersion: const {'Text': 1},
         a2ui: const {
-          'version': 'v1.0',
+          'version': '1.0',
           'deleteSurface': {'surfaceId': 's'},
         },
       );
@@ -64,7 +64,7 @@ void main() {
             requiredLibraries: const [],
           ),
           perItemSinceVersion: const {},
-          a2ui: const {'version': 'v1.0'},
+          a2ui: const {'version': '1.0'},
         );
         final cap =
             sidecar.toJson()['restageCapability']! as Map<String, Object?>;
@@ -123,7 +123,7 @@ void main() {
       );
       expect(
         RestageA2uiSidecar.isRestageSidecar(const {
-          'version': 'v1.0',
+          'version': '1.0',
           'updateComponents': {'surfaceId': 's', 'components': <Object?>[]},
         }),
         isFalse,
@@ -144,7 +144,7 @@ void main() {
             requiredLibraries: const [],
           ),
           perItemSinceVersion: const {'Text': 1},
-          a2ui: const {'version': 'v1.0'},
+          a2ui: const {'version': '1.0'},
         );
         final roundTripped = RestageA2uiSidecar.fromJson(
           jsonDecode(jsonEncode(v1.toJson())) as Map<String, Object?>,

@@ -119,12 +119,12 @@ void main() {
         expect(schema[r'$defs'], contains('CollisionNode'));
         expect(
           jsonEncode(schema),
-          contains('#/\$defs/restage_component_$name/\$defs/CollisionNode'),
+          contains('#/\$defs/$name.CollisionNode'),
         );
         final other = name == 'CustomCard' ? 'OtherCard' : 'CustomCard';
         expect(
           jsonEncode(schema),
-          isNot(contains('#/\$defs/restage_component_$other/')),
+          isNot(contains('#/\$defs/$other.')),
         );
       }
       final inline = registration.components

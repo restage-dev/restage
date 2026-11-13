@@ -32,7 +32,7 @@ MessageProcessor<ComponentImplementation> _processor({
   );
   addTearDown(processor.dispose);
   processor.processMessages({
-    'version': 'v1.0',
+    'version': '1.0',
     'createSurface': {'surfaceId': 's', 'catalogId': catalog.id},
   });
   return processor;
@@ -45,7 +45,7 @@ void _update(
   List<String> children = const [],
 }) {
   processor.processMessages({
-    'version': 'v1.0',
+    'version': '1.0',
     'updateComponents': {
       'surfaceId': 's',
       'components': [

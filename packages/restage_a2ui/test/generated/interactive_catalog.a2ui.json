@@ -6,17 +6,18 @@
       "ActionButton": 1,
       "MultiSelect": 1,
       "QuickCheck": 1,
-      "Range": 1
+      "Range": 1,
+      "TapTarget": 1
     }
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/sha256/852ba7959b554f93d838524d474a1907524d07dff04f02c60bbae1d6605d6aca",
+    "$id": "restage:catalog/sha256/ef0ea697d8af42a1ad07c8688b9083d9e679bb38667948fb13b27cc11b3f73c8",
     "protocolVersion": "1.0",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/sha256/852ba7959b554f93d838524d474a1907524d07dff04f02c60bbae1d6605d6aca",
-    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/852ba7959b554f93d838524d474a1907524d07dff04f02c60bbae1d6605d6aca\".\nQuickCheck constructor fields: selected => props_selected.\nMultiSelect constructor fields: chosen => props_chosen.\nActionButton constructor fields: label => props_label.\nRange constructor fields: low => props_low, high => props_high.",
+    "catalogId": "restage:catalog/sha256/ef0ea697d8af42a1ad07c8688b9083d9e679bb38667948fb13b27cc11b3f73c8",
+    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/ef0ea697d8af42a1ad07c8688b9083d9e679bb38667948fb13b27cc11b3f73c8\".\nQuickCheck constructor fields: selected => props_selected.\nMultiSelect constructor fields: chosen => props_chosen.\nActionButton constructor fields: label => props_label.\nRange constructor fields: low => props_low, high => props_high.",
     "components": {
       "ActionButton": {
         "type": "object",
@@ -119,6 +120,12 @@
           "props_low",
           "props_high"
         ]
+      },
+      "TapTarget": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
       }
     },
     "$defs": {
@@ -135,6 +142,9 @@
           },
           {
             "$ref": "#/components/Range"
+          },
+          {
+            "$ref": "#/components/TapTarget"
           }
         ],
         "discriminator": {

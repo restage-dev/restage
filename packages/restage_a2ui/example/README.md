@@ -6,13 +6,8 @@ A2UI catalog, then gates payloads against that catalog with `restage_a2ui`'s
 app-side, fail-closed **pre-render check** *before* handing them to a2ui_flutter. The check rejects unknown components and unmet capability versions before
 rendering; a2ui_flutter still validates each component’s fields.
 
-> **Unreleased A2UI 1.0 candidate integration.** These instructions describe the
-> repository/workspace packages, not the published `restage_a2ui 0.2.0` or
-> `restage_codegen 2.0.0` releases. Use the repository example while qualifying
-> the candidate. Upstream pins are `a2ui_flutter: 0.0.1-wip003` and
-> `a2ui_core: ^0.4.0`, with Dart >=3.11.0, Flutter >=3.38.0 and
-> `json_schema_builder` >=0.1.7. Recheck upstream and reconcile hosted package
-> constraints before release; protocol 1.0 is not declared stable here.
+Requires A2UI 1.0 through `a2ui_flutter: ^0.3.0` and `a2ui_core: ^0.7.0`,
+with Dart >=3.11.0, Flutter >=3.38.0 and `json_schema_builder` >=0.1.7.
 
 ## What it generates
 

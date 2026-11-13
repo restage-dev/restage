@@ -236,11 +236,9 @@ void main() {
       expect(
         source,
         allOf(
-          contains(r"\$defs': <String, Object?>{"),
-          contains("'__a2ui_root__': <String, Object?>{"),
-          contains(
-            r'#/\$defs/restage_component_RecursiveList/\$defs/RecursiveItem',
-          ),
+          contains("'RecursiveList.__a2ui_root__': <String, Object?>{"),
+          contains("'RecursiveList.RecursiveItem': <String, Object?>{"),
+          contains(r'#/\$defs/RecursiveList.RecursiveItem'),
           contains("'minItems': 1"),
           contains("'maxItems': 4"),
         ),

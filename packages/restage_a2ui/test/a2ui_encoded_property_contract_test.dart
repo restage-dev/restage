@@ -44,7 +44,7 @@ void main() {
         'props_details': {r'$value': 'business value'},
       };
       processor.processMessages({
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {
           'surfaceId': 's',
           'catalogId': catalog.id,
@@ -85,7 +85,7 @@ void main() {
         expect(surface.dataModel.get('/restage_root/$dollarKey'), 41);
         value.value = 12;
         processor.processMessages({
-          'version': 'v1.0',
+          'version': '1.0',
           'updateComponents': {
             'surfaceId': 's',
             'components': [component(source is Map ? source : 13)],

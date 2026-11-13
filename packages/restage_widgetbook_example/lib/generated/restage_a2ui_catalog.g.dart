@@ -62,12 +62,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
     ComponentImplementation(
       name: 'CatalogShowcase',
       schema: S.combined(
-        allOf: [
-          S.combined(
-            $ref:
-                '#/\$defs/restage_component_CatalogShowcase/\$defs/__a2ui_root__',
-          ),
-        ],
+        allOf: [S.combined($ref: '#/\$defs/CatalogShowcase.__a2ui_root__')],
       ),
       builder: (context, restageNode, restageProps, restageBuildChild) {
         final itemContext = restageNode.context!;
@@ -150,10 +145,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
       name: 'ConstructorFidelityCorpus',
       schema: S.combined(
         allOf: [
-          S.combined(
-            $ref:
-                '#/\$defs/restage_component_ConstructorFidelityCorpus/\$defs/__a2ui_root__',
-          ),
+          S.combined($ref: '#/\$defs/ConstructorFidelityCorpus.__a2ui_root__'),
         ],
       ),
       builder: (context, restageNode, restageProps, restageBuildChild) {
@@ -889,276 +881,218 @@ List<ComponentImplementation> buildRestageCatalogItems() {
 
 /// Merge these definitions alongside [buildRestageCatalogItems] when composing catalogs.
 Map<String, Object?> buildRestageCatalogDefinitions() => <String, Object?>{
-  'restage_component_CatalogShowcase': <String, Object?>{
-    '\$defs': <String, Object?>{
-      'CatalogShowcaseData': <String, Object?>{
-        'type': 'object',
-        'description':
-            'Structured information displayed by a [CatalogShowcase].',
-        'properties': <String, Object?>{
-          'count': <String, Object?>{
-            'type': 'integer',
-            'description': 'The displayed count.',
-          },
-          'note': <String, Object?>{
-            'type': 'string',
-            'description': 'Supporting text.',
-          },
-        },
-        'required': <Object?>['count', 'note'],
+  'CatalogShowcase.CatalogShowcaseData': <String, Object?>{
+    'type': 'object',
+    'description': 'Structured information displayed by a [CatalogShowcase].',
+    'properties': <String, Object?>{
+      'count': <String, Object?>{
+        'type': 'integer',
+        'description': 'The displayed count.',
       },
-      '__a2ui_root__': <String, Object?>{
-        'type': 'object',
-        'description':
-            'A catalog widget that feeds every enabled target from one source. It combines ordinary state, an enum, a callback that writes a value back, child widget inputs, and your own data class. The `hero`, `details`, and `footer` inputs need no slot annotation.\n\nThis second paragraph also appears in the generated metadata, because every paragraph of a doc comment is kept.',
-        'properties': <String, Object?>{
-          'props_title': <String, Object?>{
-            'description': 'Visible title.',
-            'oneOf': <Object?>[
-              <String, Object?>{'type': 'string'},
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/DataBinding',
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/FunctionCall',
-              },
-            ],
-          },
-          'props_enabled': <String, Object?>{
-            'description': 'Whether the control is enabled.',
-            'oneOf': <Object?>[
-              <String, Object?>{'type': 'boolean'},
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/DataBinding',
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/FunctionCall',
-              },
-            ],
-          },
-          'props_status': <String, Object?>{
-            'type': 'string',
-            'description': 'Current state.',
-            'enum': <Object?>['ready', 'processing'],
-          },
-          'props_hero': <String, Object?>{
+      'note': <String, Object?>{
+        'type': 'string',
+        'description': 'Supporting text.',
+      },
+    },
+    'required': <Object?>['count', 'note'],
+  },
+  'CatalogShowcase.__a2ui_root__': <String, Object?>{
+    'type': 'object',
+    'description':
+        'A catalog widget that feeds every enabled target from one source. It combines ordinary state, an enum, a callback that writes a value back, child widget inputs, and your own data class. The `hero`, `details`, and `footer` inputs need no slot annotation.\n\nThis second paragraph also appears in the generated metadata, because every paragraph of a doc comment is kept.',
+    'properties': <String, Object?>{
+      'props_title': <String, Object?>{
+        'description': 'Visible title.',
+        'oneOf': <Object?>[
+          <String, Object?>{'type': 'string'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/DataBinding'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/FunctionCall'},
+        ],
+      },
+      'props_enabled': <String, Object?>{
+        'description': 'Whether the control is enabled.',
+        'oneOf': <Object?>[
+          <String, Object?>{'type': 'boolean'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/DataBinding'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/FunctionCall'},
+        ],
+      },
+      'props_status': <String, Object?>{
+        'type': 'string',
+        'description': 'Current state.',
+        'enum': <Object?>['ready', 'processing'],
+      },
+      'props_hero': <String, Object?>{
+        '\$ref': 'common_types.json#/\$defs/ComponentId',
+        'description': 'Custom widget shown before the detail list.',
+      },
+      'props_details': <String, Object?>{
+        'type': 'array',
+        'description': 'Detail widgets shown in source order.',
+        'items': <String, Object?>{
+          '\$ref': 'common_types.json#/\$defs/ComponentId',
+          'description': 'The unique identifier for a component.',
+        },
+      },
+      'props_footer': <String, Object?>{
+        'description': 'Optional custom widget shown after the detail list.',
+        'anyOf': <Object?>[
+          <String, Object?>{
             '\$ref': 'common_types.json#/\$defs/ComponentId',
-            'description': 'Custom widget shown before the detail list.',
+            'description': 'The unique identifier for a component.',
           },
-          'props_details': <String, Object?>{
-            'type': 'array',
-            'description': 'Detail widgets shown in source order.',
-            'items': <String, Object?>{
-              '\$ref': 'common_types.json#/\$defs/ComponentId',
-              'description': 'The unique identifier for a component.',
-            },
-          },
-          'props_footer': <String, Object?>{
-            'description':
-                'Optional custom widget shown after the detail list.',
+          <String, Object?>{'type': 'null'},
+        ],
+      },
+      'props_data': <String, Object?>{
+        'description': 'Structured information.',
+        '\$ref': '#/\$defs/CatalogShowcase.CatalogShowcaseData',
+      },
+    },
+    'required': <Object?>[
+      'props_title',
+      'props_status',
+      'props_hero',
+      'props_details',
+      'props_data',
+    ],
+  },
+  'ConstructorFidelityCorpus.ConstructorCorpusData': <String, Object?>{
+    'type': 'object',
+    'description': 'Structured data with one nested object.',
+    'properties': <String, Object?>{
+      'count': <String, Object?>{
+        'type': 'integer',
+        'description': 'A scalar nested beside the object.',
+      },
+      'nested': <String, Object?>{
+        'description': 'Nested object.',
+        '\$ref':
+            '#/\$defs/ConstructorFidelityCorpus.ConstructorCorpusNestedData',
+      },
+    },
+    'required': <Object?>['count', 'nested'],
+  },
+  'ConstructorFidelityCorpus.ConstructorCorpusNestedData': <String, Object?>{
+    'type': 'object',
+    'description': 'Nested immutable data.',
+    'properties': <String, Object?>{
+      'label': <String, Object?>{
+        'type': 'string',
+        'description': 'Nested label.',
+      },
+    },
+    'required': <Object?>['label'],
+  },
+  'ConstructorFidelityCorpus.__a2ui_root__': <String, Object?>{
+    'type': 'object',
+    'description':
+        'Broad reusable fixture for accepted named constructor shapes.',
+    'properties': <String, Object?>{
+      'props_value': <String, Object?>{
+        'description': 'Generic value inherited by the concrete widget.',
+        'oneOf': <Object?>[
+          <String, Object?>{'type': 'string'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/DataBinding'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/FunctionCall'},
+        ],
+      },
+      'props_ordinaryLabel': <String, Object?>{
+        'description': 'Ordinary one-to-one constructor binding.',
+        'oneOf': <Object?>[
+          <String, Object?>{'type': 'string'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/DataBinding'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/FunctionCall'},
+        ],
+      },
+      'props_requiredNamed': <String, Object?>{
+        'description': 'Required named field formal.',
+        'oneOf': <Object?>[
+          <String, Object?>{'type': 'string'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/DataBinding'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/FunctionCall'},
+        ],
+      },
+      'props_nullableText': <String, Object?>{
+        'description': 'Explicit nullable null default.',
+        'oneOf': <Object?>[
+          <String, Object?>{
             'anyOf': <Object?>[
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/ComponentId',
-                'description': 'The unique identifier for a component.',
-              },
+              <String, Object?>{'type': 'string'},
               <String, Object?>{'type': 'null'},
             ],
           },
-          'props_data': <String, Object?>{
-            'description': 'Structured information.',
-            '\$ref':
-                '#/\$defs/restage_component_CatalogShowcase/\$defs/CatalogShowcaseData',
-          },
-        },
-        'required': <Object?>[
-          'props_title',
-          'props_status',
-          'props_hero',
-          'props_details',
-          'props_data',
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/DataBinding'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/FunctionCall'},
         ],
       },
-    },
-  },
-  'restage_component_ConstructorFidelityCorpus': <String, Object?>{
-    '\$defs': <String, Object?>{
-      'ConstructorCorpusData': <String, Object?>{
-        'type': 'object',
-        'description': 'Structured data with one nested object.',
-        'properties': <String, Object?>{
-          'count': <String, Object?>{
-            'type': 'integer',
-            'description': 'A scalar nested beside the object.',
+      'props_nullableSeed': <String, Object?>{
+        'description': 'Nullable input with a non-null constructor default.',
+        'oneOf': <Object?>[
+          <String, Object?>{
+            'anyOf': <Object?>[
+              <String, Object?>{'type': 'string'},
+              <String, Object?>{'type': 'null'},
+            ],
           },
-          'nested': <String, Object?>{
-            'description': 'Nested object.',
-            '\$ref':
-                '#/\$defs/restage_component_ConstructorFidelityCorpus/\$defs/ConstructorCorpusNestedData',
-          },
-        },
-        'required': <Object?>['count', 'nested'],
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/DataBinding'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/FunctionCall'},
+        ],
       },
-      'ConstructorCorpusNestedData': <String, Object?>{
-        'type': 'object',
-        'description': 'Nested immutable data.',
-        'properties': <String, Object?>{
-          'label': <String, Object?>{
-            'type': 'string',
-            'description': 'Nested label.',
-          },
-        },
-        'required': <Object?>['label'],
+      'props_enabled': <String, Object?>{
+        'description': 'Scalar constructor default and write-back candidate.',
+        'oneOf': <Object?>[
+          <String, Object?>{'type': 'boolean'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/DataBinding'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/FunctionCall'},
+        ],
       },
-      '__a2ui_root__': <String, Object?>{
-        'type': 'object',
+      'props_count': <String, Object?>{
         'description':
-            'Broad reusable fixture for accepted named constructor shapes.',
-        'properties': <String, Object?>{
-          'props_value': <String, Object?>{
-            'description': 'Generic value inherited by the concrete widget.',
-            'oneOf': <Object?>[
-              <String, Object?>{'type': 'string'},
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/DataBinding',
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/FunctionCall',
-              },
-            ],
-          },
-          'props_ordinaryLabel': <String, Object?>{
-            'description': 'Ordinary one-to-one constructor binding.',
-            'oneOf': <Object?>[
-              <String, Object?>{'type': 'string'},
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/DataBinding',
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/FunctionCall',
-              },
-            ],
-          },
-          'props_requiredNamed': <String, Object?>{
-            'description': 'Required named field formal.',
-            'oneOf': <Object?>[
-              <String, Object?>{'type': 'string'},
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/DataBinding',
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/FunctionCall',
-              },
-            ],
-          },
-          'props_nullableText': <String, Object?>{
-            'description': 'Explicit nullable null default.',
-            'oneOf': <Object?>[
-              <String, Object?>{
-                'anyOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{'type': 'null'},
-                ],
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/DataBinding',
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/FunctionCall',
-              },
-            ],
-          },
-          'props_nullableSeed': <String, Object?>{
-            'description':
-                'Nullable input with a non-null constructor default.',
-            'oneOf': <Object?>[
-              <String, Object?>{
-                'anyOf': <Object?>[
-                  <String, Object?>{'type': 'string'},
-                  <String, Object?>{'type': 'null'},
-                ],
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/DataBinding',
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/FunctionCall',
-              },
-            ],
-          },
-          'props_enabled': <String, Object?>{
-            'description':
-                'Scalar constructor default and write-back candidate.',
-            'oneOf': <Object?>[
-              <String, Object?>{'type': 'boolean'},
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/DataBinding',
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/FunctionCall',
-              },
-            ],
-          },
-          'props_count': <String, Object?>{
-            'description':
-                'Integer constructor default and second write-back candidate.',
-            'oneOf': <Object?>[
-              <String, Object?>{'type': 'integer'},
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/DataBinding',
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/FunctionCall',
-              },
-            ],
-          },
-          'props_mode': <String, Object?>{
-            'type': 'string',
-            'description': 'Enum constructor default.',
-            'enum': <Object?>['ready', 'processing'],
-          },
-          'props_directColor': <String, Object?>{
-            'description': 'Direct const invocation default.',
-            'oneOf': <Object?>[
-              <String, Object?>{'type': 'string'},
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/DataBinding',
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/FunctionCall',
-              },
-            ],
-          },
-          'props_publicColor': <String, Object?>{
-            'description': 'Public static constant reference default.',
-            'oneOf': <Object?>[
-              <String, Object?>{'type': 'string'},
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/DataBinding',
-              },
-              <String, Object?>{
-                '\$ref': 'common_types.json#/\$defs/FunctionCall',
-              },
-            ],
-          },
-          'props_data': <String, Object?>{
-            'description': 'Nested structured default.',
-            '\$ref':
-                '#/\$defs/restage_component_ConstructorFidelityCorpus/\$defs/ConstructorCorpusData',
-          },
-        },
-        'required': <Object?>[
-          'props_value',
-          'props_ordinaryLabel',
-          'props_requiredNamed',
+            'Integer constructor default and second write-back candidate.',
+        'oneOf': <Object?>[
+          <String, Object?>{'type': 'integer'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/DataBinding'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/FunctionCall'},
         ],
       },
+      'props_mode': <String, Object?>{
+        'type': 'string',
+        'description': 'Enum constructor default.',
+        'enum': <Object?>['ready', 'processing'],
+      },
+      'props_directColor': <String, Object?>{
+        'description': 'Direct const invocation default.',
+        'oneOf': <Object?>[
+          <String, Object?>{'type': 'string'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/DataBinding'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/FunctionCall'},
+        ],
+      },
+      'props_publicColor': <String, Object?>{
+        'description': 'Public static constant reference default.',
+        'oneOf': <Object?>[
+          <String, Object?>{'type': 'string'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/DataBinding'},
+          <String, Object?>{'\$ref': 'common_types.json#/\$defs/FunctionCall'},
+        ],
+      },
+      'props_data': <String, Object?>{
+        'description': 'Nested structured default.',
+        '\$ref': '#/\$defs/ConstructorFidelityCorpus.ConstructorCorpusData',
+      },
     },
+    'required': <Object?>[
+      'props_value',
+      'props_ordinaryLabel',
+      'props_requiredNamed',
+    ],
   },
 };
 
 /// Content address for exactly the generated custom-only catalog.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/50ba295aaa9d8760f7628e31ac79a0158624f85476bf9c50fb25d3c2b5262ee0';
+    'restage:catalog/sha256/dfc1d302ee609ec5e387211d25aa9fcd59e9a865566818715a104ee56bd16255';
 
 /// Compact identity and capability metadata for the generated catalog.
 /// The producer-facing `.a2ui.json` remains a separate portable artifact.
@@ -1167,7 +1101,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
   a2uiProtocolVersion: '1.0',
   catalogId: restageA2uiCatalogId,
   fingerprint:
-      'sha256/50ba295aaa9d8760f7628e31ac79a0158624f85476bf9c50fb25d3c2b5262ee0',
+      'sha256/dfc1d302ee609ec5e387211d25aa9fcd59e9a865566818715a104ee56bd16255',
   catalogContentVersion: 1,
   availableLibraries: <A2uiAvailableLibrary>[
     A2uiAvailableLibrary(
@@ -1192,7 +1126,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
 );
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/50ba295aaa9d8760f7628e31ac79a0158624f85476bf9c50fb25d3c2b5262ee0".',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/dfc1d302ee609ec5e387211d25aa9fcd59e9a865566818715a104ee56bd16255".',
   'BareCatalogCard: A card registered with only `@RestageWidget()`.',
   'BareCatalogCard constructor fields: label => props_label.',
   'CatalogShowcase: Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.',

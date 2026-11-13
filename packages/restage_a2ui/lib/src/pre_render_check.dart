@@ -142,7 +142,7 @@ final class RestageA2uiPreRenderCheck {
     );
   }
 
-  // A bundle the renderer could only show as a placeholder is not renderable.
+  // A bundle the renderer would leave blank is not renderable.
   void _checkFinalGraph(MessageProcessor<ComponentApi> processor) {
     final finalGraph = ValidationConfig(
       targetVersion: A2uiProtocolVersion.v1_0,

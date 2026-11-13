@@ -28,17 +28,17 @@
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/sha256/d53b571bb16ea1359a0abac7dfb4a579284fc0cdaa2a013b4ba1b0f0afdd1805",
+    "$id": "restage:catalog/sha256/3219c9f59f88ca477c2ec901867e9cb24b97e74180841af1a2d557942822f1ab",
     "protocolVersion": "1.0",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/sha256/d53b571bb16ea1359a0abac7dfb4a579284fc0cdaa2a013b4ba1b0f0afdd1805",
-    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/d53b571bb16ea1359a0abac7dfb4a579284fc0cdaa2a013b4ba1b0f0afdd1805\".\nConstraintParity constructor fields: count => props_count, tags => props_tags, ratio => props_ratio, code => props_code, items => props_items, legacyCount => props_legacyCount, legacyMode => props_legacyMode, legacyCode => props_legacyCode.\nPatternCorpus00 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus01 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus02 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus03 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus04 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus05 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus06 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus07 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus08 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus09 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus10 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus11 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus12 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus13 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus14 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus15 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus16 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus17 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus18 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus19 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.",
+    "catalogId": "restage:catalog/sha256/3219c9f59f88ca477c2ec901867e9cb24b97e74180841af1a2d557942822f1ab",
+    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/3219c9f59f88ca477c2ec901867e9cb24b97e74180841af1a2d557942822f1ab\".\nConstraintParity constructor fields: count => props_count, tags => props_tags, ratio => props_ratio, code => props_code, items => props_items, legacyCount => props_legacyCount, legacyMode => props_legacyMode, legacyCode => props_legacyCode.\nPatternCorpus00 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus01 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus02 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus03 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus04 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus05 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus06 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus07 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus08 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus09 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus10 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus11 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus12 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus13 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus14 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus15 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus16 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus17 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus18 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.\nPatternCorpus19 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.",
     "components": {
       "ConstraintParity": {
         "allOf": [
           {
-            "$ref": "#/$defs/restage_component_ConstraintParity/$defs/__a2ui_root__"
+            "$ref": "#/$defs/ConstraintParity.__a2ui_root__"
           }
         ]
       },
@@ -784,185 +784,181 @@
       }
     },
     "$defs": {
-      "restage_component_ConstraintParity": {
-        "$defs": {
-          "ConstraintRecursiveItem": {
-            "type": "object",
-            "properties": {
-              "label": {
-                "type": "string"
-              },
-              "children": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/$defs/restage_component_ConstraintParity/$defs/ConstraintRecursiveItem"
-                }
-              }
-            },
-            "required": [
-              "label",
-              "children"
-            ]
+      "ConstraintParity.ConstraintRecursiveItem": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
           },
-          "__a2ui_root__": {
-            "type": "object",
-            "properties": {
-              "props_count": {
-                "oneOf": [
-                  {
-                    "anyOf": [
-                      {
-                        "type": "integer",
-                        "minimum": 0.5,
-                        "maximum": 9.5,
-                        "enum": [
-                          1,
-                          2
-                        ]
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/DataBinding"
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/FunctionCall"
-                  }
-                ]
-              },
-              "props_tags": {
-                "oneOf": [
-                  {
-                    "anyOf": [
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        },
-                        "minItems": 1,
-                        "maxItems": 3
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/DataBinding"
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/FunctionCall"
-                  }
-                ]
-              },
-              "props_ratio": {
-                "oneOf": [
-                  {
-                    "type": "number",
-                    "exclusiveMinimum": 0.25,
-                    "exclusiveMaximum": 0.75
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/DataBinding"
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/FunctionCall"
-                  }
-                ]
-              },
-              "props_code": {
-                "oneOf": [
-                  {
-                    "type": "string",
-                    "pattern": "^[A-Z]{2}[0-9]+$",
-                    "minLength": 3,
-                    "maxLength": 8
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/DataBinding"
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/FunctionCall"
-                  }
-                ]
-              },
-              "props_items": {
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ConstraintParity.ConstraintRecursiveItem"
+            }
+          }
+        },
+        "required": [
+          "label",
+          "children"
+        ]
+      },
+      "ConstraintParity.__a2ui_root__": {
+        "type": "object",
+        "properties": {
+          "props_count": {
+            "oneOf": [
+              {
                 "anyOf": [
                   {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/$defs/restage_component_ConstraintParity/$defs/ConstraintRecursiveItem"
-                    },
-                    "minItems": 1,
-                    "maxItems": 4
+                    "type": "integer",
+                    "minimum": 0.5,
+                    "maximum": 9.5,
+                    "enum": [
+                      1,
+                      2
+                    ]
                   },
                   {
                     "type": "null"
                   }
                 ]
               },
-              "props_legacyCount": {
-                "oneOf": [
-                  {
-                    "type": "number",
-                    "minimum": -10,
-                    "maximum": 10
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/DataBinding"
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/FunctionCall"
-                  }
-                ]
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
               },
-              "props_legacyMode": {
-                "oneOf": [
-                  {
-                    "type": "string",
-                    "enum": [
-                      "compact",
-                      "expanded"
-                    ]
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/DataBinding"
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/FunctionCall"
-                  }
-                ]
-              },
-              "props_legacyCode": {
-                "oneOf": [
-                  {
-                    "type": "string",
-                    "pattern": "^[a-z]+$"
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/DataBinding"
-                  },
-                  {
-                    "$ref": "common_types.json#/$defs/FunctionCall"
-                  }
-                ]
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
               }
-            },
-            "required": [
-              "props_count",
-              "props_tags",
-              "props_ratio",
-              "props_code",
-              "props_items",
-              "props_legacyCount",
-              "props_legacyMode",
-              "props_legacyCode"
+            ]
+          },
+          "props_tags": {
+            "oneOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "maxItems": 3
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_ratio": {
+            "oneOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.25,
+                "exclusiveMaximum": 0.75
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_code": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}[0-9]+$",
+                "minLength": 3,
+                "maxLength": 8
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_items": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/ConstraintParity.ConstraintRecursiveItem"
+                },
+                "minItems": 1,
+                "maxItems": 4
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "props_legacyCount": {
+            "oneOf": [
+              {
+                "type": "number",
+                "minimum": -10,
+                "maximum": 10
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_legacyMode": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "compact",
+                  "expanded"
+                ]
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
+            ]
+          },
+          "props_legacyCode": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z]+$"
+              },
+              {
+                "$ref": "common_types.json#/$defs/DataBinding"
+              },
+              {
+                "$ref": "common_types.json#/$defs/FunctionCall"
+              }
             ]
           }
-        }
+        },
+        "required": [
+          "props_count",
+          "props_tags",
+          "props_ratio",
+          "props_code",
+          "props_items",
+          "props_legacyCount",
+          "props_legacyMode",
+          "props_legacyCode"
+        ]
       },
       "anyComponent": {
         "oneOf": [

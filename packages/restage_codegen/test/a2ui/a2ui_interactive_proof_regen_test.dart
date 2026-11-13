@@ -97,6 +97,13 @@ const _interactiveWidgets =
         valueProps: [('label', PropertyType.string)],
         callbacks: ['onPressed'],
       ),
+      // Dispatch only: the component declares no properties.
+      (
+        catalogName: 'TapTarget',
+        widgetClass: 'TapTargetFixture',
+        valueProps: [],
+        callbacks: ['onTap'],
+      ),
       // Multi-control: auto single-pair fails (two callbacks); each callback's
       // `@a2ui.Config.writeBackValues` names each callback's value prop.
       (
@@ -486,7 +493,13 @@ void main() {
       // interactive callback lowered (no scope-out reached on the proof set).
       expect(
         plan.widgets.map((w) => w.entry.name),
-        containsAll(['QuickCheck', 'MultiSelect', 'ActionButton', 'Range']),
+        containsAll([
+          'QuickCheck',
+          'MultiSelect',
+          'ActionButton',
+          'TapTarget',
+          'Range',
+        ]),
       );
       expect(plan.coverage.droppedWidgets, isEmpty);
       expect(plan.coverage.omittedFields, isEmpty);
@@ -500,6 +513,8 @@ void main() {
       expect(widget('MultiSelect').writeBacks, hasLength(1));
       expect(widget('ActionButton').dispatches, hasLength(1));
       expect(widget('ActionButton').writeBacks, isEmpty);
+      expect(widget('TapTarget').dispatches, hasLength(1));
+      expect(widget('TapTarget').writeBacks, isEmpty);
       // The multi-control widget carries BOTH explicit write-backs.
       expect(widget('Range').writeBacks, hasLength(2));
     });

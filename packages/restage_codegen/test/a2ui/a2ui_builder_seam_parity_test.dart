@@ -71,6 +71,12 @@ const _interactiveWidgets =
         callbacks: ['onPressed'],
       ),
       (
+        catalogName: 'TapTarget',
+        widgetClass: 'TapTargetFixture',
+        valueProps: [],
+        callbacks: ['onTap'],
+      ),
+      (
         catalogName: 'Range',
         widgetClass: 'RangeFixture',
         valueProps: [
