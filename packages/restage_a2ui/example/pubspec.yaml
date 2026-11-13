@@ -14,9 +14,9 @@ dependencies:
   flutter:
     sdk: flutter
   # The Flutter runtime the generated catalog targets.
-  a2ui_flutter: 0.0.1-wip003
-  # The pinned A2UI 1.0 candidate protocol model.
-  a2ui_core: ^0.4.0
+  a2ui_flutter: ^0.3.0
+  # The A2UI 1.0 protocol model.
+  a2ui_core: ^0.7.0
   # The generated catalog's data schemas are built with json_schema_builder.
   json_schema_builder: ^0.1.7
   # The app-side pre-render check + the capability sidecar.

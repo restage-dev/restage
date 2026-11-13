@@ -40,7 +40,7 @@ CatalogImplementation _catalogOf(List<String> names) => CatalogImplementation(
 );
 
 Map<String, Object?> _rawPayload(List<String> types) => {
-  'version': 'v1.0',
+  'version': '1.0',
   'createSurface': {
     'catalogId': 'cache-test',
     'surfaceId': 's',

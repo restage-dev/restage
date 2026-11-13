@@ -33,7 +33,7 @@ void main() {
       addTearDown(processor.dispose);
       expect(
         () => processor.processMessages({
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {
             'surfaceId': 'wrong',
             'catalogId': '$restageA2uiCatalogId-wrong',
@@ -42,7 +42,7 @@ void main() {
         throwsA(isA<A2uiError>()),
       );
       processor.processMessages({
-        'version': 'v1.0',
+        'version': '1.0',
         'createSurface': {'surfaceId': 's', 'catalogId': restageA2uiCatalogId},
       });
       expect(
@@ -56,7 +56,7 @@ void main() {
       ]) {
         expect(
           () => processor.processMessages({
-            'version': 'v1.0',
+            'version': '1.0',
             'updateComponents': {
               'surfaceId': 's',
               'components': [
@@ -72,16 +72,13 @@ void main() {
   );
   test('ProductCard preserves nested documentation in both schema views', () {
     final catalog = buildRestageCatalog();
-    final schema =
-        catalog.definitions['restage_component_ProductCard']!
-            as Map<String, Object?>;
-    final definitions = _objectAt(schema, r'$defs');
-    final root = _objectAt(definitions, '__a2ui_root__');
+    final definitions = catalog.definitions;
+    final root = _objectAt(definitions, 'ProductCard.__a2ui_root__');
     final rootProperties = _objectAt(root, 'properties');
     final productOccurrence = _objectAt(rootProperties, 'props_product');
-    final product = _objectAt(definitions, 'Product');
+    final product = _objectAt(definitions, 'ProductCard.Product');
     final productProperties = _objectAt(product, 'properties');
-    final money = _objectAt(definitions, 'Money');
+    final money = _objectAt(definitions, 'ProductCard.Money');
     final moneyProperties = _objectAt(money, 'properties');
     final features = _objectAt(productProperties, 'features');
     final feature = _objectAt(features, 'items');
@@ -146,7 +143,10 @@ void main() {
       reason: 'record labels must not invent documentation',
     );
 
-    final encoded = jsonEncode(schema);
+    final encoded = jsonEncode({
+      for (final entry in definitions.entries)
+        if (entry.key.startsWith('ProductCard.')) entry.key: entry.value,
+    });
     for (final description in const [
       'The user-facing product name.',
       'A product with pricing, feature, attribute, and display metadata.',

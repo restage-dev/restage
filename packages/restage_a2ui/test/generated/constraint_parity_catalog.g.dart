@@ -17,11 +17,8 @@ List<ComponentImplementation> buildRestageCatalogItems() {
   return <ComponentImplementation>[
     ComponentImplementation(
       name: 'ConstraintParity',
-      schema: S.combined(allOf: [
-        S.combined(
-            $ref:
-                '#/\$defs/restage_component_ConstraintParity/\$defs/__a2ui_root__')
-      ]),
+      schema: S.combined(
+          allOf: [S.combined($ref: '#/\$defs/ConstraintParity.__a2ui_root__')]),
       builder: (context, restageNode, restageProps, restageBuildChild) {
         final itemContext = restageNode.context!;
         final data = <String, Object?>{
@@ -914,171 +911,165 @@ List<ComponentImplementation> buildRestageCatalogItems() {
 
 /// Merge these definitions alongside [buildRestageCatalogItems] when composing catalogs.
 Map<String, Object?> buildRestageCatalogDefinitions() => <String, Object?>{
-      'restage_component_ConstraintParity': <String, Object?>{
-        '\$defs': <String, Object?>{
-          'ConstraintRecursiveItem': <String, Object?>{
-            'type': 'object',
-            'properties': <String, Object?>{
-              'label': <String, Object?>{'type': 'string'},
-              'children': <String, Object?>{
-                'type': 'array',
-                'items': <String, Object?>{
-                  '\$ref':
-                      '#/\$defs/restage_component_ConstraintParity/\$defs/ConstraintRecursiveItem'
-                }
-              }
-            },
-            'required': <Object?>['label', 'children']
-          },
-          '__a2ui_root__': <String, Object?>{
-            'type': 'object',
-            'properties': <String, Object?>{
-              'props_count': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{
-                    'anyOf': <Object?>[
-                      <String, Object?>{
-                        'type': 'integer',
-                        'minimum': 0.5,
-                        'maximum': 9.5,
-                        'enum': <Object?>[1, 2]
-                      },
-                      <String, Object?>{'type': 'null'}
-                    ]
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_tags': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{
-                    'anyOf': <Object?>[
-                      <String, Object?>{
-                        'type': 'array',
-                        'items': <String, Object?>{'type': 'string'},
-                        'minItems': 1,
-                        'maxItems': 3
-                      },
-                      <String, Object?>{'type': 'null'}
-                    ]
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_ratio': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{
-                    'type': 'number',
-                    'exclusiveMinimum': 0.25,
-                    'exclusiveMaximum': 0.75
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_code': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{
-                    'type': 'string',
-                    'pattern': '^[A-Z]{2}[0-9]+\$',
-                    'minLength': 3,
-                    'maxLength': 8
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_items': <String, Object?>{
+      'ConstraintParity.ConstraintRecursiveItem': <String, Object?>{
+        'type': 'object',
+        'properties': <String, Object?>{
+          'label': <String, Object?>{'type': 'string'},
+          'children': <String, Object?>{
+            'type': 'array',
+            'items': <String, Object?>{
+              '\$ref': '#/\$defs/ConstraintParity.ConstraintRecursiveItem'
+            }
+          }
+        },
+        'required': <Object?>['label', 'children']
+      },
+      'ConstraintParity.__a2ui_root__': <String, Object?>{
+        'type': 'object',
+        'properties': <String, Object?>{
+          'props_count': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{
                 'anyOf': <Object?>[
                   <String, Object?>{
-                    'type': 'array',
-                    'items': <String, Object?>{
-                      '\$ref':
-                          '#/\$defs/restage_component_ConstraintParity/\$defs/ConstraintRecursiveItem'
-                    },
-                    'minItems': 1,
-                    'maxItems': 4
+                    'type': 'integer',
+                    'minimum': 0.5,
+                    'maximum': 9.5,
+                    'enum': <Object?>[1, 2]
                   },
                   <String, Object?>{'type': 'null'}
                 ]
               },
-              'props_legacyCount': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{
-                    'type': 'number',
-                    'minimum': -10,
-                    'maximum': 10
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
               },
-              'props_legacyMode': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{
-                    'type': 'string',
-                    'enum': <Object?>['compact', 'expanded']
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
-              },
-              'props_legacyCode': <String, Object?>{
-                'oneOf': <Object?>[
-                  <String, Object?>{'type': 'string', 'pattern': '^[a-z]+\$'},
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/DataBinding'
-                  },
-                  <String, Object?>{
-                    '\$ref': 'common_types.json#/\$defs/FunctionCall'
-                  }
-                ]
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
               }
-            },
-            'required': <Object?>[
-              'props_count',
-              'props_tags',
-              'props_ratio',
-              'props_code',
-              'props_items',
-              'props_legacyCount',
-              'props_legacyMode',
-              'props_legacyCode'
+            ]
+          },
+          'props_tags': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{
+                'anyOf': <Object?>[
+                  <String, Object?>{
+                    'type': 'array',
+                    'items': <String, Object?>{'type': 'string'},
+                    'minItems': 1,
+                    'maxItems': 3
+                  },
+                  <String, Object?>{'type': 'null'}
+                ]
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_ratio': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{
+                'type': 'number',
+                'exclusiveMinimum': 0.25,
+                'exclusiveMaximum': 0.75
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_code': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{
+                'type': 'string',
+                'pattern': '^[A-Z]{2}[0-9]+\$',
+                'minLength': 3,
+                'maxLength': 8
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_items': <String, Object?>{
+            'anyOf': <Object?>[
+              <String, Object?>{
+                'type': 'array',
+                'items': <String, Object?>{
+                  '\$ref': '#/\$defs/ConstraintParity.ConstraintRecursiveItem'
+                },
+                'minItems': 1,
+                'maxItems': 4
+              },
+              <String, Object?>{'type': 'null'}
+            ]
+          },
+          'props_legacyCount': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{
+                'type': 'number',
+                'minimum': -10,
+                'maximum': 10
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_legacyMode': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{
+                'type': 'string',
+                'enum': <Object?>['compact', 'expanded']
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
+            ]
+          },
+          'props_legacyCode': <String, Object?>{
+            'oneOf': <Object?>[
+              <String, Object?>{'type': 'string', 'pattern': '^[a-z]+\$'},
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/DataBinding'
+              },
+              <String, Object?>{
+                '\$ref': 'common_types.json#/\$defs/FunctionCall'
+              }
             ]
           }
-        }
+        },
+        'required': <Object?>[
+          'props_count',
+          'props_tags',
+          'props_ratio',
+          'props_code',
+          'props_items',
+          'props_legacyCount',
+          'props_legacyMode',
+          'props_legacyCode'
+        ]
       }
     };
 
 /// Content address for exactly the generated custom-only catalog.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/d53b571bb16ea1359a0abac7dfb4a579284fc0cdaa2a013b4ba1b0f0afdd1805';
+    'restage:catalog/sha256/3219c9f59f88ca477c2ec901867e9cb24b97e74180841af1a2d557942822f1ab';
 
 /// Compact identity and capability metadata for the generated catalog.
 /// The producer-facing `.a2ui.json` remains a separate portable artifact.
@@ -1087,7 +1078,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
   a2uiProtocolVersion: '1.0',
   catalogId: restageA2uiCatalogId,
   fingerprint:
-      'sha256/d53b571bb16ea1359a0abac7dfb4a579284fc0cdaa2a013b4ba1b0f0afdd1805',
+      'sha256/3219c9f59f88ca477c2ec901867e9cb24b97e74180841af1a2d557942822f1ab',
   catalogContentVersion: 1,
   availableLibraries: <A2uiAvailableLibrary>[],
   perItemSinceVersion: <String, int>{
@@ -1116,7 +1107,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
 );
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/d53b571bb16ea1359a0abac7dfb4a579284fc0cdaa2a013b4ba1b0f0afdd1805".',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/3219c9f59f88ca477c2ec901867e9cb24b97e74180841af1a2d557942822f1ab".',
   'ConstraintParity constructor fields: count => props_count, tags => props_tags, ratio => props_ratio, code => props_code, items => props_items, legacyCount => props_legacyCount, legacyMode => props_legacyMode, legacyCode => props_legacyCode.',
   'PatternCorpus00 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.',
   'PatternCorpus01 constructor fields: typedPattern => props_typedPattern, legacyPattern => props_legacyPattern.',

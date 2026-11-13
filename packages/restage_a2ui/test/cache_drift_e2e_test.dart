@@ -40,7 +40,7 @@ Map<String, Object?> _cachedSidecar({
     ),
     perItemSinceVersion: {for (final t in types) t: builtInFloor},
     a2ui: {
-      'version': 'v1.0',
+      'version': '1.0',
       'createSurface': {
         'catalogId': 'cache-test',
         'surfaceId': 's',

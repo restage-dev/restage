@@ -215,11 +215,7 @@ List<ComponentImplementation> buildRestageCatalogItems() {
     ComponentImplementation(
       name: 'ProductCard',
       schema: S.combined(
-        allOf: [
-          S.combined(
-            $ref: '#/\$defs/restage_component_ProductCard/\$defs/__a2ui_root__',
-          ),
-        ],
+        allOf: [S.combined($ref: '#/\$defs/ProductCard.__a2ui_root__')],
       ),
       builder: (context, restageNode, restageProps, restageBuildChild) {
         final itemContext = restageNode.context!;
@@ -577,104 +573,99 @@ List<ComponentImplementation> buildRestageCatalogItems() {
 
 /// Merge these definitions alongside [buildRestageCatalogItems] when composing catalogs.
 Map<String, Object?> buildRestageCatalogDefinitions() => <String, Object?>{
-  'restage_component_ProductCard': <String, Object?>{
-    '\$defs': <String, Object?>{
-      'Money': <String, Object?>{
-        'type': 'object',
-        'description': 'A monetary amount in a specific currency.',
-        'properties': <String, Object?>{
-          'amount': <String, Object?>{
-            'type': 'number',
-            'description': 'The numeric amount.',
-          },
-          'currency': <String, Object?>{
-            'type': 'string',
-            'description': 'The ISO currency code (e.g. `\'USD\'`).',
-          },
-        },
-        'required': <Object?>['amount', 'currency'],
+  'ProductCard.Money': <String, Object?>{
+    'type': 'object',
+    'description': 'A monetary amount in a specific currency.',
+    'properties': <String, Object?>{
+      'amount': <String, Object?>{
+        'type': 'number',
+        'description': 'The numeric amount.',
       },
-      'Product': <String, Object?>{
-        'type': 'object',
-        'description':
-            'A product with pricing, feature, attribute, and display metadata.',
-        'properties': <String, Object?>{
-          'attributes': <String, Object?>{
-            'type': 'object',
-            'description': 'Arbitrary attributes — a String-keyed map.',
-            'additionalProperties': <String, Object?>{'type': 'string'},
-          },
-          'features': <String, Object?>{
-            'type': 'array',
-            'description': 'Feature rows — a list of objects.',
-            'items': <String, Object?>{
-              'type': 'object',
-              'description':
-                  'One feature included in or excluded from a product.',
-              'properties': <String, Object?>{
-                'included': <String, Object?>{
-                  'type': 'boolean',
-                  'description': 'Whether this plan includes the feature.',
-                },
-                'label': <String, Object?>{
-                  'type': 'string',
-                  'description': 'The feature label.',
-                },
-              },
-              'required': <Object?>['included', 'label'],
-            },
-          },
-          'name': <String, Object?>{
-            'type': 'string',
-            'description': 'The user-facing product name.',
-          },
-          'price': <String, Object?>{
-            'description': 'The price — a nested data class.',
-            '\$ref': '#/\$defs/restage_component_ProductCard/\$defs/Money',
-          },
-          'size': <String, Object?>{
-            'type': 'object',
-            'description': 'The display size — a named record.',
-            'properties': <String, Object?>{
-              'height': <String, Object?>{'type': 'number'},
-              'width': <String, Object?>{'type': 'number'},
-            },
-            'required': <Object?>['height', 'width'],
-          },
-          'tags': <String, Object?>{
-            'type': 'array',
-            'description': 'Marketing tags — a scalar list.',
-            'items': <String, Object?>{'type': 'string'},
-          },
-        },
-        'required': <Object?>[
-          'attributes',
-          'features',
-          'name',
-          'price',
-          'size',
-          'tags',
-        ],
-      },
-      '__a2ui_root__': <String, Object?>{
-        'type': 'object',
-        'description':
-            'Renders a structured product (nested price, tags, features, attributes, size).',
-        'properties': <String, Object?>{
-          'props_product': <String, Object?>{
-            'description': 'The product to display.',
-            '\$ref': '#/\$defs/restage_component_ProductCard/\$defs/Product',
-          },
-        },
-        'required': <Object?>['props_product'],
+      'currency': <String, Object?>{
+        'type': 'string',
+        'description': 'The ISO currency code (e.g. `\'USD\'`).',
       },
     },
+    'required': <Object?>['amount', 'currency'],
+  },
+  'ProductCard.Product': <String, Object?>{
+    'type': 'object',
+    'description':
+        'A product with pricing, feature, attribute, and display metadata.',
+    'properties': <String, Object?>{
+      'attributes': <String, Object?>{
+        'type': 'object',
+        'description': 'Arbitrary attributes — a String-keyed map.',
+        'additionalProperties': <String, Object?>{'type': 'string'},
+      },
+      'features': <String, Object?>{
+        'type': 'array',
+        'description': 'Feature rows — a list of objects.',
+        'items': <String, Object?>{
+          'type': 'object',
+          'description': 'One feature included in or excluded from a product.',
+          'properties': <String, Object?>{
+            'included': <String, Object?>{
+              'type': 'boolean',
+              'description': 'Whether this plan includes the feature.',
+            },
+            'label': <String, Object?>{
+              'type': 'string',
+              'description': 'The feature label.',
+            },
+          },
+          'required': <Object?>['included', 'label'],
+        },
+      },
+      'name': <String, Object?>{
+        'type': 'string',
+        'description': 'The user-facing product name.',
+      },
+      'price': <String, Object?>{
+        'description': 'The price — a nested data class.',
+        '\$ref': '#/\$defs/ProductCard.Money',
+      },
+      'size': <String, Object?>{
+        'type': 'object',
+        'description': 'The display size — a named record.',
+        'properties': <String, Object?>{
+          'height': <String, Object?>{'type': 'number'},
+          'width': <String, Object?>{'type': 'number'},
+        },
+        'required': <Object?>['height', 'width'],
+      },
+      'tags': <String, Object?>{
+        'type': 'array',
+        'description': 'Marketing tags — a scalar list.',
+        'items': <String, Object?>{'type': 'string'},
+      },
+    },
+    'required': <Object?>[
+      'attributes',
+      'features',
+      'name',
+      'price',
+      'size',
+      'tags',
+    ],
+  },
+  'ProductCard.__a2ui_root__': <String, Object?>{
+    'type': 'object',
+    'description':
+        'Renders a structured product (nested price, tags, features, attributes, size).',
+    'properties': <String, Object?>{
+      'props_product': <String, Object?>{
+        'description': 'The product to display.',
+        '\$ref': '#/\$defs/ProductCard.Product',
+      },
+    },
+    'required': <Object?>['props_product'],
   },
 };
 
 /// Content address for exactly the generated custom-only catalog.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/80ea0581b4e1675c7e0222017fc2d4af5ac4f59edd9002668b635a140e6ee8f1';
+    'restage:catalog/sha256/ca2df5a68793193fdbeddbfbe628902b64f3f49f885fb43a49e1d31c246dc777';
 
 /// Compact identity and capability metadata for the generated catalog.
 /// The producer-facing `.a2ui.json` remains a separate portable artifact.
@@ -683,7 +674,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
   a2uiProtocolVersion: '1.0',
   catalogId: restageA2uiCatalogId,
   fingerprint:
-      'sha256/80ea0581b4e1675c7e0222017fc2d4af5ac4f59edd9002668b635a140e6ee8f1',
+      'sha256/ca2df5a68793193fdbeddbfbe628902b64f3f49f885fb43a49e1d31c246dc777',
   catalogContentVersion: 1,
   availableLibraries: <A2uiAvailableLibrary>[
     A2uiAvailableLibrary(namespace: 'acme.lessons', version: 1),
@@ -703,7 +694,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
 );
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/80ea0581b4e1675c7e0222017fc2d4af5ac4f59edd9002668b635a140e6ee8f1".',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/ca2df5a68793193fdbeddbfbe628902b64f3f49f885fb43a49e1d31c246dc777".',
   'Callout: Use for a short highlighted aside around optional content.',
   'Callout constructor fields: message => props_message, detail => props_detail.',
   'ComparisonPanel: A headed panel with an introduction, examples, and conclusion.',

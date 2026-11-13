@@ -463,7 +463,7 @@ Future<SurfaceModel<ComponentImplementation>> _mountA2ui(
   );
   addTearDown(processor.dispose);
   processor.processMessages({
-    'version': 'v1.0',
+    'version': '1.0',
     'createSurface': {
       'surfaceId': 's',
       'catalogId': catalog.id,

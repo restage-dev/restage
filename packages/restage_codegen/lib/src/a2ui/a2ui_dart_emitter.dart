@@ -1665,6 +1665,8 @@ Map<String, Object?> _widgetObjectSchemaMap(
     'type': 'object',
     'properties': properties,
     'required': required,
+    // Undeclared keys are only refused for a component that declares some.
+    if (properties.isEmpty) 'additionalProperties': false,
   };
   return _withMapDescription(base, widgetDescription);
 }
@@ -2047,9 +2049,10 @@ String _widgetObjectSchema(
     for (final field in fields)
       if (field.required) _wirePropertyKey(field.name),
   ];
+  final closed = props.isEmpty ? 'additionalProperties: false,' : '';
   final base =
       'S.object(properties: {${props.join(', ')}}, '
-      'required: <String>[${required.join(', ')}],)';
+      'required: <String>[${required.join(', ')}],$closed)';
   return _withSchemaDescription(base, widgetDescription);
 }
 

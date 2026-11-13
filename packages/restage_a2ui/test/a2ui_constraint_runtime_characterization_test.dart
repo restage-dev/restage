@@ -125,12 +125,12 @@ Future<String?> _validationError(Map<String, Object?> properties) async {
   );
   try {
     processor.processMessages({
-      'version': 'v1.0',
+      'version': '1.0',
       'createSurface': {'surfaceId': 'surface', 'catalogId': _catalogId},
     });
     try {
       processor.processMessages({
-        'version': 'v1.0',
+        'version': '1.0',
         'updateComponents': {
           'surfaceId': 'surface',
           'components': [

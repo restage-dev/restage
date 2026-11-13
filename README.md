@@ -160,7 +160,7 @@ and [delivery commands](packages/restage_cli/README.md#placements-and-delivery-p
 
 ## Works with
 
-- **A2UI (early):** the same widget constructors emit a genui A2UI catalog, so
+- **A2UI (early):** the same widget constructors emit an a2ui_flutter catalog, so
   AI-generated UI builds from your real widgets.
 - **Widgetbook:** generate stories from the same constructors and browse them
   in a Widgetbook v4 workbench.
@@ -211,7 +211,7 @@ That puts `restage` in `~/.pub-cache/bin`, which needs to be on your `PATH`.
 | [`restage_mcp`](packages/restage_mcp) | MCP server for agent and tool access. Not on pub.dev yet | BSD-3 |
 | [`restage_revenuecat`](packages/restage_revenuecat) | RevenueCat offerings, purchases, restores, and purchase conversion reports. Available from source | BSD-3 |
 | [`restage_store_bridge`](packages/restage_store_bridge) | Native store purchases and restores, verified by your app. Available from source | BSD-3 |
-| [`restage_a2ui`](packages/restage_a2ui) | App-side capability check for genui A2UI payloads | BSD-3 |
+| [`restage_a2ui`](packages/restage_a2ui) | App-side capability check for A2UI payloads rendered by a2ui_flutter | BSD-3 |
 | [`restage_widgetbook_example`](packages/restage_widgetbook_example) | Annotated widget library with generated RFW, A2UI, and Widgetbook output | BSD-3 |
 | [`apps/examples`](apps/examples) | Example surfaces to copy | BSD-3 |
 | [`apps/widgetbook_example`](apps/widgetbook_example) | Runnable Widgetbook v4 workbench for the generated stories | BSD-3 |

@@ -24,7 +24,7 @@ Map<String, Object?> _create({
   String? catalog = 'restage:test/v1',
   List<Map<String, Object?>>? components,
 }) => {
-  'version': 'v1.0',
+  'version': '1.0',
   'createSurface': {
     'surfaceId': 's',
     'catalogId': ?catalog,
@@ -33,7 +33,7 @@ Map<String, Object?> _create({
 };
 
 Map<String, Object?> _update(List<Map<String, Object?>> components) => {
-  'version': 'v1.0',
+  'version': '1.0',
   'updateComponents': {'surfaceId': 's', 'components': components},
 };
 
@@ -423,7 +423,7 @@ void main() {
       () {
         final check = RestageA2uiPreRenderCheck(catalogs: [_layoutCatalog()]);
         const delete = {
-          'version': 'v1.0',
+          'version': '1.0',
           'deleteSurface': {'surfaceId': 's'},
         };
         final unrenderable = <String, Object?>{
@@ -622,7 +622,7 @@ void main() {
         ],
       );
       const delete = {
-        'version': 'v1.0',
+        'version': '1.0',
         'deleteSurface': {'surfaceId': 's'},
       };
       expect(
@@ -670,14 +670,14 @@ void main() {
         'text',
         [null],
         {},
-        {'version': 'v1.0'},
+        {'version': '1.0'},
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 's'},
           'deleteSurface': {'surfaceId': 's'},
         },
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'createSurface': {'surfaceId': 1},
         },
         _create(
@@ -691,7 +691,7 @@ void main() {
           ],
         ),
         _create(components: []),
-        for (final version in ['v0.9', 'v0.9.1', '1.0', 'v2.0'])
+        for (final version in ['v0.9', 'v0.9.1', 'v1.0', 'v2.0'])
           {..._withRoot, 'version': version},
       ]) {
         expect(check.check(payload), isA<A2uiRejected>(), reason: '$payload');
@@ -708,7 +708,7 @@ void main() {
         check.check([
           ..._rawPayload(['Text']),
           {
-            'version': 'v1.0',
+            'version': '1.0',
             'updateDataModel': {
               'surfaceId': 's',
               'path': '/business',
@@ -751,7 +751,7 @@ void main() {
           ],
         ),
         {
-          'version': 'v1.0',
+          'version': '1.0',
           'callRendererFunction': {
             'surfaceId': 's',
             'functionCallId': 'call-1',

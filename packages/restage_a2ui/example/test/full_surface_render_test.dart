@@ -185,7 +185,7 @@ void main() {
     expect(find.text('selected:1,2,3'), findsOneWidget);
 
     controller.processMessages({
-      'version': 'v1.0',
+      'version': '1.0',
       'updateComponents': {
         'surfaceId': surfaceId,
         'components': [

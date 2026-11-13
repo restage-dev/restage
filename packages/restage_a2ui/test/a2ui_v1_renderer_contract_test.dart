@@ -64,7 +64,7 @@ CatalogImplementation _catalog() => CatalogImplementation(
 );
 
 Map<String, Object?> _payload() => {
-  'version': 'v1.0',
+  'version': '1.0',
   'createSurface': {
     'surfaceId': 's',
     'catalogId': 'restage:test/v1',
@@ -134,7 +134,7 @@ void main() {
     expect(actions.single.context, {'message': 'Edited'});
 
     processor.processMessages({
-      'version': 'v1.0',
+      'version': '1.0',
       'updateDataModel': {
         'surfaceId': 's',
         'path': '/message',

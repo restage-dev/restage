@@ -16,17 +16,18 @@
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/sha256/d14c6d9f4dcf1b905f0152a0aacba69e699f8645cd7547f6d7869ef8e9eb7cba",
+    "$id": "restage:catalog/sha256/ed4fa599593158948a0f8ee3dc123eada5cfa9bacbafad332d7b183397a33a4e",
     "protocolVersion": "1.0",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/sha256/d14c6d9f4dcf1b905f0152a0aacba69e699f8645cd7547f6d7869ef8e9eb7cba",
-    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/d14c6d9f4dcf1b905f0152a0aacba69e699f8645cd7547f6d7869ef8e9eb7cba\".\nText constructor fields: text => props_text.\nColumn constructor fields: spacing => props_spacing.",
+    "catalogId": "restage:catalog/sha256/ed4fa599593158948a0f8ee3dc123eada5cfa9bacbafad332d7b183397a33a4e",
+    "instructions": "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/ed4fa599593158948a0f8ee3dc123eada5cfa9bacbafad332d7b183397a33a4e\".\nText constructor fields: text => props_text.\nColumn constructor fields: spacing => props_spacing.",
     "components": {
       "AcmeBanner": {
         "type": "object",
         "properties": {},
-        "required": []
+        "required": [],
+        "additionalProperties": false
       },
       "Column": {
         "type": "object",
@@ -50,7 +51,8 @@
       "FilledButton": {
         "type": "object",
         "properties": {},
-        "required": []
+        "required": [],
+        "additionalProperties": false
       },
       "Text": {
         "type": "object",

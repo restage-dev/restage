@@ -117,7 +117,7 @@ void main() {
         ).components.single.dataSchema;
         expect(
           component[r'$ref'],
-          r'#/$defs/restage_component_Tree/$defs/__a2ui_root__',
+          r'#/$defs/Tree.__a2ui_root__',
         );
         final defs = component[r'$defs']! as Map<String, Object?>;
         final root = defs['__a2ui_root__']! as Map<String, Object?>;
@@ -128,7 +128,7 @@ void main() {
         expect(
           customProperties['props_root'],
           <String, Object?>{
-            r'$ref': r'#/$defs/restage_component_Tree/$defs/TreeNode',
+            r'$ref': r'#/$defs/Tree.TreeNode',
           },
         );
         expect(defs, contains('TreeNode'));
@@ -351,7 +351,7 @@ void main() {
 
         // Recursion → a $defs definition + a $ref back-edge in the schema, and
         // a single depth-bounded reconstruction helper the children reuse.
-        expect(source, contains(r"\$defs':"));
+        expect(source, contains("'Tree.TreeNode': <String, Object?>{"));
         expect(source, contains(r'$ref:'));
         expect(source, contains('TreeNode? _restageA2uiBuild_TreeNode('));
         expect(source, contains('_depth + 1'));

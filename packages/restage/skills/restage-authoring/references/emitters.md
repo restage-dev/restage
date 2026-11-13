@@ -51,7 +51,7 @@ run the build with every emitter you intend to use. These integrations use:
 
 | Output | Additional dependencies in the source package |
 | --- | --- |
-| A2UI | `a2ui_flutter: 0.0.1-wip003`, `a2ui_core: ^0.4.0`, `json_schema_builder: ^0.1.7`; repository/workspace `restage_a2ui` and `restage_codegen` (unreleased migration) |
+| A2UI | `a2ui_flutter: ^0.3.0`, `a2ui_core: ^0.7.0`, `json_schema_builder: ^0.1.7`, `restage_a2ui` and `restage_codegen` |
 | Widgetbook | `widgetbook: 4.0.0-beta.14`, which includes its generator |
 
 Check the consumer's resolved versions before changing these APIs. Import
@@ -99,14 +99,13 @@ Widget buildSurface(String surfaceId) =>
     A2uiSurface(surface: processor.model.getSurface(surfaceId)!);
 ```
 
-Dispose the processor with its owner. Messages use `version: 'v1.0'`; create
+Dispose the processor with its owner. Messages use `version: '1.0'`; create
 the surface before updating it, or supply inline components on creation.
 The standard catalog's `instructions` carries authored usage guidance. Give the
 producer that document; the application owns transport and action handling.
 
-This is an **unreleased protocol 1.0 candidate migration**, not functionality in
-hosted `restage_a2ui 0.2.0` / `restage_codegen 2.0.0`. Qualify using repository
-packages and the upstream versions above (Dart >=3.11.0 / Flutter >=3.38.0).
+The A2UI output requires the upstream versions above, Dart >=3.11.0 and
+Flutter >=3.38.0.
 
 Manual composition must merge `buildRestageCatalogDefinitions()` alongside
 `buildRestageCatalogItems()`, preserve instructions and assign a new ID for a

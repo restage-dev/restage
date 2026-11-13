@@ -23,7 +23,7 @@ Future<void> _pumpCatalogItem(
   );
   addTearDown(processor.dispose);
   processor.processMessages({
-    'version': 'v1.0',
+    'version': '1.0',
     'createSurface': {
       'surfaceId': 's',
       'catalogId': catalog.id,
@@ -70,10 +70,8 @@ void main() {
   });
 
   test('recursive documentation survives the generated catalog', () {
-    final schema =
-        catalog.definitions['restage_component_CommentThread']! as Map;
-    final definitions = (schema[r'$defs']! as Map).cast<String, Object?>();
-    final comment = (definitions['Comment']! as Map).cast<String, Object?>();
+    final comment = (catalog.definitions['CommentThread.Comment']! as Map)
+        .cast<String, Object?>();
     final properties = (comment['properties']! as Map).cast<String, Object?>();
 
     expect(
@@ -85,7 +83,10 @@ void main() {
       (properties['reply']! as Map)['description'],
       'The next reply in the thread.',
     );
-    final encoded = jsonEncode(schema);
+    final encoded = jsonEncode({
+      for (final entry in catalog.definitions.entries)
+        if (entry.key.startsWith('CommentThread.')) entry.key: entry.value,
+    });
     for (final description in const [
       'A comment that may link to one nested reply.',
       'The comment text.',

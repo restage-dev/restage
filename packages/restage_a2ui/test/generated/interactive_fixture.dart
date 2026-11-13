@@ -127,6 +127,24 @@ class ActionButtonFixture extends StatelessWidget {
   }
 }
 
+/// A tap target with only a dispatch callback: its component has no properties.
+class TapTargetFixture extends StatelessWidget {
+  /// Creates a tap target dispatching via [onTap].
+  const TapTargetFixture({required this.onTap, super.key});
+
+  /// Fired on tap.
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      key: const ValueKey('taptarget'),
+      onTap: onTap,
+      child: const Text('taptarget'),
+    );
+  }
+}
+
 /// A range control — the multi-control shape that auto single-pair cannot
 /// resolve (two value-changing callbacks), so each callback declares its target
 /// value property explicitly via `@a2ui.Config.writeBackValues`.

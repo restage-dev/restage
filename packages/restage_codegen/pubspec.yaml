@@ -17,7 +17,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  a2ui_core: ^0.4.0
+  a2ui_core: ^0.7.0
   # 13.1 parses primary constructors; the dot shorthand pass builds resolved
   # nodes through analyzer 13's AST implementation, which 14 reorganized.
   analyzer: ">=13.1.0 <14.0.0"

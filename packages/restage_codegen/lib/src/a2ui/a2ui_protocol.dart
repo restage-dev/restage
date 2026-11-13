@@ -4,7 +4,7 @@ library;
 import 'package:a2ui_core/a2ui_core.dart' as core;
 import 'package:json_schema_builder/json_schema_builder.dart';
 
-/// The qualified A2UI candidate protocol version.
+/// The A2UI protocol version the emitted catalogs declare.
 const String kA2uiProtocolVersion = '1.0';
 
 /// The emitted catalog JSON Schema dialect.
@@ -27,13 +27,11 @@ String a2uiPropertyName(String constructorName) {
   return 'props_encoded_$encoded';
 }
 
-/// Namespace for one component's recursive schema definitions.
-String a2uiComponentDefinitionKey(String componentName) =>
-    'restage_component_$componentName';
-
-/// Catalog-relative references survive upstream validation-schema projection.
+/// Catalog `$defs` reference prefix for one component's definitions. A `.`
+/// never occurs in a component name or a definition key, so `<Component>.<Key>`
+/// names are injective and never shadow a common type.
 String a2uiComponentReferencePrefix(String componentName) =>
-    '#/\$defs/${a2uiComponentDefinitionKey(componentName)}/\$defs/';
+    '#/\$defs/$componentName.';
 
 /// Removes projection-local definitions after they are moved to catalog scope.
 Map<String, Object?> a2uiComponentPropertySchema(Map<String, Object?> schema) {
@@ -48,7 +46,7 @@ Map<String, Object?> a2uiComponentPropertySchema(Map<String, Object?> schema) {
   return result;
 }
 
-/// Preserves each component's local definition names without cross collisions.
+/// Hoists each component's definitions into flat catalog `$defs`.
 Map<String, Object?> a2uiCatalogDefinitions(
   Map<String, Map<String, Object?>> componentSchemas,
 ) {
@@ -72,7 +70,8 @@ Map<String, Object?> a2uiCatalogDefinitions(
     for (final entry in normalized.entries)
       if ((entry.value! as Map<String, Object?>)[r'$defs']
           case final Map<String, Object?> definitions)
-        a2uiComponentDefinitionKey(entry.key): {r'$defs': definitions},
+        for (final definition in definitions.entries)
+          '${entry.key}.${definition.key}': definition.value,
   };
 }
 
