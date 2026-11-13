@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
+import 'measurement_deferred_clock.dart';
 import 'presentation_commit.dart';
 
 /// Maximum source-interaction routes retained for one root mounted session.
@@ -726,7 +727,7 @@ final class MeasurementRuntimeCaptureSession
           experimentAssignment: experimentAssignment,
           attribution: attribution,
           assignment: assignment,
-          monotonicMicrosSource: null,
+          monotonicMicrosSource: MeasurementDeferredClock.sessionSource(),
           successfulRootPresentation: false,
         );
 

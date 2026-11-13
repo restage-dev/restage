@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -9,6 +10,7 @@ import 'package:restage_shared/restage_shared.dart'
     show PlacementMountRequestV1;
 
 import 'bundled_measurement_publication_binding_read_port.dart';
+import 'measurement_deferred_clock.dart';
 import 'bundled_measurement_target_profile_loader.dart';
 import 'hosted_measurement_publication_binding_read_port.dart';
 import 'measurement_bundled_generated_source_provenance.dart';
@@ -431,8 +433,9 @@ final class MeasurementHostSessionOpenRequest {
 @internal
 final class MeasurementHostSessionController
     implements MeasurementRfwPresentationSink {
-  MeasurementHostSessionController._disabled()
-      : _debugState = MeasurementHostSessionDebugState.disabled;
+  MeasurementHostSessionController._disabled({bool failed = false})
+      : _debugState = MeasurementHostSessionDebugState.disabled,
+        _openFailed = failed;
 
   MeasurementHostSessionController._active({
     required MeasurementRuntimeCaptureSession captureSession,
@@ -447,11 +450,19 @@ final class MeasurementHostSessionController
         _routingSelectionReceipt = routingSelectionReceipt,
         _debugState = MeasurementHostSessionDebugState.active;
 
-  MeasurementHostSessionController._pending({required bool workerOwned})
-      : _debugState = MeasurementHostSessionDebugState.pending,
+  MeasurementHostSessionController._pending({
+    required bool workerOwned,
+    required MeasurementMountClock clock,
+  })  : _debugState = MeasurementHostSessionDebugState.pending,
         _pendingRoute = MeasurementPendingPresentationRoute(),
         _pendingReady = Completer<void>(),
-        _pendingWorkerOwned = workerOwned;
+        _pendingWorkerOwned = workerOwned,
+        _pendingClock = clock {
+    _pendingRoute!
+      ..clock = (() => clock.elapsedMicros)
+      ..replayAt =
+          (at, replay) => MeasurementDeferredClock.atHeld(clock, at, replay);
+  }
 
   MeasurementHostSessionController._workerOwned({
     required MeasurementHostConstructionSession constructionSession,
@@ -469,36 +480,33 @@ final class MeasurementHostSessionController
     }
     final authority = MeasurementHostSessionConstructionRegistry._authority;
     if (authority == null) return MeasurementHostSessionController._disabled();
-    return _openWithAuthority(request, authority);
+    final attempt = _OpenAttempt();
+    return _openWithAuthority(request, authority, attempt)
+        .whenComplete(attempt.finish);
   }
 
   /// Opens Measurement for a resolved artifact after checking construction authority.
   /// Uses hosted provenance first, then a verified bundled profile and locator.
-  /// Exceeding [openBudget] disables the session; a late session is aborted.
   static Future<MeasurementHostSessionController> openForResolvedArtifact(
     Object resolvedOrPayload, {
     Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
     MountAttributionSnapshotV1? mountAttribution,
   }) {
-    final opening = _openForResolvedArtifact(
+    final attempt = _OpenAttempt();
+    return _openForResolvedArtifact(
       resolvedOrPayload,
+      attempt,
       presentationObservations: presentationObservations,
       mountAttribution: mountAttribution,
-    );
-    return opening.timeout(openBudget, onTimeout: () {
-      unawaited(opening.then(
-        (late) => late._disableAfterConstructionFailure(),
-        onError: (Object _) {},
-      ));
-      return MeasurementHostSessionController._disabled();
-    });
+    ).whenComplete(attempt.finish);
   }
 
-  /// The longest a surface waits for its Measurement session to open.
-  static const Duration openBudget = Duration(seconds: 3);
+  /// How long a whole open may take before it fails.
+  static const Duration openFailureBound = Duration(seconds: 30);
 
-  /// The longest a deferred session holds what it recorded before it opens.
-  static const Duration openCeiling = Duration(seconds: 60);
+  /// How long an open waits for presentation observations before going on
+  /// without them.
+  static const Duration presentationObservationsWait = Duration(seconds: 5);
 
   /// The most entries a pending session holds before its session opens.
   static const int pendingEntryLimit = 256;
@@ -507,9 +515,9 @@ final class MeasurementHostSessionController
   /// paint.
   ///
   /// Until the session opens it holds the first-paint outcome and up to
-  /// [pendingEntryLimit] recorded entries, and replays them on open. Callers
-  /// waiting on it stop waiting after [openBudget]; a session not open within
-  /// [openCeiling] is dropped with what it held.
+  /// [pendingEntryLimit] recorded entries, and replays them on open, however
+  /// long opening takes. A session that fails to open drops what it held; an
+  /// open not finished within [openFailureBound] fails.
   static MeasurementHostSessionController openDeferred(
     Object resolvedOrPayload, {
     Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
@@ -520,22 +528,34 @@ final class MeasurementHostSessionController
     }
     final authority = MeasurementHostSessionConstructionRegistry._authority;
     if (authority == null) return MeasurementHostSessionController._disabled();
+    final owner = authority._constructionOwner;
+    final sinceMount =
+        owner?.startMountClock() ?? MeasurementMountClock.stopwatch();
     final pending = MeasurementHostSessionController._pending(
-      workerOwned: authority._constructionOwner != null,
+      workerOwned: owner != null,
+      clock: sinceMount,
     );
-    pending._pendingBound = Timer(openBudget, pending._releasePendingWaiters);
-    pending._pendingCeiling = Timer(openCeiling, pending._dropPending);
-    unawaited(_openForResolvedArtifact(
-      resolvedOrPayload,
-      presentationObservations: presentationObservations,
-      mountAttribution: mountAttribution,
-    ).then(pending._adoptOpened,
-        onError: (Object _) => pending._dropPending()));
+    pending._observePendingLifecycle(authority._lifecycleRegistrar);
+    final attempt = _OpenAttempt()
+      ..lifecycleObserved = pending._pendingLifecycleRegistration != null;
+    pending._pendingIsCurrent = attempt.isCurrent;
+    // The session counts from the mount, so held entries keep their times.
+    unawaited(MeasurementDeferredClock.withBase(
+      sinceMount,
+      () => _openForResolvedArtifact(
+        resolvedOrPayload,
+        attempt,
+        presentationObservations: presentationObservations,
+        mountAttribution: mountAttribution,
+      ),
+    ).whenComplete(attempt.finish).then(pending._adoptOpened,
+        onError: (Object _) => pending._dropPending(failed: true)));
     return pending;
   }
 
   static Future<MeasurementHostSessionController> _openForResolvedArtifact(
-    Object resolvedOrPayload, {
+    Object resolvedOrPayload,
+    _OpenAttempt attempt, {
     Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
     MountAttributionSnapshotV1? mountAttribution,
   }) async {
@@ -544,6 +564,9 @@ final class MeasurementHostSessionController
     }
     final authority = MeasurementHostSessionConstructionRegistry._authority;
     if (authority == null) return MeasurementHostSessionController._disabled();
+    if (authority._constructionOwner != null) {
+      attempt.readObservations(presentationObservations);
+    }
 
     try {
       final provenanceOwner = switch (resolvedOrPayload) {
@@ -584,15 +607,16 @@ final class MeasurementHostSessionController
             bindingReadPort: hostedReadPort,
           ),
           authority,
+          attempt,
           experimentAssignment: experimentAssignment,
           registrationFingerprint: registrationFingerprint,
-          presentationObservations: presentationObservations,
           routingSelectionReceipt: routingSelectionReceipt,
           mountAttribution: mountAttribution,
         );
       }
 
-      final bundledProfile = await authority._bundledTargetProfileLoader();
+      final bundledProfile =
+          await attempt.bound(authority._bundledTargetProfileLoader());
       final generatedPublicationLocator =
           await resolveBundledExactGeneratedPublicationLocatorFor(
         resolvedOrPayload,
@@ -607,33 +631,36 @@ final class MeasurementHostSessionController
           bindingReadPort: bundledProfile.bindingReadPort,
         ),
         authority,
+        attempt,
         experimentAssignment: experimentAssignment,
-        presentationObservations: presentationObservations,
         routingSelectionReceipt: routingSelectionReceipt,
         mountAttribution: mountAttribution,
       );
     } on Object {
-      return MeasurementHostSessionController._disabled();
+      return MeasurementHostSessionController._disabled(failed: true);
     }
   }
 
   static Future<MeasurementHostSessionController> _openWithAuthority(
     MeasurementHostSessionOpenRequest request,
-    MeasurementHostSessionConstructionAuthority authority, {
+    MeasurementHostSessionConstructionAuthority authority,
+    _OpenAttempt attempt, {
     MeasurementExperimentAssignmentV1? experimentAssignment,
     String? registrationFingerprint,
-    Future<SurfaceDeliveryObservations?> Function()? presentationObservations,
     String? routingSelectionReceipt,
     MountAttributionSnapshotV1? mountAttribution,
   }) async {
     try {
-      final resolution = await request._resolveExact();
+      final resolution = await attempt.bound(request._resolveExact());
       final resolvedMount = resolution.resolvedMount;
       final routeTable = resolution.routeTable;
       if (!resolution.isAccepted ||
           resolvedMount == null ||
           routeTable == null) {
-        return MeasurementHostSessionController._disabled();
+        return MeasurementHostSessionController._disabled(
+          failed: resolution.readResult
+              is MeasurementPublicationBindingTransportUnavailable,
+        );
       }
 
       final publishedContext =
@@ -658,12 +685,8 @@ final class MeasurementHostSessionController
       final captureNonce = mountAttribution?.mountInstanceNonce ??
           _encodeNonce(authority.takeNonceBytes());
       if (constructionOwner != null) {
-        SurfaceDeliveryObservations? observations;
-        try {
-          observations = await presentationObservations?.call();
-        } on Object {
-          observations = null;
-        }
+        final observations = await attempt.observations();
+        attempt.throwIfExpired();
         final presentationContext = observations == null
             ? null
             : MeasurementPresentationContextV1(
@@ -672,20 +695,26 @@ final class MeasurementHostSessionController
                 appBuildOrdinal: observations.appBuildOrdinal,
                 deviceClass: observations.deviceClass,
               );
-        final constructionSession = await constructionOwner.openSession(
-          resolvedMount: resolvedMount,
-          routeTable: routeTable,
-          capabilityAdmission: admission,
-          experimentAssignment: experimentAssignment,
-          registrationFingerprint: registrationFingerprint,
-          presentationContext: presentationContext,
-          routingSelectionReceipt: routingSelectionReceipt,
-          attribution: mountAttribution?.attribution,
-          assignment: mountAttribution?.assignment,
-          captureSessionNonceSource: () => captureNonce,
-        );
+        final opened = await attempt.bound(
+            constructionOwner.openSessionResult(
+              resolvedMount: resolvedMount,
+              routeTable: routeTable,
+              capabilityAdmission: admission,
+              experimentAssignment: experimentAssignment,
+              registrationFingerprint: registrationFingerprint,
+              presentationContext: presentationContext,
+              routingSelectionReceipt: routingSelectionReceipt,
+              attribution: mountAttribution?.attribution,
+              assignment: mountAttribution?.assignment,
+              captureSessionNonceSource: () => captureNonce,
+              isCurrent: attempt.isCurrent,
+            ),
+            discardLate: (late) => late.session?.abortBeforeSuccessfulPaint());
+        final constructionSession = opened.session;
         if (constructionSession == null) {
-          return MeasurementHostSessionController._disabled();
+          return MeasurementHostSessionController._disabled(
+            failed: opened.failed || !attempt.isCurrent(),
+          );
         }
         final sink = _FirstPaintSink(constructionSession);
         final controller = MeasurementHostSessionController._workerOwned(
@@ -703,11 +732,12 @@ final class MeasurementHostSessionController
           publicationBindingReference:
               resolvedMount.publicationContextRef.bindingReference,
         );
-        if (!controller._startLifecycleObservation(
-          authority._lifecycleRegistrar,
-        )) {
+        if (!attempt.lifecycleObserved &&
+            !controller._startLifecycleObservation(
+              authority._lifecycleRegistrar,
+            )) {
           controller._disableAfterConstructionFailure();
-          return MeasurementHostSessionController._disabled();
+          return MeasurementHostSessionController._disabled(failed: true);
         }
         return controller;
       }
@@ -745,34 +775,41 @@ final class MeasurementHostSessionController
         publicationBindingReference:
             resolvedMount.publicationContextRef.bindingReference,
       );
-      if (!controller._startLifecycleObservation(
-        authority._lifecycleRegistrar,
-      )) {
+      if (!attempt.lifecycleObserved &&
+          !controller._startLifecycleObservation(
+            authority._lifecycleRegistrar,
+          )) {
         controller._disableAfterConstructionFailure();
-        return MeasurementHostSessionController._disabled();
+        return MeasurementHostSessionController._disabled(failed: true);
       }
       return controller;
     } on Object {
-      return MeasurementHostSessionController._disabled();
+      return MeasurementHostSessionController._disabled(failed: true);
     }
   }
 
   MeasurementHostSessionDebugState _debugState;
+  bool _openFailed = false;
 
   // Pending mode: set only on a session returned by [openDeferred].
   MeasurementPendingPresentationRoute? _pendingRoute;
   bool _pendingWorkerOwned = false;
-  Timer? _pendingBound;
-  Timer? _pendingCeiling;
   Completer<void>? _pendingReady;
-  List<void Function(MeasurementHostSessionController opened)>?
-      _pendingEntries =
-      <void Function(MeasurementHostSessionController opened)>[];
+  MeasurementMountClock? _pendingClock;
+  List<
+      ({
+        int at,
+        void Function(MeasurementHostSessionController opened) entry
+      })>? _pendingEntries = [];
   bool _pendingOverflowLogged = false;
   final MeasurementDeferredPresentationBinder _pendingBinder =
       MeasurementDeferredPresentationBinder();
   Completer<MeasurementIngestTransportOutcome?>? _pendingTeardown;
   MeasurementHostSessionController? _opened;
+  MeasurementHostSessionLifecycleRegistration? _pendingLifecycleRegistration;
+  AppLifecycleState? _pendingLifecycle;
+  bool Function()? _pendingIsCurrent;
+  int _heldOutcomes = 0;
   void Function(MeasurementHostSessionController)? _pendingPointEventBinding;
 
   MeasurementRuntimeCaptureSession? _captureSession;
@@ -823,64 +860,115 @@ final class MeasurementHostSessionController
       }
       return true;
     }
-    entries.add(entry);
+    entries.add((at: _pendingClock!.elapsedMicros, entry: entry));
     return true;
   }
 
-  void _adoptOpened(MeasurementHostSessionController opened) {
-    if (!_isPending) {
-      opened._disableAfterConstructionFailure();
-      return;
+  // The root's one lifecycle observation: it keeps the latest foreground or
+  // background state while pending, and passes to the session it opens.
+  void _observePendingLifecycle(
+    MeasurementHostSessionLifecycleRegistrar registrar,
+  ) {
+    try {
+      _pendingLifecycleRegistration = registrar.register((state) {
+        final opened = _opened;
+        if (opened != null) return opened._handleLifecycleState(state);
+        if (!_isPending) return;
+        switch (state) {
+          case AppLifecycleState.resumed:
+          case AppLifecycleState.hidden:
+          case AppLifecycleState.paused:
+            _pendingLifecycle = state;
+          case AppLifecycleState.inactive:
+          case AppLifecycleState.detached:
+            return;
+        }
+      });
+    } on Object {
+      // Without observation a background before open is not checkpointed.
     }
+  }
+
+  void _endPendingLifecycle() {
+    try {
+      _pendingLifecycleRegistration?.unregister();
+    } on Object {
+      // Observer removal cannot affect the host.
+    }
+    _pendingLifecycleRegistration = null;
+  }
+
+  void _adoptOpened(MeasurementHostSessionController opened) {
     final handle = opened._presentationRouteHandle;
     if (opened._debugState != MeasurementHostSessionDebugState.active ||
         handle == null) {
-      _dropPending();
+      _dropPending(failed: opened._openFailed);
       return;
     }
-    _cancelPendingTimers();
+    // A reset or erasure since mount: never file this presentation under it.
+    if (!(_pendingIsCurrent?.call() ?? true)) {
+      opened._disableAfterConstructionFailure();
+      _dropPending(failed: true);
+      return;
+    }
     _opened = opened;
     _debugState = MeasurementHostSessionDebugState.active;
     _pendingPointEventBinding?.call(opened);
     _pendingPointEventBinding = null;
-    _pendingRoute!.bind(handle);
+    final route = _pendingRoute!..bind(handle);
     _pendingBinder.resolve(opened._constructionSession);
     final entries = _pendingEntries!;
     _pendingEntries = null;
-    for (final entry in entries) {
+    // Everything held replays in the order it happened, the paint included.
+    final paintAt = route.heldPaintAt;
+    for (final (:at, :entry) in entries) {
+      if (paintAt != null && at >= paintAt) route.replayHeldPaint();
       try {
-        entry(opened);
+        MeasurementDeferredClock.atHeld(
+            _pendingClock!, at, () => entry(opened));
       } on Object {
         // A replayed entry cannot affect the mounted host.
       }
     }
+    route.replayHeldPaint();
+    if (opened._lifecycleRegistration == null) {
+      opened._lifecycleRegistration = _pendingLifecycleRegistration;
+      _pendingLifecycleRegistration = null;
+    } else {
+      _endPendingLifecycle();
+    }
     final teardown = _pendingTeardown;
+    final lifecycle = _pendingLifecycle;
+    _pendingLifecycle = null;
     if (teardown != null) {
       _pendingTeardown = null;
       teardown.complete(opened.teardown());
+    } else if (lifecycle != null) {
+      opened._handleLifecycleState(lifecycle);
     }
     _releasePendingWaiters();
   }
 
-  // A slow open stops delaying outcome reports but keeps what it holds.
   void _releasePendingWaiters() {
     final ready = _pendingReady;
     if (ready != null && !ready.isCompleted) ready.complete();
   }
 
-  void _cancelPendingTimers() {
-    _pendingBound?.cancel();
-    _pendingBound = null;
-    _pendingCeiling?.cancel();
-    _pendingCeiling = null;
-  }
-
-  void _dropPending() {
+  void _dropPending({required bool failed}) {
     if (!_isPending) return;
     _debugState = MeasurementHostSessionDebugState.disabled;
-    _cancelPendingTimers();
+    if (kDebugMode &&
+        failed &&
+        (_pendingRoute!.holdsPaint ||
+            _pendingEntries!.isNotEmpty ||
+            _heldOutcomes > 0)) {
+      debugPrint('[restage] measurement session did not open; this '
+          'presentation is not measured');
+    }
     _pendingEntries = null;
     _pendingPointEventBinding = null;
+    _endPendingLifecycle();
+    _pendingLifecycle = null;
     _pendingBinder.resolve(null);
     _pendingTeardown?.complete(null);
     _pendingTeardown = null;
@@ -1253,6 +1341,7 @@ final class MeasurementHostSessionController
         String captureSessionNonce,
         MeasurementPublicationBindingReferenceV1 publicationBindingReference
       })?> preparePurchaseExposure() async {
+    if (_isPending) _heldOutcomes += 1;
     await flushForOutcome();
     return _opened?._purchaseExposure ?? _purchaseExposure;
   }
@@ -1355,6 +1444,100 @@ final class MeasurementHostSessionController
       return const MeasurementIngestTransportUnavailable(
         MeasurementIngestUnavailableReason.transportFailure,
       );
+    }
+  }
+}
+
+// One open's shared deadline and the authority it was started under.
+final class _OpenAttempt {
+  _OpenAttempt() : isCurrent = Restage.captureEventAuthority() {
+    _deadline = Timer(
+      MeasurementHostSessionController.openFailureBound,
+      _expired.complete,
+    );
+  }
+
+  final bool Function() isCurrent;
+  final _expired = Completer<void>();
+  late final Timer _deadline;
+  Future<SurfaceDeliveryObservations?>? _observations;
+
+  /// Whether the pending root already observes the app lifecycle.
+  bool lifecycleObserved = false;
+
+  void finish() => _deadline.cancel();
+
+  /// Fails the open once its deadline has passed.
+  void throwIfExpired() {
+    if (_expired.isCompleted) {
+      throw TimeoutException(
+        'Measurement open',
+        MeasurementHostSessionController.openFailureBound,
+      );
+    }
+  }
+
+  /// Fails [step] at the deadline; a later result goes to [discardLate].
+  Future<T> bound<T>(Future<T> step, {void Function(T late)? discardLate}) {
+    final result = Completer<T>();
+    step.then((value) {
+      if (result.isCompleted) {
+        discardLate?.call(value);
+      } else {
+        result.complete(value);
+      }
+    }, onError: (Object error, StackTrace stack) {
+      if (!result.isCompleted) result.completeError(error, stack);
+    });
+    void expire([Object? _]) {
+      if (result.isCompleted) return;
+      result.completeError(TimeoutException(
+        'Measurement open',
+        MeasurementHostSessionController.openFailureBound,
+      ));
+    }
+
+    if (_expired.isCompleted) {
+      expire();
+    } else {
+      unawaited(_expired.future.then(expire));
+    }
+    return result.future;
+  }
+
+  /// Starts the observations read so it overlaps the rest of the open.
+  void readObservations(
+    Future<SurfaceDeliveryObservations?> Function()? read,
+  ) {
+    if (read == null) return;
+    try {
+      _observations = read().then<SurfaceDeliveryObservations?>(
+        (value) => value,
+        onError: (Object _) => null,
+      );
+    } on Object {
+      _observations = null;
+    }
+  }
+
+  /// The observations, or null when they are not ready in time.
+  Future<SurfaceDeliveryObservations?> observations() async {
+    final reading = _observations;
+    if (reading == null) return null;
+    final ready = Completer<SurfaceDeliveryObservations?>();
+    final wait = Timer(
+      MeasurementHostSessionController.presentationObservationsWait,
+      () => ready.isCompleted ? null : ready.complete(null),
+    );
+    unawaited(reading.then((value) {
+      if (!ready.isCompleted) ready.complete(value);
+    }));
+    try {
+      return await bound(ready.future);
+    } on Object {
+      return null;
+    } finally {
+      wait.cancel();
     }
   }
 }

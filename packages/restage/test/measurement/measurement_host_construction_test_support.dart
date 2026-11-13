@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:restage/src/measurement/bundled_measurement_target_profile_loader.dart';
+import 'package:restage/src/measurement/measurement_capture_edge.dart'
+    show MeasurementCaptureMonotonicClock;
 import 'package:restage/src/measurement/measurement_host_construction_owner.dart';
 import 'package:restage/src/measurement/measurement_host_session.dart';
 import 'package:restage/src/measurement/measurement_outbox_protocol.dart';
@@ -115,6 +117,7 @@ final class AdmittedConstructionOwnerHostTestHarness {
     int remainingSessionBudget = 16,
     int maximumSessions = 16,
     Future<void> Function(String fingerprint)? onRegistrationRefused,
+    MeasurementCaptureMonotonicClock? monotonicClock,
   }) {
     final worker = DeterministicMeasurementDeliveryWorker();
     final lifecycle = ConstructionOwnerLifecycleProbe();
@@ -134,6 +137,7 @@ final class AdmittedConstructionOwnerHostTestHarness {
         ),
       ),
       pathResolver: _PathProbe(),
+      monotonicClock: monotonicClock,
       workerRuntimeStarter: ({required configuration, required pathResolver}) {
         worker.start(configuration);
         return Future<MeasurementWorkerOwnedDeliveryRuntime?>.value(
@@ -179,7 +183,7 @@ final class AdmittedConstructionOwnerHostTestHarness {
 /// Test-visible lifecycle source that models one root-owned registration.
 final class ConstructionOwnerLifecycleProbe
     implements MeasurementHostSessionLifecycleRegistrar {
-  void Function(AppLifecycleState state)? _callback;
+  final _callbacks = <void Function(AppLifecycleState state)>[];
   var registrations = 0;
   var unregistrations = 0;
 
@@ -188,19 +192,24 @@ final class ConstructionOwnerLifecycleProbe
     void Function(AppLifecycleState state) callback,
   ) {
     registrations += 1;
-    _callback = callback;
-    return _ConstructionOwnerLifecycleRegistration(this);
+    _callbacks.add(callback);
+    return _ConstructionOwnerLifecycleRegistration(this, callback);
   }
 
-  /// Delivers one app-lifecycle transition to the active root session.
-  void emit(AppLifecycleState state) => _callback?.call(state);
+  /// Delivers one app-lifecycle transition to every registered observer.
+  void emit(AppLifecycleState state) {
+    for (final callback in List.of(_callbacks)) {
+      callback(state);
+    }
+  }
 }
 
 final class _ConstructionOwnerLifecycleRegistration
     implements MeasurementHostSessionLifecycleRegistration {
-  _ConstructionOwnerLifecycleRegistration(this._probe);
+  _ConstructionOwnerLifecycleRegistration(this._probe, this._callback);
 
   final ConstructionOwnerLifecycleProbe _probe;
+  final void Function(AppLifecycleState state) _callback;
   var _active = true;
 
   @override
@@ -208,7 +217,7 @@ final class _ConstructionOwnerLifecycleRegistration
     if (!_active) return;
     _active = false;
     _probe
-      .._callback = null
+      .._callbacks.remove(_callback)
       ..unregistrations += 1;
   }
 }
@@ -224,6 +233,13 @@ final class DeterministicMeasurementDeliveryWorker
       _finalizedDiagnosticSessions = <String, _DeterministicDeliverySession>{};
   final registrations = <MeasurementWorkerSessionRegistration>[];
   final appendRecords = <MeasurementWorkerAppendRecord>[];
+
+  /// Appends refused as invalid, in order.
+  final rejectedAppends = <MeasurementWorkerAppendRecord>[];
+
+  /// Elapsed times of frames refused as older than the session's last append
+  /// or frame, in order.
+  final refusedFrameElapsed = <int>[];
   final StreamController<MeasurementWorkerAppendAcknowledgement>
       _appendAcknowledgements = StreamController.broadcast(sync: true);
   final terminalDiagnostics = <MeasurementPresentationDiagnosticV1>[];
@@ -241,6 +257,9 @@ final class DeterministicMeasurementDeliveryWorker
   var finalizationCalls = 0;
   var discardCalls = 0;
   Future<void>? deliveryBarrier;
+
+  /// When set, session opens wait for it.
+  Future<void>? openBarrier;
 
   /// Outcome of each discard, in order: an uncommitted session reports
   /// `discarded`, a finalized one releasing its retained coordinates reports
@@ -316,6 +335,16 @@ final class DeterministicMeasurementDeliveryWorker
   Future<MeasurementWorkerOwnedDeliveryOpenSessionResult> openSession(
     MeasurementWorkerSessionRegistration registration,
   ) {
+    final barrier = openBarrier;
+    if (barrier != null) {
+      return barrier.then((_) => _openSessionNow(registration));
+    }
+    return _openSessionNow(registration);
+  }
+
+  Future<MeasurementWorkerOwnedDeliveryOpenSessionResult> _openSessionNow(
+    MeasurementWorkerSessionRegistration registration,
+  ) {
     registrations.add(registration);
     if (!_available) {
       return Future<MeasurementWorkerOwnedDeliveryOpenSessionResult>.value(
@@ -383,10 +412,14 @@ final class DeterministicMeasurementDeliveryWorker
     if (!_available || !session._active) {
       return MeasurementWorkerAppendOutcome.unavailable;
     }
+    // Like the native worker, an append older than the last one is invalid.
     if (record.routeIndex < 0 ||
-        record.routeIndex >= session.registration.routes.length) {
+        record.routeIndex >= session.registration.routes.length ||
+        record.monotonicTimestampMicros < session._lastTimestampMicros) {
+      rejectedAppends.add(record);
       return MeasurementWorkerAppendOutcome.invalid;
     }
+    session._lastTimestampMicros = record.monotonicTimestampMicros;
     appendRecords.add(record);
     final wasPresented = session.presentedRoutes.contains(record.routeIndex);
     session.presentedRoutes.add(record.routeIndex);
@@ -409,6 +442,7 @@ final class DeterministicMeasurementDeliveryWorker
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult> _checkpoint(
     _DeterministicDeliverySession session, {
     required bool isFinal,
+    int? frameElapsedMicros,
   }) async {
     if (!_available || !session._active) {
       return Future<MeasurementWorkerOwnedDeliveryCheckpointResult>.value(
@@ -428,6 +462,24 @@ final class DeterministicMeasurementDeliveryWorker
         isFinal: null,
         workerOwnedByteCount: 0,
       );
+    }
+    // Like the native worker, a frame older than its last append or frame is
+    // refused.
+    if (frameElapsedMicros != null) {
+      if (frameElapsedMicros < session._lastTimestampMicros ||
+          frameElapsedMicros < session._lastFrameElapsedMicros) {
+        refusedFrameElapsed.add(frameElapsedMicros);
+        return const MeasurementWorkerOwnedDeliveryCheckpointResult(
+          outcome: MeasurementWorkerOwnedDeliveryCheckpointOutcome
+              .persistenceFailure,
+          sequence: null,
+          isFinal: null,
+          workerOwnedByteCount: 0,
+        );
+      }
+      session
+        .._lastTimestampMicros = frameElapsedMicros
+        .._lastFrameElapsedMicros = frameElapsedMicros;
     }
     checkpointCalls += 1;
     deliveries.add(MeasurementWorkerDeliveryKind.frame);
@@ -520,6 +572,8 @@ final class _DeterministicDeliverySession
   final MeasurementWorkerSessionRegistration registration;
   String get sessionId => registration.sessionId;
   final Set<int> presentedRoutes = <int>{};
+  var _lastTimestampMicros = -1;
+  var _lastFrameElapsedMicros = -1;
   var _active = true;
   var _barrier = false;
   var _finalizedDiagnosticRetained = false;
@@ -532,12 +586,14 @@ final class _DeterministicDeliverySession
   @override
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult> checkpoint(
           {int? frameElapsedMicros}) =>
-      _worker._checkpoint(this, isFinal: false);
+      _worker._checkpoint(this,
+          isFinal: false, frameElapsedMicros: frameElapsedMicros);
 
   @override
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult> teardown(
           {int? frameElapsedMicros}) =>
-      _worker._checkpoint(this, isFinal: true);
+      _worker._checkpoint(this,
+          isFinal: true, frameElapsedMicros: frameElapsedMicros);
 
   @override
   Future<MeasurementWorkerOwnedDeliveryCheckpointResult>

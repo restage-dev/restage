@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'measurement_deferred_clock.dart';
 import 'measurement_sdk_runtime_session.dart';
 
 import 'package:meta/meta.dart';
@@ -255,6 +256,10 @@ final class MeasurementHostConstructionOwner {
 
   final _sdkSession = MeasurementSdkRuntimeSession();
 
+  /// A clock counting from now on this owner's monotonic clock.
+  MeasurementMountClock startMountClock() =>
+      MeasurementMountClock(_monotonicClock.readMicros);
+
   /// Rotate runtime attribution for roots opened after explicit SDK reset.
   void resetSdkRuntimeSession() => _sdkSession.reset();
 
@@ -320,8 +325,40 @@ final class MeasurementHostConstructionOwner {
     String? routingSelectionReceipt,
     MountSelectionAttributionV1? attribution,
     PresentationAssignmentCarrierV2? assignment,
+    bool Function()? isCurrent,
+  }) async =>
+      (await openSessionResult(
+        resolvedMount: resolvedMount,
+        routeTable: routeTable,
+        capabilityAdmission: capabilityAdmission,
+        captureSessionNonceSource: captureSessionNonceSource,
+        experimentAssignment: experimentAssignment,
+        registrationFingerprint: registrationFingerprint,
+        presentationContext: presentationContext,
+        routingSelectionReceipt: routingSelectionReceipt,
+        attribution: attribution,
+        assignment: assignment,
+        isCurrent: isCurrent,
+      ))
+          .session;
+
+  /// Like [openSession]; `failed` is true when a session was admitted but the
+  /// owner or worker could not open it.
+  Future<({MeasurementHostConstructionSession? session, bool failed})>
+      openSessionResult({
+    required MeasurementPublicationBindingRuntimeResolvedMount resolvedMount,
+    required MeasurementRuntimeRouteTable routeTable,
+    required MeasurementCaptureAdmission capabilityAdmission,
+    required String Function() captureSessionNonceSource,
+    MeasurementExperimentAssignmentV1? experimentAssignment,
+    String? registrationFingerprint,
+    MeasurementPresentationContextV1? presentationContext,
+    String? routingSelectionReceipt,
+    MountSelectionAttributionV1? attribution,
+    PresentationAssignmentCarrierV2? assignment,
+    bool Function()? isCurrent,
   }) async {
-    if (_closed) return null;
+    if (_closed) return (session: null, failed: true);
 
     final profileResult = await _readProfile(
       resolvedMount.publicationContextRef,
@@ -333,7 +370,9 @@ final class MeasurementHostConstructionOwner {
     );
     final admission = admissionAttempt.admission;
     final budgetReservation = admissionAttempt.budgetReservation;
-    if (!admission.isAdmitted || budgetReservation == null) return null;
+    if (!admission.isAdmitted || budgetReservation == null) {
+      return (session: null, failed: false);
+    }
 
     final profile =
         (profileResult as MeasurementHostConstructionProfileReadAccepted)
@@ -341,13 +380,19 @@ final class MeasurementHostConstructionOwner {
     final runtime = await _runtimeFor(profile, admission);
     if (runtime == null || !_isWorkerHealthy) {
       budgetReservation.refund();
-      return null;
+      return (session: null, failed: true);
+    }
+    // A reset or erasure since mount: never register under the new session.
+    if (isCurrent != null && !isCurrent()) {
+      budgetReservation.refund();
+      return (session: null, failed: false);
     }
 
     try {
       final nonce = _sdkSession.forTarget(
           resolvedMount.publicationContextRef.surfaceIdentity.target);
-      final sessionClock = _SessionMonotonicClock(_monotonicClock);
+      final sessionClock = _SessionMonotonicClock(_monotonicClock,
+          deferred: MeasurementDeferredClock.sessionSource());
       final registration = MeasurementWorkerSessionRegistration(
         presentationContextCanonicalBytes:
             profile.presentationMetadataAdmitted && presentationContext != null
@@ -398,13 +443,18 @@ final class MeasurementHostConstructionOwner {
         if (opened.outcome == MeasurementWorkerOpenSessionOutcome.unavailable) {
           _latchWorkerFailure();
         }
-        return null;
+        return (session: null, failed: true);
+      }
+      if (isCurrent != null && !isCurrent()) {
+        budgetReservation.refund();
+        await workerSession.discard();
+        return (session: null, failed: false);
       }
 
       budgetReservation.consume();
       if (_closed) {
         await workerSession.discard();
-        return null;
+        return (session: null, failed: true);
       }
       final session = MeasurementHostConstructionSession._(
         presentationMetadataAdmitted: profile.presentationMetadataAdmitted,
@@ -418,11 +468,11 @@ final class MeasurementHostConstructionOwner {
         appendAcknowledgements: runtime.appendAcknowledgements,
       );
       _sessions.add(session);
-      return session;
+      return (session: session, failed: false);
     } on Object {
       budgetReservation.refund();
       _latchWorkerFailure();
-      return null;
+      return (session: null, failed: true);
     }
   }
 
@@ -1156,13 +1206,17 @@ final class _MeasurementHostConstructionBudgetReservation {
 }
 
 final class _SessionMonotonicClock implements MeasurementCaptureMonotonicClock {
-  _SessionMonotonicClock(this._source) : _origin = _source.readMicros();
+  _SessionMonotonicClock(this._source, {int Function()? deferred})
+      : _deferred = deferred,
+        _origin = deferred == null ? _source.readMicros() : 0;
 
   final MeasurementCaptureMonotonicClock _source;
+  final int Function()? _deferred;
   final int _origin;
 
+  // A deferred session counts from its mount.
   @override
-  int readMicros() => _source.readMicros() - _origin;
+  int readMicros() => _deferred?.call() ?? _source.readMicros() - _origin;
 }
 
 final class _StopwatchMonotonicClock

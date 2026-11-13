@@ -945,7 +945,7 @@ widget OnboardingScreen = ThrowingWidget();
       await tester.pump();
       expect(find.text('Fresh'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
-      await tester.pump(MeasurementHostSessionController.openCeiling);
+      await tester.pump(MeasurementHostSessionController.openFailureBound);
     });
 
     testWidgets('a screen paints while its session is still opening',
@@ -958,7 +958,7 @@ widget OnboardingScreen = ThrowingWidget();
       await tester.pump();
       expect(find.text('Hosted screen'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
-      await tester.pump(MeasurementHostSessionController.openCeiling);
+      await tester.pump(MeasurementHostSessionController.openFailureBound);
     });
 
     testWidgets('a flow paints while its session is still opening',
@@ -976,7 +976,7 @@ widget OnboardingScreen = ThrowingWidget();
       await tester.pump();
       expect(find.text('Fresh'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
-      await tester.pump(MeasurementHostSessionController.openCeiling);
+      await tester.pump(MeasurementHostSessionController.openFailureBound);
     });
   });
 

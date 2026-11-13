@@ -75,12 +75,21 @@ sealed class MeasurementPresentationRoute {
 final class MeasurementPendingPresentationRoute
     implements MeasurementPresentationRoute {
   MeasurementPresentationRouteHandle? _bound;
+
+  /// Micros since the mount, stamped on the held first paint.
+  int Function()? clock;
+
+  /// Replays the held first paint as of the micros it happened.
+  void Function(int at, void Function() replay)? replayAt;
+  int? _paintedAt;
   var _painted = false;
   var _paintFailed = false;
   var _unmounted = false;
   var _genuineRootPresentations = 0;
+  var _paintPending = false;
 
-  /// Replays the held outcome onto [handle] and forwards from now on.
+  /// Binds [handle] and forwards from now on. A held first paint waits for
+  /// [replayHeldPaint], so the host can replay it in time order.
   void bind(MeasurementPresentationRouteHandle handle) {
     if (_bound != null) return;
     _bound = handle;
@@ -88,14 +97,35 @@ final class MeasurementPendingPresentationRoute
       handle._recordGenuineRootPresentation();
     }
     if (_painted) {
+      _paintPending = true;
+      return;
+    }
+    if (_paintFailed) handle._rejectFailedPaint();
+    if (_unmounted) handle.abandon();
+  }
+
+  /// When the held first paint happened, until [replayHeldPaint] runs.
+  int? get heldPaintAt => _paintPending ? _paintedAt ?? 0 : null;
+
+  /// Replays a held first paint at the time it happened.
+  void replayHeldPaint() {
+    final handle = _bound;
+    if (!_paintPending || handle == null) return;
+    _paintPending = false;
+    final at = _paintedAt;
+    final replay = replayAt;
+    if (at == null || replay == null) {
       handle._recordSuccessfulFirstPaint();
-    } else if (_paintFailed) {
-      handle._rejectFailedPaint();
+    } else {
+      replay(at, handle._recordSuccessfulFirstPaint);
     }
     if (_unmounted) handle.abandon();
   }
 
   bool get _held => !_painted && !_paintFailed && !_unmounted;
+
+  /// Whether a successful first paint is held for replay.
+  bool get holdsPaint => _painted;
 
   @override
   bool get _canCommitAfterSuccessfulPaint =>
@@ -119,7 +149,10 @@ final class MeasurementPendingPresentationRoute
   void _recordSuccessfulFirstPaint() {
     final bound = _bound;
     if (bound != null) return bound._recordSuccessfulFirstPaint();
-    if (_held) _painted = true;
+    if (_held) {
+      _painted = true;
+      _paintedAt = clock?.call();
+    }
   }
 
   @override
