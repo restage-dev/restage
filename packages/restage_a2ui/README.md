@@ -2,6 +2,9 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_a2ui.svg)](https://pub.dev/packages/restage_a2ui) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
+[Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
+change any screen of a shipped Flutter app without a release.
+
 Requires A2UI 1.0 through `a2ui_flutter: ^0.3.0` and `a2ui_core: ^0.7.0`,
 with Dart >=3.11.0, Flutter >=3.38.0 and `json_schema_builder` >=0.1.7.
 
@@ -9,8 +12,6 @@ Turn your own Flutter widgets into an [A2UI](https://a2ui.org)
 catalog that a generative-UI model can build screens from, and check each
 payload against that catalog before Google's
 [`a2ui_flutter`](https://pub.dev/packages/a2ui_flutter) SDK renders it.
-
-Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
 You annotate ordinary widgets. Restage's build-time toolchain
 (`restage_codegen`) generates the a2ui_flutter catalog from them. This package is the

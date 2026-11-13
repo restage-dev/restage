@@ -2,12 +2,13 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_mcp.svg)](https://pub.dev/packages/restage_mcp) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
+[Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
+change any screen of a shipped Flutter app without a release.
+
 A [Model Context Protocol](https://modelcontextprotocol.io) server for Restage.
 It lets an MCP-capable agent or IDE (such as Claude Code, Claude Desktop, or
 Cursor) manage your Restage surfaces, products, and app configuration through
 the same backend the `restage` CLI uses.
-
-Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
 The server speaks MCP over **stdio**: your MCP host launches `restage_mcp` as a
 subprocess and talks to it over standard input and output.

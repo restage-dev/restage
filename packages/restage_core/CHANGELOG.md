@@ -6,7 +6,7 @@
   a delivered builder body reads.
 - Add `RestageBuilderBinding.color`, which projects an app color as a delivered
   body reads it.
-- Fix: a `w100`–`w900` font weight decodes in release builds, which strip `FontWeight.toString`.
+- Fix: a `w100`–`w900` font weight decodes in release builds. Release builds strip `FontWeight.toString`.
 - `GestureDetector` takes every gesture callback and `Semantics` its action callbacks, typed as Flutter declares them, at capability 26. Add `RestageDecoders.nativeCallback`, which reads a callback only the app's own closure can fill.
 - **Breaking:** Remove `resolveInstalledIcon`, `InstalledIconTable.hasSelection` and the `explicitSelection` parameter of `InstalledIconTable.add`. Look an icon up with `InstalledIconTable.current.lookUp(fontFamily, codePoint)`, which returns null for a missing icon instead of throwing.
 - Remove `resolveThemeBinding`. Generated builders now pass null for a theme-resolved default, and the Flutter widget resolves its theme itself.

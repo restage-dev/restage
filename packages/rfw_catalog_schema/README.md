@@ -2,10 +2,11 @@
 
 [![pub package](https://img.shields.io/pub/v/rfw_catalog_schema.svg)](https://pub.dev/packages/rfw_catalog_schema) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
+[Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
+change any screen of a shipped Flutter app without a release.
+
 The schema, annotations, catalog ID types, and JSON codecs for a
 [Remote Flutter Widgets (RFW)](https://pub.dev/packages/rfw) widget catalog.
-
-Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
 This package describes what a catalog looks like. It is the shared format for
 tools that produce catalogs (compilers, code generators), tools that read them

@@ -14,10 +14,10 @@
   <a href="LICENSE"><img alt="License: BSD-3-Clause" src="https://img.shields.io/badge/license-BSD--3--Clause-blue.svg"></a>
 </p>
 
-Restage is server-driven UI for Flutter. Add one annotation to a widget you
-already wrote, and it becomes a surface you can update over the air:
-onboarding, messages, surveys, paywalls, or any screen. It renders as real
-Flutter widgets in your app, using your theme.
+Restage is server-driven UI for Flutter: it lets a team change any screen of a
+shipped Flutter app without a release. You add `@Screen` to a widget you already
+wrote, run `build_runner`, and publish. The app draws what you published as real
+Flutter widgets with your theme.
 
 This package is the runtime SDK. It renders what the build produced through
 [Remote Flutter Widgets](https://pub.dev/packages/rfw).

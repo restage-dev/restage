@@ -1,10 +1,11 @@
 # Restage SDK examples
 
+[Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
+change any screen of a shipped Flutter app without a release.
+
 Onboarding flows, in-app messages, surveys, permission prompts, paywalls, and
 other screens, each written in ordinary Flutter with one Restage annotation.
 Copy one, preview it, publish it, and change it without shipping an app update.
-
-Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
 Each screen is a normal Flutter widget built from your own widgets and design
 system, marked with `@Screen` or `@Paywall`. Multi-screen journeys can use a Dart

@@ -2,17 +2,17 @@
 
 ## Unreleased
 
-Apple receipt-only access refreshes through its signed history anchor when proof
-metadata is omitted; existing exact receipt proofs remain usable.
+On the App Store, access held only through a receipt refreshes by restoring the
+signed purchase history when proof metadata is omitted. Exact receipt proofs keep
+working.
 
-Commerce keeps confirmed access while provider reports are pending, retains
-receipt-only access during catalog refresh, and exports typed promotional
-signatures for store adapters. Ambiguous offering
-purchases return `packageSelectionRequired`; select an exact package to retry.
+Confirmed access stays while a store report is pending, and receipt-only access
+stays while the catalog refreshes. Store adapters get typed promotional offer
+signatures. Buying an offering that has several packages with no package selected
+returns `packageSelectionRequired`. Select the package to buy and try again.
 
-**Unreleased store-adapter SPI:** the opaque
-`CommerceStorePurchasable.offerSignature` argument is removed. Pass typed
-`promotionalOffer` instead.
+**Breaking:** the opaque `CommerceStorePurchasable.offerSignature` argument is
+removed. Pass the typed `promotionalOffer` instead.
 
 `Restage.configure` and `configureWithInstalledCatalog` use the delivery keys
 the generated `kRestageWidgetRegistration` carries when they are passed no
@@ -22,7 +22,7 @@ the generated `kRestageWidgetRegistration` carries when they are passed no
 **Breaking:** `RestageEnvironment` is removed, along with the `environment`
 parameter of `Restage.configure`, `Restage.configureWithInstalledCatalog`,
 `RestageVariantResolver`, `RestageScreenResolver` and `ServerFlowResolver`. The
-API key already selects the environment; the parameter only labelled local
+API key already selects the environment; the parameter only labeled local
 storage. `dart fix --apply` removes the argument. Code that read
 `Restage.configuredEnvironment` has no replacement and needs a manual edit.
 Saved surfaces and placement decisions are stored per API key now, so content
