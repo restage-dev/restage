@@ -272,8 +272,9 @@ nor conversion reporting.
 Both handler builders return `Future<void> Function(RestageEvent)`. Selection,
 purchase, validation and restore errors reach the optional handler `onError`;
 without it, the returned future propagates errors. Custom `onPurchase` errors
-propagate separately, while confirmed reporting is still observed. Handle observer
-failures in your app or observe the returned handler future when invoking it.
+propagate separately. The handler starts the conversion report without
+waiting for it. Handle observer failures in your app or observe the returned
+handler future when invoking it.
 
 ## Purchase conversion reports
 
@@ -287,12 +288,20 @@ If your app can reliably match a transaction to its checkout on its own, keep
 the original event and report after verified delivery:
 
 ```dart
-await Restage.measurement.reportPurchase(
+import 'dart:async';
+
+// ...
+unawaited(Restage.measurement.reportPurchase(
   originalEvent,
   packageIdentifier: matchedPackageIdentifier,
   productIdentifier: matchedProductIdentifier,
-);
+));
 ```
+
+The SDK sends the report once, with no retry, after the paywall's measurement
+session opens, so the purchase flow doesn't need to wait. The future completes
+with `true` once the report is accepted, and `false` if the session doesn't
+open or the report fails or is refused.
 
 Do not report unmatched, restored or recovered updates as new paywall purchases.
 The custom handler reports the purchase your app confirmed using the original

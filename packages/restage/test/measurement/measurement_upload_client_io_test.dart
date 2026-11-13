@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -475,6 +476,88 @@ void main() {
       (await activeUpload).outcome,
       MeasurementOutboxUploadOutcome.delivered,
     );
+  });
+
+  group('response body bound', () {
+    const bound = Duration(seconds: 1);
+
+    // Serves [chunks] of a 200 response, waiting [gap] before each one.
+    Future<String> serve(List<List<int>> chunks,
+        {required int contentLength,
+        required Duration gap,
+        Future<void>? stall}) async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      unawaited(server.forEach((request) async {
+        await request.drain<void>();
+        final response = request.response
+          ..statusCode = HttpStatus.ok
+          ..contentLength = contentLength
+          ..bufferOutput = false;
+        for (final chunk in chunks) {
+          await Future<void>.delayed(gap);
+          response.add(chunk);
+          await response.flush();
+        }
+        if (stall != null) await stall;
+        try {
+          await response.close();
+        } on Object {
+          // The client has already gone.
+        }
+      }));
+      return 'http://${server.address.host}:${server.port}/measurement';
+    }
+
+    MeasurementUploadClient client(String endpoint) =>
+        createMeasurementUploadClient(
+          configuration: MeasurementUploadConfiguration(
+            endpoint: Uri.parse(endpoint),
+            headersProvider: () => const <String, String>{},
+            requestTimeout: bound,
+          ),
+        );
+
+    test('a body that stalls after headers is retryable within the bound',
+        () async {
+      final stall = Completer<void>();
+      addTearDown(() => stall.isCompleted ? null : stall.complete());
+      final endpoint = await serve(
+        [
+          [0x7b],
+        ],
+        contentLength: 101,
+        gap: Duration.zero,
+        stall: stall.future,
+      );
+      final lease = MeasurementOutboxLease(record: _recordForBatch(_batch()));
+      final elapsed = Stopwatch()..start();
+      final outcome = await client(endpoint)
+          .send(lease)
+          .timeout(const Duration(seconds: 10));
+      expect(outcome.kind, MeasurementUploadOutcomeKind.retryable);
+      expect(elapsed.elapsed, lessThan(const Duration(seconds: 5)));
+    });
+
+    test('a slow but steady body is read past the bound', () async {
+      final record = _recordForBatch(_batch());
+      final bytes = utf8.encode(receiptEnvelopeForRecord(record));
+      const pieces = 60;
+      final size = (bytes.length / pieces).ceil();
+      final endpoint = await serve(
+        [
+          for (var i = 0; i < bytes.length; i += size)
+            bytes.sublist(i, min(i + size, bytes.length)),
+        ],
+        contentLength: bytes.length,
+        gap: const Duration(milliseconds: 30),
+      );
+      final elapsed = Stopwatch()..start();
+      final outcome =
+          await client(endpoint).send(MeasurementOutboxLease(record: record));
+      expect(elapsed.elapsed, greaterThan(bound));
+      expect(outcome.kind, MeasurementUploadOutcomeKind.acknowledged);
+    });
   });
 
   test('unsupported upload client fails closed without reading credentials',

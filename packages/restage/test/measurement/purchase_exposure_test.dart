@@ -11,7 +11,7 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/measurement/measurement_host_session.dart';
 import 'package:restage/src/measurement/restage_measurement.dart'
-    show attachPurchaseExposure, purchaseExposureWait;
+    show attachPurchaseExposure;
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage/src/resolver/surface_delivery_observations.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -117,6 +117,22 @@ void main() {
     expect(sent['packageIdentifier'], 'holiday_annual');
     expect(sent['productIdentifier'], 'annual_49');
     expect(sent['reportedOccurredAtMicros'], isPositive);
+  });
+
+  test('the report records the time of the call, not of delivery', () async {
+    int now() => DateTime.now().toUtc().microsecondsSinceEpoch;
+    final opened = Completer<void>();
+    final original = event(flush: () => opened.future);
+    final before = now();
+    final pending = report(original);
+    final called = now();
+    while (now() <= called) {}
+    final released = now();
+    opened.complete();
+    expect(await pending, isTrue);
+    final at = reports.single['reportedOccurredAtMicros'] as int;
+    expect(at, inInclusiveRange(before, called));
+    expect(at, lessThan(released));
   });
 
   test('an event reports once, including concurrent and different identifiers',
@@ -260,71 +276,62 @@ void main() {
       }
     }
 
-    Future<bool?> reportedAfterWait(
-        WidgetTester tester, RestageEvent purchase) async {
-      bool? returned;
-      unawaited(report(purchase).then((value) => returned = value));
-      await tester.pump(purchaseExposureWait - const Duration(milliseconds: 1));
-      expect(returned, isNull);
-      await tester.pump(const Duration(milliseconds: 1));
-      await tester.pump();
-      return returned;
+    Future<MeasurementHostSessionController> mountPending(
+        WidgetTester tester) async {
+      final session = openPending();
+      await tester.pumpWidget(Directionality(
+        textDirection: TextDirection.ltr,
+        child: session.wrapRootSubtree(const SizedBox(width: 1, height: 1)),
+      ));
+      return session;
     }
 
-    testWidgets('returns false after the wait instead of waiting for the open',
-        (tester) async {
-      final session = openPending();
-      await tester.pumpWidget(Directionality(
-        textDirection: TextDirection.ltr,
-        child: session.wrapRootSubtree(const SizedBox(width: 1, height: 1)),
-      ));
-      final purchase = purchaseFor(session);
-      expect(await reportedAfterWait(tester, purchase), isFalse);
-      expect(session.debugState, MeasurementHostSessionDebugState.pending);
-      expect(await reportedAfterWait(tester, purchase), isFalse,
-          reason: 'a later call while held also waits, then returns false');
-      expect(reports, isEmpty);
-      port.read.complete(true);
-      await settle(tester);
-      await tester.runAsync(() => session.teardown());
-      await tester.pumpWidget(const SizedBox.shrink());
-    });
+    for (final delay in [
+      const Duration(milliseconds: 1),
+      const Duration(seconds: 3),
+      const Duration(seconds: 10),
+      MeasurementHostSessionController.openFailureBound -
+          const Duration(milliseconds: 1),
+    ]) {
+      testWidgets('resolves true once the session opens after $delay',
+          (tester) async {
+        final session = await mountPending(tester);
+        final purchase = purchaseFor(session);
+        bool? returned;
+        unawaited(report(purchase).then((value) => returned = value));
+        await tester.pump(delay);
+        expect(returned, isNull, reason: 'waits for the open, not a timer');
+        expect(session.debugState, MeasurementHostSessionDebugState.pending);
+        expect(reports, isEmpty);
 
-    testWidgets(
-        'is delivered with the opened session after a late open, and a '
-        'later call returns true', (tester) async {
-      final session = openPending();
-      await tester.pumpWidget(Directionality(
-        textDirection: TextDirection.ltr,
-        child: session.wrapRootSubtree(const SizedBox(width: 1, height: 1)),
-      ));
-      final purchase = purchaseFor(session);
-      expect(await reportedAfterWait(tester, purchase), isFalse);
-      await tester.pump(const Duration(seconds: 10));
+        port.read.complete(true);
+        await settle(tester);
 
-      port.read.complete(true);
-      await settle(tester);
-
-      expect(session.debugState, MeasurementHostSessionDebugState.active);
-      expect(reports, hasLength(1));
-      expect(reports.single['exposure'], {
-        'captureSessionNonce':
-            harness.worker.registrations.single.captureSessionNonce,
-        'publicationBindingReference': fixture.binding.reference.toJson(),
+        expect(session.debugState, MeasurementHostSessionDebugState.active);
+        expect(returned, isTrue);
+        expect(reports, hasLength(1));
+        expect(reports.single['exposure'], {
+          'captureSessionNonce':
+              harness.worker.registrations.single.captureSessionNonce,
+          'publicationBindingReference': fixture.binding.reference.toJson(),
+        });
+        expect(harness.worker.checkpointCalls, 1,
+            reason: 'the presentation frame is sent before the purchase');
+        expect(await report(purchase), isTrue,
+            reason: 'a later call shares the one delivery');
+        expect(reports, hasLength(1), reason: 'reported once');
+        await tester.runAsync(() => session.teardown());
+        await tester.pumpWidget(const SizedBox.shrink());
       });
-      expect(harness.worker.checkpointCalls, 1,
-          reason: 'the presentation frame is sent before the purchase');
-      expect(await report(purchase), isTrue,
-          reason: 'a later call returns the held report\'s result');
-      expect(reports, hasLength(1), reason: 'reported once');
-      await tester.runAsync(() => session.teardown());
-      await tester.pumpWidget(const SizedBox.shrink());
-    });
+    }
 
-    testWidgets('is dropped with the log line when the open fails',
+    testWidgets('resolves false with the log line when the open fails',
         (tester) async {
       final session = openPending();
-      expect(await reportedAfterWait(tester, purchaseFor(session)), isFalse);
+      bool? returned;
+      unawaited(report(purchaseFor(session)).then((value) => returned = value));
+      await tester.pump(const Duration(seconds: 3));
+      expect(returned, isNull);
 
       final logs = <String?>[];
       final previous = debugPrint;
@@ -336,6 +343,7 @@ void main() {
         debugPrint = previous;
       }
 
+      expect(returned, isFalse);
       expect(session.debugState, MeasurementHostSessionDebugState.disabled);
       expect(reports, isEmpty);
       expect(harness.worker.registrations, isEmpty);
@@ -343,6 +351,22 @@ void main() {
         '[restage] measurement session did not open; this presentation is '
             'not measured',
       ]);
+    });
+
+    testWidgets('resolves false at the failure bound when the open never ends',
+        (tester) async {
+      final session = await mountPending(tester);
+      bool? returned;
+      unawaited(report(purchaseFor(session)).then((value) => returned = value));
+      await tester.pump(MeasurementHostSessionController.openFailureBound -
+          const Duration(milliseconds: 1));
+      expect(returned, isNull);
+      await tester.pump(const Duration(milliseconds: 1));
+      await settle(tester);
+      expect(returned, isFalse);
+      expect(session.debugState, MeasurementHostSessionDebugState.disabled);
+      expect(reports, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
     });
   });
 

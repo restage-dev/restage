@@ -25,11 +25,13 @@ final class RestageMeasurement {
   /// exposure through paywall changes or dismissal, including events received
   /// through the app-wide stream. Each event is reported at most once; later
   /// calls return that report's result.
-  /// Returns true when the report was delivered and accepted. Returns false
-  /// when the exposure or delivery is unavailable or refused, or when the
-  /// paywall's measurement session is still opening after a few seconds; such
-  /// a report is held, delivered if the session opens, and a later call
-  /// returns true once it is accepted.
+  ///
+  /// The report is sent once, without retry, after the paywall's measurement
+  /// session has opened and a flush of its presentation has been attempted,
+  /// so callers need not await it. The future completes with true when the
+  /// report is accepted, and with false when the exposure is unavailable, the
+  /// session fails to open, or the request fails or is refused. It never
+  /// completes with an error.
   /// Package and product identifiers are retained; no paid amount is inferred.
   Future<bool> reportPurchase(
     RestageEvent event, {
@@ -117,42 +119,17 @@ final class _PurchaseExposure {
   final Future<_ExposureCoordinates?> Function() _prepare;
   final RestageRpcClient _client;
   final bool Function() _isCurrent;
-  Future<_ExposureCoordinates?>? _exposure;
   Future<bool>? _delivery;
 
-  // Starts the one delivery, then waits at most [purchaseExposureWait] for
-  // its exposure; a report still waiting stays held until the session opens.
-  Future<bool> _send(Map<String, Object> Function() report) {
-    var exposure = _exposure;
-    var delivery = _delivery;
-    if (exposure == null || delivery == null) {
-      try {
-        exposure = _prepare();
-      } on Object {
-        exposure = Future.value(null);
-      }
-      _exposure = exposure;
-      delivery = _delivery = _deliver(report(), exposure);
-    }
-    final result = Completer<bool>();
-    final wait = Timer(purchaseExposureWait, () {
-      if (!result.isCompleted) result.complete(false);
-    });
-    void ready([Object? _]) {
-      wait.cancel();
-      if (!result.isCompleted) result.complete(delivery);
-    }
+  // Starts the one delivery; later calls share its result.
+  Future<bool> _send(Map<String, Object> Function() report) =>
+      _delivery ??= _deliver(report);
 
-    exposure.then(ready, onError: ready);
-    return result.future;
-  }
-
-  Future<bool> _deliver(
-    Map<String, Object> report,
-    Future<_ExposureCoordinates?> preparing,
-  ) async {
+  Future<bool> _deliver(Map<String, Object> Function() build) async {
     try {
-      final exposure = await preparing;
+      // Built before the first await, so it records the time of the call.
+      final report = build();
+      final exposure = await _prepare();
       if (exposure == null) return false;
       return await _client.reportPurchase({
         ...report,
@@ -167,11 +144,6 @@ final class _PurchaseExposure {
     }
   }
 }
-
-/// How long [RestageMeasurement.reportPurchase] waits for its presentation's
-/// measurement session before returning.
-@internal
-const Duration purchaseExposureWait = Duration(seconds: 3);
 
 typedef _ExposureCoordinates = ({
   String captureSessionNonce,

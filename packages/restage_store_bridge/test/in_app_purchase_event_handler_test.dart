@@ -118,9 +118,11 @@ void main() {
       final handler = custom();
       packages['second'] = first;
       packages.clear();
-      await handler(_purchase('second'));
+      final event = _purchase('second');
+      await handler(event);
       expect(selected.single, same(second));
       expect(confirmed.single.productID, 'pro');
+      expect(await _delivered(event), isTrue);
       expect(reports.single['packageIdentifier'], 'second');
     },
   );
@@ -148,6 +150,7 @@ void main() {
     pending.complete(_result('pro'));
     await handling;
     expect(flushed, isTrue);
+    expect(await _delivered(event), isTrue);
     expect(reports.single['exposure']['captureSessionNonce'], 'a' * 43);
     expect(reports.single['productIdentifier'], 'pro');
     expect(
@@ -171,8 +174,11 @@ void main() {
       final event = _purchase('first');
       await handler(event);
       await handler(event);
+      expect(await _delivered(event), isTrue);
       expect(reports, hasLength(1));
-      await handler(_purchase('first'));
+      final another = _purchase('first');
+      await handler(another);
+      expect(await _delivered(another), isTrue);
       expect(reports, hasLength(2));
       expect(selected, hasLength(3));
       expect(confirmed, hasLength(3));
@@ -198,6 +204,7 @@ void main() {
       );
       expect(selected, isEmpty);
       expect(confirmed, isEmpty);
+      await pumpEventQueue();
       expect(reports, isEmpty);
     },
   );
@@ -215,6 +222,7 @@ void main() {
         await expectLater(handler(_purchase('first')), throwsStateError);
       }
       expect(confirmed, isEmpty);
+      await pumpEventQueue();
       expect(reports, isEmpty);
     },
   );
@@ -226,6 +234,7 @@ void main() {
     await handler(_restore());
     expect(restores, 1);
     expect(confirmed, isEmpty);
+    await pumpEventQueue();
     expect(reports, isEmpty);
   });
 
@@ -249,6 +258,7 @@ void main() {
         same(failure),
       ]);
       expect(confirmed, isEmpty);
+      await pumpEventQueue();
       expect(reports, isEmpty);
     },
   );
@@ -267,8 +277,10 @@ void main() {
     () async {
       reportStatus = 503;
       final errors = <Object>[];
-      await custom(onError: (e, _) => errors.add(e))(_purchase('first'));
+      final event = _purchase('first');
+      await custom(onError: (e, _) => errors.add(e))(event);
       expect(confirmed, hasLength(1));
+      expect(await _delivered(event), isFalse);
       expect(reports, hasLength(1));
       expect(errors, isEmpty);
     },
@@ -280,7 +292,8 @@ void main() {
       () async {
         final pending = Completer<PurchaseDetails?>();
         buy = (_) => pending.future;
-        final handling = custom()(_purchase('first'));
+        final event = _purchase('first');
+        final handling = custom()(event);
         if (reset) {
           Restage.reset();
         } else {
@@ -289,44 +302,52 @@ void main() {
         pending.complete(_result('pro'));
         await handling;
         expect(confirmed, hasLength(1));
+        expect(await _delivered(event), isFalse);
+        await pumpEventQueue();
         expect(reports, isEmpty);
       },
     );
   }
 
-  test(
-    'callback error propagates separately after confirmed report is observed',
-    () async {
-      final release = Completer<void>();
-      final started = Completer<void>();
-      beforeReport = (_) async {
-        started.complete();
-        await release.future;
-      };
-      final failure = StateError('observer failed');
-      final errors = <Object>[];
-      var prepared = false;
-      var settled = false;
-      final event = _purchase('first', flush: () async => prepared = true);
-      final handling = custom(
+  test('callback error propagates without waiting on the report', () async {
+    final release = Completer<void>();
+    final started = Completer<void>();
+    beforeReport = (_) async {
+      started.complete();
+      await release.future;
+    };
+    final failure = StateError('observer failed');
+    final errors = <Object>[];
+    var prepared = false;
+    final event = _purchase('first', flush: () async => prepared = true);
+    await expectLater(
+      custom(
         onPurchase: (_) {
           expect(prepared, isTrue);
           throw failure;
         },
         onError: (e, _) => errors.add(e),
-      )(event);
-      final observed = expectLater(
-        handling,
-        throwsA(same(failure)),
-      ).then((_) => settled = true);
-      await started.future;
-      expect(settled, isFalse);
-      expect(errors, isEmpty);
-      release.complete();
-      await observed;
-      expect(reports, hasLength(1));
-    },
-  );
+      )(event),
+      throwsA(same(failure)),
+    );
+    expect(errors, isEmpty);
+    await started.future;
+    expect(reports, isEmpty, reason: 'delivery is still in flight');
+    release.complete();
+    expect(await _delivered(event), isTrue);
+    expect(reports, hasLength(1));
+  });
+
+  test('completes without waiting on a session that never opens', () async {
+    final event = _purchase('first', flush: () => Completer<void>().future);
+    var completed = false;
+    unawaited(custom()(event).then((_) => completed = true));
+    await pumpEventQueue();
+    expect(completed, isTrue);
+    expect(confirmed, hasLength(1));
+    await pumpEventQueue();
+    expect(reports, isEmpty);
+  });
 
   test(
     'unrelated and reserved Commerce events are ignored by both handlers',
@@ -364,6 +385,7 @@ void main() {
         expect(restores, 0);
         expect(platform.selected, isEmpty);
         expect(platform.restores, 0);
+        await pumpEventQueue();
         expect(reports, isEmpty);
       } finally {
         await controller.dispose();
@@ -398,9 +420,11 @@ void main() {
         expect(platform.selected.single, same(second));
         platform.updates.add([_appleBacklog()]);
         await delivered.future;
+        await pumpEventQueue();
         expect(reports, isEmpty);
         dispatch.complete(true);
         await handling;
+        await pumpEventQueue();
         expect(reports, isEmpty);
         platform.dispatch = () async => false;
         await handler(_purchase('first'));
@@ -426,6 +450,7 @@ void main() {
         );
         platform.dispatch = () async => false;
         await expectLater(propagating(_purchase('first')), throwsStateError);
+        await pumpEventQueue();
         expect(reports, isEmpty);
       } finally {
         await controller.dispose();
@@ -476,6 +501,10 @@ PaywallCustomEvent _restore() => const PaywallCustomEvent(
   eventName: 'in_app_purchase.restore',
   args: {},
 );
+
+// A later call shares the handler's delivery and completes with its result.
+Future<bool> _delivered(RestageEvent event) => Restage.measurement
+    .reportPurchase(event, packageIdentifier: 'any', productIdentifier: 'any');
 
 PaywallCustomEvent _purchase(
   Object? id, {

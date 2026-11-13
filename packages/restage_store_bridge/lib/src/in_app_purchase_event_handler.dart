@@ -40,11 +40,11 @@ Future<void> Function(RestageEvent) inAppPurchaseEventHandler({
 /// The helper requires purchased status and the selected product's exact ID.
 ///
 /// Confirmed results report the original event's exposure, with package/product
-/// identifiers only. Reporting failure does not change purchase success. Each
+/// identifiers only. The handler starts the report without waiting for it,
+/// and reporting failure does not change purchase success. Each
 /// event is reported at most once; the app owns transaction deduplication and
 /// correlation across distinct events. Restore never reports a conversion.
-/// [onPurchase] errors propagate separately from purchase/validation errors,
-/// while the confirmed report is still observed.
+/// [onPurchase] errors propagate separately from purchase/validation errors.
 ///
 /// Selection, event filtering, map snapshots and [onError] follow
 /// [inAppPurchaseEventHandler]. Choose one store lifecycle owner per app.
@@ -61,16 +61,14 @@ Future<void> Function(RestageEvent) inAppPurchaseCustomEventHandler({
   restore: restore,
   onError: onError,
   onConfirmed: (event, identifier, product, result) async {
-    final report = Restage.measurement.reportPurchase(
-      event,
-      packageIdentifier: identifier,
-      productIdentifier: product.id,
-    );
-    try {
-      await onPurchase?.call(result);
-    } finally {
-      await report;
-    }
+    Restage.measurement
+        .reportPurchase(
+          event,
+          packageIdentifier: identifier,
+          productIdentifier: product.id,
+        )
+        .ignore();
+    await onPurchase?.call(result);
   },
 );
 

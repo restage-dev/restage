@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:restage/src/measurement/measurement_upload_client.dart';
 import 'package:restage/src/measurement/measurement_worker_delivery.dart';
 import 'package:restage/src/measurement/measurement_worker_protocol.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -61,6 +62,56 @@ void main() {
           received.map((body) => _frame(body).isFinal).take(2), [false, true]);
     }, timeout: const Timeout(Duration(seconds: 60)));
   }
+
+  test('production uploads wait 30 seconds before failing', () {
+    expect(MeasurementUploadConfiguration.defaultRequestTimeout,
+        const Duration(seconds: 30));
+    final configuration = _configuration('https://example.invalid/m');
+    expect(configuration.debugRequestTimeoutMicros, isNull);
+    final inWorker =
+        MeasurementWorkerOwnedDeliveryConfiguration.fromWorkerBootstrapWire(
+            configuration.toWorkerBootstrapWire('/support'));
+    expect(inWorker.uploadRequestTimeout,
+        MeasurementUploadConfiguration.defaultRequestTimeout);
+    expect(
+        MeasurementUploadConfiguration(
+          endpoint: Uri.parse('https://example.invalid/m'),
+          headersProvider: () => const <String, String>{},
+        ).requestTimeout,
+        MeasurementUploadConfiguration.defaultRequestTimeout);
+  });
+
+  test('an upload whose response body stalls releases the worker', () async {
+    final uploads = <bool>[];
+    final runtime = await _start((request, body) async {
+      uploads.add(_frame(body).isFinal);
+      if (uploads.length > 1) {
+        request.response.statusCode = HttpStatus.serviceUnavailable;
+        return;
+      }
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..contentLength = 101
+        ..bufferOutput = false
+        ..add([0x7b]);
+      await request.response.flush();
+      // Never sends the rest of the body.
+      await Completer<void>().future;
+    }, requestTimeout: const Duration(seconds: 1));
+    final session = await _present(runtime, 'session.stalled');
+
+    final checkpoint = await session.checkpoint(frameElapsedMicros: 2);
+    expect(checkpoint.outcome,
+        MeasurementWorkerOwnedDeliveryCheckpointOutcome.retryScheduled);
+    final teardown = await session.teardown(frameElapsedMicros: 3);
+    expect(teardown.isFinal, isTrue,
+        reason: 'later commands are not held behind the stalled upload');
+    for (var waited = 0; waited < 100 && !uploads.contains(true); waited++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    expect(uploads.first, isFalse);
+    expect(uploads, contains(true));
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   test('offline, the outbox keeps eight presentations that sent an early frame',
       () async {
@@ -145,9 +196,10 @@ MeasurementFactFrameV1 _frame(Uint8List body) =>
 
 // A runtime that delivers to a local server answering with [respond].
 Future<MeasurementWorkerOwnedDeliveryRuntime> _start(
-  void Function(HttpRequest request, Uint8List body) respond, {
+  FutureOr<void> Function(HttpRequest request, Uint8List body) respond, {
   int maximumSessions = 4,
   Directory? support,
+  Duration? requestTimeout,
 }) async {
   final directory = support ??
       await Directory.systemTemp.createTemp('restage-refused-frame-');
@@ -155,17 +207,36 @@ Future<MeasurementWorkerOwnedDeliveryRuntime> _start(
     addTearDown(() => directory.delete(recursive: true));
   }
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-  addTearDown(() => server.close(force: true));
   unawaited(server.forEach((request) async {
     final builder = BytesBuilder(copy: false);
     await for (final chunk in request) {
       builder.add(chunk);
     }
-    respond(request, builder.takeBytes());
+    await respond(request, builder.takeBytes());
     await request.response.close();
   }));
   final started = await MeasurementWorkerOwnedDeliveryRuntime.start(
-    configuration: MeasurementWorkerOwnedDeliveryConfiguration(
+    configuration: _configuration(
+      'http://${server.address.host}:${server.port}/sdk/v1/measurement',
+      maximumSessions: maximumSessions,
+      requestTimeout: requestTimeout,
+    ),
+    pathResolver: _PathResolver(directory.path),
+  );
+  expect(started.outcome, MeasurementWorkerOwnedDeliveryStartOutcome.started);
+  final runtime = started.runtime!;
+  addTearDown(runtime.shutdown);
+  // Runs first, so a stalled upload cannot hold the shutdown.
+  addTearDown(() => server.close(force: true));
+  return runtime;
+}
+
+MeasurementWorkerOwnedDeliveryConfiguration _configuration(
+  String endpoint, {
+  int maximumSessions = 4,
+  Duration? requestTimeout,
+}) =>
+    MeasurementWorkerOwnedDeliveryConfiguration(
       admission: const MeasurementWorkerOwnedDeliveryAdmission(
         hasEndpoint: true,
         analyticsEnabled: true,
@@ -173,18 +244,11 @@ Future<MeasurementWorkerOwnedDeliveryRuntime> _start(
         measurementClassAdmitted: true,
         budgetAvailable: true,
       ),
-      endpoint:
-          'http://${server.address.host}:${server.port}/sdk/v1/measurement',
+      endpoint: endpoint,
       configurationFingerprint: 'measurement.worker-owned.v1',
       maximumSessions: maximumSessions,
-    ),
-    pathResolver: _PathResolver(directory.path),
-  );
-  expect(started.outcome, MeasurementWorkerOwnedDeliveryStartOutcome.started);
-  final runtime = started.runtime!;
-  addTearDown(runtime.shutdown);
-  return runtime;
-}
+      debugRequestTimeoutMicros: requestTimeout?.inMicroseconds,
+    );
 
 // An open session whose surface has been presented.
 Future<MeasurementWorkerOwnedDeliverySession> _present(

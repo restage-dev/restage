@@ -899,54 +899,58 @@ final class MeasurementHostSessionController
   }
 
   void _adoptOpened(MeasurementHostSessionController opened) {
-    final handle = opened._presentationRouteHandle;
-    if (opened._debugState != MeasurementHostSessionDebugState.active ||
-        handle == null) {
-      _dropPending(failed: opened._openFailed);
-      return;
-    }
-    // A reset or erasure since mount: never file this presentation under it.
-    if (!(_pendingIsCurrent?.call() ?? true)) {
-      opened._disableAfterConstructionFailure();
-      _dropPending(failed: true);
-      return;
-    }
-    _opened = opened;
-    _debugState = MeasurementHostSessionDebugState.active;
-    _pendingPointEventBinding?.call(opened);
-    _pendingPointEventBinding = null;
-    final route = _pendingRoute!..bind(handle);
-    _pendingBinder.resolve(opened._constructionSession);
-    final entries = _pendingEntries!;
-    _pendingEntries = null;
-    // Everything held replays in the order it happened, the paint included.
-    final paintAt = route.heldPaintAt;
-    for (final (:at, :entry) in entries) {
-      if (paintAt != null && at >= paintAt) route.replayHeldPaint();
-      try {
-        MeasurementDeferredClock.atHeld(
-            _pendingClock!, at, () => entry(opened));
-      } on Object {
-        // A replayed entry cannot affect the mounted host.
+    // Waiters are released however adoption ends.
+    try {
+      final handle = opened._presentationRouteHandle;
+      if (opened._debugState != MeasurementHostSessionDebugState.active ||
+          handle == null) {
+        _dropPending(failed: opened._openFailed);
+        return;
       }
+      // A reset or erasure since mount: never file this presentation under it.
+      if (!(_pendingIsCurrent?.call() ?? true)) {
+        opened._disableAfterConstructionFailure();
+        _dropPending(failed: true);
+        return;
+      }
+      _opened = opened;
+      _debugState = MeasurementHostSessionDebugState.active;
+      _pendingPointEventBinding?.call(opened);
+      _pendingPointEventBinding = null;
+      final route = _pendingRoute!..bind(handle);
+      _pendingBinder.resolve(opened._constructionSession);
+      final entries = _pendingEntries!;
+      _pendingEntries = null;
+      // Everything held replays in the order it happened, the paint included.
+      final paintAt = route.heldPaintAt;
+      for (final (:at, :entry) in entries) {
+        if (paintAt != null && at >= paintAt) route.replayHeldPaint();
+        try {
+          MeasurementDeferredClock.atHeld(
+              _pendingClock!, at, () => entry(opened));
+        } on Object {
+          // A replayed entry cannot affect the mounted host.
+        }
+      }
+      route.replayHeldPaint();
+      if (opened._lifecycleRegistration == null) {
+        opened._lifecycleRegistration = _pendingLifecycleRegistration;
+        _pendingLifecycleRegistration = null;
+      } else {
+        _endPendingLifecycle();
+      }
+      final teardown = _pendingTeardown;
+      final lifecycle = _pendingLifecycle;
+      _pendingLifecycle = null;
+      if (teardown != null) {
+        _pendingTeardown = null;
+        teardown.complete(opened.teardown());
+      } else if (lifecycle != null) {
+        opened._handleLifecycleState(lifecycle);
+      }
+    } finally {
+      _releasePendingWaiters();
     }
-    route.replayHeldPaint();
-    if (opened._lifecycleRegistration == null) {
-      opened._lifecycleRegistration = _pendingLifecycleRegistration;
-      _pendingLifecycleRegistration = null;
-    } else {
-      _endPendingLifecycle();
-    }
-    final teardown = _pendingTeardown;
-    final lifecycle = _pendingLifecycle;
-    _pendingLifecycle = null;
-    if (teardown != null) {
-      _pendingTeardown = null;
-      teardown.complete(opened.teardown());
-    } else if (lifecycle != null) {
-      opened._handleLifecycleState(lifecycle);
-    }
-    _releasePendingWaiters();
   }
 
   void _releasePendingWaiters() {
@@ -1335,7 +1339,8 @@ final class MeasurementHostSessionController
     await (_teardownFuture ?? checkpoint());
   }
 
-  /// Delivers this exact presentation before exposing its outcome coordinates.
+  /// Attempts a flush of pending presentations, then exposes this
+  /// presentation's outcome coordinates.
   Future<
       ({
         String captureSessionNonce,

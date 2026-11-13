@@ -31,7 +31,7 @@ final class MeasurementUploadConfiguration {
     required this.endpoint,
     required this.headersProvider,
     this.contentType = 'application/json; charset=utf-8',
-    this.requestTimeout = const Duration(seconds: 30),
+    this.requestTimeout = defaultRequestTimeout,
   }) {
     if (!endpoint.hasScheme ||
         (endpoint.scheme != 'https' && endpoint.scheme != 'http') ||
@@ -50,8 +50,12 @@ final class MeasurementUploadConfiguration {
   /// Content type added without transforming [MeasurementOutboxLease] bytes.
   final String contentType;
 
-  /// Bound on an individual worker-local HTTP attempt.
+  /// Bound on connecting, on the response headers, and on each silence in
+  /// the response body.
   final Duration requestTimeout;
+
+  /// The [requestTimeout] used unless one is given.
+  static const Duration defaultRequestTimeout = Duration(seconds: 30);
 }
 
 /// Strict decoder for the sole production receipt response envelope.
