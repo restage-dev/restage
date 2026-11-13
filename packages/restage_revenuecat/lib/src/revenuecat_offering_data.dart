@@ -6,18 +6,56 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 /// `productIdentifier`, `priceString`, and `currencyCode`, with optional
 /// `subscriptionPeriod`, `freeTrial` and `introductoryPrice` fields.
 /// Offer phases contain `priceString`, `period` and `cycles` when available.
-/// These are catalog offers; the store determines eligibility at purchase time.
-Map<String, Object> revenueCatOfferingData(Offering offering) => {
-      'identifier': offering.identifier,
-      'packages': [
-        for (final package in offering.availablePackages) _packageData(package),
-      ],
-    };
+///
+/// `freeTrial` and `introductoryPrice` appear only for offers this user can
+/// redeem. On Google Play they come from the package's default option: Play
+/// omits offers the user is ineligible for under Play-determined eligibility,
+/// returns developer-determined offers to every user, and the purchase grants
+/// the displayed offer. On the App Store they require
+/// [Purchases.checkTrialOrIntroductoryPriceEligibility] to report eligible
+/// within 3 seconds.
+Future<Map<String, Object>> revenueCatOfferingData(Offering offering) async {
+  final packages = offering.availablePackages;
+  final eligible = await _eligibleAppStoreProducts(packages);
+  return {
+    'identifier': offering.identifier,
+    'packages': [
+      for (final package in packages) _packageData(package, eligible),
+    ],
+  };
+}
 
-Map<String, Object> _packageData(Package package) {
+Future<Set<String>> _eligibleAppStoreProducts(List<Package> packages) async {
+  final ids = {
+    for (final package in packages)
+      if (package.storeProduct case final product
+          when product.defaultOption == null &&
+              product.introductoryPrice != null)
+        product.identifier,
+  };
+  if (ids.isEmpty) return const {};
+  try {
+    final results = await Purchases.checkTrialOrIntroductoryPriceEligibility([
+      ...ids,
+    ]).timeout(const Duration(seconds: 3));
+    return {
+      for (final MapEntry(:key, :value) in results.entries)
+        if (value.status ==
+            IntroEligibilityStatus.introEligibilityStatusEligible)
+          key,
+    };
+  } on Object {
+    // Without a definite answer, show the regular price.
+    return const {};
+  }
+}
+
+Map<String, Object> _packageData(Package package, Set<String> eligible) {
   final product = package.storeProduct;
-  final intro = product.introductoryPrice;
   final option = product.defaultOption;
+  final intro = option == null && eligible.contains(product.identifier)
+      ? product.introductoryPrice
+      : null;
   return {
     'identifier': package.identifier,
     'productIdentifier': product.identifier,

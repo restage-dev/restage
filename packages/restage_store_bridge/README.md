@@ -125,27 +125,40 @@ in your own app service.
 ## Display prices and billing terms
 
 When mounting `RestagePaywall` directly by ID, use
-`inAppPurchaseOfferingData(identifier: 'pro', packages: packages)` for its
-`context`. It preserves package order and returns:
+`await inAppPurchaseOfferingData(identifier: 'pro', packages: packages)` for
+its `context`. It preserves package order and returns:
 
 ```text
 identifier: offering identifier
 packages:
   - identifier: package map key
     productIdentifier: native product ID
-    priceString: literal ProductDetails.price
+    priceString: localized renewal price
     currencyCode: ProductDetails.currencyCode
+    subscriptionPeriod: optional ISO 8601 billing period
+    freeTrial: optional {priceString?, period, cycles}
+    introductoryPrice: optional {priceString, period, cycles}
 ```
 
 Generated mounts serialize their typed arguments instead, as shown above.
 Direct mounts also need generated widget registration and a chosen
 `fallbackBuilder`; the generated mount supplies both automatically.
-The helper does not add subscription periods, trials or renewal terms. Google
-Play's catalog price can describe the first free or introductory phase. Your
-app must supply accurate localized trial, billing-period and renewal terms and
-render them alongside `priceString`. A catalog price does not establish the
-amount paid by a particular user. See the [example](example) for a compiled
-widget that displays both fields.
+`freeTrial` and `introductoryPrice` appear only when this user can redeem the
+offer. On Google Play they come from the selected offer's pricing phases.
+Play omits offers the user is ineligible for under
+Play-determined eligibility, returns developer-determined offers to every user,
+and the purchase grants the displayed offer. On the App Store they come from the
+product's introductory offer and appear only when StoreKit 2 reports the user
+eligible within 3 seconds; a timeout or a failed check leaves them out. The
+in_app_purchase plugin gives App Store offers no localized price string, so
+the helper formats the offer price like the product's price. A paid offer it
+cannot format is left out; a free trial keeps `period` and `cycles` without
+`priceString`.
+
+Typed generated mounts take display strings from your app instead. Build them
+from this same data, or supply accurate localized trial, billing-period and
+renewal terms. See the [example](example) for a compiled widget that displays
+both fields.
 
 A purchase button sends the displayed package's map key:
 

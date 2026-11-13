@@ -478,6 +478,50 @@ void main() {
     expect(store.params, isEmpty);
   });
 
+  test('parameter builder cannot substitute another Play offer', () async {
+    final offers = GooglePlayProductDetails.fromProductDetails(
+      const ProductDetailsWrapper(
+        description: 'Pro',
+        name: 'Pro',
+        productId: 'pro',
+        productType: ProductType.subs,
+        title: 'Pro',
+        subscriptionOfferDetails: [
+          SubscriptionOfferDetailsWrapper(
+            basePlanId: 'monthly',
+            offerTags: [],
+            offerIdToken: 'base',
+            pricingPhases: [_monthly],
+          ),
+          SubscriptionOfferDetailsWrapper(
+            basePlanId: 'monthly',
+            offerId: 'trial',
+            offerTags: [],
+            offerIdToken: 'trial',
+            pricingPhases: [_monthly],
+          ),
+        ],
+      ),
+    );
+    final selected = offers.first;
+    final owner = controller(
+      builder: (product) => GooglePlayPurchaseParam(
+        productDetails: product,
+        offerToken: offers.last.offerToken,
+      ),
+    );
+    await expectLater(owner.purchase(selected), throwsArgumentError);
+    expect(store.params, isEmpty);
+
+    final matching = controller(
+      builder: (product) => GooglePlayPurchaseParam(
+        productDetails: product,
+        offerToken: selected.offerToken,
+      ),
+    );
+    expect(await matching.purchase(selected), isTrue);
+  });
+
   test(
     'native acceptance false and dispatch errors retain their result',
     () async {
@@ -794,3 +838,12 @@ void main() {
     },
   );
 }
+
+const _monthly = PricingPhaseWrapper(
+  billingCycleCount: 0,
+  billingPeriod: 'P1M',
+  formattedPrice: r'$9.99',
+  priceAmountMicros: 9990000,
+  priceCurrencyCode: 'USD',
+  recurrenceMode: RecurrenceMode.infiniteRecurring,
+);

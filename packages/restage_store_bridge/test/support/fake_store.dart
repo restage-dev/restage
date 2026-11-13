@@ -164,3 +164,18 @@ GooglePlayPurchaseDetails google({
 );
 
 Future<void> flushStore() => Future<void>.delayed(Duration.zero);
+
+class FakeStoreKitStore extends FakeStore
+    implements InAppPurchaseStoreKitPlatform {
+  final eligibilityChecks = <String>[];
+  Future<bool> Function(String productId) eligible = (_) async => true;
+
+  @override
+  Future<bool> isIntroductoryOfferEligible(String productId) {
+    eligibilityChecks.add(productId);
+    return eligible(productId);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}

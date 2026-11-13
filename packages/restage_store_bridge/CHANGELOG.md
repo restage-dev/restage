@@ -1,6 +1,8 @@
 ## 0.1.0
 
-- Add native store offering data and paywall event helpers.
+- Add native store offering data and paywall event helpers. Offering data
+  includes the renewal price, billing period, and trial and introductory
+  phases this user is eligible for.
 - Add an app-scoped purchase controller with verification, idempotent delivery,
   completion, consumable handling and retries for unfinished stages.
 - Add an optional app-level `InAppPurchaseScope` for automatic controller disposal

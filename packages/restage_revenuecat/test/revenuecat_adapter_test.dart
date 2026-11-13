@@ -54,8 +54,21 @@ void main() {
     Restage.debugReset();
   });
 
+  Future<Object?> eligibility(Map<String, int> status, MethodCall call) async {
+    expect(call.method, 'checkTrialOrIntroductoryPriceEligibility');
+    final ids = (call.arguments as Map)['productIdentifiers'] as List;
+    return {
+      for (final id in ids) id: {'status': status[id] ?? 0, 'description': ''},
+    };
+  }
+
+  const eligible = 2;
+  const ineligible = 1;
+
   test('offering data preserves package identifiers, prices and offer phases',
-      () {
+      () async {
+    native = (call) => eligibility(
+        {'pro_annual_49': eligible, 'pro_annual_59': eligible}, call);
     final offering = _offering([
       _package('annual_49',
           intro: const IntroductoryPrice(
@@ -64,7 +77,7 @@ void main() {
           intro: const IntroductoryPrice(
               9.99, r'$9.99', 'P1M', 3, PeriodUnit.month, 1)),
     ]);
-    expect(revenueCatOfferingData(offering), {
+    expect(await revenueCatOfferingData(offering), {
       'identifier': 'holiday',
       'packages': [
         {
@@ -89,12 +102,79 @@ void main() {
         },
       ],
     });
-    expect(jsonDecode(jsonEncode(revenueCatOfferingData(offering))),
+    expect(jsonDecode(jsonEncode(await revenueCatOfferingData(offering))),
         isA<Map<String, dynamic>>());
-    expect(revenueCatOfferingData(_offering([]))['packages'], isEmpty);
+    expect(calls.first.arguments, {
+      'productIdentifiers': ['pro_annual_49', 'pro_annual_59']
+    });
+    calls.clear();
+    expect((await revenueCatOfferingData(_offering([])))['packages'], isEmpty);
+    expect(calls, isEmpty);
   });
 
-  test('Android default option supplies its trial and introductory phases', () {
+  test('App Store offers are absent unless the user is eligible', () async {
+    native = (call) => eligibility(
+        {'pro_trial': ineligible, 'pro_unknown': 0, 'pro_none': 3}, call);
+    const trial = IntroductoryPrice(0, r'$0.00', 'P1W', 1, PeriodUnit.week, 1);
+    final data = await revenueCatOfferingData(_offering([
+      _package('trial', intro: trial),
+      _package('trial', intro: trial),
+      _package('unknown', intro: trial),
+      _package('plain'),
+    ]));
+    for (final row
+        in (data['packages']! as List).cast<Map<Object?, Object?>>()) {
+      expect(row.keys, isNot(contains('freeTrial')));
+      expect(row.keys, isNot(contains('introductoryPrice')));
+      expect(row['subscriptionPeriod'], 'P1Y');
+    }
+    expect(calls.single.arguments, {
+      'productIdentifiers': ['pro_trial', 'pro_unknown']
+    });
+  });
+
+  test('only the eligible App Store product shows its offer', () async {
+    native = (call) =>
+        eligibility({'pro_yes': eligible, 'pro_no': ineligible}, call);
+    const trial = IntroductoryPrice(0, r'$0.00', 'P1W', 1, PeriodUnit.week, 1);
+    final data = await revenueCatOfferingData(_offering([
+      _package('yes', intro: trial),
+      _package('no', intro: trial),
+    ]));
+    final rows = (data['packages']! as List).cast<Map<Object?, Object?>>();
+    expect(rows[0], contains('freeTrial'));
+    expect(rows[1].keys, isNot(contains('freeTrial')));
+  });
+
+  test('an App Store eligibility check that never answers times out', () async {
+    native = (_) => Completer<Object?>().future;
+    final data = await revenueCatOfferingData(_offering([
+      _package('trial',
+          intro: const IntroductoryPrice(
+              0, r'$0.00', 'P1W', 1, PeriodUnit.week, 1)),
+    ]));
+    final row = (data['packages']! as List).single as Map;
+    expect(row['priceString'], r'$49.00');
+    expect(row.keys, isNot(contains('freeTrial')));
+  }, timeout: const Timeout(Duration(seconds: 10)));
+
+  test('a failed App Store eligibility check omits offers', () async {
+    native = (_) async => throw PlatformException(code: 'network');
+    final data = await revenueCatOfferingData(_offering([
+      _package('trial',
+          intro: const IntroductoryPrice(
+              0, r'$0.00', 'P1W', 1, PeriodUnit.week, 1)),
+    ]));
+    final row = (data['packages']! as List).single as Map;
+    expect(row['priceString'], r'$49.00');
+    expect(row.keys, isNot(contains('freeTrial')));
+  });
+
+  test('Android default option supplies its trial and introductory phases',
+      () async {
+    // Play returns only offers this user can redeem; RevenueCat's
+    // eligibility check reports unknown on Android.
+    native = (call) => eligibility({}, call);
     const trial = PricingPhase(
         Period(PeriodUnit.day, 7, 'P7D'),
         RecurrenceMode.finiteRecurring,
@@ -121,13 +201,18 @@ void main() {
         intro,
         null,
         null);
-    final data =
-        revenueCatOfferingData(_offering([_package('annual', option: option)]));
+    final data = await revenueCatOfferingData(_offering([
+      _package('annual',
+          option: option,
+          intro: const IntroductoryPrice(
+              0, r'$0.00', 'P7D', 1, PeriodUnit.day, 7)),
+    ]));
     final row = (data['packages']! as List).single as Map;
     expect(row['freeTrial'],
         {'priceString': r'$0.00', 'period': 'P7D', 'cycles': 1});
     expect(row['introductoryPrice'],
         {'priceString': r'$1.99', 'period': 'P1M', 'cycles': 2});
+    expect(calls, isEmpty);
   });
 
   test('purchases the selected package and reports its original exposure once',
