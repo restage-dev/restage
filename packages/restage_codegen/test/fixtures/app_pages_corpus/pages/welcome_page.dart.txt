@@ -1,0 +1,81 @@
+import 'package:state_kit/state_kit.dart';
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+import 'package:sample_app/core/screen_layout.dart';
+import 'package:sample_app/features/onboarding/onboarding_bloc.dart';
+import 'package:sample_app/features/onboarding/onboarding_state.dart';
+import 'package:kit_ui/kit_ui.dart';
+
+part 'restage.generated/welcome_page.restage.g.dart';
+
+/// The first screen: a hero image and the promise.
+@Screen(id: 'welcome', surface: Surface.onboarding)
+class WelcomePage extends StatelessWidget {
+  const WelcomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = KitColors.of(context);
+    final bloc = context.read<OnboardingBloc>();
+    return BlocSignalBuilder<OnboardingBloc, OnboardingState>(
+      builder: (context, state) => PinnedBottomColumn(
+        padding: const EdgeInsets.fromLTRB(0, 2, 0, 42),
+        bottom: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: KitSpace.l),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              KitButton(
+                label: 'Get started',
+                onPressed: () => bloc.add(const GetStarted()),
+              ),
+            ],
+          ),
+        ),
+        children: [
+          SizedBox(height: 392, child: KitWelcomeArt(waveTick: state.waveTick)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(KitSpace.l, 18, KitSpace.l, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    KitIcon(
+                      KitIcons.dropFilled,
+                      size: KitIconSize.small,
+                      color: c.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'sample',
+                      style: KitType.headline.copyWith(
+                        fontSize: 22,
+                        height: 1.2,
+                        color: c.ink,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Semantics(
+                  header: true,
+                  child: KitBalancedText(
+                    'Everything you track, in one place',
+                    style: KitType.display.copyWith(color: c.ink),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Sample keeps track of each item and reminds you on '
+                  'the right day.',
+                  style: KitType.lede.copyWith(color: c.ink2),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

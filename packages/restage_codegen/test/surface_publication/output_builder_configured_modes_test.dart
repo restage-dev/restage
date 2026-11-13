@@ -259,35 +259,39 @@ Widget mount() => const rs.RestageFlowGraph(
     }
   }
 
-  test('warns in an authored part without a compiler handoff', () async {
-    final readerWriter = await readerWriterWithFilesystemSources(
-      rootPackage: 'apps_examples',
-    );
-    final records = <LogRecord>[];
-    final result = await testBuilder(
-      RestageOutputsBuilder(BuilderOptions.empty),
-      const {
-        'apps_examples|lib/main.dart': '''
+  test(
+    'warns in an authored part of a package that compiles no surfaces',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final records = <LogRecord>[];
+      final result = await testBuilder(
+        RestageOutputsBuilder(BuilderOptions.empty),
+        {
+          'apps_examples|$compilerJsonPath': compilerJsonFor(const []),
+          'apps_examples|lib/main.dart': '''
 import 'package:restage/restage.dart' as rs;
 part 'mounts.dart';
 ''',
-        'apps_examples|lib/mounts.dart': '''
+          'apps_examples|lib/mounts.dart': '''
 part of 'main.dart';
 const mounted = rs.RestagePaywall(id: 'part_offer');
 ''',
-      },
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-      onLog: records.add,
-    );
-    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
-    final warnings = records.where((record) => record.level >= Level.WARNING);
-    expect(warnings, hasLength(1));
-    // A path relative to the package, never the analyzer's absolute one.
-    expect(warnings.single.message, contains('\nlib/mounts.dart:2:17: '));
-    expect(warnings.single.message, contains("id: 'part_offer'"));
-  });
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+        onLog: records.add,
+      );
+      expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+      final warnings = records.where((record) => record.level >= Level.WARNING);
+      expect(warnings, hasLength(1));
+      // A path relative to the package, never the analyzer's absolute one.
+      expect(warnings.single.message, contains('\nlib/mounts.dart:2:17: '));
+      expect(warnings.single.message, contains("id: 'part_offer'"));
+    },
+  );
 
   test(
     'source_output_layout: adjacent keeps portable bundles under the default root',

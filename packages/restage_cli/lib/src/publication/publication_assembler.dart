@@ -106,6 +106,11 @@ final class SurfacePublicationAssembler {
     required LoadedSurfacePublicationManifest loaded,
     required SurfacePublicationManifestEntry entry,
   }) async {
+    final publication = entry.publication;
+    if (loaded.unfit['${publication.surface.wireName}/${publication.slug}']
+        case final reason?) {
+      throw PublicationManifestException("Restage didn't push it. $reason");
+    }
     final root = await _assembleEntry(loaded: loaded, entry: entry);
     final available = <AssembledSurfacePublication>[root];
     final rootPayload = root.payload;

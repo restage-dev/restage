@@ -26,7 +26,12 @@ final class RecordedSite {
     required this.key,
     required this.node,
     this.calls = const [],
+    this.iteration = '',
   });
+
+  /// The iteration of each loop the design unrolls around [node], outermost
+  /// first and joined with `.`; empty outside such loops.
+  final String iteration;
 
   /// What the record writes.
   final RecordedSiteKind kind;
@@ -108,10 +113,27 @@ SurfaceLayoutsV1 recordedLayoutsOf(RecordedBuild? build) {
     for (final MapEntry(:key, :value) in returns.entries)
       key: {for (final recorded in value) recorded.index},
   };
-  final conditions = Map<AstNode, String>.identity();
+  // Each condition's key, by the unrolled iteration it is recorded in.
+  final conditions = Map<AstNode, Map<String, String>>.identity();
   for (final site in build.sites) {
-    if (site.kind == RecordedSiteKind.value) conditions[site.node] = site.key;
+    if (site.kind == RecordedSiteKind.value) {
+      (conditions[site.node] ??= {})[site.iteration] = site.key;
+    }
   }
+  // The key of [condition] in [iteration], or in the nearest iteration
+  // enclosing it.
+  String? conditionKey(AstNode condition, String iteration) {
+    final keys = conditions[condition];
+    if (keys == null) return null;
+    var at = iteration;
+    while (true) {
+      if (keys[at] case final key?) return key;
+      if (at.isEmpty) return null;
+      final dot = at.lastIndexOf('.');
+      at = dot < 0 ? '' : at.substring(0, dot);
+    }
+  }
+
   final returnNodes = [for (final recorded in build.returns) recorded.node];
   final tests = <String, Expression>{};
 
@@ -139,7 +161,7 @@ SurfaceLayoutsV1 recordedLayoutsOf(RecordedBuild? build) {
         }
         if (_testOf(node, child) case (final test, final held)) {
           for (final part in _parts(test, held ? '&&' : '||')) {
-            if (conditions[part] case final key?) {
+            if (conditionKey(part, site.iteration) case final key?) {
               need(key, {held});
               domains[key] = {false, true};
               tests[key] ??= part;

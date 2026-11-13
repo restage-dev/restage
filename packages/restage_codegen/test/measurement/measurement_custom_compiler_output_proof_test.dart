@@ -7,7 +7,6 @@ import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
 import 'package:restage_cli/src/publication/publication_outputs.dart';
-import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
@@ -18,6 +17,7 @@ import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 import '../helpers.dart';
+import '../support/surface_build_chain.dart';
 
 const _fixtureRoot = 'test/fixtures/measurement_custom';
 const _package = 'apps_examples';
@@ -308,17 +308,7 @@ Future<_CompiledFixture> _compileFixture({
   );
   final result = await testBuilders(
     [
-      restageSourceRosterBuilder(
-        _builderOptions('restage_codegen:restage_source_roster'),
-      ),
-      userCatalogJsonBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(
-        _builderOptions('restage_codegen:restage_package_surface_compiler'),
-      ),
-      restageGeneratedDartBuilder(
-        _builderOptions('restage_codegen:generated_dart'),
-      ),
-      restageOutputsBuilder(_builderOptions('restage_codegen:outputs')),
+      ...surfaceBuildChain(options: _builderOptions),
     ],
     sources,
     rootPackage: _package,
@@ -433,6 +423,7 @@ Future<Directory> _materializeCliFixture(
     kRestageMeasurementCompilerOutputPath,
     '.restage/build/metadata/restage.outputs.json',
     '.restage/build/metadata/restage.publication.json',
+    '.restage/build/metadata/restage.build.json',
     '.restage/build/metadata/restage.measurement.index.json',
     ...outputIndex.entries.map((entry) => entry.bundle).toSet(),
   ]) {

@@ -15,11 +15,6 @@ import 'package:restage_shared/restage_shared.dart';
 const String kSurfacePublicationManifestPath =
     surfacePublicationManifestRelativePath;
 
-/// The generated invalid-build marker. Its presence makes the manifest
-/// unusable, even when an older manifest file is still present.
-const String kSurfacePublicationInvalidPath =
-    surfacePublicationInvalidRelativePath;
-
 /// Surface categories accepted by the lifecycle command family.
 const Set<SurfaceType> kLifecycleSurfaceTypes = <SurfaceType>{
   SurfaceType.onboarding,
@@ -301,14 +296,13 @@ Future<SurfaceReadSelection?> _resolveSelection({
     final manifestFile = File(
       p.join(projectRoot.path, kSurfacePublicationManifestPath),
     );
-    final invalidMarker = File(
-      p.join(projectRoot.path, kSurfacePublicationInvalidPath),
-    );
-    if (manifestFile.existsSync() || invalidMarker.existsSync()) {
+    if (manifestFile.existsSync()) {
       final LoadedSurfacePublicationManifest loadedManifest;
       try {
+        // Naming a surface needs no successful build.
         loadedManifest = await SurfacePublicationManifestLoader().load(
           projectRoot: projectRoot,
+          built: false,
         );
       } on PublicationManifestException catch (e) {
         stderr.writeln(e.message);

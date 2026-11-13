@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:build/build.dart';
+import 'package:restage_codegen/src/surface_publication/generated_check_builder.dart';
 import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/generated_dart_builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
@@ -49,9 +50,31 @@ void main() {
         'fixture|tool/restage/metadata/restage.analytics-id.metadata.json':
             anything,
         'fixture|tool/restage/metadata/restage.capture.json': anything,
+        'fixture|tool/restage/metadata/restage.build.json': decodedMatches(
+          contains('"result":"succeeded"'),
+        ),
       },
     );
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  });
+
+  test('a build whose surfaces fail records the failure', () async {
+    final result = await testBuilder(
+      RestageOutputsBuilder(BuilderOptions.empty),
+      {
+        'fixture|$kRestageSurfacePublicationCompilerBundlePath':
+            RestageSurfacePublicationBundle.invalid(const [
+              '[stateShapeUnsupported] lib/a.dart: unsupported.',
+            ]).encodeCanonicalJson(),
+      },
+      rootPackage: 'fixture',
+      outputs: {
+        'fixture|.restage/build/metadata/restage.build.json':
+            '{"schemaVersion":1,"result":"failed","errors":'
+            '["[stateShapeUnsupported] lib/a.dart: unsupported."]}',
+      },
+    );
+    expect(result.succeeded, isFalse);
   });
 
   test('materializes one deterministic bundle per authored library plus the '
@@ -490,6 +513,15 @@ final class FeatureAnnouncement extends StatelessWidget {
       isTrue,
       reason: generatedDartResult.errors.join('\n'),
     );
+
+    final checkResult = await testBuilder(
+      const RestageGeneratedCheckBuilder(),
+      sources,
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    expect(checkResult.succeeded, isTrue);
 
     final outputsResult = await testBuilder(
       RestageOutputsBuilder(options),

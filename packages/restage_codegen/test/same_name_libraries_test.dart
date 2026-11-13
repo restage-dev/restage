@@ -5,6 +5,7 @@ import 'package:restage_codegen/builder.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
+import 'support/surface_build_chain.dart';
 
 const _package = 'apps_examples';
 
@@ -346,11 +347,7 @@ Future<_Built> _build(
   const options = BuilderOptions.forRoot;
   final result = await testBuilders(
     [
-      restageSourceRosterBuilder(options),
-      userCatalogJsonBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(options),
-      restageGeneratedDartBuilder(options),
-      restageOutputsBuilder(options),
+      ...surfaceBuildChain(options: (_) => options),
       if (conventional) ...[
         restageCodegenBuilder(BuilderOptions.empty),
         paywallFlowBuilder(BuilderOptions.empty),

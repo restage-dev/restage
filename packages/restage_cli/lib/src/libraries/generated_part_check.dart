@@ -28,16 +28,15 @@ extension GeneratedPartErrorJson on GeneratedPartError {
 
 /// The generated parts under [root]'s `lib/` that have analyzer errors, one
 /// entry per part with its first error. Empty when the package has no
-/// generated parts or hasn't resolved its dependencies.
+/// generated parts or hasn't resolved its dependencies, alone or as a member
+/// of a workspace.
 @experimental
 Future<List<GeneratedPartError>> generatedPartErrors(
   Directory root, {
   GeneratedPartAnalyzer? analyze,
 }) async {
   final lib = Directory(p.join(root.path, 'lib'));
-  final resolved = File(
-    p.join(root.path, '.dart_tool', 'package_config.json'),
-  ).existsSync();
+  final resolved = _resolved(root.absolute);
   if (!lib.existsSync() || !resolved) return const [];
   final parts = [
     for (final entity in lib.listSync(recursive: true))
@@ -69,6 +68,19 @@ Future<List<GeneratedPartError>> generatedPartErrors(
       if (first[path] case (final location, final error))
         (path: path, location: location, error: error),
   ];
+}
+
+// Whether [directory], or the workspace it belongs to, resolved its
+// dependencies.
+bool _resolved(Directory directory) {
+  for (var at = directory; ; at = at.parent) {
+    if (File(
+      p.join(at.path, '.dart_tool', 'package_config.json'),
+    ).existsSync()) {
+      return true;
+    }
+    if (at.parent.path == at.path) return false;
+  }
 }
 
 /// The sentence for a generated part that doesn't compile.

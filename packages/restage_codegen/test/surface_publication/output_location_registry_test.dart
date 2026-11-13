@@ -6,6 +6,7 @@ import 'package:restage_codegen/src/surface_publication/package_surface_compiler
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../support/surface_build_chain.dart';
 
 /// Every builder that resolves an output location plan registers it, so a package
 /// that configures one Restage builder key and forgets another is told.
@@ -88,10 +89,7 @@ void main() {
       // The guard must not fire on an unconfigured package — by far the
       // common case, and the one a false positive would break outright.
       final result = await _run([
-        const RestageSourceRosterBuilder(BuilderOptions.empty),
-        const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
-        RestageOutputsBuilder(BuilderOptions.empty),
-        RestageGeneratedDartBuilder(BuilderOptions.empty),
+        ...surfaceBuildChain(catalog: false),
       ]);
       expect(result.succeeded, isTrue, reason: result.report);
     });
@@ -101,10 +99,7 @@ void main() {
       // same options on every key so each resolves the plan identically.
       const options = BuilderOptions({'output_root': 'tool/restage'});
       final result = await _run([
-        const RestageSourceRosterBuilder(options),
-        const PackageSurfaceCompilerBuilder(options),
-        RestageOutputsBuilder(options),
-        RestageGeneratedDartBuilder(options),
+        ...surfaceBuildChain(options: (_) => options, catalog: false),
       ]);
       expect(result.succeeded, isTrue, reason: result.report);
     });

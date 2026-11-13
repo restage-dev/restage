@@ -21,6 +21,66 @@
 - "Evaluated in the app" lists each surface's values under that surface.
 - The widget catalog summary prints when it changes rather than on every
   build; `--verbose` shows it every time.
+
+- A flow's generated placement declares the values, islands and layouts its
+  steps' generated mounts pass, its subflows' steps included. A published flow
+  whose steps compute values in the app now fits the installed build instead
+  of showing the fallback. The declaration is flat across the flow's steps.
+- A surface that needs something its own generated placement doesn't pass
+  builds with a `surfaceDoesNotFitPlacement` warning. `restage surface push`
+  refuses that surface with the same reason.
+- A flow whose steps pass one name with different types builds with a
+  `surfaceDoesNotFitPlacement` warning naming both steps. `restage surface
+  push` refuses the flow with the same reason.
+- A flow step whose build reads only its constructor inputs now gets a
+  generated step mount. A host that mounts such a flow through
+  `RestageFlowGraph` directly must bind that step's screen builder. Without it
+  the delivered step stops with `missing_screen_builder`. Generated `*Surface`
+  mounts already require the builder.
+- Each build writes `restage.build.json` beside the publication manifest,
+  after its other outputs. It records `succeeded`, or `failed` with the
+  build's errors. A build that records `failed` fails.
+- A failed build leaves the publication manifest, the output index, the
+  widget catalog, the rest of the build metadata and every bundle as the last
+  build wrote them. That includes the bundle of a surface whose annotation the
+  failed build removed. `restage` lifecycle commands still find every surface.
+- `restage_codegen:generated_check` resolves the Dart the build generates:
+  every generated part, `user_factories.g.dart`, `restage_surfaces.g.dart` and
+  `registration.g.dart`. The outputs builder fails the build when any of it
+  doesn't compile, naming the file and line, and when generated code exists
+  and the check didn't run. An error in the app's own library names that file.
+  A check that stops with an error says so and fails the build.
+- A flow step declared with `@Screen()` and no `surface:` moves its `State`
+  into the generated mount, as a step with its own surface does. `dispose()`,
+  `initState()`, controllers, nullable fields, computed `setState` handlers and
+  statements in `build()` no longer refuse the build.
+- A `@Screen` whose measured tap runs `() => setState(...)` builds. The tap
+  stays measured.
+- A `sync*` callback on a general screen, or a `sync*` closure passed to
+  `setState` there, builds. Its warning says why the generator never runs.
+- A helper that calls itself renders from the app instead of refusing the
+  build. A widget whose `build()` is inherited from a base class in the same
+  library builds and calls the widget's own overrides, its overridden getters
+  included, and stays measured.
+- A `build()` inherited from a mixin is refused with an error that names the
+  mixin.
+- Only a `_restage` name that the generated code also declares refuses the
+  build. Any other name with that prefix builds.
+- An app widget passed straight to another app widget's widget parameter, and
+  an app widget inside a loop over a const list or inside a helper called more
+  than once, generate code that compiles and keeps one key per card.
+- A condition inside a loop the design unrolls records only the iterations
+  the design reads it in. The generated mount no longer throws on the others.
+- An app widget whose optional widget argument the design leaves out renders
+  without it.
+- A widget that renders from the app is placed only where any widget fits.
+  Where the place it's written takes one widget type, such as a parameter
+  typed as one app widget class, the widget around it renders from the app
+  too.
+- An app widget whose list slot holds a loop, such as a `CustomScrollView`
+  whose slivers come from a `for` over app data, renders its delivered design
+  instead of failing with "Not a widget".
+
 - For an app that installs the whole widget catalog, the startup request
   template claims the built-in icons the app and its surfaces name, as the
   runtime installs them. Rebuild to take it.

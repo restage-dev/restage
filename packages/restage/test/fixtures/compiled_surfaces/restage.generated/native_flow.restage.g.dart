@@ -2,6 +2,29 @@ part of '../native_flow.dart';
 
 // ignore_for_file: type=lint, unnecessary_cast
 
+/// Renders the native_named step with what the app computes for it.
+Widget restageStepMount$native_named(
+  BuildContext context,
+  Widget _restageChild,
+  Widget _restageOriginal,
+) {
+  // ignore: unused_local_variable
+  final _restageRecording = RestageRecording(mount: context);
+  final _restageSurface = _restageOriginal as NativeNamed;
+  Widget _restageDesign(Widget _restageBuilt) {
+    return RestageStepValues(
+      built: _restageBuilt,
+      values: <String, Object?>{
+        ..._restageRecording.values,
+        'title': _restageSurface.title,
+      },
+      child: _restageChild,
+    );
+  }
+
+  return (() => _restageDesign(_restageOriginal))();
+}
+
 const _nativeClassFlowRefVocabulary = SurfaceVocabulary(
   widgets: RestageWidgetLibraries.fromVocabulary(
     core: {'Text': buildText},
@@ -14,6 +37,7 @@ const _nativeNamedFlowRefVocabulary = SurfaceVocabulary(
     core: {'Text': buildText},
     material: {'TextButton': buildTextButton},
   ),
+  stepMounts: {'native_named': restageStepMount$native_named},
 );
 
 const _nativeOfferFlowRefVocabulary = SurfaceVocabulary.none;
@@ -215,7 +239,9 @@ final _nativeNamedFlowPlacementDefinitionValue =
     },
     'providedContext': <String, Object?>{
       'schemaVersion': 1,
-      'inputs': <String, Object?>{},
+      'inputs': <String, Object?>{
+        'title': <String, Object?>{'kind': 'string'},
+      },
     },
     'handledEvents': <String, Object?>{
       'schemaVersion': 1,

@@ -3,13 +3,12 @@
 import 'dart:convert';
 
 import 'package:build/build.dart';
-import 'package:restage_codegen/src/generated_dart_builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
-import 'package:restage_codegen/src/surface_publication/output_builder.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../support/surface_build_chain.dart';
 
 const _package = 'apps_examples';
 const _sourcePath = 'lib/features/ledger.dart';
@@ -18,6 +17,9 @@ const _priorOutputPaths = <String>[
   '.restage/build/bundles/lib/features/ledger.rsbundle',
   '.restage/build/metadata/restage.publication.json',
   '.restage/build/metadata/restage.outputs.json',
+  '.restage/build/metadata/restage.analytics-id.metadata.json',
+  '.restage/build/metadata/restage.capture.json',
+  '.restage/build/widget_catalog/catalog.json',
 ];
 const _policyOptions = BuilderOptions({
   kMeasurementMinimumClientOption: 1,
@@ -41,14 +43,11 @@ void main() {
             AssetId(_package, path),
           ),
       };
-      prior['.restage/build/widget_catalog/catalog.json'] =
-          '{"previous":"catalog"}'.codeUnits;
       final ledger = settled.readerWriter.testing.readString(
         AssetId(_package, kRestageMeasurementCompilerOutputPath),
       );
 
-      // The build system removes an output before re-running the step that owns
-      // it, so the refused build starts without any of them.
+      // The refused build starts without them and reads them as prior outputs.
       final refused = await _build(
         _ledgerSource(reshaped: true),
         ledger: ledger,
@@ -57,6 +56,24 @@ void main() {
       expect(refused.result.succeeded, isFalse);
       expect(
         refused.result.errors.join('\n'),
+        allOf(
+          contains("This build can't tell which earlier widget"),
+          isNot(contains('InvalidOutputException')),
+        ),
+      );
+      final stamp =
+          jsonDecode(
+                refused.readerWriter.testing.readString(
+                  AssetId(
+                    _package,
+                    '.restage/build/metadata/restage.build.json',
+                  ),
+                ),
+              )
+              as Map<String, Object?>;
+      expect(stamp['result'], 'failed');
+      expect(
+        (stamp['errors']! as List).join('\n'),
         contains("This build can't tell which earlier widget"),
       );
       final proposals = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
@@ -151,16 +168,18 @@ Future<({TestBuilderResult result, TestReaderWriter readerWriter})> _build(
   );
   final result = await testBuilders(
     [
-      PackageSurfaceCompilerBuilder(
-        _policyOptions,
-        ledgerWriter: _discardLedgerSource,
-        priorOutputReader: (_, __) async => priorOutputs,
+      ...surfaceBuildChain(
+        compiler: PackageSurfaceCompilerBuilder(
+          _policyOptions,
+          ledgerWriter: _discardLedgerSource,
+        ),
+        priorOutputs: priorOutputs,
       ),
-      RestageGeneratedDartBuilder(BuilderOptions.empty),
-      RestageOutputsBuilder(BuilderOptions.empty),
     ],
     <String, Object>{
       '$_package|$_sourcePath': source,
+      // A custom widget. The build writes a custom catalog too.
+      '$_package|lib/features/chip.dart': _chip,
       // The surface has been pushed, so ambiguous matches need review.
       '$_package|.restage/receipts/acme/main/app/surface/general/ledger/'
               'production/push-r1.json':
@@ -174,6 +193,27 @@ Future<({TestBuilderResult result, TestReaderWriter readerWriter})> _build(
   );
   return (result: result, readerWriter: readerWriter);
 }
+
+const _chip = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@RestageWidget(
+  name: 'LedgerChip',
+  library: WidgetLibrary.custom('app.widgets'),
+  category: WidgetCategory.decoration,
+  description: 'A chip.',
+)
+class LedgerChip extends StatelessWidget {
+  const LedgerChip({super.key, required this.label});
+
+  @RestageProperty(description: 'The label.', required: true)
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Text(label);
+}
+''';
 
 Future<void> _discardLedgerSource({
   required String package,

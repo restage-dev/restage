@@ -1,11 +1,35 @@
 import 'dart:io';
 
 import 'package:build/build.dart';
+import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/generated_dart_builder.dart';
+import 'package:restage_codegen/src/surface_publication/output_builder.dart';
 import 'package:restage_codegen/src/surface_publication/output_location.dart';
 import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('the build.yaml factories read previous outputs from the package', () {
+    final outputs = restageOutputsBuilder(BuilderOptions.forRoot);
+    final dart = restageGeneratedDartBuilder(BuilderOptions.forRoot);
+    expect(
+      outputs,
+      isA<RestageOutputsBuilder>().having(
+        (builder) => builder.priorOutputReader,
+        'priorOutputReader',
+        same(readPriorGeneratedOutputs),
+      ),
+    );
+    expect(
+      dart,
+      isA<RestageGeneratedDartBuilder>().having(
+        (builder) => builder.priorOutputReader,
+        'priorOutputReader',
+        same(readPriorGeneratedOutputs),
+      ),
+    );
+  });
+
   for (final outputRoot in ['.restage/build', '.hidden/build/output']) {
     test('captures bundles from configured hidden root $outputRoot', () {
       final root = Directory.systemTemp.createTempSync('restage-preserved-');

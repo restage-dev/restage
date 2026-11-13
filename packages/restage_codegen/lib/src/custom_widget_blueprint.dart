@@ -280,8 +280,9 @@ _HelperIndex _indexHelpers(AstNode node) {
   return index;
 }
 
-/// The helpers reachable from [roots] through artifact-bound calls, or the
-/// first helper that calls itself (directly or transitively).
+/// The helpers reachable from [roots] through artifact-bound calls, leaving
+/// out any that call themselves (directly or transitively), and the first
+/// such helper.
 Future<({Map<Element, HelperDef> helpers, ExecutableElement? recursive})>
 reachableArtifactHelpers(
   Iterable<Expression> roots, {
@@ -290,6 +291,7 @@ reachableArtifactHelpers(
 }) async {
   final helpers = Map<Element, HelperDef>.identity();
   final stack = <Element>{};
+  final cycles = <Element>{};
   ExecutableElement? recursive;
 
   Future<HelperDef?> definitionFor(
@@ -311,11 +313,11 @@ reachableArtifactHelpers(
     final calls = <MethodInvocation>[];
     node.accept(_ArtifactHelperCallCollector(calls, admittedHelperPackages));
     for (final call in calls) {
-      if (recursive != null) return;
       final element = call.methodName.element! as ExecutableElement;
       if (!stack.add(element)) {
-        recursive = element;
-        return;
+        recursive ??= element;
+        cycles.addAll(stack.skipWhile((entry) => entry != element));
+        continue;
       }
       try {
         final definition = await definitionFor(element, call);
@@ -336,6 +338,7 @@ reachableArtifactHelpers(
   for (final root in roots) {
     await visit(root);
   }
+  helpers.removeWhere((element, _) => cycles.contains(element));
   return (helpers: helpers, recursive: recursive);
 }
 

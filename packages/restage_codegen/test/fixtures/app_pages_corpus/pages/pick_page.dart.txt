@@ -1,0 +1,407 @@
+import 'package:state_kit/state_kit.dart';
+import 'package:flutter/widgets.dart';
+import 'package:sample_app/core/app_config.dart';
+import 'package:sample_app/core/app_scope.dart';
+import 'package:sample_app/core/kind_art.dart';
+import 'package:sample_app/data/models/item_kind.dart';
+import 'package:sample_app/features/onboarding/onboarding_bloc.dart';
+import 'package:sample_app/features/onboarding/onboarding_state.dart';
+import 'package:kit_ui/kit_ui.dart';
+
+/// Step 1: which items to track.
+class PickPage extends StatefulWidget {
+  const PickPage({super.key});
+
+  @override
+  State<PickPage> createState() => _PickPageState();
+}
+
+class _PickPageState extends State<PickPage> {
+  final TextEditingController _search = TextEditingController();
+  final ScrollController _scroll = ScrollController();
+  final GlobalKey _header = GlobalKey();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    _search.dispose();
+    super.dispose();
+  }
+
+  Widget _tile(
+    ItemKind kind,
+    OnboardingState state,
+    OnboardingBloc bloc,
+  ) => KitItemTile(
+    name: kind.commonName,
+    selected: state.selected.contains(kind.id),
+    onTap: () => bloc.add(KindToggled(kind.id)),
+    art: KindArt(
+      kind: kind,
+      sway: false,
+      cheerTick: state.cheerTicks[kind.id] ?? 0,
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final c = KitColors.of(context);
+    final bloc = context.read<OnboardingBloc>();
+    final catalog = AppScope.of(context).catalog;
+    return BlocSignalBuilder<OnboardingBloc, OnboardingState>(
+      builder: (context, state) {
+        final listing = _Listing.of(state, catalog.kind, catalog.search);
+        final count = state.selected.length;
+        final dockCount = count < AppConfig.freeItemLimit
+            ? count
+            : AppConfig.freeItemLimit;
+        return Stack(
+          children: [
+            Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: KitSpace.l),
+                  child: KitTopBar(
+                    onBack: () => bloc.add(const BackPressed()),
+                    center: const KitProgressDots(step: 1, count: 4),
+                    trailingLabel: 'Skip',
+                    onTrailing: () => bloc.add(const SkipPressed()),
+                  ),
+                ),
+                Expanded(
+                  child: KitRivePanel(
+                    clipBelow: _header,
+                    repaintOn: _scroll,
+                    child: CustomScrollView(
+                      controller: _scroll,
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(
+                            KitSpace.l,
+                            6,
+                            KitSpace.l,
+                            0,
+                          ),
+                          sliver: SliverToBoxAdapter(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Semantics(
+                                  header: true,
+                                  child: KitBalancedText(
+                                    'Which items do you want to track?',
+                                    style: KitType.title.copyWith(color: c.ink),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Pick a few to start. You can add more '
+                                  'anytime.',
+                                  style: KitType.secondary.copyWith(
+                                    color: c.ink2,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _FilterHeader(
+                            controller: _search,
+                            state: state,
+                            onQuery: (q) => bloc.add(SearchChanged(q)),
+                            onFilter: (f) => bloc.add(FilterSelected(f)),
+                            ground: c.ground,
+                            headerKey: _header,
+                          ),
+                        ),
+                        for (final section in listing.sections) ...[
+                          if (section.title != null)
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(
+                                KitSpace.l,
+                                16,
+                                KitSpace.l,
+                                0,
+                              ),
+                              sliver: SliverToBoxAdapter(
+                                child: KitSectionHeader(
+                                  section.title!,
+                                  meta: section.meta,
+                                ),
+                              ),
+                            ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(
+                              KitSpace.l,
+                              10,
+                              KitSpace.l,
+                              0,
+                            ),
+                            sliver: SliverList.builder(
+                              itemCount: (section.kind.length + 2) ~/ 3,
+                              itemBuilder: (context, row) => Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: KitSpace.gridGap,
+                                ),
+                                child: IntrinsicHeight(
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      for (var col = 0; col < 3; col++) ...[
+                                        if (col > 0)
+                                          const SizedBox(width: KitSpace.gridGap),
+                                        Expanded(
+                                          child:
+                                              row * 3 + col <
+                                                  section.kind.length
+                                              ? _tile(
+                                                  section.kind[row * 3 +
+                                                      col],
+                                                  state,
+                                                  bloc,
+                                                )
+                                              : const SizedBox.shrink(),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (listing.isEmpty)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.all(KitSpace.xl),
+                              child: Text(
+                                'No items match "${state.query.trim()}".',
+                                textAlign: TextAlign.center,
+                                style: KitType.secondary.copyWith(color: c.ink2),
+                              ),
+                            ),
+                          ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 168)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _Dock(
+                count: count,
+                buttonCount: dockCount,
+                onContinue: () => bloc.add(const ContinuePressed()),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _Section {
+  const _Section(this.kind, {this.title, this.meta});
+
+  final List<ItemKind> kind;
+  final String? title;
+  final String? meta;
+}
+
+class _Listing {
+  const _Listing(this.sections);
+
+  factory _Listing.of(
+    OnboardingState state,
+    List<ItemKind> all,
+    List<ItemKind> Function(String) search,
+  ) {
+    final query = state.query.trim();
+    if (query.isNotEmpty) {
+      final found = search(query);
+      return _Listing([
+        _Section(
+          found,
+          title: found.length == 1 ? '1 match' : '${found.length} matches',
+        ),
+      ]);
+    }
+    return switch (state.filter) {
+      ItemFilter.popular => _Listing([
+        _Section(all.take(9).toList()),
+        _Section(
+          all.skip(9).toList(),
+          title: 'More items',
+          meta: 'A to Z by type',
+        ),
+      ]),
+      ItemFilter.easy => _Listing([
+        _Section([
+          for (final s in all)
+            if (s.difficulty == 'easy') s,
+        ]),
+      ]),
+      ItemFilter.lowMode => _Listing([
+        _Section([
+          for (final s in all)
+            if (s.lowModeOk) s,
+        ]),
+      ]),
+      ItemFilter.shared => _Listing([
+        _Section([
+          for (final s in all)
+            if (s.shared) s,
+        ]),
+      ]),
+    };
+  }
+
+  final List<_Section> sections;
+
+  bool get isEmpty => sections.every((s) => s.kind.isEmpty);
+}
+
+class _FilterHeader extends SliverPersistentHeaderDelegate {
+  _FilterHeader({
+    required this.controller,
+    required this.state,
+    required this.onQuery,
+    required this.onFilter,
+    required this.ground,
+    required this.headerKey,
+  });
+
+  final TextEditingController controller;
+  final OnboardingState state;
+  final ValueChanged<String> onQuery;
+  final ValueChanged<ItemFilter> onFilter;
+  final Color ground;
+  final GlobalKey headerKey;
+
+  static const double _height = 48 + 12 + 40 + 4;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => ColoredBox(
+    key: headerKey,
+    color: ground,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: KitSpace.l),
+          child: KitInput.search(
+            controller: controller,
+            hint: 'Search items',
+            onChanged: onQuery,
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 40,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: KitSpace.l),
+            children: [
+              for (final (filter, label) in [
+                (ItemFilter.popular, 'Popular'),
+                (ItemFilter.easy, 'Quick start'),
+                (ItemFilter.lowMode, 'Quiet'),
+                (ItemFilter.shared, 'Shared'),
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(right: KitSpace.xs),
+                  child: KitFilterChip(
+                    label: label,
+                    selected: state.filter == filter,
+                    onTap: () => onFilter(filter),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+      ],
+    ),
+  );
+
+  @override
+  bool shouldRebuild(_FilterHeader old) =>
+      old.state.filter != state.filter || old.ground != ground;
+}
+
+class _Dock extends StatelessWidget {
+  const _Dock({
+    required this.count,
+    required this.buttonCount,
+    required this.onContinue,
+  });
+
+  final int count;
+  final int buttonCount;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = KitColors.of(context);
+    const limit = AppConfig.freeItemLimit;
+    final note = count == 0
+        ? 'Free covers $limit items'
+        : count > limit
+        ? '$count selected · Plus covers more than $limit'
+        : '$count selected · Free covers $limit items';
+    final inset = MediaQuery.paddingOf(context).bottom;
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        KitSpace.l,
+        KitSpace.x3,
+        KitSpace.l,
+        inset > 0 ? inset + 8 : 24,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [c.fade, c.ground],
+          stops: const [0, 0.34],
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            note,
+            textAlign: TextAlign.center,
+            style: KitType.captionLarge.copyWith(color: c.ink2),
+          ),
+          const SizedBox(height: KitSpace.s),
+          KitButton(
+            label: count == 0
+                ? 'Continue'
+                : 'Continue with $buttonCount ${buttonCount == 1 ? 'item' : 'items'}',
+            onPressed: count == 0 ? null : onContinue,
+          ),
+        ],
+      ),
+    );
+  }
+}

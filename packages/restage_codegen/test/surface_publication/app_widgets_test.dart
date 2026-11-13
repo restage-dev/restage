@@ -13,6 +13,7 @@ import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../support/surface_build_chain.dart';
 
 const _pill = '''
 class Pill extends StatelessWidget {
@@ -439,6 +440,108 @@ class OuterCard extends StatelessWidget {
     expect(out.errors, isEmpty);
     expect(out.text, contains('widget OuterCard = OuterCard__split('));
     expect(out.part, contains('MountedSurfaceDismissEvent'));
+  });
+
+  // A loop with more than one widget per item reaches an island's list slot
+  // as nested lists; each slot reads them through the flattening decoder.
+  group('an island list slot', () {
+    test('reads the loop it holds through the widget list decoder', () async {
+      final out = await _compile(
+        _surface(
+          'Stack(children: [for (final n in names) ...[Text(n), '
+          'const SizedBox()]])',
+          classes: '''
+const names = ['a', 'b'];
+
+class Stack extends StatelessWidget {
+  Stack({super.key, required this.children});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(painter: null, child: Column(children: children));
+}
+''',
+        ),
+      );
+      expect(out.errors, isEmpty);
+      // The island's own build and the mount's recorded one.
+      expect(
+        out.part.replaceAll(RegExp(r'\s'), ''),
+        allOf(
+          contains(
+            "RestageDecoders.widgetList(restageSource,const<Object>['children'",
+          ),
+          contains(
+            "RestageDecoders.widgetList(_restageSource,const<Object>['children'",
+          ),
+          isNot(contains('childList(')),
+        ),
+      );
+    });
+
+    test('of a split widget reads its lists the same way', () async {
+      final out = await _compile(
+        _surface(
+          "Panel(children: [for (final n in const ['a']) Text(n)])",
+          imports: "import 'package:apps_examples/ui.dart';",
+        ),
+        otherFiles: {
+          'apps_examples|lib/ui.dart': '''
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+export 'panel.dart';
+
+@RestageLibrary(
+  library: WidgetLibrary.custom('apps_examples.ui'),
+  capabilityVersion: 1,
+)
+const restageUiLibrary = 0;
+''',
+          'apps_examples|lib/panel.dart': '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+part 'restage.generated/panel.restage.g.dart';
+
+/// A panel.
+@RestageWidget()
+class Panel extends StatelessWidget {
+  /// Creates a panel.
+  const Panel({super.key, required this.children, this.extra});
+
+  /// The children.
+  final List<Widget> children;
+
+  /// More children, if any.
+  final List<Widget>? extra;
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        ...children,
+        ...?extra,
+        CustomPaint(child: Column(children: children)),
+      ]);
+}
+''',
+        },
+      );
+      expect(out.errors, isEmpty);
+      final part = utf8.decode(
+        out.bundle!.ownedOutputs['lib/restage.generated/panel.restage.g.dart']!,
+      );
+      expect(
+        part.replaceAll(RegExp(r'\s'), ''),
+        allOf(
+          contains(
+            "RestageDecoders.widgetList(widget.source!,const<Object>['children'",
+          ),
+          // A nullable list the design leaves out stays null.
+          contains(
+            "RestageDecoders.isWidgetList(widget.source!,const<Object>['extra'",
+          ),
+          isNot(contains('.childList(')),
+        ),
+      );
+    });
   });
 
   group('a custom widget that does not fully inline', () {
@@ -1549,17 +1652,7 @@ _compile(
   }
   final result = await testBuilders(
     [
-      restageSourceRosterBuilder(
-        const BuilderOptions({'bundled_runtime': true}, isRoot: true),
-      ),
-      userCatalogJsonBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(
-        const BuilderOptions({'bundled_runtime': true}, isRoot: true),
-      ),
-      restageGeneratedDartBuilder(
-        const BuilderOptions({'bundled_runtime': true}),
-      ),
-      restageOutputsBuilder(const BuilderOptions({'bundled_runtime': true})),
+      ...surfaceBuildChain(config: const {'bundled_runtime': true}),
     ],
     {
       'apps_examples|lib/mounted.dart': source,

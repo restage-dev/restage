@@ -5,12 +5,12 @@ import 'dart:io';
 
 import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
-import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 import '../helpers.dart';
+import '../support/surface_build_chain.dart';
 
 const _fixtureRoot = 'test/fixtures/measurement_default_policy';
 const _package = 'apps_examples';
@@ -74,17 +74,7 @@ Future<RestageMeasurementCompilerOutputV1> _compileFixture() async {
   );
   final result = await testBuilders(
     [
-      restageSourceRosterBuilder(
-        _builderOptions('restage_codegen:restage_source_roster'),
-      ),
-      userCatalogJsonBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(
-        _builderOptions('restage_codegen:restage_package_surface_compiler'),
-      ),
-      restageGeneratedDartBuilder(
-        _builderOptions('restage_codegen:generated_dart'),
-      ),
-      restageOutputsBuilder(_builderOptions('restage_codegen:outputs')),
+      ...surfaceBuildChain(options: _builderOptions),
     ],
     {
       '$_package|$_screenSourcePath': File(

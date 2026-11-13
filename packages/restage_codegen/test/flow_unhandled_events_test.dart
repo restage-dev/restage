@@ -7,6 +7,7 @@ import 'package:restage_codegen/builder.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
+import 'support/surface_build_chain.dart';
 
 /// A message screen whose buttons emit [emitted], each declared as an event.
 String _screen(List<String> emitted) =>
@@ -257,17 +258,18 @@ Future<TestBuilderResult> _build(Map<String, String> sources) async {
   final result = await testBuilders(
     [
       restageCodegenBuilder(BuilderOptions.empty),
-      restageSourceRosterBuilder(BuilderOptions.forRoot),
-      paywallFlowBuilder(BuilderOptions.empty),
-      onboardingScreenBuilder(BuilderOptions.empty),
-      onboardingFlowBuilder(BuilderOptions.empty),
-      messageScreenBuilder(BuilderOptions.empty),
-      messageFlowBuilder(BuilderOptions.empty),
-      surveyScreenBuilder(BuilderOptions.empty),
-      surveyFlowBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(BuilderOptions.forRoot),
-      restageOutputsBuilder(BuilderOptions.empty),
-      restageGeneratedDartBuilder(BuilderOptions.empty),
+      ...surfaceBuildChain(
+        catalog: false,
+        after: [
+          paywallFlowBuilder(BuilderOptions.empty),
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+          messageScreenBuilder(BuilderOptions.empty),
+          messageFlowBuilder(BuilderOptions.empty),
+          surveyScreenBuilder(BuilderOptions.empty),
+          surveyFlowBuilder(BuilderOptions.empty),
+        ],
+      ),
     ],
     sources,
     rootPackage: 'apps_examples',

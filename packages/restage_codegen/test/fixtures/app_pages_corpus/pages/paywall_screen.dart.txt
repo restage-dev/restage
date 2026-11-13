@@ -1,0 +1,388 @@
+import 'package:state_kit/state_kit.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:sample_app/core/app_config.dart';
+import 'package:sample_app/core/app_scope.dart';
+import 'package:sample_app/core/app_copy.dart';
+import 'package:sample_app/data/models/plus_entitlement.dart';
+import 'package:sample_app/features/paywall/paywall_cubit.dart';
+import 'package:sample_app/features/paywall/plus_cubit.dart';
+import 'package:sample_app/features/toast/toast_cubit.dart';
+import 'package:sample_app/features/toast/toast_layer.dart';
+import 'package:kit_ui/kit_ui.dart';
+
+/// Sample Plus: benefits, plans, the trial timeline, the terms and links.
+class PaywallScreen extends StatefulWidget {
+  const PaywallScreen({super.key});
+
+  @override
+  State<PaywallScreen> createState() => _PaywallScreenState();
+}
+
+class _PaywallScreenState extends State<PaywallScreen> {
+  final ScrollController _scroll = ScrollController();
+  bool _atEnd = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_track);
+  }
+
+  void _track() {
+    final atEnd =
+        _scroll.hasClients &&
+        _scroll.position.pixels >= _scroll.position.maxScrollExtent - 4;
+    if (atEnd != _atEnd) setState(() => _atEnd = atEnd);
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = KitColors.of(context);
+    final scope = AppScope.of(context);
+    final cubit = context.read<PaywallCubit>();
+    final plus = context.value<PlusCubit, PlusEntitlement?>();
+    final ios = defaultTargetPlatform == TargetPlatform.iOS;
+    return ToastLayer(
+      child: SafeArea(
+        bottom: false,
+        child: BlocSignalListener<PaywallCubit, PaywallState>(
+          listener: (context, state) {
+            switch (state.status) {
+              case PaywallStatus.closed:
+                Navigator.of(context).maybePop();
+              case PaywallStatus.failed:
+                context.read<ToastCubit>().show(
+                  'Something went wrong. Please try again.',
+                );
+                cubit.acknowledge();
+              case PaywallStatus.nothingToRestore:
+                context.read<ToastCubit>().show('No purchases to restore.');
+                cubit.acknowledge();
+              case _:
+                break;
+            }
+          },
+          child: BlocSignalBuilder<PaywallCubit, PaywallState>(
+            builder: (context, state) {
+              final products = cubit.products;
+              final selected = products.firstWhere(
+                (p) => p.period == state.selected,
+              );
+              final now = scope.clock.now();
+              final reminderDay = now.add(
+                const Duration(days: AppConfig.trialReminderDay),
+              );
+              final chargeDay = now.add(
+                const Duration(days: AppConfig.trialDays),
+              );
+              final per = selected.period == PlusPeriod.yearly
+                  ? 'year'
+                  : 'month';
+              final busy =
+                  state.status == PaywallStatus.purchasing ||
+                  state.status == PaywallStatus.celebrating ||
+                  state.status == PaywallStatus.restoring;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: KitSpace.l),
+                child: Column(
+                  children: [
+                    KitTopBar(
+                      onClose: () => Navigator.of(context).maybePop(),
+                      trailingLabel: 'Restore Purchases',
+                      onTrailing: busy ? null : cubit.restore,
+                    ),
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          ListView(
+                            controller: _scroll,
+                            padding: const EdgeInsets.only(bottom: 44),
+                            children: [
+                              Center(
+                                child: SizedBox(
+                                  width: 120,
+                                  height: 84,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      Positioned(
+                                        bottom: 0,
+                                        child: Container(
+                                          width: 120,
+                                          height: 80,
+                                          decoration: BoxDecoration(
+                                            color: c.lilac,
+                                            borderRadius:
+                                                const BorderRadius.only(
+                                                  topLeft: Radius.circular(60),
+                                                  topRight: Radius.circular(60),
+                                                  bottomLeft: Radius.circular(
+                                                    20,
+                                                  ),
+                                                  bottomRight: Radius.circular(
+                                                    20,
+                                                  ),
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                      KitBadgeArt(
+                                        celebrateTick: state.celebrateTick,
+                                        open: plus != null,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'SAMPLE PLUS',
+                                textAlign: TextAlign.center,
+                                style: KitType.overline.copyWith(
+                                  color: c.lilacInk,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Semantics(
+                                header: true,
+                                child: KitBalancedText(
+                                  'Room for every item',
+                                  textAlign: TextAlign.center,
+                                  style: KitType.title.copyWith(color: c.ink),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              const KitFeatureRow(
+                                icon: KitIcons.star,
+                                title: 'No item limit',
+                                detail: 'Free covers 3',
+                                tone: KitFeatureTone.sage,
+                              ),
+                              const SizedBox(height: 2),
+                              const KitFeatureRow(
+                                icon: KitIcons.chart,
+                                title: 'Insights',
+                                detail:
+                                    'How each item is doing over time',
+                                tone: KitFeatureTone.dew,
+                              ),
+                              const SizedBox(height: 2),
+                              const KitFeatureRow(
+                                icon: KitIcons.book,
+                                title: 'Guides',
+                                detail: 'What to change as things shift',
+                                tone: KitFeatureTone.peach,
+                              ),
+                              const SizedBox(height: 2),
+                              const KitFeatureRow(
+                                icon: KitIcons.camera,
+                                title: 'Smart sorting',
+                                detail: 'Included when it arrives',
+                                tone: KitFeatureTone.lilac,
+                                chipLabel: 'Coming soon',
+                              ),
+                              const SizedBox(height: 20),
+                              IntrinsicHeight(
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    for (final (i, product)
+                                        in products.indexed) ...[
+                                      if (i > 0) const SizedBox(width: 10),
+                                      Expanded(
+                                        child: KitPlanCard(
+                                          product: 'Sample Plus',
+                                          period:
+                                              product.period ==
+                                                  PlusPeriod.yearly
+                                              ? 'Yearly'
+                                              : 'Monthly',
+                                          price: product.priceLabel,
+                                          priceUnit:
+                                              product.period ==
+                                                  PlusPeriod.yearly
+                                              ? ' /year'
+                                              : ' /month',
+                                          detail: plus?.period == product.period
+                                              ? 'Renews ${AppCopy.shortDate(plus!.renewsAt)}'
+                                              : product.breakdown,
+                                          badge: plus == null
+                                              ? product.badge
+                                              : null,
+                                          current:
+                                              plus?.period == product.period,
+                                          selected:
+                                              plus == null &&
+                                              state.selected == product.period,
+                                          onTap: plus == null
+                                              ? () =>
+                                                    cubit.select(product.period)
+                                              : null,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              if (plus == null) ...[
+                                const SizedBox(height: 14),
+                                KitTrialTimeline(
+                                  steps: [
+                                    const KitTimelineStep(
+                                      title: 'Today',
+                                      detail: 'Full access, free',
+                                    ),
+                                    KitTimelineStep(
+                                      title: AppCopy.shortDate(reminderDay),
+                                      detail: 'We remind you',
+                                    ),
+                                    KitTimelineStep(
+                                      title: AppCopy.shortDate(chargeDay),
+                                      detail: '${selected.priceLabel} billed',
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              const SizedBox(height: 14),
+                              KitButton(
+                                label: plus == null
+                                    ? 'Start ${AppConfig.trialDays}-day free trial'
+                                    : 'Sample Plus is active',
+                                done: plus != null,
+                                loading:
+                                    state.status == PaywallStatus.purchasing,
+                                onPressed: plus != null || busy
+                                    ? null
+                                    : cubit.purchase,
+                              ),
+                              if (plus == null)
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    8,
+                                    10,
+                                    8,
+                                    0,
+                                  ),
+                                  child: Text.rich(
+                                    TextSpan(
+                                      text:
+                                          '${AppConfig.trialDays} days free, then ',
+                                      children: [
+                                        TextSpan(
+                                          text:
+                                              '${selected.priceLabel} per $per',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: c.ink,
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text:
+                                              ' starting ${AppCopy.shortDate(chargeDay)}. '
+                                              'Renews every $per until you cancel.',
+                                        ),
+                                      ],
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    style: KitType.captionLarge.copyWith(
+                                      color: c.ink2,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 22),
+                              KitLegalText(
+                                heading: 'Subscription terms',
+                                paragraphs: [
+                                  _freeNote,
+                                  _plansNote(products),
+                                  if (ios) _appleTerms else _googleTerms,
+                                ],
+                              ),
+                              KitLinkRow(
+                                links: [
+                                  KitLink(
+                                    label: 'Terms of Use (EULA)',
+                                    onTap: () =>
+                                        scope.links.open(AppLinks.terms),
+                                  ),
+                                  KitLink(
+                                    label: 'Privacy Policy',
+                                    onTap: () =>
+                                        scope.links.open(AppLinks.privacy),
+                                  ),
+                                  KitLink(
+                                    label: 'Restore Purchases',
+                                    onTap: cubit.restore,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          if (!_atEnd)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              height: 44,
+                              child: IgnorePointer(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [c.fade, c.ground],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+const String _freeNote =
+    'Sample is free to use with up to ${AppConfig.freeItemLimit} items. '
+    'Sample Plus is optional.';
+
+String _plansNote(List<PlusProduct> products) =>
+    'Sample Plus Yearly is ${products.first.priceLabel} per year. '
+    'Sample Plus Monthly is ${products.last.priceLabel} per month. Each plan '
+    'includes a ${AppConfig.trialDays}-day free trial, once per account. '
+    "When the trial ends, the plan's price is charged unless you cancel "
+    'before then.';
+
+const String _appleTerms =
+    'Payment is charged to your Apple ID account when you confirm your '
+    'purchase. With a free trial, the first payment is charged when the '
+    "trial ends. The subscription renews automatically unless it's canceled "
+    'at least 24 hours before the end of the current period. Your account is '
+    'charged for renewal within 24 hours before the current period ends. You '
+    'can manage and cancel your subscription in your App Store account '
+    'settings after purchase.';
+
+const String _googleTerms =
+    'Payment is charged to your Google Play account when you confirm your '
+    'purchase. With a free trial, the first payment is charged when the '
+    'trial ends unless you cancel before then. The subscription renews '
+    'automatically at the end of each period until you cancel. You can '
+    'manage and cancel it anytime in Play Store subscriptions (Play Store › '
+    'Payments and subscriptions › Subscriptions), and you keep Plus until the '
+    'end of the period you paid for.';

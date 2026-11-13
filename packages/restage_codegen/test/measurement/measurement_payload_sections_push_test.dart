@@ -5,13 +5,13 @@ import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
 import 'package:restage_cli/src/publication/publication_outputs.dart';
-import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../support/surface_build_chain.dart';
 
 const _package = 'apps_examples';
 
@@ -73,13 +73,7 @@ void main() {
       );
       final result = await testBuilders(
         [
-          restageSourceRosterBuilder(const BuilderOptions({}, isRoot: true)),
-          userCatalogJsonBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(
-            const BuilderOptions({}, isRoot: true),
-          ),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-          restageOutputsBuilder(BuilderOptions.empty),
+          ...surfaceBuildChain(),
         ],
         sources,
         rootPackage: _package,
@@ -104,6 +98,7 @@ void main() {
         kRestageMeasurementCompilerOutputPath,
         indexPath,
         '.restage/build/metadata/restage.publication.json',
+        '.restage/build/metadata/restage.build.json',
         '.restage/build/metadata/restage.measurement.index.json',
         ...outputIndex.entries.map((entry) => entry.bundle),
       }) {

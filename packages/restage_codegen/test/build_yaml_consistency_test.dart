@@ -4,6 +4,7 @@ import 'package:build/build.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
+import 'support/surface_build_chain.dart';
 
 /// build.yaml declares each builder's `build_extensions`, `builder_factories`,
 /// and `runs_before` so build_runner can plan the build graph; the Builder
@@ -49,6 +50,7 @@ void main() {
       'widgetbook_stories': widgetbookStoryBuilder,
       'restage_surfaces': restageSurfaceListBuilder,
       'restage_early_template': restageEarlyTemplateBuilder,
+      'generated_check': restageGeneratedCheckBuilder,
       'render_catalog': renderCatalogBuilder,
     };
 
@@ -79,6 +81,7 @@ void main() {
       'widgetbook_stories': 'widgetbookStoryBuilder',
       'restage_surfaces': 'restageSurfaceListBuilder',
       'restage_early_template': 'restageEarlyTemplateBuilder',
+      'generated_check': 'restageGeneratedCheckBuilder',
       'render_catalog': 'renderCatalogBuilder',
     };
 
@@ -426,6 +429,20 @@ void main() {
       );
     });
 
+    /// The auto-applied builders that read the surface compiler's result,
+    /// which build.yaml runs after it. They run on every library whether or
+    /// not the compiler does.
+    Set<String> compilerReaders() => {
+      for (final key
+          in (builders['restage_package_surface_compiler']
+                  as YamlMap)['runs_before']
+              as YamlList)
+        if ((builders['$key'.replaceFirst('restage_codegen:', '')]
+                as YamlMap)['auto_apply'] !=
+            'none')
+          '$key'.replaceFirst('restage_codegen:', ''),
+    };
+
     test('the opt-out recipe lists every builder that is on by default', () {
       final recipe = RegExp('```yaml(.*?)```', dotAll: true)
           .allMatches(readme)
@@ -446,7 +463,7 @@ void main() {
 
       expect(
         listed,
-        equals(packageWide(autoApply: 'dependents')),
+        equals({...packageWide(autoApply: 'dependents'), ...compilerReaders()}),
         reason:
             'the recipe is presented as the complete way to switch these '
             'builders off in a package. A package-wide builder added to '
@@ -479,6 +496,7 @@ void main() {
         8: 'eight',
         9: 'nine',
         10: 'ten',
+        11: 'eleven',
       };
       final total =
           packageWide(autoApply: 'dependents').length +
@@ -499,6 +517,76 @@ void main() {
             'the README says how many builders changed behaviour; '
             'build.yaml now declares $total package-wide builders',
       );
+    });
+  });
+
+  // Tests build through the same chain build_runner runs, so a builder a
+  // test leaves out can't hide a step the real build depends on.
+  group('the test build chain', () {
+    // Whether build.yaml orders [later] after [earlier]: a `runs_before`
+    // edge, or a required input that [earlier] writes.
+    bool directlyAfter(String earlier, String later) {
+      final from = _declaredBuilders[earlier] as YamlMap;
+      final to = _declaredBuilders[later] as YamlMap;
+      final runsBefore = (from['runs_before'] as YamlList?) ?? YamlList();
+      if (runsBefore.contains('restage_codegen:$later')) return true;
+      final writes = [
+        for (final outputs in (from['build_extensions'] as YamlMap).values)
+          for (final output in outputs as YamlList) '$output',
+      ];
+      final required = (to['required_inputs'] as YamlList?) ?? YamlList();
+      return required.any(
+        (input) => writes.any((output) => output.endsWith('$input')),
+      );
+    }
+
+    // Whether [later] is reachable from [earlier] through those orderings.
+    bool after(String earlier, String later) {
+      final reached = {earlier};
+      for (final queue = [earlier]; queue.isNotEmpty;) {
+        final next = queue.removeLast();
+        for (final key in _declaredBuilders.keys.cast<String>()) {
+          if (!reached.contains(key) && directlyAfter(next, key)) {
+            if (key == later) return true;
+            reached.add(key);
+            queue.add(key);
+          }
+        }
+      }
+      return false;
+    }
+
+    test('runs its builders in the order build.yaml does', () {
+      for (final (index, earlier) in kSurfaceBuildChainKeys.indexed) {
+        for (final later in kSurfaceBuildChainKeys.skip(index + 1)) {
+          expect(
+            after(earlier, later),
+            isTrue,
+            reason: 'build.yaml must order $later after $earlier',
+          );
+        }
+      }
+    });
+
+    test('builds what each build.yaml builder writes', () {
+      final chain = surfaceBuildChain();
+      expect(chain, hasLength(kSurfaceBuildChainKeys.length));
+      for (final (index, key) in kSurfaceBuildChainKeys.indexed) {
+        final declared =
+            (_declaredBuilders[key] as YamlMap)['build_extensions'] as YamlMap;
+        expect(
+          {
+            for (final MapEntry(:key, :value)
+                in chain[index].buildExtensions.entries)
+              key: value.toSet(),
+          },
+          {
+            for (final MapEntry(:key, :value) in declared.entries)
+              '$key': {for (final output in value as YamlList) '$output'},
+          },
+          reason: '$key',
+        );
+      }
     });
   });
 }

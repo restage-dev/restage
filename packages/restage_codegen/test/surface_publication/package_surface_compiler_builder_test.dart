@@ -27,6 +27,7 @@ import 'package:yaml/yaml.dart';
 
 import '../helpers.dart';
 import '../support/native_flow_fixture_generation.dart';
+import '../support/surface_build_chain.dart';
 
 void main() {
   test(
@@ -1984,37 +1985,11 @@ final class Probed extends StatelessWidget {
     },
   );
 
-  for (final (id, declarations, body, name, place) in [
-    (
-      'C1 an app function named with the reserved prefix',
-      "String _restageLocal_headline() => 'app';",
-      "if (flag) {\n      final headline = 'block';\n      return Text(headline);\n    }\n    return Text(_restageLocal_headline());",
-      '_restageLocal_headline',
-      'lib/probed.dart:17:17',
-    ),
-    (
-      'C5 an app final named with the reserved prefix',
-      "final _restageLocal_label2 = 'app2';",
-      "if (flag) {\n      final label = 'one';\n      return Text(label);\n    }\n    return Text(_restageLocal_label2);",
-      '_restageLocal_label2',
-      'lib/probed.dart:17:17',
-    ),
-    (
-      'C6 a local named with the reserved prefix',
-      '',
-      "final _restageCount = flag ? 1 : 2;\n    return Text('\$_restageCount');",
-      '_restageCount',
-      'lib/probed.dart:13:11',
-    ),
-  ]) {
-    test(id, () async {
-      final source =
-          """
+  test('a local named like generated code is refused', () async {
+    const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 part 'restage.generated/probed.restage.g.dart';
-
-$declarations
 
 @Paywall(id: 'probed')
 final class Probed extends StatelessWidget {
@@ -2022,23 +1997,23 @@ final class Probed extends StatelessWidget {
   final bool flag;
   @override
   Widget build(BuildContext context) {
-    $body
+    final _restageDesign = flag ? 'a' : 'b';
+    return Text(_restageDesign);
   }
 }
-""";
-      await _generatedPart(
-        source,
-        'probed',
-        refused: (errors) {
-          expect(errors.map(_issueMessage), [
-            '`$name` ($place): Restage reserves names that start with '
-                "`_restage` for the code it generates. Try a name that doesn't "
-                'start with `_restage`.',
-          ]);
-        },
-      );
-    });
-  }
+''';
+    await _generatedPart(
+      source,
+      'probed',
+      refused: (errors) {
+        expect(errors.map(_issueMessage), [
+          '`_restageDesign` (lib/probed.dart:11:11): the code Restage '
+              'generates for this surface uses the same name. Try a name '
+              "that doesn't start with `_restage`.",
+        ]);
+      },
+    );
+  });
 
   test('a build switch that throws over null quotes it readably', () async {
     const source = """
@@ -9944,19 +9919,7 @@ Future<String> _generatedPart(
   final logs = <String>[];
   final result = await testBuilders(
     [
-      restageSourceRosterBuilder(
-        const BuilderOptions({'bundled_runtime': true}, isRoot: true),
-      ),
-      userCatalogJsonBuilder(BuilderOptions.empty),
-      restagePackageSurfaceCompilerBuilder(
-        const BuilderOptions({'bundled_runtime': true}, isRoot: true),
-      ),
-      restageGeneratedDartBuilder(
-        const BuilderOptions({'bundled_runtime': true}),
-      ),
-      restageOutputsBuilder(
-        const BuilderOptions({'bundled_runtime': true}),
-      ),
+      ...surfaceBuildChain(config: const {'bundled_runtime': true}),
       if (renderCatalog != null) const RenderCatalogBuilder(),
     ],
     {'apps_examples|lib/$name.dart': source, ...otherFiles},

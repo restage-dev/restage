@@ -240,7 +240,7 @@ Future<ResolvedScreenInspectionResult> inspectCanonicalScreenDeclarations(
       astNodeFor: resolvedAstNodeFor,
       issues: issues,
       location: location,
-      liftState: surface != null,
+      liftState: true,
     );
     if (build == null) continue;
     screens.add(
@@ -352,41 +352,48 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
         ? resolved.units.first.lineInfo
         : null;
     final splits = await splitsOf(source.declaration.library);
-    TranslationResult translate(SourceBuildBlueprint build) =>
-        translatorFor(
-          measurementRoutePlans[source.declarationIdentity],
-          splits,
-        ).translate(
-          build.rootExpression,
-          sourcePath: source.assetId.path,
-          lineInfo: lineInfo,
-          rootState: build.state,
-          rootParams: build.rootParams,
-          rootEventHandlers: build.eventHandlers,
-          rootInlined: build.inlined,
-          buildContextParameter: build.buildContextParameter,
-          hoistInMount: true,
-          liftedState: build.liftedState,
-          contentFree: build.contentFree,
-          rootBuildArguments: build.buildArguments,
-          surfaceId: source.id,
-        );
+    final routePlan = measurementRoutePlans[source.declarationIdentity];
+    TranslationResult translateWith(
+      SourceBuildBlueprint build,
+      MeasurementRouteEmissionPlan? plan,
+    ) => translatorFor(plan, splits).translate(
+      build.rootExpression,
+      sourcePath: source.assetId.path,
+      lineInfo: lineInfo,
+      rootState: build.state,
+      rootParams: build.rootParams,
+      rootEventHandlers: build.eventHandlers,
+      rootInlined: build.inlined,
+      buildContextParameter: build.buildContextParameter,
+      hoistInMount: true,
+      liftedState: build.liftedState,
+      contentFree: build.contentFree,
+      rootBuildArguments: build.buildArguments,
+      surfaceId: source.id,
+    );
+    TranslationResult unmeasured(SourceBuildBlueprint build) =>
+        translateWith(build, null);
     var build = source.build;
-    var translation = translate(build);
+    // The lift is decided without measurement, as a paywall's is: a measured
+    // callback refuses before its island records the State it needs.
+    var probe = unmeasured(build);
     final stateNotices = <Issue>[];
     // An island that needs a lowerable State's members moves the State into
     // the mount.
     if (source.build.liftable case final lifted?
-        when (translation.issues.any((issue) => !issue.code.isBuildNotice) ||
-                translation.split?.recordProblem != null) &&
-            translation.blocked.any(
+        when (probe.issues.any((issue) => !issue.code.isBuildNotice) ||
+                probe.split?.recordProblem != null) &&
+            probe.blocked.any(
               (element) => isInstanceMemberOf(lifted.liftedState!, element),
             )) {
-      final moved = liftState(lifted, translate);
-      translation = moved.translation;
+      final moved = liftState(lifted, unmeasured);
+      probe = moved.translation;
       build = moved.build;
       if (moved.notice case final notice?) stateNotices.add(notice);
     }
+    final translation = routePlan == null
+        ? probe
+        : translateWith(build, routePlan);
     if (build.stateKeptInApp case final notice?) stateNotices.add(notice);
     if (_collectTranslationIssues(
       issues,

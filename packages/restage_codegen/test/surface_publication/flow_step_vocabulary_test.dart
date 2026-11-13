@@ -3,6 +3,7 @@ import 'package:restage_codegen/builder.dart';
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../support/surface_build_chain.dart';
 
 const _package = 'apps_examples';
 
@@ -97,13 +98,7 @@ void main() {
       );
       final result = await testBuilders(
         [
-          restageSourceRosterBuilder(BuilderOptions.forRoot),
-          userCatalogJsonBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(
-            BuilderOptions.forRoot,
-          ),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-          restageOutputsBuilder(BuilderOptions.empty),
+          ...surfaceBuildChain(),
           userCatalogBuilder(BuilderOptions.forRoot),
           userFactoryBuilder(BuilderOptions.forRoot),
         ],

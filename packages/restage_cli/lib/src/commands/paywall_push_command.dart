@@ -14,6 +14,7 @@ import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
+import 'package:restage_cli/src/libraries/generated_part_check.dart';
 import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_cli/src/publication/publication_bundle_reader.dart';
 import 'package:restage_cli/src/publication/publication_errors.dart';
@@ -32,7 +33,9 @@ class PaywallPushCommand extends Command<int> {
     http.Client? httpClient,
     BuildCommandFactory? buildCommand,
     PublicationBundleReader? bundleReader,
-  }) : _stdout = stdout,
+    GeneratedPartAnalyzer? analyze,
+  }) : _analyze = analyze,
+       _stdout = stdout,
        _stderr = stderr,
        _interactive = interactive,
        _credentialStore = credentialStore,
@@ -89,6 +92,7 @@ class PaywallPushCommand extends Command<int> {
     addRuntimePlaneOption(argParser);
   }
 
+  final GeneratedPartAnalyzer? _analyze;
   final StringSink _stdout;
   final StringSink _stderr;
   final Interactive _interactive;
@@ -152,9 +156,17 @@ class PaywallPushCommand extends Command<int> {
 
     final List<AssembledSurfacePublication> assembled;
     try {
+      // Loading refuses a failed build first, with the build's own error.
       final manifest = await SurfacePublicationManifestLoader().load(
         projectRoot: projectRoot,
       );
+      // A generated part that doesn't compile would ship a build the app
+      // can't.
+      final broken = await generatedPartErrors(projectRoot, analyze: _analyze);
+      if (broken.isNotEmpty) {
+        broken.map(generatedPartErrorSentence).forEach(_stderr.writeln);
+        return 1;
+      }
       final entries = await resolvePublicationEntries(
         manifest: manifest,
         argument: selector,

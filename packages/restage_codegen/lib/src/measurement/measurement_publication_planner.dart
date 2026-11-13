@@ -502,13 +502,13 @@ _LedgerReconciliation _reconcile({
   for (final node in priorOutput.ledgerNodes) {
     if (priorByLocator.putIfAbsent(node.structuralOccurrenceKey, () => node) !=
         node) {
-      throw const FormatException(
+      throw const MeasurementLedgerInvalid(
         'Prior Measurement ledger repeats a locator.',
       );
     }
     if (priorByCode.putIfAbsent(node.codeIdentityId.value, () => node) !=
         node) {
-      throw const FormatException(
+      throw const MeasurementLedgerInvalid(
         'Prior Measurement ledger repeats a code identity.',
       );
     }
@@ -549,7 +549,7 @@ _LedgerReconciliation _reconcile({
           () => relocation,
         ) !=
         relocation) {
-      throw const FormatException(
+      throw const MeasurementLedgerInvalid(
         'Prior Measurement ledger repeats a relocation target.',
       );
     }
@@ -570,17 +570,17 @@ _LedgerReconciliation _reconcile({
   final introducedKeys = <String>{};
   for (final introduction in priorOutput.acceptedIntroductions) {
     if (!introducedKeys.add(introduction.structuralOccurrenceKey)) {
-      throw const FormatException(
+      throw const MeasurementLedgerInvalid(
         'Prior Measurement ledger repeats an introduction.',
       );
     }
     if (!currentKeys.contains(introduction.structuralOccurrenceKey)) {
-      throw const FormatException(
+      throw const MeasurementLedgerInvalid(
         'Prior Measurement ledger introduces a node that does not exist.',
       );
     }
     if (priorByLocator.containsKey(introduction.structuralOccurrenceKey)) {
-      throw const FormatException(
+      throw const MeasurementLedgerInvalid(
         'Prior Measurement ledger introduces a node that already has an '
         'identity.',
       );
@@ -1744,3 +1744,9 @@ String _answerLocator(
   MeasurementPublicationPlanningInput input,
   String questionId,
 ) => 'compiler.publication-answer:${input.selector.key}:$questionId';
+
+/// The saved measurement ledger contradicts itself or the current sources.
+final class MeasurementLedgerInvalid extends FormatException {
+  /// Creates the refusal.
+  const MeasurementLedgerInvalid(String super.message);
+}

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:restage_codegen/src/hoisting.dart';
@@ -51,6 +52,14 @@ final class IslandSlot {
 
   /// The app builder whose body this slot delivers, if it is one.
   final AppValueSlot? builder;
+
+  /// Whether the argument can be null, so a design may leave it out.
+  bool get optional => switch (node) {
+    Expression(:final staticType?) =>
+      staticType.isDartCoreNull ||
+          staticType.nullabilitySuffix == NullabilitySuffix.question,
+    _ => false,
+  };
 }
 
 /// Why an island argument stays in the app's compiled code.
@@ -93,6 +102,9 @@ enum IslandCompiledReason {
 
   /// An argument of a widget the build keeps in a local.
   sharedLocal,
+
+  /// A parameter that takes only one kind of widget.
+  narrowWidget,
 }
 
 /// An island argument that stays in the app's compiled code.
@@ -160,6 +172,10 @@ final class IslandCompiledArgument {
         "it's an argument to `$widget`, a function that renders from the "
             'app. Try making `$widget` a widget class if designs should '
             'change it.',
+      IslandCompiledReason.narrowWidget =>
+        'its parameter takes only ${_article(detail)} `$detail`, and a design '
+            'delivers any widget. Try typing the parameter `Widget` if designs '
+            'should change it.',
       IslandCompiledReason.sharedLocal =>
         'the build keeps `$widget` in the local `$detail`. Try building it '
             'where it is placed if designs should change it.',

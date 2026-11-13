@@ -11,6 +11,13 @@ earlier individual retirements remain unless that package is explicitly upserted
 
 Initial release of the `restage` command-line interface.
 
+`restage surface push` and `restage paywall push` refuse outputs from a build
+that failed, with the build's first error. They also refuse a surface the
+build reported doesn't fit its own placement. `status`, `history`, `spec`,
+`rollback`, `freeze`, `unfreeze`, `kill` and the console still name surfaces
+from the last outputs. Before they push, both check that the generated Dart
+compiles, also in a package inside a workspace.
+
 `restage surface results` heads its output with the surface as you named it and
 lists versions by number (`v3`); `--json` keeps every surface and version
 identity.

@@ -12,6 +12,7 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../support/surface_build_chain.dart';
 
 const _package = 'apps_examples';
 
@@ -85,13 +86,7 @@ void main() {
       );
       final result = await testBuilders(
         [
-          restageSourceRosterBuilder(BuilderOptions.forRoot),
-          userCatalogJsonBuilder(BuilderOptions.empty),
-          restagePackageSurfaceCompilerBuilder(
-            BuilderOptions.forRoot,
-          ),
-          restageGeneratedDartBuilder(BuilderOptions.empty),
-          restageOutputsBuilder(BuilderOptions.empty),
+          ...surfaceBuildChain(),
           userCatalogBuilder(BuilderOptions.forRoot),
           userFactoryBuilder(BuilderOptions.forRoot),
         ],
@@ -118,6 +113,7 @@ void main() {
         kRestageMeasurementCompilerOutputPath,
         indexPath,
         '.restage/build/metadata/restage.publication.json',
+        '.restage/build/metadata/restage.build.json',
         '.restage/build/metadata/restage.measurement.index.json',
         ...outputIndex.entries.map((entry) => entry.bundle),
       }) {

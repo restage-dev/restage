@@ -12,11 +12,16 @@ import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 /// Writes each authored library's one generated Dart part.
 final class RestageGeneratedDartBuilder implements Builder {
   /// Creates the builder, resolving and validating output location options once.
-  RestageGeneratedDartBuilder(BuilderOptions options)
-    : plan = RestageOutputLocationPlan.fromBuilderOptions(options);
+  RestageGeneratedDartBuilder(
+    BuilderOptions options, {
+    this.priorOutputReader = noPriorGeneratedOutputs,
+  }) : plan = RestageOutputLocationPlan.fromBuilderOptions(options);
 
   /// The resolved output location authority for this builder invocation.
   final RestageOutputLocationPlan plan;
+
+  /// Reads the parts a failed build writes back.
+  final PriorGeneratedOutputReader priorOutputReader;
 
   @override
   Map<String, List<String>> get buildExtensions =>
@@ -37,6 +42,8 @@ final class RestageGeneratedDartBuilder implements Builder {
     if (bundle == null) {
       await restorePreservedOutput(
         buildStep,
+        plan,
+        priorOutputReader,
         neutralPartPath(plan, libraryPath),
       );
       return;

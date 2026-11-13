@@ -43,6 +43,7 @@ import 'package:restage_codegen/src/framework_const_values.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/hoisting.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
+import 'package:restage_codegen/src/islands/generated_names.dart';
 import 'package:restage_codegen/src/islands/islands.dart';
 import 'package:restage_codegen/src/islands/opt_outs.dart';
 import 'package:restage_codegen/src/surface_publication/app_widget_events.dart'
@@ -1663,10 +1664,14 @@ final class ExpressionTranslator {
     }
     final screen = _islands!.surface.screen;
     final place = '`${readableSource(node.toSource())}` (${_locationOf(node)})';
+    final mixin = node.thisOrAncestorOfType<MixinDeclaration>()?.name.lexeme;
     final message = _declaredByIfCase(node, blocked)
         ? "$place: Restage can't use `${blocked.name}` because an `if case` "
               'pattern declares it. Try testing the value with `!= null` and '
               'using it with `!` instead.'
+        : mixin != null
+        ? "$place: Restage can't compile a build() inherited from the mixin "
+              '`$mixin`. Try declaring it in a base class the screen extends.'
         : '$place: uses `${blocked.name}`, which only exists inside '
               "`$screen`. Try passing it in through the screen's constructor.";
     return [
@@ -1726,6 +1731,23 @@ final class ExpressionTranslator {
       return '';
     }
     final session = _islands!;
+    // The build's copy places an island as a plain Widget.
+    final placedAt = shared ?? node;
+    if (_placementContextOf(placedAt) case final context?
+        when !_takesAnyWidget(placedAt, context, list: false)) {
+      issues.add(
+        Issue(
+          code: IssueCode.islandNarrowPlacement,
+          message:
+              '`${islandWidgetType(node)}` (${_locationOf(node)}) renders from '
+              'the app, and the place it is written takes only a '
+              '`${islandTypeName(context)}`, so the widget around it renders '
+              'from the app too. Try typing that place `Widget`.',
+          location: _locationOf(node),
+        ),
+      );
+      return '';
+    }
     final restore = _checkpoint();
     // The ordinal is the order the surface uses its islands, an enclosing
     // island before those nested in it.
@@ -1866,7 +1888,17 @@ final class ExpressionTranslator {
       }
       final type = parameter?.type ?? value.staticType;
       final list = _isWidgetListType(type);
-      final slot = list || classifyHoistType(type) is HoistIsWidget;
+      final widgetTyped = list || classifyHoistType(type) is HoistIsWidget;
+      // A design delivers a plain Widget, so a slot needs a parameter that
+      // takes any widget.
+      if (widgetTyped && !_takesAnyWidget(value, type, list: list)) {
+        keep(
+          IslandCompiledReason.narrowWidget,
+          detail: type == null ? null : islandTypeName(type),
+        );
+        continue;
+      }
+      final slot = widgetTyped;
       final literal = _isLiteralArgument(value);
       final propertyShape = slot || !literal ? null : islandPropertyShape(type);
       final propertyType = propertyShape?.propertyType;
@@ -2027,6 +2059,7 @@ final class ExpressionTranslator {
       },
       calls: [..._callSites],
       items: loops.isEmpty ? null : loops.last.item,
+      unrolled: [..._unrolled],
     ));
     _currentReferencedCustomLibraries?.add(session.namespace);
     return '${identity.name}(${[
@@ -2133,18 +2166,29 @@ final class ExpressionTranslator {
       ConditionalExpression(:final condition)
           when !identical(condition, expression) =>
         _contextTypeOf(parent),
-      NamedArgument() => expression.correspondingParameter?.type,
+      NamedArgument() => parent.correspondingParameter?.type,
       ArgumentList() => expression.correspondingParameter?.type,
-      ListLiteral(:final staticType?) => switch (staticType) {
-        InterfaceType(:final typeArguments) => typeArguments.singleOrNull,
-        _ => null,
-      },
+      // An element is placed as the collection it ends up in takes one.
+      ListLiteral() || IfElement() || ForElement() => _elementTypeOf(parent!),
       ExpressionFunctionBody() => _returnTypeOf(parent),
       ReturnStatement() => switch (parent
           .thisOrAncestorOfType<FunctionBody>()) {
         final body? => _returnTypeOf(body),
         null => null,
       },
+      _ => null,
+    };
+  }
+
+  // The element type of the list literal that [element] puts its elements in.
+  DartType? _elementTypeOf(AstNode element) {
+    AstNode? node = element;
+    while (node is IfElement || node is ForElement) {
+      node = node!.parent;
+    }
+    return switch (node) {
+      ListLiteral(staticType: InterfaceType(:final typeArguments)) =>
+        typeArguments.singleOrNull,
       _ => null,
     };
   }
@@ -2991,12 +3035,12 @@ final class ExpressionTranslator {
     Issue? found;
     build.accept(
       _Names((name, node) {
-        if (found != null || !name.startsWith('_restage')) return;
+        if (found != null || !isGeneratedRestageName(name)) return;
         found = Issue(
           code: IssueCode.unresolvedIdentifier,
           message:
-              '`$name` (${_locationOf(node)}): Restage reserves names that '
-              'start with `_restage` for the code it generates. Try a name that '
+              '`$name` (${_locationOf(node)}): the code Restage generates for '
+              'this surface uses the same name. Try a name that '
               "doesn't start with `_restage`.",
           location: _declarationOf(node),
         );
@@ -3448,13 +3492,15 @@ final class ExpressionTranslator {
       RecordedSiteKind kind,
       String key,
       List<AstNode> through,
-      AstNode node,
-    ) => sites.add(
+      AstNode node, {
+      List<({ForElement loop, int ordinal})> unrolled = const [],
+    }) => sites.add(
       RecordedSite(
         kind: kind,
         key: key,
         node: node,
         calls: callsOf(through, node),
+        iteration: [for (final step in unrolled) step.ordinal].join('.'),
       ),
     );
 
@@ -3503,7 +3549,10 @@ final class ExpressionTranslator {
           ].join('.')] =
           record.key;
     }
-    final wrappedUnrolled = Set<ForElement>.identity();
+    // Each loop is walked by `unrolled` once per helper call that runs it.
+    final wrappedUnrolled = <String>{};
+    bool wrapsUnrolled(ForElement loop, List<AstNode> calls) =>
+        wrappedUnrolled.add(occurrenceOf(loop, callsOf(calls, loop)));
     final writtenUnrolled = <String>{};
     // The key [record] is recorded under, or `null` when its site already
     // records for every iteration.
@@ -3521,7 +3570,7 @@ final class ExpressionTranslator {
       final group = occurrenceOf(record.site, record.calls);
       if (!writtenUnrolled.add(group)) return null;
       for (final step in record.unrolled) {
-        if (!wrappedUnrolled.add(step.loop)) continue;
+        if (!wrapsUnrolled(step.loop, record.calls)) continue;
         final parts = step.loop.forLoopParts;
         if (parts is ForEachParts) {
           at(
@@ -3587,8 +3636,28 @@ final class ExpressionTranslator {
       if (records.isEmpty)
         return giveUp('no site ${value.key} ${value.label} ${value.kind}');
       final placed = Set<AstNode>.identity();
+      final sited = <(AstNode, String)>{};
       for (final record in records) {
-        if (!placed.add(record.site)) continue;
+        // A value read in each iteration of an unrolled loop is produced in
+        // each; the copy writes its record once.
+        final iteration = [
+          for (final step in record.unrolled) step.ordinal,
+        ].join('.');
+        if (!sited.add((record.site, iteration))) continue;
+        if (!placed.add(record.site)) {
+          site(
+            switch (value.kind) {
+              HoistValueKind.items => RecordedSiteKind.items,
+              HoistValueKind.nativeBinding => RecordedSiteKind.native,
+              _ => RecordedSiteKind.value,
+            },
+            value.key,
+            record.calls,
+            record.site,
+            unrolled: record.unrolled,
+          );
+          continue;
+        }
         site(
           switch (value.kind) {
             HoistValueKind.items => RecordedSiteKind.items,
@@ -3598,6 +3667,7 @@ final class ExpressionTranslator {
           value.key,
           record.calls,
           record.site,
+          unrolled: record.unrolled,
         );
         final outer = outerOf(value);
         switch (value.kind) {
@@ -3908,11 +3978,83 @@ final class ExpressionTranslator {
     final spotsMarked = <String>{};
     final spotIds = Map<AstNode, int>.identity();
     int spotId(AstNode read) => spotIds[read] ??= spotIds.length;
+    // An island in a loop the design unrolls is one island per iteration;
+    // the build's copy wraps its node once, named by the iteration it runs.
+    String holesOf(
+      Map<AstNode, ({String marker, bool property})> holes,
+      String name,
+    ) => [
+      for (final MapEntry(:key, :value) in holes.entries)
+        '${key.offset}:${value.property}:'
+            '${value.marker.replaceAll('\u0002$name|', '\u0002|')}',
+    ].join(',');
+    final unrolledIslands =
+        <String, List<({String name, List<int> ordinals, String shape})>>{};
+    for (final island in session.recordIslands) {
+      if (island.unrolled.isEmpty || !islandNames.contains(island.name)) {
+        continue;
+      }
+      for (final step in island.unrolled) {
+        loopIds.putIfAbsent(step.loop, () => loopIds.length);
+      }
+      final placed = island.placement.at;
+      (unrolledIslands[occurrenceOf(placed, callsOf(island.calls, placed))] ??=
+              [])
+          .add((
+            name: island.name,
+            ordinals: [for (final step in island.unrolled) step.ordinal],
+            shape:
+                '${island.shared}|${island.items}|'
+                '${holesOf(island.holes, island.name)}',
+          ));
+    }
+    final unrolledPlaced = <String>{};
     for (final island in session.recordIslands) {
       final placed = island.placement.at;
       if (!islandNames.contains(island.name) ||
           !islandsPlaced.add((island.name, placed))) {
         continue;
+      }
+      var name = literal(island.name);
+      if (island.unrolled.isNotEmpty) {
+        site(
+          RecordedSiteKind.island,
+          WidgetVocabulary.qualifiedName(
+            session.islands.values
+                .firstWhere((entry) => entry.name == island.name)
+                .library,
+            island.name,
+          ),
+          island.calls,
+          placed,
+          unrolled: island.unrolled,
+        );
+        final group = occurrenceOf(placed, callsOf(island.calls, placed));
+        if (!unrolledPlaced.add(group)) continue;
+        final siblings = unrolledIslands[group]!;
+        if (siblings.map((sibling) => sibling.shape).toSet().length != 1) {
+          return giveUp('unrolled island', at: island.node);
+        }
+        for (final step in island.unrolled) {
+          final parts = step.loop.forLoopParts;
+          if (parts is! ForEachParts) {
+            return giveUp('unrolled island', at: island.node);
+          }
+          if (wrapsUnrolled(step.loop, island.calls)) {
+            at(
+              island.calls,
+              parts.iterable,
+              '$recorder.unrolled(${loopIds[step.loop]}, ',
+              ')',
+            );
+          }
+        }
+        name =
+            '$recorder.unrolledKey(const {${[
+              for (final sibling in siblings) '${literal(sibling.ordinals.join('.'))}: ${literal(sibling.name)}',
+            ].join(', ')}}, const [${[
+              for (final step in island.unrolled) loopIds[step.loop],
+            ].join(', ')}])!';
       }
       // An island inside a value reads place is keyed at the spot they name;
       // each read is marked once.
@@ -3927,17 +4069,19 @@ final class ExpressionTranslator {
       final placedAt = spots.isEmpty
           ? ''
           : ', spots: [${spots.map(spotId).join(', ')}]';
-      site(
-        RecordedSiteKind.island,
-        WidgetVocabulary.qualifiedName(
-          session.islands.values
-              .firstWhere((entry) => entry.name == island.name)
-              .library,
-          island.name,
-        ),
-        island.calls,
-        placed,
-      );
+      if (island.unrolled.isEmpty) {
+        site(
+          RecordedSiteKind.island,
+          WidgetVocabulary.qualifiedName(
+            session.islands.values
+                .firstWhere((entry) => entry.name == island.name)
+                .library,
+            island.name,
+          ),
+          island.calls,
+          placed,
+        );
+      }
       if (island.items case final items? when hoist.values[items] == null) {
         walkRootLoop(items, island.calls, placed);
       }
@@ -3948,7 +4092,7 @@ final class ExpressionTranslator {
         at(
           island.calls,
           placed,
-          '$recorder.island(${literal(island.name)}, ',
+          '$recorder.island($name, ',
           '$items$placedAt)',
         );
         continue;
@@ -3962,22 +4106,25 @@ final class ExpressionTranslator {
           : scope is MethodDeclaration
           ? scope
           : body;
-      final arguments = switch (island.node) {
+      final sharedArguments = switch (island.node) {
         InstanceCreationExpression(:final argumentList) ||
-        MethodInvocation(:final argumentList) => <Expression>[
+        MethodInvocation(:final argumentList) => [
           // Only an argument that runs app code is shared; evaluating any
           // other twice changes nothing.
           for (final argument in argumentList.arguments)
             if (_stripParens(argument.argumentExpression)
                     is! FunctionExpression &&
                 _evaluatesCode(argument.argumentExpression, appCode: true))
-              argument.argumentExpression,
+              argument,
         ],
         _ => null,
       };
-      if (arguments == null) return giveUp('island', at: island.node);
-      // The record spells each argument's inferred type, so it infers as it
-      // does at its parameter.
+      if (sharedArguments == null) return giveUp('island', at: island.node);
+      final arguments = [
+        for (final argument in sharedArguments) argument.argumentExpression,
+      ];
+      // Each record field takes its parameter's type: the context the
+      // argument was written in, whatever the copy wraps it in.
       final namespace = analyzer.namespace;
       final widgetType = switch ((island.node as Expression).staticType) {
         final InterfaceType type =>
@@ -3990,12 +4137,16 @@ final class ExpressionTranslator {
               .firstOrNull,
         _ => null,
       };
+      final widgetCode = widgetType == null
+          ? null
+          : namespace.typeCode(widgetType);
       final types = [
-        for (final argument in arguments)
-          argument.staticType == null
-              ? null
-              : namespace.typeCode(argument.staticType!),
-        widgetType == null ? null : namespace.typeCode(widgetType),
+        for (final argument in sharedArguments)
+          switch (argument.correspondingParameter?.type) {
+            final type? => namespace.typeCode(type),
+            null => null,
+          },
+        widgetCode,
       ];
       if (arguments.isNotEmpty && types.contains(null)) {
         return giveUp('island', at: island.node);
@@ -4072,7 +4223,7 @@ final class ExpressionTranslator {
         at(
           island.calls,
           placed,
-          '$recorder.island(${literal(island.name)}, ',
+          '$recorder.island($name, ',
           '$items$placedAt, build: (_restageContext, _restageSource) => '
               '$build)',
         );
@@ -4117,7 +4268,7 @@ final class ExpressionTranslator {
       at(
         island.calls,
         placed,
-        '$recorder.island(${literal(island.name)}, ',
+        '$recorder.island($name, ',
         '$items$placedAt)',
       );
     }
@@ -4181,10 +4332,13 @@ final class ExpressionTranslator {
         holes[call] = '($function)$arguments';
       }
       for (final shared in once.values) {
-        final island = shared.node;
-        if (identical(island, node) ||
-            island.offset < node.offset ||
-            island.end > node.end ||
+        final placed = shared.node;
+        // A shared argument is read from its once; the island's own render
+        // writes its widget.
+        if (identical(placed, node) && island ||
+            holes.containsKey(placed) ||
+            placed.offset < node.offset ||
+            placed.end > node.end ||
             chainKey(shared.calls) != chainKey(calls)) {
           continue;
         }
@@ -4192,11 +4346,11 @@ final class ExpressionTranslator {
           for (final argument in shared.arguments)
             render(argument, scope, calls),
         ];
-        final widget = render(island, scope, calls, island: true);
+        final widget = render(placed, scope, calls, island: true);
         if (written.contains(null) || widget == null) return null;
         final text = shared.text(written.cast<String>(), widget);
         if (text == null) return null;
-        holes[island] = text;
+        holes[placed] = text;
       }
       // An event the build fires dispatches through its own mount.
       final events = _EventHelperCalls();
@@ -4244,12 +4398,21 @@ final class ExpressionTranslator {
       final analysis = analyzer.analyze(
         node,
         holes: holes,
-        // The island's own record is written around its once, and its
-        // app builder slots record where the design renders them.
+        // The island's own record is written around its once, as is each
+        // shared argument's, and its app builder slots record where the
+        // design renders them.
         around: island
             ? (Map<AstNode, List<({String before, String after})>>.identity()
                 ..addAll(aroundHere)
                 ..remove(node)
+                // What is recorded inside a shared argument is written with
+                // that argument, in the once.
+                ..removeWhere(
+                  (at, _) => once[occurrenceOf(node, calls)]!.shared.keys.any(
+                    (argument) =>
+                        at.offset >= argument.offset && at.end <= argument.end,
+                  ),
+                )
                 ..removeWhere(
                   (at, _) => once[occurrenceOf(node, calls)]!.slots.any(
                     (slot) => at.offset >= slot.offset && at.end <= slot.end,
@@ -4648,6 +4811,14 @@ final class ExpressionTranslator {
         : argument as Expression;
     final builder = _stripParens(value);
     if (builder is! FunctionExpression) {
+      // The design stands in for the child as a plain Widget.
+      if (!_takesAnyWidget(
+        value,
+        argument.correspondingParameter?.type,
+        list: false,
+      )) {
+        return null;
+      }
       return (next: value, builder: null, bindings: const {}, scope: const {});
     }
     // Only a builder that runs once per build of its widget joins the shell.
@@ -4661,6 +4832,10 @@ final class ExpressionTranslator {
     }
     final body = extractInlinableBuildBody(builder.body);
     if (body == null) return null;
+    if (argument.correspondingParameter?.type case final FunctionType type
+        when !_takesAnyWidget(body.expression, type.returnType, list: false)) {
+      return null;
+    }
     return (
       next: body.expression,
       builder: builder,
@@ -4699,6 +4874,70 @@ final class ExpressionTranslator {
     if (probe || !lowers) restore();
     return (dsl: dsl, issues: scratch, lowers: lowers);
   }
+
+  // The type the build's copy must hand back where [node] is placed: what the
+  // code around it expects, or for a closure's result, what the closure's
+  // own parameter takes, since the copy's closure infers from its body.
+  DartType? _placementContextOf(Expression node, [int? calls]) {
+    final body = switch (node.parent) {
+      final ExpressionFunctionBody body => body,
+      ReturnStatement() => node.thisOrAncestorOfType<FunctionBody>(),
+      _ => null,
+    };
+    final closure = body?.parent;
+    if (closure is FunctionExpression &&
+        closure.parent is! FunctionDeclaration) {
+      return switch (closure.correspondingParameter?.type) {
+        FunctionType(:final returnType) => returnType,
+        _ => null,
+      };
+    }
+    // The copy runs a helper's body where it is called, so what it returns
+    // is placed as that call is.
+    final depth = calls ?? _callSites.length;
+    if (body != null && depth > 0) {
+      final call = _callSites[depth - 1];
+      if (call is Expression && identical(_hoist?.helperBodies[call], body)) {
+        return _placementContextOf(call, depth - 1);
+      }
+    }
+    return _contextTypeOf(node);
+  }
+
+  // Whether [target] takes any widget (any list of widgets when [list]),
+  // the type a design delivers in place of [node]'s value.
+  bool _takesAnyWidget(AstNode node, DartType? target, {required bool list}) {
+    final library = switch (node.root) {
+      CompilationUnit(:final declaredFragment?) => declaredFragment.element,
+      _ => null,
+    };
+    if (library == null || target == null) return true;
+    if (target is DynamicType) return true;
+    final element = list && target is InterfaceType
+        ? target.typeArguments.singleOrNull
+        : target;
+    if (element == null) return true;
+    final widget =
+        _widgetTypeIn(element) ??
+        _widgetTypeIn(
+          switch (node) {
+            Expression(:final staticType) => staticType,
+            _ => null,
+          },
+        );
+    if (widget == null) return true;
+    return library.typeSystem.isAssignableTo(widget, element);
+  }
+
+  // Flutter's Widget among [type] and its supertypes.
+  static InterfaceType? _widgetTypeIn(DartType? type) => switch (type) {
+    final InterfaceType type => [type, ...type.allSupertypes].firstWhereOrNull(
+      (t) =>
+          t.element.name == 'Widget' &&
+          isFlutterFrameworkType(t.element, 'Widget'),
+    ),
+    _ => null,
+  };
 
   bool _isWidgetListType(DartType? type) =>
       type is InterfaceType &&
@@ -5629,7 +5868,12 @@ final class ExpressionTranslator {
         return;
       }
       final name = member.name;
+      final generator = node is Expression ? generatorCallback(node) : null;
       final (problem, fix) = switch ((member, kind, node)) {
+        (_, _, FunctionExpression()) when generator != null => (
+          generator.problem(null),
+          generator.fix(null),
+        ),
         (ClassElement(), _, _) => (
           '`$shown` runs in your app and uses `this`, the State the design '
               'keeps',
@@ -8008,13 +8252,28 @@ final class ExpressionTranslator {
     String? Function(CollectionSemanticOccurrence, int)? emitLeaf,
   }) {
     final before = issues.length;
-    final emitted = _emitRuntimeIfCandidate(
-      candidate,
-      issues,
-      ordinal: ordinal,
-      itemType: itemType,
-      emitLeaf: emitLeaf,
-    );
+    // A condition in a loop the design unrolls is one condition per
+    // iteration, recorded under the iteration that runs.
+    final unrolled = _unrolled.length;
+    _unrolled.addAll([
+      for (final step in candidate.structuralPath)
+        if (step.kind == CollectionStructuralOccurrenceKind.loopIteration &&
+            step.node is ForElement &&
+            !_unrolled.any((known) => identical(known.loop, step.node)))
+          (loop: step.node as ForElement, ordinal: step.ordinal),
+    ]);
+    final String? emitted;
+    try {
+      emitted = _emitRuntimeIfCandidate(
+        candidate,
+        issues,
+        ordinal: ordinal,
+        itemType: itemType,
+        emitLeaf: emitLeaf,
+      );
+    } finally {
+      _unrolled.length = unrolled;
+    }
     if (emitted == null) {
       if (issues.length == before) _recordCollectionRefusal(refusal, issues);
       return null;
@@ -22986,6 +23245,7 @@ final class _IslandSession {
       Map<AstNode, ({String marker, bool property})> holes,
       List<AstNode> calls,
       String? items,
+      List<({ForElement loop, int ordinal})> unrolled,
     })
   >
   recordIslands = [];

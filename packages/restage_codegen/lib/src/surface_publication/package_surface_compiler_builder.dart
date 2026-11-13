@@ -195,12 +195,40 @@ Future<TrackedPackageSurfaceCompilation> compileTrackedPackageSurfaces(
   RestageOutputLocationPlan? plan,
 }) async {
   final cache = await buildStep.fetchResource(_trackedCompilationResource);
-  return cache.get(
-    buildStep,
-    plan ?? RestageOutputLocationPlan.defaults,
-    measurementPolicy,
-    builderKey: builderKey,
-  );
+  try {
+    return await cache.get(
+      buildStep,
+      plan ?? RestageOutputLocationPlan.defaults,
+      measurementPolicy,
+      builderKey: builderKey,
+    );
+  } on MeasurementLedgerInvalid catch (error) {
+    return _invalidCompilation([
+      Issue(
+        code: IssueCode.measurementConfigurationInvalid,
+        message:
+            'The measurement state saved in '
+            '`$kRestageMeasurementCompilerLedgerSourcePath` is invalid: '
+            '${error.message} Try restoring it from version control.',
+        location: kRestageMeasurementCompilerLedgerSourcePath,
+      ),
+    ]);
+  } on Object catch (error, stackTrace) {
+    // A fault in the compiler is reported as an issue like any refusal, so
+    // the build never fails without one.
+    return _invalidCompilation([
+      Issue(
+        code: IssueCode.malformedTranslatorOutput,
+        message:
+            "Restage couldn't compile this package's surfaces: $error. "
+            'This is a Restage bug. Try running `dart run build_runner build` '
+            'again, and report it at '
+            'https://github.com/restage-dev/restage/issues with this '
+            'trace:\n$stackTrace',
+        location: buildStep.inputId.package,
+      ),
+    ]);
+  }
 }
 
 Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
@@ -668,6 +696,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         minClient: sidecar.manifest.builtInFloor,
         blob: artifact.blob,
         vocabulary: artifact.vocabulary,
+        stepMount: artifact.compiledScreenInput,
         canonicalPaywallId:
             source.kind == RestageRosterSourceKind.paywall && source.isCanonical
             ? source.effectiveId
@@ -1310,6 +1339,7 @@ TrackedPackageSurfaceCompilation _validCompilation(
       splitSites: bundle.splitSites,
       surfaceIslands: bundle.surfaceIslands,
       surfaceComponents: bundle.surfaceComponents,
+      unfitPublications: bundle.unfitPublications,
       splitRegistrations: bundle.splitRegistrations,
     ),
     measurementCompilerOutput: measurementCompilerOutput,
@@ -1423,13 +1453,10 @@ final class PackageSurfaceCompilerBuilder implements Builder {
     this.options, {
     MeasurementCompilerLedgerWriter ledgerWriter =
         _persistMeasurementCompilerLedgerSource,
-    PriorGeneratedOutputReader priorOutputReader = readPriorGeneratedOutputs,
-  }) : _ledgerWriter = ledgerWriter,
-       _priorOutputReader = priorOutputReader;
+  }) : _ledgerWriter = ledgerWriter;
 
   final BuilderOptions options;
   final MeasurementCompilerLedgerWriter _ledgerWriter;
-  final PriorGeneratedOutputReader _priorOutputReader;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
@@ -1443,6 +1470,10 @@ final class PackageSurfaceCompilerBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
+    final preserved = await buildStep.fetchResource(
+      restagePreservedOutputsResource,
+    );
+    preserved.compiling(buildStep.inputId.package);
     final plan = RestageOutputLocationPlan.fromBuilderOptions(options);
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
@@ -1461,15 +1492,11 @@ final class PackageSurfaceCompilerBuilder implements Builder {
         output: compilation.measurementCompilerOutput,
       );
     } else {
-      // A refused build materializes nothing, so the outputs it would
-      // otherwise lose are captured here for the builders that own them.
-      final preserved = await buildStep.fetchResource(
-        restagePreservedOutputsResource,
-      );
-      preserved.capture(
-        buildStep.inputId.package,
-        await _priorOutputReader(buildStep.inputId.package, plan),
-      );
+      // The outputs builder can't read a failed step's bundle. It records why
+      // the build failed from this refusal.
+      preserved.refuse(buildStep.inputId.package, [
+        for (final issue in compilation.issues) issue.toLogString(),
+      ]);
     }
     await Future.wait([
       buildStep.writeAsString(
@@ -2396,6 +2423,7 @@ List<ResolvedClassFlowScreen> _resolvedClassFlowScreens(
         minClient: sidecar.manifest.builtInFloor,
         blob: artifact.blob,
         vocabulary: artifact.vocabulary,
+        stepMount: artifact.compiledScreenInput,
         canonicalPaywallId: source.kind == RestageRosterSourceKind.paywall
             ? source.effectiveId
             : null,

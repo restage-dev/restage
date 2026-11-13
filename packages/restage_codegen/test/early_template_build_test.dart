@@ -5,7 +5,8 @@ import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/render_bundles/render_bundle_project.dart'
     show writeSurfaceCaptureProject;
 import 'package:test/test.dart';
-import 'package:yaml/yaml.dart';
+
+import 'support/scratch_app.dart';
 
 // An app builds offline without a key, and with one the native template and
 // the generated registration carry the same key and service URL.
@@ -16,12 +17,12 @@ void main() {
       final packages = p.normalize(p.join(Directory.current.path, '..'));
       final root = await Directory.systemTemp.createTemp('early_template_');
       addTearDown(() => root.delete(recursive: true));
-      final overrides = _workspaceClosure(
+      final overrides = workspaceClosure(
         p.normalize(p.join(packages, '..')),
         const ['restage', 'restage_codegen'],
       );
       final app = p.join(root.path, 'app');
-      _write(app, 'pubspec.yaml', '''
+      writeScratchFile(app, 'pubspec.yaml', '''
 name: app
 publish_to: none
 environment:
@@ -42,7 +43,7 @@ dev_dependencies:
 dependency_overrides:
 ${[for (final MapEntry(key: name, value: path) in overrides.entries) '  $name:\n    path: $path'].join('\n')}
 ''');
-      _write(app, 'lib/paywalls/offer.dart', '''
+      writeScratchFile(app, 'lib/paywalls/offer.dart', '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -71,10 +72,10 @@ class OfferPaywall extends StatelessWidget {
       ], workingDirectory: app);
       expect(get.exitCode, 0, reason: '${get.stdout}\n${get.stderr}');
 
-      final offline = await _build(app);
-      expect(offline.exitCode, 0, reason: _output(offline));
+      final offline = await buildScratchApp(app);
+      expect(offline.exitCode, 0, reason: processOutput(offline));
       expect(
-        _output(offline),
+        processOutput(offline),
         contains(
           "The first-launch request isn't built in: no publishable key. "
           'Try `restage init --sdk-key rs_pk_...`.',
@@ -85,7 +86,7 @@ class OfferPaywall extends StatelessWidget {
       expect(factories.readAsStringSync(), isNot(contains('_restageApiKey')));
 
       // The old builder's options are reported, not read.
-      _write(app, 'build.yaml', r'''
+      writeScratchFile(app, 'build.yaml', r'''
 targets:
   $default:
     builders:
@@ -94,10 +95,10 @@ targets:
           api_key: rs_pk_sandbox_dev_old
           base_url: https://old.example.com
 ''');
-      final moved = await _build(app);
-      expect(moved.exitCode, 0, reason: _output(moved));
+      final moved = await buildScratchApp(app);
+      expect(moved.exitCode, 0, reason: processOutput(moved));
       expect(
-        _output(moved),
+        processOutput(moved),
         contains(
           'build.yaml sets api_key, base_url under '
           'restage_codegen:restage_early_template, which the build no longer '
@@ -109,7 +110,7 @@ targets:
 
       // Keyed, with the URL as a sign-in stores it and pubspec not yet listing
       // the iOS asset.
-      _write(app, 'build.yaml', r'''
+      writeScratchFile(app, 'build.yaml', r'''
 targets:
   $default:
     builders:
@@ -122,11 +123,11 @@ targets:
           delivery_keys:
             - 7:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
 ''');
-      final keyed = await _build(app);
-      expect(keyed.exitCode, 0, reason: _output(keyed));
-      expect(_output(keyed), isNot(contains("isn't built in")));
+      final keyed = await buildScratchApp(app);
+      expect(keyed.exitCode, 0, reason: processOutput(keyed));
+      expect(processOutput(keyed), isNot(contains("isn't built in")));
       expect(
-        _output(keyed),
+        processOutput(keyed),
         contains(
           'iOS sends the first-launch request only when pubspec.yaml lists '
           '`ios/Runner/restage_early.json` under `flutter: assets:`.',
@@ -168,7 +169,7 @@ targets:
       // The contract the build wrote is the one the SDK computes at runtime
       // for the same app, or one it covers, so the platform's first request
       // is adopted.
-      _write(app, 'test/early_contract_test.dart', '''
+      writeScratchFile(app, 'test/early_contract_test.dart', '''
 import 'dart:convert';
 import 'dart:io';
 
@@ -246,16 +247,16 @@ void main() {
         'test',
         'test/early_contract_test.dart',
       ], workingDirectory: app);
-      expect(contract.exitCode, 0, reason: _output(contract));
+      expect(contract.exitCode, 0, reason: processOutput(contract));
 
       // An app that turns measurement off: its first launch registers nothing.
-      _write(app, 'lib/main.dart', '''
+      writeScratchFile(app, 'lib/main.dart', '''
 import 'package:restage/restage.dart';
 
 void main() => Restage.configure(measurementEnabled: false);
 ''');
-      final unmeasured = await _build(app);
-      expect(unmeasured.exitCode, 0, reason: _output(unmeasured));
+      final unmeasured = await buildScratchApp(app);
+      expect(unmeasured.exitCode, 0, reason: processOutput(unmeasured));
       final json = jsonDecode(template.readAsStringSync()) as Map;
       expect(json['measurement'], isFalse);
       expect(
@@ -271,8 +272,8 @@ void main() => Restage.configure(measurementEnabled: false);
         '  assets:\n    - ios/Runner/restage_early.json\n',
       );
       File(p.join(app, 'build.yaml')).deleteSync();
-      final listed = await _build(app);
-      expect(listed.exitCode, 0, reason: _output(listed));
+      final listed = await buildScratchApp(app);
+      expect(listed.exitCode, 0, reason: processOutput(listed));
       expect(iosTemplate.readAsStringSync(), '{}\n');
       expect(template.existsSync(), isFalse);
 
@@ -289,19 +290,23 @@ targets:
       - ios/**
     builders:
 ''';
-      _write(app, 'build.yaml', '''$sources
+      writeScratchFile(app, 'build.yaml', '''$sources
       restage_codegen:user_factories:
         options:
           api_key: rs_pk_sandbox_dev_build
           base_url: https://api.example.com
 ''');
-      final narrowKeyed = await _build(app);
-      expect(narrowKeyed.exitCode, 0, reason: _output(narrowKeyed));
-      expect(_output(narrowKeyed), isNot(contains('iOS sends')));
+      final narrowKeyed = await buildScratchApp(app);
+      expect(narrowKeyed.exitCode, 0, reason: processOutput(narrowKeyed));
+      expect(processOutput(narrowKeyed), isNot(contains('iOS sends')));
       expect(iosTemplate.readAsStringSync(), contains('"url"'));
-      _write(app, 'build.yaml', sources.replaceFirst('    builders:\n', ''));
-      final narrowOffline = await _build(app);
-      expect(narrowOffline.exitCode, 0, reason: _output(narrowOffline));
+      writeScratchFile(
+        app,
+        'build.yaml',
+        sources.replaceFirst('    builders:\n', ''),
+      );
+      final narrowOffline = await buildScratchApp(app);
+      expect(narrowOffline.exitCode, 0, reason: processOutput(narrowOffline));
       expect(iosTemplate.readAsStringSync(), '{}\n');
     },
   );
@@ -313,12 +318,12 @@ targets:
       final packages = p.normalize(p.join(Directory.current.path, '..'));
       final root = await Directory.systemTemp.createTemp('state_inputs_');
       addTearDown(() => root.delete(recursive: true));
-      final overrides = _workspaceClosure(
+      final overrides = workspaceClosure(
         p.normalize(p.join(packages, '..')),
         const ['restage', 'restage_codegen'],
       );
       final app = p.join(root.path, 'app');
-      _write(app, 'pubspec.yaml', """
+      writeScratchFile(app, 'pubspec.yaml', """
 name: app
 publish_to: none
 environment:
@@ -335,7 +340,7 @@ dev_dependencies:
 dependency_overrides:
 ${[for (final MapEntry(key: name, value: path) in overrides.entries) '  $name:\n    path: $path'].join('\n')}
 """);
-      _write(app, 'lib/paywalls/offer.dart', """
+      writeScratchFile(app, 'lib/paywalls/offer.dart', """
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
@@ -350,7 +355,11 @@ class OfferPaywall extends StatelessWidget {
 }
 """);
       // The broad state input older projects still list.
-      _write(app, 'build.yaml', 'additional_public_assets:\n  - .restage/**\n');
+      writeScratchFile(
+        app,
+        'build.yaml',
+        'additional_public_assets:\n  - .restage/**\n',
+      );
 
       final get = await Process.run('flutter', [
         'pub',
@@ -389,48 +398,14 @@ class OfferPaywall extends StatelessWidget {
             ),
           );
         }
-        final build = await _build(app);
-        expect(build.exitCode, 0, reason: 'build $run: ${_output(build)}');
+        final build = await buildScratchApp(app);
+        expect(
+          build.exitCode,
+          0,
+          reason: 'build $run: ${processOutput(build)}',
+        );
         expect(part.existsSync(), isTrue, reason: 'build $run');
       }
     },
   );
-}
-
-Future<ProcessResult> _build(String app) => Process.run('dart', [
-  'run',
-  'build_runner',
-  'build',
-], workingDirectory: app);
-
-String _output(ProcessResult result) => '${result.stdout}\n${result.stderr}';
-
-void _write(String root, String path, String contents) =>
-    File(p.join(root, path))
-      ..createSync(recursive: true)
-      ..writeAsStringSync(contents);
-
-/// The workspace members [roots] reach through `dependencies`, by name, each
-/// with its directory, read from the root pubspec's `workspace:` list.
-Map<String, String> _workspaceClosure(String repoRoot, List<String> roots) {
-  YamlMap pubspec(String directory) =>
-      loadYaml(File(p.join(directory, 'pubspec.yaml')).readAsStringSync())
-          as YamlMap;
-  final members = <String, String>{
-    for (final path
-        in (pubspec(repoRoot)['workspace'] as YamlList).cast<String>())
-      if (p.join(repoRoot, path) case final directory)
-        pubspec(directory)['name'] as String: directory,
-  };
-  final closure = <String, String>{};
-  final pending = [...roots];
-  while (pending.isNotEmpty) {
-    final name = pending.removeLast();
-    final directory = members[name];
-    if (directory == null || closure.containsKey(name)) continue;
-    closure[name] = directory;
-    final dependencies = pubspec(directory)['dependencies'] as YamlMap?;
-    pending.addAll(dependencies?.keys.cast<String>() ?? const []);
-  }
-  return closure;
 }

@@ -2,10 +2,89 @@ import 'dart:convert';
 
 import 'package:analyzer/dart/element/element.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
+import 'package:restage_codegen/src/islands/islands.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/host_data_contract.dart';
+import 'package:restage_codegen/src/surface_publication/recorded_layouts.dart';
+import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_shared/restage_shared.dart';
+
+/// What a flow's placement passes its steps, from their generated mounts:
+/// their host data and islands across the flow and the subflows it reaches,
+/// and each step's recorded layouts under `flow/step`. [conflicts] names
+/// each value two steps pass under one name with different types, which one
+/// placement can't pass for both.
+({
+  SurfaceScreenHostDataSchema context,
+  Map<String, String> islands,
+  Map<String, SurfaceLayoutsV1> layouts,
+  List<String> conflicts,
+})
+flowStepHostFacets(
+  FlowDocument document, {
+  required Map<String, FlowDocument> descendants,
+  required Map<String, ResolvedWidgetMountInput> stepMounts,
+}) {
+  final context = <String, SurfaceScreenHostDataShape>{};
+  final passedBy = <String, String>{};
+  final conflicts = <String>[];
+  final islands = <Island>[];
+  final layouts = <String, SurfaceLayoutsV1>{};
+  final reached = {document.flow};
+  for (final queue = [document]; queue.isNotEmpty;) {
+    final flow = queue.removeLast();
+    for (final screen in flow.screenArtifacts.keys) {
+      final mount = stepMounts[screen];
+      if (mount == null) continue;
+      for (final MapEntry(:key, :value)
+          in mount.hostDataContract.inputs.entries) {
+        final step = mount.screen.name ?? screen;
+        if (context[key] case final first?) {
+          if (!_sameShape(first, value) && passedBy[key] != step) {
+            conflicts.add(
+              '`${passedBy[key]}` and `$step` both pass '
+              '`${value.label ?? key}`, as ${_kindOf(first)} and as '
+              '${_kindOf(value)}',
+            );
+          }
+          continue;
+        }
+        context[key] = value;
+        passedBy[key] = step;
+      }
+      islands.addAll(mount.islands);
+      layouts['${flow.flow}/$screen'] = recordedLayoutsOf(
+        mount.split?.recordedBuild,
+      );
+    }
+    for (final state in flow.states.values.whereType<SubFlowState>()) {
+      if (!reached.add(state.flow)) continue;
+      if (descendants[state.flow] case final child?) queue.add(child);
+    }
+  }
+  return (
+    context: SurfaceScreenHostDataSchema(context),
+    islands: islandHostFacet(islands),
+    layouts: layouts,
+    conflicts: conflicts,
+  );
+}
+
+// Whether [a] and [b] pass the same type, whatever they're labelled.
+bool _sameShape(SurfaceScreenHostDataShape a, SurfaceScreenHostDataShape b) {
+  Map<String, Object?> bare(SurfaceScreenHostDataShape shape) =>
+      Map.of(shape.toJson())..remove('label');
+  return jsonEncode(bare(a)) == jsonEncode(bare(b));
+}
+
+String _kindOf(SurfaceScreenHostDataShape shape) => switch (shape.toJson()) {
+  {'contract': {'type': final String type}} => '`$type`',
+  {'kind': 'string'} => '`String`',
+  {'kind': 'number'} => '`num`',
+  {'kind': final String kind} => '`$kind`',
+  _ => 'another type',
+};
 
 /// Generated original-graph argument and the typed mount that binds it.
 typedef CompiledFlowEmission = ({String argument, String mount});
@@ -22,6 +101,8 @@ String? _sdkPrefix(OwningLibraryNamespace namespace) =>
     });
 
 /// Retains the existing canonical documents and original Flutter constructors.
+///
+/// [providedContext] is what the flow's step mounts pass its steps.
 CompiledFlowEmission emitCompiledFlow({
   required FlowDocument document,
   required Surface surface,
@@ -33,6 +114,8 @@ CompiledFlowEmission emitCompiledFlow({
   required String resultType,
   Map<String, String> islands = const {},
   Map<String, SurfaceLayoutsV1> screenLayouts = const {},
+  SurfaceScreenHostDataSchema providedContext =
+      const SurfaceScreenHostDataSchema.empty(),
 }) {
   final namespace = OwningLibraryNamespace(library);
   final sdk = _sdkPrefix(namespace);
@@ -111,7 +194,7 @@ ${sdk}CompiledFlow(
         contentKind: SurfaceContentKindV1.flow,
         presentation: SurfacePresentationV1.inline,
       ),
-      providedContext: const SurfaceScreenHostDataSchema.empty(),
+      providedContext: providedContext,
       handledEvents: SurfaceScreenEventSchema(events: const []),
       flowBoundary: FlowHostBoundaryV1.fromDocuments(
         root: document,

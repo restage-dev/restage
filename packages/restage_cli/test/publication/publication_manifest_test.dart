@@ -39,13 +39,45 @@ void main() {
     );
   });
 
-  test('invalid marker wins over a present manifest', () async {
+  // A failed build keeps the outputs of the one before it.
+  const failure =
+      '[stateShapeUnsupported] lib/onboarding/broken.dart: '
+      "State field '_items' has unsupported type List<int>.";
+  Matcher refusesFailedBuild() => throwsA(
+    isA<PublicationManifestException>().having(
+      (error) => error.message,
+      'message',
+      'The last `dart run build_runner build` failed with 2 errors, so there '
+          'is nothing current to push. The first: $failure Try fixing it, then '
+          'run `dart run build_runner build` again.',
+    ),
+  );
+
+  test('a failed build refuses the outputs an earlier build left', () async {
     await seedGeneratedPaywall(tempDir);
-    final marker = File(
-      p.join(tempDir.path, surfacePublicationInvalidRelativePath),
+    await writeBuildResult(tempDir, errors: [failure, 'second\ndetail']);
+
+    await expectLater(
+      SurfacePublicationManifestLoader().load(projectRoot: tempDir),
+      refusesFailedBuild(),
     );
-    await marker.parent.create(recursive: true);
-    await marker.writeAsString('generated output failed');
+  });
+
+  test('a failed build with no earlier outputs names the failure', () async {
+    await writeBuildResult(tempDir, errors: [failure, 'second']);
+
+    await expectLater(
+      SurfacePublicationManifestLoader().load(projectRoot: tempDir),
+      refusesFailedBuild(),
+    );
+  });
+
+  test('a failed build that gives its own fix is shown whole', () async {
+    const noResult =
+        "Restage has no result from compiling the package's surfaces. Try "
+        'running `dart run build_runner clean`, then '
+        '`dart run build_runner build`.';
+    await writeBuildResult(tempDir, errors: [noResult]);
 
     await expectLater(
       SurfacePublicationManifestLoader().load(projectRoot: tempDir),
@@ -53,11 +85,52 @@ void main() {
         isA<PublicationManifestException>().having(
           (error) => error.message,
           'message',
-          contains('Generated publication output is invalid'),
+          'The last `dart run build_runner build` failed, so there is '
+              'nothing current to push. $noResult',
         ),
       ),
     );
   });
+
+  test('outputs without a build result are refused', () async {
+    await seedGeneratedPaywall(tempDir);
+    await File(
+      p.join(tempDir.path, '.restage/build/metadata/restage.build.json'),
+    ).delete();
+
+    await expectLater(
+      SurfacePublicationManifestLoader().load(projectRoot: tempDir),
+      throwsA(
+        isA<PublicationManifestException>().having(
+          (error) => error.message,
+          'message',
+          contains("doesn't record whether the build that wrote it succeeded"),
+        ),
+      ),
+    );
+  });
+
+  test(
+    'outputs from another build than the last success are refused',
+    () async {
+      await seedGeneratedPaywall(tempDir);
+      await writeBuildResult(
+        tempDir,
+        generationFingerprint: 'sha256:${'0' * 64}',
+      );
+
+      await expectLater(
+        SurfacePublicationManifestLoader().load(projectRoot: tempDir),
+        throwsA(
+          isA<PublicationManifestException>().having(
+            (error) => error.message,
+            'message',
+            contains("isn't from the last successful build"),
+          ),
+        ),
+      );
+    },
+  );
 
   test(
     'missing generated metadata fails closed without directory fallback',
@@ -92,12 +165,12 @@ void main() {
     await manifestFile.writeAsString(reformatted);
     // Re-stamp the fingerprint so the index still vouches for these exact
     // bytes; the manifest's own canonical form is what must fail here.
+    final fingerprint = CapabilitySidecar.hashBlob(utf8.encode(reformatted));
     await mutateGeneratedIndex(
       tempDir,
-      (index) => index['generationFingerprint'] = CapabilitySidecar.hashBlob(
-        utf8.encode(reformatted),
-      ),
+      (index) => index['generationFingerprint'] = fingerprint,
     );
+    await writeBuildResult(tempDir, generationFingerprint: fingerprint);
 
     await expectLater(
       SurfacePublicationManifestLoader().load(projectRoot: tempDir),

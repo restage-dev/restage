@@ -13,6 +13,10 @@ const String restageOutputsFileName = 'restage.outputs.json';
 /// The package-wide generated publication manifest filename.
 const String restagePublicationFileName = 'restage.publication.json';
 
+/// The file each build writes beside the output index to record whether it
+/// compiled the package's surfaces.
+const String restageBuildResultFileName = 'restage.build.json';
+
 /// The default package-relative directory for generated portable metadata.
 const String defaultRestagePortableOutputRoot = '.restage/build';
 
@@ -320,6 +324,7 @@ final class LoadedRestagePublicationOutputs {
     required this.publicationFile,
     required this.publicationManifestSource,
     required this.index,
+    this.unfit = const {},
   });
 
   /// Package root used to resolve all recorded physical paths.
@@ -336,6 +341,10 @@ final class LoadedRestagePublicationOutputs {
 
   /// The decoded strict output index.
   final RestageOutputIndex index;
+
+  /// Why each surface that doesn't fit its own placement can't be pushed,
+  /// by `<surface>/<slug>`.
+  final Map<String, String> unfit;
 }
 
 /// Resolves generated publication metadata using the package's configured
@@ -352,10 +361,21 @@ final class RestagePublicationOutputsLoader {
 
   /// Locate and decode exactly one generated output index, then read and
   /// verify the publication manifest it names.
+  ///
+  /// Without [built], outputs a later build failed to replace still load,
+  /// for a command that only reads which surfaces the package declares.
   Future<LoadedRestagePublicationOutputs> load({
     required Directory projectRoot,
+    bool built = true,
   }) async {
     final root = projectRoot.absolute;
+    // A failed build keeps the previous outputs, so its result is read first.
+    final configured = await _configuredIndexFile(root);
+    if (built) {
+      _refuseFailedBuild(
+        File(p.join(configured.parent.path, restageBuildResultFileName)),
+      );
+    }
     final outputsFile = await _locateIndexFile(root);
 
     final source = await _readText(outputsFile, 'generated output index');
@@ -405,6 +425,32 @@ final class RestagePublicationOutputsLoader {
         '`dart run build_runner build` and retry.',
       );
     }
+    final result = _buildResult(
+      File(p.join(outputsFile.parent.path, restageBuildResultFileName)),
+    );
+    if (!built) {
+      return LoadedRestagePublicationOutputs(
+        projectRoot: root,
+        outputsFile: outputsFile,
+        publicationFile: publicationFile,
+        publicationManifestSource: publicationSource,
+        index: index,
+      );
+    }
+    if (result == null) {
+      throw const PublicationManifestException(
+        "The generated output doesn't record whether the build that wrote it "
+        'succeeded. Try running `dart run build_runner build` with the '
+        "project's restage_codegen, then retry.",
+      );
+    }
+    if (result['result'] != 'succeeded' ||
+        result['generationFingerprint'] != index.generationFingerprint) {
+      throw const PublicationManifestException(
+        "The generated output isn't from the last successful build. Try "
+        'running `dart run build_runner build` again, then retry.',
+      );
+    }
 
     return LoadedRestagePublicationOutputs(
       projectRoot: root,
@@ -412,6 +458,10 @@ final class RestagePublicationOutputsLoader {
       publicationFile: publicationFile,
       publicationManifestSource: publicationSource,
       index: index,
+      unfit: {
+        if (result['unfit'] case final Map<String, Object?> unfit)
+          for (final MapEntry(:key, :value) in unfit.entries) key: '$value',
+      },
     );
   }
 
@@ -451,6 +501,46 @@ final class RestagePublicationOutputsLoader {
       );
     }
     return strays.single;
+  }
+
+  // Refuses when the last build recorded at [file] failed.
+  void _refuseFailedBuild(File file) {
+    final result = _buildResult(file);
+    if (result == null || result['result'] != 'failed') return;
+    final errors = [
+      for (final error in result['errors'] as List<Object?>? ?? const [])
+        '$error'.split('\n').first.trim(),
+    ];
+    if (errors.isEmpty) {
+      throw const PublicationManifestException(
+        'The last `dart run build_runner build` failed without saying why. '
+        'Try running it again.',
+      );
+    }
+    final first = errors.first;
+    // The build's own fix, or a general one when it gives none.
+    final fix = first.contains('Try ')
+        ? ''
+        : ' Try fixing it, then run `dart run build_runner build` again.';
+    throw PublicationManifestException(
+      errors.length == 1
+          ? 'The last `dart run build_runner build` failed, so there is '
+                'nothing current to push. $first$fix'
+          : 'The last `dart run build_runner build` failed with '
+                '${errors.length} errors, so there is nothing current to push. '
+                'The first: $first$fix',
+    );
+  }
+
+  // The build result recorded at [file], or `null` when there is none.
+  Map<String, Object?>? _buildResult(File file) {
+    if (!file.existsSync()) return null;
+    try {
+      final json = jsonDecode(file.readAsStringSync());
+      return json is Map<String, Object?> ? json : null;
+    } on FormatException {
+      return null;
+    }
   }
 
   Future<File> _configuredIndexFile(Directory root) async {

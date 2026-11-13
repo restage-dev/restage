@@ -686,7 +686,36 @@ Future<void> writeGeneratedOutput(
     ],
   );
   await _writeText(projectRoot, layout.outputIndexPath, index.encodeJson());
+  await writeBuildResult(
+    projectRoot,
+    layout: layout,
+    generationFingerprint: index.generationFingerprint,
+  );
 }
+
+/// Records the last build's result as the build writes it beside the index:
+/// succeeded for [generationFingerprint], or failed with [errors].
+Future<void> writeBuildResult(
+  Directory projectRoot, {
+  GeneratedOutputLayout layout = GeneratedOutputLayout.generatedDirectory,
+  String? generationFingerprint,
+  List<String>? errors,
+  Map<String, String> unfit = const {},
+}) => _writeText(
+  projectRoot,
+  p.posix.join(layout.metadataDirectory, restageBuildResultFileName),
+  jsonEncode(<String, Object?>{
+    'schemaVersion': 1,
+    if (errors == null) ...{
+      'result': 'succeeded',
+      'generationFingerprint': generationFingerprint,
+      if (unfit.isNotEmpty) 'unfit': unfit,
+    } else ...{
+      'result': 'failed',
+      'errors': errors,
+    },
+  }),
+);
 
 /// Encode one real bundle through the shared codec and write it.
 Future<void> writeGeneratedBundle(
