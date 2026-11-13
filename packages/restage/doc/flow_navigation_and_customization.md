@@ -333,9 +333,7 @@ and over-the-air updates), render each current screen through
 Because it renders only the current screen, use an **incoming** transition:
 animate the new screen in on each step, and the old one is simply replaced. A
 transition that shows two screens at once needs the outgoing screen too, which
-this widget doesn't hold; use `RestageFlowView(transition:)` for that. See the *build-your-own-flow* example
-in `apps/examples/` for a controller + `RestageScreenView` + a host-owned
-incoming transition + a host-owned back control.
+this widget doesn't hold; use `RestageFlowView(transition:)` for that.
 
 | You want… | Use |
 |---|---|

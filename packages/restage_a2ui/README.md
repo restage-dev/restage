@@ -5,8 +5,10 @@
 [Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
 change any screen of a shipped Flutter app without a release.
 
+This README describes the `main` branch. For a released version, see its page on pub.dev.
+
 Requires A2UI 1.0 through `a2ui_flutter: ^0.3.0` and `a2ui_core: ^0.7.0`,
-with Dart >=3.11.0, Flutter >=3.38.0 and `json_schema_builder` >=0.1.7.
+with Dart >=3.10.0, Flutter >=3.38.0 and `json_schema_builder` >=0.1.7.
 
 Turn your own Flutter widgets into an [A2UI](https://a2ui.org)
 catalog that a generative-UI model can build screens from, and check each
@@ -30,7 +32,9 @@ Write a plain Flutter widget, annotate it, run `build_runner`, and get an a2ui_f
 catalog. You don't write `ComponentImplementation`s or JSON schemas by hand.
 
 **1. Add dependencies.** The codegen runs at build time and does not ship in
-your app.
+your app. The Restage packages come from the repository's `main` branch, and
+the override keeps every package that asks for `rfw_catalog_schema` on the same
+copy:
 
 ```yaml
 dependencies:
@@ -38,14 +42,35 @@ dependencies:
   a2ui_core: ^0.7.0             # incoming A2UI messages
   json_schema_builder: ^0.1.7   # used by the generated data schemas
   restage_a2ui:
-    path: ../restage_a2ui       # local repository package
-  rfw_catalog_schema: ^2.0.0    # the widget and data-field annotations
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_a2ui
+  rfw_catalog_schema:           # the widget and data-field annotations
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/rfw_catalog_schema
 
 dev_dependencies:
+  build_runner: ">=2.15.1 <3.0.0"
   restage_codegen:
-    path: ../restage_codegen    # local repository package
-  build_runner: ^2.4.0
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_codegen
+
+dependency_overrides:
+  rfw_catalog_schema:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/rfw_catalog_schema
 ```
+
+In an app that also uses `restage`, add these next to the entries and
+overrides from the
+[quickstart](https://docs.restage.dev/quickstart#1-add-the-packages).
 
 **2. Declare your widget library once.** A barrel file names the library and
 its capability version, and re-exports the widgets it owns. The build stamps
@@ -207,6 +232,8 @@ message bundles. A cached Restage sidecar must be checked before unwrapping:
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:restage_a2ui/restage_a2ui.dart';
 
+import 'generated/restage_a2ui_catalog.g.dart';
+
 final check = RestageA2uiPreRenderCheck(
   catalogs: [session.catalog],
   installed: restageA2uiCapability.installedCapability,
@@ -350,7 +377,7 @@ configures them.
 ## Requirements
 
 Requires A2UI 1.0 through `a2ui_flutter: ^0.3.0` and `a2ui_core: ^0.7.0`,
-with Dart >=3.11.0, Flutter >=3.38.0 and `json_schema_builder` >=0.1.7.
+with Dart >=3.10.0, Flutter >=3.38.0 and `json_schema_builder` >=0.1.7.
 
 ## Migrating an existing integration
 
@@ -384,7 +411,7 @@ a new application-owned catalog ID to a changed schema/component set.
 
 Component type names must satisfy upstream UAX31 identifiers and cannot be
 `Surface`. Use `@RestageWidget(name: ...)` to choose a valid widget identity.
-Native screens retain the exact `@Screen(id: ...)` / `@ScreenSource(id: ...)`
+Native screens retain the exact `@Screen(id: ...)`
 identity as their component type name: update invalid IDs and their consumers
 explicitly. The generator never silently aliases them.
 

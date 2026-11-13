@@ -21,7 +21,8 @@ import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart';
 /// product's introductory offer and require StoreKit 2 to report the user
 /// eligible within 3 seconds. The in_app_purchase plugin gives App Store offers
 /// no localized price, so the helper formats it like the product's price; a
-/// paid offer it cannot format is omitted, and a free trial omits `priceString`.
+/// paid offer it cannot format is omitted, and a free trial omits `priceString`
+/// only when it cannot be formatted.
 Future<Map<String, Object>> inAppPurchaseOfferingData({
   required String identifier,
   required Map<String, ProductDetails> packages,

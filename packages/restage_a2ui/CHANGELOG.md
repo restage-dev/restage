@@ -2,7 +2,7 @@
 
 - **Breaking, A2UI 1.0 migration:** generate
   `ComponentImplementation` / `CatalogImplementation` for
-  `a2ui_flutter ^0.3.0` and `a2ui_core ^0.7.0` (Dart >=3.11.0,
+  `a2ui_flutter ^0.3.0` and `a2ui_core ^0.7.0` (Dart >=3.10.0,
   Flutter >=3.38.0, json_schema_builder >=0.1.7). Regenerate catalogs and
   migrate cached/producer inputs to generated top-level properties and dynamic
   `@path`/`@call`. Ordinary names retain `props_<DartName>`; names invalid under

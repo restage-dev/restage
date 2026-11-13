@@ -166,7 +166,7 @@ supplies it. `restage init --force` updates an existing config without asking.
 `--force`. It changes only the target and keeps every other setting.
 
 `restage init` adds `restage`, `restage_material` and `restage_codegen` from the
-`main` branch of the public repository, with the two overrides that keep every
+`main` branch of the public repository, with the three overrides that keep every
 Restage package on that commit, and lists the state files builds read under
 `additional_public_assets` in `build.yaml`: `.restage/measurement-state.json`,
 `.restage/wire-ids.events.jsonl`, `.restage/receipts/**` and
@@ -187,7 +187,13 @@ sign-in's. With a key and an `ios/Runner` directory, init lists
 until the first build fills it, so the app builds before `build_runner` runs.
 `--no-early-request` is removed.
 
-`restage init` adds `build_runner` at `>=2.7.0`, fills an empty
+`restage init --preview-wrapper lib/restage_preview.dart#wrapPreview` records a
+function that wraps push preview images with what the app provides above its
+screens, such as a theme, as `previewWrapper` in `restage_config.yaml`. Init
+adds the INTERNET permission to `android/app/src/main/AndroidManifest.xml` when
+it's missing. Release builds can then reach Restage.
+
+`restage init` adds `build_runner` at `>=2.15.1`, fills an empty
 `dependency_overrides:` key instead of adding a second one, and changes nothing
 when `pubspec.yaml` does not parse.
 
@@ -200,7 +206,19 @@ Commands:
 - `restage surface push` — push a surface version to an environment.
 - `restage surface publish` — make one pushed revision live.
 - `restage experiment <operation>` — author, review, activate, and read
-  experiments at one target (experimental).
+  experiments at one target.
+- `restage offerings`, `restage entitlements set` and `restage products
+  fulfillment` — manage offerings, entitlement keys and one-time product
+  fulfillment.
+- `restage build report`, `restage build list`, `restage build push` and
+  `restage widget promote` — read the build report, list and push app builds,
+  and move a widget that renders from the app into a class of its own.
+- `restage keys`, `restage components`, `restage app-config`, `restage org
+  rename`, `restage app rename` and `restage app delete` — keys, shared
+  components, app settings, renames and deletes.
+- `restage surface rename-version`, `archive`, `restore`, `delete`, `routing`
+  and `check-libraries` — the rest of a surface's lifecycle.
+- `restage docs search` and `restage docs read` — search and read the docs.
 - `restage init` — bootstrap Restage into an existing Flutter project.
 - `restage doctor` — diagnose the local toolchain setup.
 

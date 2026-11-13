@@ -5,6 +5,8 @@
 [Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
 change any screen of a shipped Flutter app without a release.
 
+This README describes the `main` branch. For a released version, see its page on pub.dev.
+
 The `restage.cupertino` widget catalog for [Remote Flutter Widgets](https://pub.dev/packages/rfw):
 16 Cupertino (Apple-style) widgets, including `CupertinoButton` (and
 `CupertinoButton.filled`), navigation and page scaffolding, switches,

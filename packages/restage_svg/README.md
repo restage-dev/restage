@@ -5,6 +5,20 @@ dependencies and author ordinary `SvgPicture.asset`, `.network`, `.string`,
 `.memory`, `.file`, or `SvgPicture` with a supported native SVG loader. Generated
 registrations install the `restage.svg` library with capability version 2.
 
+Add it from the repository's `main` branch, next to the `restage` entries and
+overrides from the [quickstart](https://docs.restage.dev/quickstart#1-add-the-packages).
+List `flutter_svg` too, since your own code imports it:
+
+```yaml
+dependencies:
+  flutter_svg: ^2.3.0
+  restage_svg:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_svg
+```
+
 ```dart
 import 'package:flutter_svg/flutter_svg.dart';
 

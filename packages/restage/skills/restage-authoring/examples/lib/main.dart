@@ -10,7 +10,7 @@ import 'user_factories.g.dart';
 
 void main() {
   Restage.configure(
-    // Carries api_key and base_url from build.yaml; offline without them.
+    // Carries api_key, base_url and delivery_keys from build.yaml.
     registerWidgets: kRestageWidgetRegistration,
     // Fetch every surface in the background at startup.
     surfaces: restageSurfaces,

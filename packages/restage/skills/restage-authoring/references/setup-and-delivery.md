@@ -19,7 +19,7 @@ dependencies:
       path: packages/restage_material
 
 dev_dependencies:
-  build_runner: ">=2.7.0 <3.0.0"
+  build_runner: ">=2.15.1 <3.0.0"
   restage_codegen:
     git:
       url: https://github.com/restage-dev/restage.git

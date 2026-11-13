@@ -5,8 +5,10 @@
 [Restage](https://restage.dev) is server-driven UI for Flutter: it lets a team
 change any screen of a shipped Flutter app without a release.
 
+This README describes the `main` branch. For a released version, see its page on pub.dev.
+
 The `restage.core` widget catalog for [Remote Flutter Widgets](https://pub.dev/packages/rfw):
-58 cross-platform layout, structure, and decoration widgets, including
+73 cross-platform layout, structure, and decoration widgets, including
 Container, Column, Row, Stack, SizedBox, Padding, Center, Text, and Image.
 Add your own design-system widgets to the catalog with `@RestageWidget`.
 

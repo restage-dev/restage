@@ -15,12 +15,16 @@ From this directory:
 ```sh
 flutter create --platforms=android,ios .
 flutter pub get
+restage login
+restage init --no-add-deps --no-starter
 dart run build_runner build
-flutter run \
-  --dart-define=REVENUECAT_API_KEY=your_public_revenuecat_key \
-  --dart-define=RESTAGE_API_KEY=your_public_restage_key \
-  --dart-define=RESTAGE_BASE_URL=your_restage_api_url
+flutter run --dart-define=REVENUECAT_API_KEY=your_public_revenuecat_key
 ```
+
+`restage init` writes your app's publishable key, service URL and delivery keys
+to `build.yaml`, next to the `catalog: derived` option already there.
+`--no-add-deps` keeps the example's own dependencies, and `--no-starter` skips
+the starter paywall.
 
 Use your registered bundle/application identifier and the store setup required by
 RevenueCat. The platform projects are generated locally by `flutter create`.
@@ -59,11 +63,14 @@ final paywall = RevenueCatPaywallSurface(
 );
 ```
 
-Keep the `Restage.configureWithInstalledCatalog(surfaces: restageSurfaces, ...)`
-configuration from `lib/main.dart` with your public API key and base URL for
-hosted delivery. The example sets `catalog: derived` in `build.yaml`, which is
-why it uses that call. An app on the default whole catalog calls
-`Restage.configure` with the same arguments. If resolution fails, the generated mount renders the original
+`lib/main.dart` passes `registerWidgets: kRestageWidgetRegistration` to
+`Restage.configureWithInstalledCatalog`. The generated registration carries the
+key, service URL and delivery keys from `build.yaml`. Without delivery keys,
+every delivered version is refused and the mount shows the compiled paywall.
+
+The example sets `catalog: derived`. That's why it calls
+`Restage.configureWithInstalledCatalog`. An app on the default whole catalog
+calls `Restage.configure` with the same arguments. If resolution fails, the generated mount renders the original
 compiled paywall with the same typed inputs and event handler.
 
 To try another price point, add a package to the same offering and publish a version

@@ -8,12 +8,16 @@ or any other screen.
 
 Part of [Restage](https://restage.dev), server-driven UI for Flutter.
 
+This README describes the `main` branch. For a released version, see its page on pub.dev.
+
 You write plain Flutter. The generator handles a broad set of it (`Text.rich`,
 `Theme.of(context)`, `Navigator.push`, `showModalBottomSheet`, `PageView`,
 `NumberFormat`, style values such as `TextStyle` and `BoxDecoration`, the
-selection controls, and custom widgets built by composing other widgets). On
-anything it can't represent, the build fails with an error. It never produces
-a partial surface.
+selection controls, and custom widgets built by composing other widgets).
+Code it can't represent renders from the app instead, and a design can still
+change what's around it. A short list of things stops the build with an error.
+[What renders from your app](https://docs.restage.dev/authoring/islands) lists
+both.
 
 The output is [Remote Flutter Widgets](https://pub.dev/packages/rfw) artifacts,
 a widget catalog, and typed Dart accessors that the
@@ -21,13 +25,54 @@ a widget catalog, and typed Dart accessors that the
 
 ## Setup
 
-Add the package as a dev dependency and generate the local outputs:
+Add the packages from the repository's `main` branch, with overrides so every
+Restage package resolves to the same copy. `restage init` writes the same
+entries:
 
 ```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  restage:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage
+  restage_material:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_material
+
 dev_dependencies:
-  restage_codegen: ^2.0.0
-  build_runner: ^2.16.1
+  flutter_test:
+    sdk: flutter
+  build_runner: ">=2.15.1 <3.0.0"
+  restage_codegen:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_codegen
+
+dependency_overrides:
+  restage:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage
+  restage_material:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_material
+  rfw_catalog_schema:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/rfw_catalog_schema
 ```
+
+Then generate the local outputs:
 
 ```sh
 dart run build_runner build
@@ -38,8 +83,19 @@ using hosted delivery, `restage surface push <id>` uploads a revision and
 `restage surface publish <id>` makes it live.
 
 You don't import this package in app code. Its builders apply to your package
-automatically and write their outputs next to the sources they read. No
-`build.yaml` is needed. Add `--verbose` to the build to print a summary of
+automatically and write their outputs next to the sources they read. The one
+`build.yaml` entry the build asks for lists the state files it reads. An
+edit to one of them triggers a rebuild. `restage init` adds it:
+
+```yaml
+additional_public_assets:
+  - .restage/measurement-state.json
+  - .restage/wire-ids.events.jsonl
+  - .restage/receipts/**
+  - .restage/library-contracts/**
+```
+
+Add `--verbose` to the build to print a summary of
 the surfaces it compiled.
 
 A surface that draws icons ships a subset of their icon font, cut with the
@@ -81,10 +137,14 @@ From one annotated source file:
   `ios/Runner/restage_early.json`): the first placement request, which the
   platform sends at app launch before Dart starts. Set `api_key`, `base_url`
   and optionally `channel` under the `restage_codegen:user_factories` builder
-  options in `build.yaml`; `restage init --sdk-key rs_pk_...` writes them. The
-  generated `kRestageWidgetRegistration` carries them, so
-  `Restage.configure(registerWidgets: kRestageWidgetRegistration)` needs no
-  `apiKey` or `baseUrl`. Without a key the build writes no template and says so
+  options in `build.yaml`, next to `delivery_keys`, the keys delivered content
+  must be signed with. A signed-in `restage init` writes all of them, and
+  `restage keys delivery` prints the delivery keys. `restage init --sdk-key
+  rs_pk_...` without a sign-in writes only `api_key` and `base_url`. The
+  generated `kRestageWidgetRegistration` carries these options, and
+  `Restage.configure(registerWidgets: kRestageWidgetRegistration)` reads them.
+  Without delivery keys, every delivered version is refused and mounts show
+  the compiled widget. Without a key the build writes no template and says so
   in one line; the app then runs offline. `analytics: false` in the same
   options starts the app with analytics off: the template's first launch sends
   no install id, registration or assignment, until the app passes
@@ -110,15 +170,20 @@ Generated Dart sits next to its source in `restage.generated/`. Everything
 else goes under `.restage/build/`:
 
 - `bundles/` mirrors your `lib/` folders.
-- `metadata/` holds the publication manifest.
+- `metadata/` holds the publication manifest and `restage.build.json`, which
+  records whether the last build succeeded. A failed build keeps the previous
+  outputs, and `restage surface push` refuses them with the build's first
+  error.
 - `widget_catalog/` holds your custom widget catalog.
 - `a2ui/` holds the A2UI catalog, if you turn it on.
 
 Add `.restage/build/` to `.gitignore`. Commit
-`.restage/measurement-state.json` and `.restage/wire-ids.events.jsonl`: they
-keep analytics IDs and catalog IDs stable across clean builds.
+`.restage/measurement-state.json`, `.restage/wire-ids.events.jsonl`,
+`.restage/receipts/` and `.restage/library-contracts/`. They keep analytics
+IDs, catalog IDs, release receipts and recorded library versions stable across
+clean builds.
 
-If you edit either file by hand while `build_runner watch` is running, restart
+If you edit one of these files by hand while `build_runner watch` is running, restart
 the watch or clean the build cache so the change is picked up.
 
 ## Renaming custom widgets
@@ -193,8 +258,8 @@ has one, restart `dart run build_runner watch`. A normal
 Surfaces can import widgets and helpers from packages your app depends on.
 The compiler follows referenced package sources and tracks them as build
 inputs, so edits to those sources rebuild the surface. Keep those packages in
-your resolved dependency graph. Unsupported expressions still produce build
-diagnostics; a dependency does not bypass the compiler's authoring limits.
+your resolved dependency graph. Code in a dependency follows the same rules:
+what the compiler can't represent renders from the app.
 
 Generated screen mounts accept an optional `fallbackBuilder` and
 `errorBuilder`. By default they retain the original widget as a compiled
@@ -248,9 +313,14 @@ targets:
 ```
 
 Use `enabled: false` rather than `generate_for`. Most of these builders take a
-placeholder as their input: `$package$` for the source roster, surface
-compiler and render catalog, and `lib/$lib$` for the catalog JSON, catalog Dart, factory Dart
-and surface list builders. A `generate_for` glob either stops them entirely or
+placeholder as their input:
+
+- `$package$`: `restage_source_roster`, `restage_package_surface_compiler`,
+  `render_catalog`, `restage_early_template` and `generated_check`.
+- `lib/$lib$`: `user_catalog`, `user_catalog_json`, `user_factories` and
+  `restage_surfaces`.
+
+For these nine builders, a `generate_for` glob either stops them entirely or
 has no effect. `restage_codegen:generated_dart` and `restage_codegen:outputs`
 run on each library and read the surface compiler's result. With the compiler
 off, `restage_codegen:outputs` fails the build.

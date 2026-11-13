@@ -4,7 +4,17 @@ Connect Flutter's `in_app_purchase` catalog and purchases to [Restage](https://r
 paywalls. Use an app-scoped controller or connect an existing app purchase service.
 Your app verifies transactions and delivers entitlements or consumable content.
 
-This package is available from source and is not yet published to pub.dev.
+Add it from the repository's `main` branch, next to the `restage` entries and
+overrides from the [quickstart](https://docs.restage.dev/quickstart#1-add-the-packages):
+
+```yaml
+dependencies:
+  restage_store_bridge:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_store_bridge
+```
 
 ## Connect a delivered Restage paywall
 
@@ -21,11 +31,13 @@ import 'package:restage_store_bridge/restage_store_bridge.dart';
 
 import 'store_upgrade.dart';
 import 'restage_surfaces.g.dart';
+import 'user_factories.g.dart';
 
 WidgetsFlutterBinding.ensureInitialized();
+// Reads api_key, base_url and delivery_keys from the
+// restage_codegen:user_factories options in build.yaml.
 Restage.configureWithInstalledCatalog(
-  apiKey: const String.fromEnvironment('RESTAGE_API_KEY'),
-  baseUrl: const String.fromEnvironment('RESTAGE_BASE_URL'),
+  registerWidgets: kRestageWidgetRegistration,
   surfaces: restageSurfaces,
 );
 
@@ -41,6 +53,12 @@ runApp(
   ),
 );
 ```
+
+Delivered content renders only when it's signed with one of the app's
+delivery keys. A signed-in `restage init` writes them to `build.yaml`, and
+`restage keys delivery` prints them. Without them, every delivered version is
+refused and the mount shows the compiled paywall. An app on the default whole
+catalog calls `Restage.configure` with the same arguments.
 
 `MyApp` is your existing root widget. The scope creates the controller once,
 refreshes Android purchases at startup and resume, and disposes it when removed.
@@ -106,8 +124,9 @@ See the
 Use the same unmodifiable map for display and for purchases. Its keys identify offers;
 several keys can refer to different native offers with the same product ID. On
 Google Play, inspect the returned native offer details to select the intended
-base plan and offer. Retain those exact `ProductDetails` objects. A purchase
-parameter builder can supply account or offer options:
+base plan and offer. Retain those exact `ProductDetails` objects. The offer is
+the one the `ProductDetails` carries. A purchase parameter builder adds account
+options only:
 
 ```dart
 final controller = InAppPurchaseController(
@@ -118,7 +137,10 @@ final controller = InAppPurchaseController(
 );
 ```
 
-The builder must retain the exact selected object in `param.productDetails`.
+The builder must retain the exact selected object in `param.productDetails`,
+and on Google Play its offer token. The controller throws an `ArgumentError`
+otherwise. App Store `Sk2PurchaseParam` offer fields buy a different offer from
+the one displayed. Leave them unset.
 Use this configuration in the scope's `create` callback, or create the controller
 in your own app service.
 
@@ -152,8 +174,8 @@ product's introductory offer and appear only when StoreKit 2 reports the user
 eligible within 3 seconds; a timeout or a failed check leaves them out. The
 in_app_purchase plugin gives App Store offers no localized price string, so
 the helper formats the offer price like the product's price. A paid offer it
-cannot format is left out; a free trial keeps `period` and `cycles` without
-`priceString`.
+cannot format is left out. A free trial it cannot format keeps `period` and
+`cycles` without `priceString`.
 
 Typed generated mounts take display strings from your app instead. Build them
 from this same data, or supply accurate localized trial, billing-period and

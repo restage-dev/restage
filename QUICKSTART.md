@@ -15,21 +15,56 @@ piece.
 
 ## 1. Add the packages
 
-In your app's `pubspec.yaml`, add these to whatever is already there:
+Restage needs Flutter 3.44 or newer. In your app's `pubspec.yaml`, add these
+to whatever is already there. The Restage packages come from the `main` branch
+of this repository:
 
 ```yaml
 dependencies:
   flutter:
     sdk: flutter
-  restage: ^2.0.0
-  restage_material: ^2.0.0
+  restage:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage
+  restage_material:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_material
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  build_runner: ">=2.4.0 <3.0.0"
-  restage_codegen: ^2.0.0
+  build_runner: ">=2.15.1 <3.0.0"
+  restage_codegen:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_codegen
+
+dependency_overrides:
+  restage:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage
+  restage_material:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/restage_material
+  rfw_catalog_schema:
+    git:
+      url: https://github.com/restage-dev/restage.git
+      ref: main
+      path: packages/rfw_catalog_schema
 ```
+
+Restage packages ask for each other by version number. The overrides make pub
+use the copies from `main` everywhere, including for packages you add later,
+like the RevenueCat adapter.
 
 Then fetch them:
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Breaking:** `CatalogChange` adds `EntrySourceMoved`, an entry whose source
+  path moved while its name and wire ID stayed the same, and
+  `PropertyShapeChanged`, a property whose value shape changed without a type
+  change. A `switch` over `CatalogChange` needs a case for each.
+
 ## 2.0.0
 
 - Breaking: the compiler IR and its lowered catalogs use catalog schema v5

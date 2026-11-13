@@ -5,14 +5,14 @@ import 'package:restage_revenuecat/restage_revenuecat.dart';
 
 import 'revenuecat_upgrade.dart';
 import 'restage_surfaces.g.dart';
+import 'user_factories.g.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Purchases.configure(PurchasesConfiguration(
       const String.fromEnvironment('REVENUECAT_API_KEY')));
   Restage.configureWithInstalledCatalog(
-    apiKey: const String.fromEnvironment('RESTAGE_API_KEY'),
-    baseUrl: const String.fromEnvironment('RESTAGE_BASE_URL'),
+    registerWidgets: kRestageWidgetRegistration,
     surfaces: restageSurfaces,
   );
   final offering = (await Purchases.getOfferings()).current;
