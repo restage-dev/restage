@@ -23,17 +23,13 @@ widget Root = Column(children: [
       ),
     );
 
-MeasurementOrderedCaptureDeclarationV1 _tap({
-  bool items = false,
-  bool completes = false,
-}) =>
+MeasurementOrderedCaptureDeclarationV1 _tap({bool items = false}) =>
     MeasurementOrderedCaptureDeclarationV1(
       channels: const [
         MeasurementOccurrenceChannelV1.presentation,
         MeasurementOccurrenceChannelV1.interaction,
       ],
       interactionItemsV1: items,
-      completesSurfaceV1: completes,
     );
 
 void main() {
@@ -154,23 +150,22 @@ widget Root = Sheet(builder: (scope) => Switch(
   });
 
   group('tap route floor', () {
-    test('routes carrying items or completion need the feature floor', () {
-      for (final route in [_tap(items: true), _tap(completes: true)]) {
-        expect(
-          () => validateMeasurementRouteFloorForPublish(
-            payload: _blob('"a"', minClient: kSurfaceFeatureClientFloor - 1),
-            routes: [route],
-          ),
-          throwsFormatException,
-        );
-        expect(
-          () => validateMeasurementRouteFloorForPublish(
-            payload: _blob('"a"', minClient: kSurfaceFeatureClientFloor),
-            routes: [route],
-          ),
-          returnsNormally,
-        );
-      }
+    test('routes carrying items need the feature floor', () {
+      final route = _tap(items: true);
+      expect(
+        () => validateMeasurementRouteFloorForPublish(
+          payload: _blob('"a"', minClient: kSurfaceFeatureClientFloor - 1),
+          routes: [route],
+        ),
+        throwsFormatException,
+      );
+      expect(
+        () => validateMeasurementRouteFloorForPublish(
+          payload: _blob('"a"', minClient: kSurfaceFeatureClientFloor),
+          routes: [route],
+        ),
+        returnsNormally,
+      );
     });
 
     test('plain routes keep any floor', () {

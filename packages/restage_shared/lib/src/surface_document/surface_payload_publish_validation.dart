@@ -198,21 +198,19 @@ bool _validateEvents(RemoteWidgetLibrary library) {
   return writesLocalValues;
 }
 
-/// Refuses a publication whose measurement [routes] count tap items or mark
-/// completing taps unless [payload] requires [kSurfaceFeatureClientFloor].
+/// Refuses a publication whose measurement [routes] count tap items unless
+/// [payload] requires [kSurfaceFeatureClientFloor].
 void validateMeasurementRouteFloorForPublish({
   required SurfacePayload payload,
   required Iterable<MeasurementOrderedCaptureDeclarationV1?> routes,
 }) {
   final flagged = routes.any(
-    (route) =>
-        route != null && (route.interactionItemsV1 || route.completesSurfaceV1),
+    (route) => route != null && route.interactionItemsV1,
   );
   if (flagged && payload.minClient < kSurfaceFeatureClientFloor) {
     throw FormatException(
       'The payload minClient ${payload.minClient} must be at least '
-      '$kSurfaceFeatureClientFloor for taps that count items or complete the '
-      'surface.',
+      '$kSurfaceFeatureClientFloor for taps that count items.',
     );
   }
 }

@@ -16,7 +16,7 @@ MeasurementOrderedCaptureRouteV1 _route({
     );
 
 void main() {
-  _completesSurfaceTests();
+  _noCompletingTapFlagTests();
   group('interaction item values', () {
     test('accept the bounded charset up to 64 characters', () {
       expect(measurementInteractionItemIsValidV1('plan.annual:v2_x-1'), isTrue);
@@ -169,64 +169,19 @@ void main() {
   });
 }
 
-void _completesSurfaceTests() {
-  group('routes whose taps complete the surface', () {
-    MeasurementOrderedCaptureRouteV1 route({
-      List<MeasurementOccurrenceChannelV1> channels = const [
-        MeasurementOccurrenceChannelV1.presentation,
-        MeasurementOccurrenceChannelV1.interaction,
-      ],
-    }) =>
-        MeasurementOrderedCaptureRouteV1(
-          occurrenceId: CanonicalDigest('b' * 64),
-          lineageId: PointLineageId('lineage-b'),
-          channels: channels,
-          completesSurfaceV1: true,
-        );
-
-    test('round-trip the flag, written only when set', () {
-      final json = route().toJson();
-      expect(json['completesSurfaceV1'], isTrue);
-      final decoded = MeasurementOrderedCaptureRouteV1.fromJson(json);
-      expect(decoded.completesSurfaceV1, isTrue);
-      expect(decoded.toJson(), json);
-      expect(_route(interactionItemsV1: false).toJson(),
-          isNot(contains('completesSurfaceV1')));
-      expect(
-          () => MeasurementOrderedCaptureRouteV1.fromJson(
-              {...json, 'completesSurfaceV1': false}),
-          throwsA(isA<CanonicalFormatException>()));
-    });
-
-    test('require the interaction channel', () {
-      expect(
-          () => route(
-              channels: const [MeasurementOccurrenceChannelV1.presentation]),
-          throwsArgumentError);
-    });
-
-    test('the compiler declaration carries the same flag', () {
-      final declaration = MeasurementOrderedCaptureDeclarationV1(
-        channels: const [
-          MeasurementOccurrenceChannelV1.presentation,
-          MeasurementOccurrenceChannelV1.interaction,
-        ],
-        completesSurfaceV1: true,
-      );
-      expect(
-          MeasurementOrderedCaptureDeclarationV1.fromJson(declaration.toJson())
-              .completesSurfaceV1,
-          isTrue);
-      expect(
-          () => MeasurementOrderedCaptureDeclarationV1(
-                channels: const [
-                  MeasurementOccurrenceChannelV1.presentation,
-                  MeasurementOccurrenceChannelV1.completion,
-                ],
-                lifecycleChannel: MeasurementOccurrenceChannelV1.completion,
-                completesSurfaceV1: true,
-              ),
-          throwsArgumentError);
-    });
+void _noCompletingTapFlagTests() {
+  test('routes carry no completing-tap flag', () {
+    expect(
+        () => MeasurementOrderedCaptureRouteV1.fromJson({
+              ..._route(interactionItemsV1: false).toJson(),
+              'completesSurfaceV1': true
+            }),
+        throwsA(isA<CanonicalFormatException>()));
+    expect(
+        () => MeasurementOrderedCaptureDeclarationV1.fromJson({
+              'channels': ['interaction', 'presentation'],
+              'completesSurfaceV1': true,
+            }),
+        throwsA(isA<CanonicalFormatException>()));
   });
 }

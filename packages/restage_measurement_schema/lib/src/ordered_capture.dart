@@ -166,9 +166,8 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue
     this.answerCarrier,
     this.breakdownPointV1,
     this.interactionItemsV1 = false,
-    this.completesSurfaceV1 = false,
   }) : channels = List.unmodifiable(channels) {
-    if (((interactionItemsV1 || completesSurfaceV1) &&
+    if ((interactionItemsV1 &&
             (declaredAnswerV1 != null ||
                 lifecycle != null ||
                 !channels
@@ -198,8 +197,7 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue
           'declaredAnswerV1',
           'answerCarrier',
           'breakdownPointV1',
-          'interactionItemsV1',
-          'completesSurfaceV1'
+          'interactionItemsV1'
         },
         requiredKeys: const {'occurrenceId', 'lineageId', 'channels'},
         path: 'measurementOrderedCaptureRouteV1');
@@ -214,7 +212,6 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue
               reader.object('declaredAnswerV1')),
       answerCarrier: reader.optionalString('answerCarrier'),
       interactionItemsV1: _readTrueFlag(reader, 'interactionItemsV1'),
-      completesSurfaceV1: _readTrueFlag(reader, 'completesSurfaceV1'),
       lifecycle: reader.optionalObject('lifecycle') == null
           ? null
           : MeasurementLifecycleCaptureRouteV1.fromJson(
@@ -237,8 +234,6 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue
   /// Whether this route's plain tap occurrences may carry an item value.
   final bool interactionItemsV1;
 
-  /// Whether a tap on this route completes the surface.
-  final bool completesSurfaceV1;
   final CanonicalDigest occurrenceId;
   final PointLineageId lineageId;
   final List<MeasurementOccurrenceChannelV1> channels;
@@ -250,7 +245,6 @@ final class MeasurementOrderedCaptureRouteV1 extends CanonicalValue
         if (breakdownPointV1 != null)
           'breakdownPointV1': breakdownPointV1!.toJson(),
         'channels': [for (final channel in channels) channel.name]..sort(),
-        if (completesSurfaceV1) 'completesSurfaceV1': true,
         if (declaredAnswerV1 != null)
           'declaredAnswerV1': declaredAnswerV1!.toJson(),
         if (interactionItemsV1) 'interactionItemsV1': true,
@@ -337,10 +331,9 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue
     this.declaredAnswerV1,
     this.breakdownPointV1,
     this.interactionItemsV1 = false,
-    this.completesSurfaceV1 = false,
   }) : channels = List.unmodifiable(channels) {
     if (channels.isEmpty ||
-        ((interactionItemsV1 || completesSurfaceV1) &&
+        (interactionItemsV1 &&
             (declaredAnswerV1 != null ||
                 lifecycleChannel != null ||
                 !channels
@@ -374,8 +367,7 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue
           'screenId',
           'declaredAnswerV1',
           'breakdownPointV1',
-          'interactionItemsV1',
-          'completesSurfaceV1'
+          'interactionItemsV1'
         },
         requiredKeys: const {'channels'},
         path: 'orderedCaptureDeclarationV1');
@@ -389,7 +381,6 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue
           : MeasurementDeclaredAnswerV1.fromJson(
               reader.object('declaredAnswerV1')),
       interactionItemsV1: _readTrueFlag(reader, 'interactionItemsV1'),
-      completesSurfaceV1: _readTrueFlag(reader, 'completesSurfaceV1'),
       channels: [
         for (final value in reader.list('channels'))
           MeasurementOccurrenceChannelV1.values
@@ -414,9 +405,6 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue
   /// Whether this route's plain tap occurrences may carry an item value.
   final bool interactionItemsV1;
 
-  /// Whether a tap on this route completes the surface.
-  final bool completesSurfaceV1;
-
   @override
   Map<String, Object?> toJson() => {
         if (breakdownPointV1 != null)
@@ -424,7 +412,6 @@ final class MeasurementOrderedCaptureDeclarationV1 extends CanonicalValue
         if (declaredAnswerV1 != null)
           'declaredAnswerV1': declaredAnswerV1!.toJson(),
         'channels': [for (final channel in channels) channel.name]..sort(),
-        if (completesSurfaceV1) 'completesSurfaceV1': true,
         if (interactionItemsV1) 'interactionItemsV1': true,
         if (lifecycleChannel != null)
           'lifecycleChannel': lifecycleChannel!.name,
