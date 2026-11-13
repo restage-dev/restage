@@ -90,7 +90,9 @@ WeeklyRecapSurface(
    change. Rewrite a part only when the compiler still refuses it after a
    minimal change, and never write a parallel copy of a screen to make it
    compile. Use [diagnostics.md](references/diagnostics.md) for each message.
-   When OTA flexibility matters, run `restage build report` (MCP:
+   After each build, run `flutter analyze` and check that the generated parts
+   compile before relying on the build; `restage build report` also lists any
+   generated part that doesn't compile. When OTA flexibility matters, run `restage build report` (MCP:
    `restage_build_report`) and review `customWidgetAppFactoryUsed` notices:
    each part that renders from the app changes only with an app release. Keep
    those parts unless the developer wants one changeable over the air; never

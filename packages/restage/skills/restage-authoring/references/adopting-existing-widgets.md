@@ -36,7 +36,7 @@ extra split.
 | --- | --- |
 | One independently delivered message, survey or other screen | `@Screen(surface: Surface.message)` or the appropriate category; mount `<Class>Surface(...)` |
 | An offer needing paywall lifecycle, completion measurement or purchase-adapter handlers | `@Paywall()`; mount `<Class>Surface(onEvent: ...)` and keep purchases in the host |
-| Several pages that one state builder (`BlocBuilder`, `Consumer` and the like) switches between, with the app keeping the step order | Annotate each page widget with a categorized `@Screen`; mount `<Page>Surface(...)` where the builder returns that page. Annotating the widget that holds the builder leaves a design almost nothing to change |
+| Several pages that one state builder (`BlocBuilder`, `Consumer` and the like) switches between, with the app keeping the step order | Annotate each page widget with a categorized `@Screen`; mount `<Page>Surface(...)` where the builder returns that page. Annotating the widget that holds the builder leaves a design almost nothing to change. Analytics count each page's views and interactions, with no completion or funnel: a standalone `@Screen` can't declare completion. Use a flow for completion and drop-off |
 | Several screens whose sequence and transitions Restage should own | `@Screen()` steps and an `@FlowGraph(surface: ...)` definition; mount the generated flow |
 | A reusable app component used inside surfaces | `@RestageWidget()` plus its library export; compose it inside a screen |
 

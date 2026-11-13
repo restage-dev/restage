@@ -11,6 +11,10 @@ earlier individual retirements remain unless that package is explicitly upserted
 
 Initial release of the `restage` command-line interface.
 
+`restage surface results` heads its output with the surface as you named it and
+lists versions by number (`v3`); `--json` keeps every surface and version
+identity.
+
 `restage surface push` no longer prints a note about the built-in catalog or
 widget library versions a pushed version needs. Its placement fit report names
 each reported app build that falls short of them. `restage surface publish`
