@@ -161,13 +161,19 @@ class SurfaceResultsCommand extends Command<int> {
                 ordinals: picked.ordinals,
                 ids: picked.ids,
               );
-        if (surfaceFunnelTypeMismatch(view, argResults?['type'] as String?)
+        if (surfaceFunnelTypeMismatch(
+              view,
+              argResults?['type'] as String?,
+              name: rest.single,
+            )
             case final mismatch?) {
           _io.stderr.writeln(mismatch);
           return 1;
         }
         _io.stdout.writeln(
-          asJson ? jsonEncode(view.toJson()) : renderSurfaceFunnel(view),
+          asJson
+              ? jsonEncode(view.toJson())
+              : renderSurfaceFunnel(view, name: rest.single),
         );
         return 0;
       } on SurfaceFunnelMismatchException catch (error) {
@@ -191,13 +197,14 @@ class SurfaceResultsCommand extends Command<int> {
   }
 }
 
-/// Renders one funnel reading for a human reader.
+/// Renders one funnel reading for a human reader, naming the surface [name]
+/// (the slug the caller gave, else the reading's surface id).
 ///
-/// The exact fraction behind each decimal is in the reading itself; `--json`
-/// prints it.
-String renderSurfaceFunnel(SurfaceFunnelViewV1 view) {
+/// Versions read by number; `--json` prints the reading with every exact
+/// fraction and identity.
+String renderSurfaceFunnel(SurfaceFunnelViewV1 view, {String? name}) {
   final lines = <String>[
-    'Funnel for ${view.surfaceId}'
+    'Funnel for ${name ?? view.surfaceId}'
         '${view.surfaceType == null ? '' : ' (${view.surfaceType})'}, '
         '${view.versions.length} version(s)'
         '${view.disclosureFloor > 1 ? ', floor ${view.disclosureFloor}' : ''}:',
@@ -208,10 +215,7 @@ String renderSurfaceFunnel(SurfaceFunnelViewV1 view) {
     lines.add('  No version of this surface was served in this window.');
   }
   for (final version in view.versions) {
-    lines.add(
-      '  v${version.revisionOrdinal} ${version.surfaceRevisionId} '
-      '[${version.status.wireName}]',
-    );
+    lines.add('  v${version.revisionOrdinal} [${version.status.wireName}]');
     final counts = version.counts;
     if (counts == null) {
       lines.add('    views ${heldCountText(view.disclosureFloor)}');

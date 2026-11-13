@@ -73,16 +73,17 @@ class SurfaceFunnelApi {
 const _endpointName = 'surfaceFunnel';
 
 /// Why [view] does not answer for a surface of [expectedType], or null when
-/// it does or the service named no type.
+/// it does or the service named no type. [name] is how the caller named it.
 String? surfaceFunnelTypeMismatch(
   SurfaceFunnelViewV1 view,
-  String? expectedType,
-) {
+  String? expectedType, {
+  String? name,
+}) {
   final actual = view.surfaceType;
   if (expectedType == null || actual == null || actual == expectedType) {
     return null;
   }
-  return '"${view.surfaceId}" has the type $actual, not $expectedType. '
+  return '"${name ?? view.surfaceId}" has the type $actual, not $expectedType. '
       'Try leaving the type out, or naming $actual.';
 }
 

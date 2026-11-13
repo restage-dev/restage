@@ -315,12 +315,12 @@ void main() {
         final result = await run([_surfaceId, '--version', number]);
         expect(result.code, 0, reason: result.err);
         expect(sent.single.containsKey('surfaceRevisionIds'), isFalse);
-        expect(result.out, contains('  v3 $_revisionId [available]'));
+        expect(result.out, contains('  v3 [available]'));
       }
 
       final unserved = await run([_surfaceId, '--version', '2']);
       expect(unserved.code, 0, reason: unserved.err);
-      expect(unserved.out, isNot(contains(_revisionId)));
+      expect(unserved.out, isNot(contains('  v3 ')));
       expect(
         unserved.out,
         contains('No version of this surface was served in this window.'),
@@ -336,7 +336,7 @@ void main() {
         _revisionId,
       ]);
       expect(sent.single.containsKey('surfaceRevisionIds'), isFalse);
-      expect(mixed.out, contains('  v3 $_revisionId'));
+      expect(mixed.out, contains('  v3 [available]'));
     });
 
     test('names exactly one surface', () async {
@@ -361,7 +361,7 @@ void main() {
         renderSurfaceFunnel(_view(disclosureFloor: 1)),
         contains('Funnel for $_surfaceId, 1 version(s):'),
       );
-      expect(out, contains('v3 $_revisionId [available]'));
+      expect(out, contains('v3 [available]'));
       expect(out, contains('views 5,000 of 5,000'));
       expect(out, contains('completions 525'));
       expect(out, contains('conversion 0.105000000 (525/5000)'));
@@ -374,6 +374,31 @@ void main() {
       );
       expect(out, contains('Intro: reach 4,900 of 5,000'));
       expect(out, contains('drop-off 0.163265306 (800/4900)'));
+    });
+
+    test(
+      'heads with the slug the caller gave and reads versions by number',
+      () {
+        final out = renderSurfaceFunnel(
+          _view(surfaceType: 'onboarding'),
+          name: 'welcome',
+        );
+        expect(
+          out,
+          startsWith(
+            'Funnel for welcome (onboarding), 1 version(s), floor 5:\n',
+          ),
+        );
+        expect(out, contains('\n  v3 [available]\n'));
+        expect(out, isNot(contains(_surfaceId)));
+        expect(out, isNot(contains(_revisionId)));
+      },
+    );
+
+    test('--json keeps the identities to pass back', () async {
+      final result = await run([_surfaceId, '--json']);
+      expect(result.out, contains(_surfaceId));
+      expect(result.out, contains(_revisionId));
     });
 
     test('says why a reading has no versions', () {
