@@ -12,8 +12,10 @@ import 'package:restage/restage.dart';
 /// cancellation errors. Without it, the returned future propagates the error.
 ///
 /// Successful purchases report a conversion for the originating exposure when
-/// available. Reporting failure does not change the purchase result. RevenueCat
-/// remains the entitlement source; restores never report a conversion.
+/// available. The handler starts the report without waiting for it, and
+/// reporting failure does not change the purchase result.
+/// RevenueCat remains the entitlement source; restores never report a
+/// conversion.
 Future<void> Function(RestageEvent) revenueCatEventHandler({
   required Offering offering,
   FutureOr<void> Function(CustomerInfo)? onCustomerInfo,
@@ -55,14 +57,15 @@ Future<void> Function(RestageEvent) revenueCatEventHandler({
       return;
     }
 
-    final report = package == null
-        ? null
-        : Restage.measurement.reportPurchase(
+    if (package != null) {
+      Restage.measurement
+          .reportPurchase(
             event,
             packageIdentifier: package.identifier,
             productIdentifier: package.storeProduct.identifier,
-          );
+          )
+          .ignore();
+    }
     await onCustomerInfo?.call(customerInfo);
-    await report;
   };
 }

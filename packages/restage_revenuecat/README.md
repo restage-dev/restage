@@ -139,8 +139,10 @@ available. It sends package and product identifiers, without customer or store
 transaction identifiers. The event stays linked to that view through a refresh
 or dismissal.
 
-Failed purchases, cancellations and restores produce no conversion report.
-Reporting failure does not change the successful purchase or its customer info.
+The handler starts the report without waiting for it. The SDK sends it once,
+after the paywall's measurement session opens. Failed purchases, cancellations and
+restores produce no conversion report. Reporting failure does not change the
+successful purchase or its customer info.
 RevenueCat’s Flutter purchase result has no paid amount or currency; the adapter
 leaves those values unknown. Localized catalog prices are used for display.
 

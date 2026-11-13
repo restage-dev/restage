@@ -2739,7 +2739,7 @@ Future<void> _runMeasurementWorkerOwnedDeliveryIsolate(
   try {
     final rawConfiguration = bootstrap[1];
     if (rawConfiguration is! List ||
-        rawConfiguration.length != 7 ||
+        rawConfiguration.length != 8 ||
         rawConfiguration[0] is! String) {
       events.send(MeasurementWorkerOwnedDeliveryProtocol.fatal());
       return;
@@ -2782,6 +2782,7 @@ Future<void> _runMeasurementWorkerOwnedDeliveryIsolate(
         configuration: MeasurementUploadConfiguration(
           endpoint: Uri.parse(configuration.endpoint!),
           headersProvider: () => headers,
+          requestTimeout: configuration.uploadRequestTimeout,
         ),
       ),
       isCancelled: () => kernel._collectionCancelled,

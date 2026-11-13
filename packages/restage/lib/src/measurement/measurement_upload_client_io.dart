@@ -66,7 +66,10 @@ final class _IoMeasurementUploadClient implements MeasurementUploadClient {
       final responseBytes = BytesBuilder(copy: false);
       var responseByteLength = 0;
       var responseTooLarge = false;
-      await for (final chunk in response) {
+      // A body that goes silent for the request timeout fails as retryable.
+      await for (final chunk in response.timeout(
+        _configuration.requestTimeout,
+      )) {
         responseByteLength += chunk.length;
         if (responseByteLength >
             kMeasurementUploadMaximumReceiptResponseBytes) {

@@ -232,11 +232,13 @@ void main() {
     expect(args['packageIdentifier'], 'annual_49');
     expect((args['presentedOfferingContext'] as Map)['offeringIdentifier'],
         'holiday');
+    await pumpEventQueue();
     expect(reports, isEmpty);
     purchase.complete(_purchaseResult);
     await handling;
     expect(flushed, isTrue);
     expect(customerInfos.single.activeSubscriptions, ['pro_annual_49']);
+    expect(await _delivered(event), isTrue);
     expect(reports, hasLength(1));
     expect(reports.single['exposure']['captureSessionNonce'], 'a' * 43);
     expect(reports.single['packageIdentifier'], 'annual_49');
@@ -262,6 +264,7 @@ void main() {
       await expectLater(handler(_purchase(id)), throwsArgumentError);
     }
     expect(calls, isEmpty);
+    await pumpEventQueue();
     expect(reports, isEmpty);
   });
 
@@ -273,6 +276,7 @@ void main() {
         paywallId: 'upgrade', eventName: 'revenuecat.restore', args: {}));
     expect(calls.single.method, 'restorePurchases');
     expect(customerInfos, hasLength(1));
+    await pumpEventQueue();
     expect(reports, isEmpty);
   });
 
@@ -293,6 +297,7 @@ void main() {
               .having((e) => e.code, 'code', '${code.index}')));
     }
     expect(customerInfos, isEmpty);
+    await pumpEventQueue();
     expect(reports, isEmpty);
   });
 
@@ -306,6 +311,7 @@ void main() {
     await handler(_purchase('unknown'));
     expect(errors.single, isArgumentError);
     expect(customerInfos, isEmpty);
+    await pumpEventQueue();
     expect(reports, isEmpty);
   });
 
@@ -316,10 +322,40 @@ void main() {
         offering: _offering([_package('annual_49')]),
         onCustomerInfo: customerInfos.add,
         onError: (error, _) => errors.add(error));
-    await handler(_purchase('annual_49'));
+    final event = _purchase('annual_49');
+    await handler(event);
     expect(customerInfos, hasLength(1));
     expect(errors, isEmpty);
+    expect(await _delivered(event), isFalse);
     expect(reports, hasLength(1));
+  });
+
+  test('completes without waiting on a session that never opens', () async {
+    final event = _purchase('annual_49', flush: () => Completer<void>().future);
+    final handler = revenueCatEventHandler(
+        offering: _offering([_package('annual_49')]),
+        onCustomerInfo: customerInfos.add);
+    var completed = false;
+    unawaited(handler(event).then((_) => completed = true));
+    await pumpEventQueue();
+    expect(completed, isTrue);
+    expect(customerInfos, hasLength(1));
+    await pumpEventQueue();
+    expect(reports, isEmpty);
+  });
+
+  test('a report that fails before delivery leaves the purchase intact',
+      () async {
+    final event = _purchase('annual_49',
+        flush: () async => throw StateError('session failed'));
+    final handler = revenueCatEventHandler(
+        offering: _offering([_package('annual_49')]),
+        onCustomerInfo: customerInfos.add);
+    await handler(event);
+    expect(await _delivered(event), isFalse);
+    expect(customerInfos, hasLength(1));
+    await pumpEventQueue();
+    expect(reports, isEmpty);
   });
 
   test('reset during checkout preserves success without reporting', () async {
@@ -328,13 +364,16 @@ void main() {
     final handler = revenueCatEventHandler(
         offering: _offering([_package('annual_49')]),
         onCustomerInfo: customerInfos.add);
-    final handling = handler(_purchase('annual_49'));
+    final event = _purchase('annual_49');
+    final handling = handler(event);
     await Future<void>.delayed(Duration.zero);
     expect(calls.single.method, 'purchasePackage');
     Restage.reset();
     purchase.complete(_purchaseResult);
     await handling;
     expect(customerInfos, hasLength(1));
+    expect(await _delivered(event), isFalse);
+    await pumpEventQueue();
     expect(reports, isEmpty);
   });
 
@@ -346,9 +385,15 @@ void main() {
     }
     await handler(const PaywallViewed(paywallId: 'upgrade'));
     expect(calls, isEmpty);
+    await pumpEventQueue();
     expect(reports, isEmpty);
   });
 }
+
+// A later call shares the handler's delivery and completes with its result.
+Future<bool> _delivered(RestageEvent event) =>
+    Restage.measurement.reportPurchase(event,
+        packageIdentifier: 'annual_49', productIdentifier: 'pro_annual_49');
 
 PaywallCustomEvent _purchase(Object? id, {Future<void> Function()? flush}) {
   final event = PaywallCustomEvent(

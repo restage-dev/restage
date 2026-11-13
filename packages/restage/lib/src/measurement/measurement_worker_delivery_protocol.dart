@@ -5,6 +5,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 import 'measurement_outbox_protocol.dart';
+import 'measurement_upload_client_protocol.dart';
 import 'measurement_worker_protocol.dart';
 
 /// Root-isolate cancellation latch shared with native startup, never serialized.
@@ -167,10 +168,13 @@ final class MeasurementWorkerOwnedDeliveryConfiguration {
     List<MeasurementWorkerOwnedDeliveryHeader> headers = const [],
     this.debugTracing = false,
     this.debugHeldClockMicros,
+    this.debugRequestTimeoutMicros,
   }) : headers = List.unmodifiable(headers) {
     if (maximumSessions <= 0 ||
         maximumSessions > kMeasurementWorkerMaximumSessionCount ||
-        configurationFingerprint.trim().isEmpty) {
+        configurationFingerprint.trim().isEmpty ||
+        (debugRequestTimeoutMicros != null &&
+            debugRequestTimeoutMicros! <= 0)) {
       throw ArgumentError(
         'Invalid measurement worker-owned delivery configuration',
       );
@@ -199,6 +203,15 @@ final class MeasurementWorkerOwnedDeliveryConfiguration {
   /// null in normal runtime configuration.
   final int? debugHeldClockMicros;
 
+  /// Test-only upload request timeout; null uses the upload client's default.
+  final int? debugRequestTimeoutMicros;
+
+  /// The request timeout the worker's upload client is built with.
+  Duration get uploadRequestTimeout => switch (debugRequestTimeoutMicros) {
+        null => MeasurementUploadConfiguration.defaultRequestTimeout,
+        final micros => Duration(microseconds: micros),
+      };
+
   /// Whether the admitted configuration can be passed to the native worker.
   bool get isValidForStartup {
     final rawEndpoint = endpoint;
@@ -218,13 +231,14 @@ final class MeasurementWorkerOwnedDeliveryConfiguration {
         maximumSessions,
         debugTracing,
         debugHeldClockMicros,
+        debugRequestTimeoutMicros,
       ];
 
   /// Parses the primitive-only bootstrap configuration inside the worker.
   static MeasurementWorkerOwnedDeliveryConfiguration fromWorkerBootstrapWire(
     Object? value,
   ) {
-    final values = _requireList(value, expectedLength: 7);
+    final values = _requireList(value, expectedLength: 8);
     final rawHeaders = _requireList(values[3]);
     final configuration = MeasurementWorkerOwnedDeliveryConfiguration(
       admission: const MeasurementWorkerOwnedDeliveryAdmission(
@@ -243,6 +257,8 @@ final class MeasurementWorkerOwnedDeliveryConfiguration {
       ],
       debugTracing: _requireBool(values[5]),
       debugHeldClockMicros: values[6] == null ? null : _requireInt(values[6]),
+      debugRequestTimeoutMicros:
+          values[7] == null ? null : _requireInt(values[7]),
     );
     if (_requireString(values[0]).trim().isEmpty ||
         !configuration.isValidForStartup) {
